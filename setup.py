@@ -8,7 +8,7 @@ with open(os.path.join(os.path.dirname(__file__), "README.rst")) as f:
     long_description = f.read()
 
 requirements = [
-    "prompt_toolkit>=3.0.0,<3.1.0",
+    "prompt_toolkit>=3.0.52,<3.1.0",
     "pyte>=0.5.1",
 ]
 
