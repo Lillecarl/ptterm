@@ -214,6 +214,7 @@ class BetterScreen:
             color=None,
             bgcolor=None,
             bold=False,
+            dim=False,
             underline=False,
             strike=False,
             italic=False,
@@ -1032,6 +1033,8 @@ class BetterScreen:
                 replace["bgcolor"] = self._bg_colors[attr]
             elif attr == 1:
                 replace["bold"] = True
+            elif attr == 2:
+                replace["dim"] = True
             elif attr == 3:
                 replace["italic"] = True
             elif attr == 4:
@@ -1046,6 +1049,7 @@ class BetterScreen:
                 replace["hidden"] = True
             elif attr == 22:
                 replace["bold"] = False
+                replace["dim"] = False
             elif attr == 23:
                 replace["italic"] = False
             elif attr == 24:
@@ -1060,6 +1064,7 @@ class BetterScreen:
                     color=None,
                     bgcolor=None,
                     bold=False,
+                    dim=False,
                     underline=False,
                     strike=False,
                     italic=False,
@@ -1106,6 +1111,8 @@ class BetterScreen:
             style_str += "bg:%s " % attrs_obj.bgcolor
         if attrs_obj.bold:
             style_str += "bold "
+        if attrs_obj.dim:
+            style_str += "dim "
         if attrs_obj.italic:
             style_str += "italic "
         if attrs_obj.underline:
