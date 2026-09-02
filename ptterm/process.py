@@ -9,6 +9,7 @@ from prompt_toolkit.eventloop import call_soon_threadsafe
 
 from .backends import Backend
 from .key_mappings import prompt_toolkit_key_to_vt100_key
+from .kitty_keys import translate_key_data
 from .screen import BetterScreen
 from .stream import BetterStream
 
@@ -112,7 +113,22 @@ class Process:
         data = prompt_toolkit_key_to_vt100_key(
             key, application_mode=self.screen.in_application_mode
         )
-        self.write_input(data)
+        if data:
+            self.write_key_data(data)
+
+    def write_key_data(self, data: str) -> None:
+        """
+        Write raw key data, encoding it for this pane's keyboard mode.
+        (The pane can request the kitty keyboard protocol; see
+        `BetterScreen.kitty_keyboard_flags`.)
+        """
+        self.write_input(
+            translate_key_data(
+                data,
+                flags=self.screen.kitty_keyboard_flags,
+                application_mode=self.screen.in_application_mode,
+            )
+        )
 
     def _read(self) -> None:
         """

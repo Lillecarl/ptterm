@@ -142,7 +142,14 @@ class _TerminalControl(UIControl):
             """
             Handle any key binding -> write it to the stdin of this terminal.
             """
-            self.process.write_key(event.key_sequence[0].key)
+            key_press = event.key_sequence[0]
+            if key_press.data:
+                # Forward the raw data. It preserves modifiers that
+                # prompt_toolkit splits into multiple keys (like
+                # alt+char), so that they can be re-encoded for the
+                # keyboard mode of this pane. (The empty-data presses
+                # are the remainders of such split sequences.)
+                self.process.write_key_data(key_press.data)
 
         @bindings.add(Keys.BracketedPaste)
         def _(event):
