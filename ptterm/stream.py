@@ -23,6 +23,16 @@ class BetterStream(Stream):
         }
     )
 
+    csi = Stream.csi.copy()
+    csi.update(
+        {
+            # The kitty keyboard protocol: push/pop/set/query the progressive
+            # enhancement flags. (Parsing the ">", "<" and "=" private
+            # markers requires the matching pyte patches.)
+            "u": "report_kitty_keyboard",
+        }
+    )
+
     def __init__(self, screen) -> None:
         super().__init__()
         self.listener = screen

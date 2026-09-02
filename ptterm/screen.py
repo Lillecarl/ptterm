@@ -90,6 +90,9 @@ class BetterScreen:
         "data_buffer",
         "pt_cursor_position",
         "max_y",
+        # The kitty keyboard protocol keeps separate flag stacks for the
+        # main and the alternate screen. (Immutable tuple: safe to swap.)
+        "kitty_flags_stack",
     ]
 
     def __init__(
@@ -111,6 +114,11 @@ class BetterScreen:
         self.write_process_input = write_process_input
         self.bell_func = bell_func
         self.get_history_limit = get_history_limit
+
+        # Stack of kitty keyboard protocol flags. ("CSI > flags u" pushes,
+        # "CSI < number u" pops. See `report_kitty_keyboard`.)
+        self.kitty_flags_stack: Tuple[int, ...] = ()
+
         self.reset()
 
     @property
@@ -141,6 +149,14 @@ class BetterScreen:
         return (2004 << 5) in self.mode
 
     @property
+    def kitty_keyboard_flags(self) -> int:
+        """
+        The currently effective kitty keyboard protocol flags. (The top of
+        the flag stack, or zero when the stack is empty.)
+        """
+        return self.kitty_flags_stack[-1] if self.kitty_flags_stack else 0
+
+    @property
     def has_reverse_video(self) -> bool:
         "The whole screen is set to reverse video."
         return mo.DECSCNM in self.mode
@@ -165,6 +181,10 @@ class BetterScreen:
 
         self.title = ""
         self.icon_name = ""
+
+        # Reset the kitty keyboard protocol flag stack as well. (RIS is a
+        # full terminal reset.)
+        self.kitty_flags_stack = ()
 
         # Reset modes.
         self.mode = {
@@ -353,6 +373,11 @@ class BetterScreen:
             }
             self._reset_screen()
             self._reset_offset_and_margins()
+
+            # The alternate screen has its own, empty kitty keyboard flag
+            # stack. (The main screen stack is restored by the swap
+            # variables when leaving the alternate screen.)
+            self.kitty_flags_stack = ()
 
     def reset_mode(self, *modes_args, **kwargs) -> None:
         """Resets (disables) a given list of modes.
@@ -1141,6 +1166,75 @@ class BetterScreen:
     def report_device_attributes(self, *args, **kwargs) -> None:
         response = "\x1b[>84;0;0c"
         self.write_process_input(response)
+
+    # The kitty keyboard protocol spec says terminals should limit the size
+    # of the flag stack to prevent denial-of-service. When the stack is
+    # full, pushing evicts the oldest entry.
+    kitty_max_flags_stack_size = 64
+
+    def report_kitty_keyboard(self, *params, private=False) -> None:
+        """
+        Handle the ``CSI u`` sequences of the kitty keyboard protocol:
+        push (``CSI > flags u``), pop (``CSI < number u``),
+        set (``CSI = flags ; mode u``) and query (``CSI ? u``).
+
+        Requires a ``pyte`` stream that passes the private marker (``>``,
+        ``<`` or ``=``) through as the ``private`` keyword argument. With
+        an unpatched ``pyte``, the sequences don't reach this method.
+        """
+        if private is True:
+            # Query: reply with the currently effective flags.
+            self.write_process_input(
+                "\x1b[?%iu" % self.kitty_keyboard_flags
+            )
+
+        elif private == ">":
+            # Push flags onto the stack. (Spec: if flags is omitted, it
+            # defaults to zero.)
+            flags = params[0] if params else 0
+            stack = self.kitty_flags_stack + (flags,)
+            if len(stack) > self.kitty_max_flags_stack_size:
+                stack = stack[-self.kitty_max_flags_stack_size :]
+            self.kitty_flags_stack = stack
+
+        elif private == "<":
+            # Pop entries off the stack. (Spec: the count defaults to 1.
+            # Popping more entries than the stack holds, or popping from
+            # an empty stack, resets all flags.)
+            count = params[0] if params else 1
+            count = max(1, count)
+            if self.kitty_flags_stack:
+                self.kitty_flags_stack = self.kitty_flags_stack[:-count]
+
+        elif private == "=":
+            # Set the current flags. Mode 1 (the default) sets them
+            # exactly, mode 2 sets the given bits (OR), and mode 3 resets
+            # the given bits (AND NOT).
+            flags = params[0] if params else 0
+            mode = params[1] if len(params) > 1 else 1
+
+            current = self.kitty_keyboard_flags
+            if mode == 1:
+                new_flags = flags
+            elif mode == 2:
+                new_flags = current | flags
+            elif mode == 3:
+                new_flags = current & ~flags
+            else:
+                return  # Unknown mode. Ignore.
+
+            if self.kitty_flags_stack:
+                # Replace the top of the stack.
+                self.kitty_flags_stack = (
+                    self.kitty_flags_stack[:-1] + (new_flags,)
+                )
+            else:
+                # No stack: setting acts like a push. (kitty behaves the
+                # same way.)
+                self.kitty_flags_stack = (new_flags,)
+
+        # A plain "CSI N u" without a private marker is not part of the
+        # protocol. Ignore it.
 
     def set_icon_name(self, param: str) -> None:
         self.icon_name = param
