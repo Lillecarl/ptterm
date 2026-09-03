@@ -1143,8 +1143,10 @@ class BetterScreen:
         try:
             max_line = max(self.pt_screen.data_buffer)
         except ValueError:
-            # max() called on empty sequence. Screen is empty. Nothing to erase.
-            return
+            # max() called on empty sequence: no line holds a cell yet.
+            # There is nothing to take away, but a background still has
+            # to reach the whole screen.
+            max_line = line_offset - 1
 
         if type_of == 3:
             # Clear data buffer.

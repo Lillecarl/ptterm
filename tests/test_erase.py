@@ -72,6 +72,17 @@ def test_erase_in_display_keeps_a_background():
             assert "bg:" in row[column].style
 
 
+def test_erase_in_display_reaches_a_screen_that_holds_nothing():
+    screen, stream = _screen()
+    # No cell has been written yet, so there is nothing to take away.
+    # The background still has to cover the screen.
+    stream.feed("\x1b[42m\x1b[J")
+    for y in range(5):
+        row = _row(screen, y)
+        for column in range(20):
+            assert "bg:" in row[column].style
+
+
 def test_erase_characters_takes_the_background_of_now():
     screen, stream = _screen()
     stream.feed("hello\x1b[1;1H\x1b[43m\x1b[3X")
