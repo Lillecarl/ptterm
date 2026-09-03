@@ -38,10 +38,59 @@ small = st.integers(min_value=0, max_value=9)
 row = st.integers(min_value=1, max_value=LINES)
 column = st.integers(min_value=1, max_value=COLUMNS)
 
-text = st.text(
-    alphabet=st.sampled_from("abcXY 0123.#äé"),
-    min_size=1,
-    max_size=8,
+#: The alphabet that the random text comes from.
+#:
+#: A double width character takes two cells, so it breaks a pair when
+#: it lands on one and it wraps one column earlier than the rest. A
+#: half width character takes one cell, which is the trap next to it. A
+#: combining mark takes none and belongs to the character before it.
+#:
+#: No emoji: the width of one comes from the tables of the wcwidth
+#: package on our side and from the tables that kitty compiles on
+#: theirs, and a difference between the two is a difference of Unicode
+#: versions, not a bug of the screen.
+ALPHABET = (
+    "abcXY 0123.#äé"  # Narrow.
+    "你好漢Ａ"  # Double width.
+    "ｶﾅ"  # Half width.
+    "\u0301\u0308"  # Marks of no width: an acute and a diaeresis.
+)
+
+text = st.text(alphabet=st.sampled_from(ALPHABET), min_size=1, max_size=8)
+
+#: The payload of a string sequence. It holds no control character, so
+#: that only the terminator ends it.
+payload = st.text(
+    alphabet=st.sampled_from("abc019;=:,?/. "),
+    min_size=0,
+    max_size=10,
+)
+
+#: The terminators that end a string sequence.
+string_terminator = st.sampled_from(["\x1b\\", "\x07"])
+
+#: The OSC codes that a program really sends.
+OSC_CODES = ["0", "1", "2", "4", "8", "10", "11", "12", "21", "22", "52",
+             "99", "133", "777", "30001"]
+
+osc = st.builds(
+    lambda code, param, end: "\x1b]%s;%s%s" % (code, param, end),
+    st.sampled_from(OSC_CODES),
+    payload,
+    string_terminator,
+)
+
+#: DCS, APC, PM and SOS. Each holds a payload up to the string
+#: terminator and writes no cell.
+#:
+#: A DCS payload that starts with "q" is a sixel image and an APC
+#: payload that starts with "G" is the graphics protocol of kitty.
+#: Both draw, so both sides would need a comparison of pixels rather
+#: than of cells. `test_string_sequences` holds one of each by hand.
+string_sequence = st.builds(
+    lambda opener, param: "\x1b%s%s\x1b\\" % (opener, param),
+    st.sampled_from("P_^X"),
+    payload.filter(lambda value: not value[:1] in ("q", "G")),
 )
 
 #: The renditions that a program really uses. The first sixteen colours
@@ -107,6 +156,8 @@ pieces = st.one_of(
     st.builds(lambda n: "\x1b[%dJ" % n, st.integers(0, 2)),
     st.builds(lambda t, b: "\x1b[%d;%dr" % (t, b), row, row),
     st.builds(lambda s: "\x1b[%sm" % s, st.sampled_from(RENDITIONS)),
+    osc,
+    string_sequence,
 )
 
 program = st.lists(pieces, min_size=1, max_size=24).map("".join)
