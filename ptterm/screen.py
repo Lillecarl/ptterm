@@ -8,7 +8,7 @@ Changes compared to the original `Screen` class:
     - CPR support and device attributes.
 """
 from collections import defaultdict, namedtuple
-from typing import Callable, DefaultDict, Dict, List, Optional, Set, Tuple
+from typing import Callable, DefaultDict, Dict, List, Optional, Tuple
 
 from prompt_toolkit.cache import FastDictCache
 from prompt_toolkit.layout.screen import Char, Screen
@@ -319,9 +319,9 @@ class BetterScreen:
 
         # The original Screen instance, when going to the alternate screen.
         self._original_screen: Optional[Screen] = None
-        #: The modes that named the alternate screen and are still
-        #: set. Only a mode of this set gives the screen back.
-        self._alternate_modes: Set[int] = set()
+        #: Did "?1049" take the alternate screen? Only that mode saves
+        #: a cursor, and only a saved one comes back.
+        self._original_screen_cursor = False
 
     def _reset_screen(self) -> None:
         """Reset the Screen content. (also called when switching from/to
@@ -512,8 +512,8 @@ class BetterScreen:
         # state. "?47" and "?1047" name the same screen; they are what a
         # program that predates "?1049" sends.
         taken_by = self._alternate_screen_modes(modes)
-        self._alternate_modes.update(taken_by)
         if taken_by and not self._original_screen:
+            self._original_screen_cursor = (1049 << 5) in taken_by
             self._original_screen = self.pt_screen
             self._original_screen_vars = {
                 v: getattr(self, v) for v in self.swap_variables
@@ -556,18 +556,32 @@ class BetterScreen:
         if mo.DECTCEM in modes:
             self.pt_screen.show_cursor = False
 
-        # On "\e[?1049l", restore from alternate screen mode.
-        # Only a mode that is set gives the screen back. kitty reads a
-        # leave on a mode that never took the screen as no leave at all.
-        if self._original_screen and self._alternate_modes.intersection(modes):
+        # On "\e[?1049l", restore from alternate screen mode. "?47" and
+        # "?1047" give the screen back as well.
+        given_back = self._alternate_screen_modes(modes)
+        if self._original_screen and given_back:
+            # Only "?1049" brings the cursor back. It is the mode that
+            # saved one; the two older ones leave the cursor where the
+            # program that drew the alternate screen put it.
+            keeps_the_cursor = not (
+                self._original_screen_cursor and (1049 << 5) in given_back
+            )
+            row = self.pt_cursor_position.y - self.line_offset
+            column = self.pt_cursor_position.x
+
             for k, v in self._original_screen_vars.items():
                 setattr(self, k, v)
             self.pt_screen = self._original_screen
 
             self._original_screen = None
-            self._alternate_modes.clear()
+            self._original_screen_cursor = False
             self._original_screen_vars = {}
             self._reset_offset_and_margins()
+
+            if keeps_the_cursor:
+                self.pt_cursor_position.y = row + self.line_offset
+                self.pt_cursor_position.x = column
+                self.ensure_bounds()
 
     #: The private modes that name the alternate screen. "?1049" also
     #: saves the cursor; the two older ones do not.

@@ -44,6 +44,23 @@ def test_the_lines_of_the_alternate_screen_go_away():
     "taken,given_back",
     [("1049", "47"), ("47", "1049"), ("1047", "47"), ("1049", "1047")],
 )
-def test_only_the_mode_that_took_the_screen_gives_it_back(taken, given_back):
+def test_any_of_the_three_gives_the_screen_back(taken, given_back):
+    "A program can take the screen under one name and give it back under another."
     data = "0\x1b[?%sh\x1b[?%sl0" % (taken, given_back)
     assert not differences(data, lines=3, columns=8)
+
+
+@pytest.mark.parametrize("mode", ["47", "1047"])
+def test_the_older_modes_leave_the_cursor_where_it_is(mode):
+    "Only '?1049' saves a cursor, so only it brings one back."
+    assert not differences("ab\x1b[?%shZ\x1b[?%slX" % (mode, mode),
+                           lines=3, columns=8)
+
+
+def test_the_cursor_comes_back_with_the_mode_that_saved_it():
+    assert not differences("ab\x1b[?1049hZ\x1b[?1049lX", lines=3, columns=8)
+
+
+def test_a_cursor_that_was_never_saved_does_not_come_back():
+    "'?47' takes the screen without a cursor, so '?1049l' has none to read."
+    assert not differences("0\x1b[?47h\x1b[?1049l0", lines=3, columns=8)
