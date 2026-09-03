@@ -219,13 +219,27 @@ def _split_a_double_cell(row: List[Cell]) -> None:
     """
     for index in range(len(row) - 1):
         text = row[index].char
-        if len(text) < 2 or row[index + 1].char != " ":
+        if len(text) < 2:
             continue
         for position in range(1, len(text)):
             if _is_a_mark(text[position]):
                 continue
+            # kitty holds one cell fewer than it draws, so what follows
+            # moves one cell to the right, up to the first blank. That
+            # blank goes away and nothing is lost.
+            blank = next(
+                (
+                    column
+                    for column in range(index + 1, len(row))
+                    if row[column].char == " "
+                ),
+                None,
+            )
+            if blank is None:
+                break
+            tail = row[index]._replace(char=text[position:])
             row[index] = row[index]._replace(char=text[:position])
-            row[index + 1] = row[index + 1]._replace(char=text[position:])
+            row[index + 1 : blank + 1] = [tail] + row[index + 1 : blank]
             break
 
 

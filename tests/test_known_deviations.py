@@ -143,3 +143,9 @@ def test_a_character_after_a_wrap_below_the_region():
 def test_the_cases_around_it_agree(tail):
     data = "\x1b[1;2r\x1b[8;23H00" + tail
     assert not differences(data, lines=8, columns=24)
+
+
+def test_the_line_after_the_cell_that_kitty_holds_wrong():
+    "What follows the second character moves along with it."
+    data = "\x1b[1;2r\x1b[8;23H000ä0"
+    assert not differences(data, lines=8, columns=24)
