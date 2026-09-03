@@ -46,7 +46,13 @@ screens cell by cell.
 - A tab found a stop past the last column, put the cursor there, and
   the next character wrapped to the line below.
 - Only "?1049" took the alternate screen. A program that sends "?47" or
-  "?1047" drew over the shell it came from.
+  "?1047" drew over the shell it came from. Only "?1049" saves a
+  cursor, so only it brings one back, and the two older ones leave the
+  cursor where the program that drew the screen put it.
+- A restore with nothing saved kept the character set that "ESC ( 0"
+  had picked, instead of the one a terminal starts with.
+- G1 held the line drawing set before any program named it, so a stray
+  shift out turned every letter into a box character.
 
 - A restore of the cursor was not faithful: it clamped the position
   into the margins that are set now, it read a stack instead of the
