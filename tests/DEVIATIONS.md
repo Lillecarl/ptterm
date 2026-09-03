@@ -100,9 +100,10 @@ sees two cells either way, and `test_known_deviations` holds the case.
 
 ## Not compared yet
 
-- A hyperlink (OSC 8) belongs to a cell. kitty holds an identifier on
-  every cell of it; ptterm has no style for one, so the comparison
-  cannot see it.
+- A hyperlink (OSC 8) belongs to a cell. ptterm carries one now, in
+  the style of the cell, but the comparison cannot see it: kitty holds
+  an identifier that names the link and not the target itself.
+  `test_hyperlinks.py` covers it against the screen instead.
 - Sixel and the graphics protocol of kitty. Both draw pixels, which
   asks for a comparison of images and not of cells.
 

@@ -16,8 +16,10 @@ from typing import Dict, List, Optional, Tuple
 
 __all__ = [
     "DEFAULT_COLORS",
+    "MAX_HYPERLINK_LENGTH",
     "PALETTE",
     "format_color",
+    "parse_hyperlink",
     "parse_kitty_color_query",
 ]
 
@@ -106,3 +108,33 @@ def parse_kitty_color_query(param: str) -> Optional[List[Tuple[str, bool]]]:
         else:
             result.append((part, False))
     return result
+
+
+#: The longest hyperlink target that a pane may open. A URL longer than
+#: this is not a link that anybody follows; it is a way to fill memory.
+MAX_HYPERLINK_LENGTH = 2083
+
+
+def parse_hyperlink(param: str) -> Optional[str]:
+    """
+    The target that an "OSC 8" names, or `None` when there is none.
+
+    The payload is "params ; target". The parameters carry an "id" that
+    joins the pieces of one link across lines; nothing here needs it, so
+    they are read and dropped. An empty target closes the link that is
+    open.
+
+    A control character would end the sequence early on the terminal of
+    the user, and what follows would run as a command of its own, so a
+    target that holds one is no target at all.
+    """
+    if ";" not in param:
+        return None
+    _params, target = param.split(";", 1)
+    if not target:
+        return ""  # Close the link that is open.
+    if len(target) > MAX_HYPERLINK_LENGTH:
+        return None
+    if any(character < " " or character == "\x7f" for character in target):
+        return None
+    return target

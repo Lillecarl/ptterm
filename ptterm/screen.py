@@ -7,6 +7,7 @@ Changes compared to the original `Screen` class:
     - 256 colour and true color support.
     - CPR support and device attributes.
 """
+import base64
 from collections import defaultdict, namedtuple
 from typing import Callable, DefaultDict, Dict, List, Optional, Tuple
 
@@ -28,6 +29,7 @@ from .osc import (
     DEFAULT_COLORS,
     PALETTE,
     format_color,
+    parse_hyperlink,
     parse_kitty_color_query,
 )
 from .placeholders import PlaceholderRun, merge_runs, runs_in_line
@@ -353,6 +355,14 @@ class BetterScreen:
             hidden=False,
         )
         self._style_str = ""
+        # The rendition alone, without the hyperlink. The two change
+        # apart from each other, so the style of a cell is built from
+        # both.
+        self._rendition_str = ""
+        # The target of the hyperlink that is open ("OSC 8"), and the
+        # piece of style that carries it.
+        self.hyperlink = ""
+        self._hyperlink_str = ""
 
         self.margins = None
 
@@ -981,7 +991,9 @@ class BetterScreen:
                 mo.DECOM in self.mode,
                 mo.DECAWM in self.mode,
                 self._attrs,
-                self._style_str,
+                # The rendition alone. A hyperlink is not part of the
+                # cursor that "ESC 7" remembers.
+                self._rendition_str,
             )
         ]
 
@@ -999,7 +1011,8 @@ class BetterScreen:
             self.g1_charset = savepoint.g1_charset
             self.charset = savepoint.charset
             self._attrs = savepoint.attrs
-            self._style_str = savepoint.style_str
+            self._rendition_str = savepoint.style_str
+            self._rebuild_style()
 
             if savepoint.origin:
                 self.set_mode(mo.DECOM)
@@ -1675,8 +1688,38 @@ class BetterScreen:
         if attrs_obj.hidden:
             style_str += "hidden "
 
-        self._style_str = _unicode_intern_dict[style_str]
+        self._rendition_str = _unicode_intern_dict[style_str]
         self._attrs = attrs_obj
+        self._rebuild_style()
+
+    def _rebuild_style(self) -> None:
+        """
+        The style that a cell takes: the rendition and the hyperlink.
+
+        A hyperlink is not a rendition. "OSC 8" opens one and "CSI m"
+        says nothing about it, so the two are kept apart and joined
+        here.
+        """
+        self._style_str = _unicode_intern_dict[
+            self._rendition_str + self._hyperlink_str
+        ]
+
+    def set_hyperlink(self, target: str) -> None:
+        """
+        Open a hyperlink, or close the one that is open.
+
+        Every cell that a program draws from here on carries the
+        target, until it sends an empty one.
+        """
+        if target == self.hyperlink:
+            return
+        self.hyperlink = target
+        if target:
+            encoded = base64.b64encode(target.encode("utf-8")).decode("ascii")
+            self._hyperlink_str = "[hyperlink:%s] " % encoded
+        else:
+            self._hyperlink_str = ""
+        self._rebuild_style()
 
     # Colour scheme that a pane is told about ("CSI ? 996 n"). pymux
     # renders a dark background, so a pane that asks gets the dark
@@ -2020,6 +2063,9 @@ class BetterScreen:
         with; a program that asks needs an answer, not the right to
         change it.
 
+        A hyperlink ("OSC 8") belongs to the cells that follow it, so
+        the screen keeps it and every cell carries it.
+
         A few sequences ask the terminal of the user for something that
         a pane cannot give: the clipboard, a desktop notification, the
         shape of the pointer. Those go to `osc_func`, and the embedder
@@ -2028,7 +2074,11 @@ class BetterScreen:
         Everything else is consumed. It must not raise: one sequence
         may not stop the pane.
         """
-        if code == "4":
+        if code == "8":
+            target = parse_hyperlink(param)
+            if target is not None:
+                self.set_hyperlink(target)
+        elif code == "4":
             self._report_palette_colors(param)
         elif code in self._osc_colors:
             self._report_named_color(code, param)
