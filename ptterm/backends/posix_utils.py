@@ -5,6 +5,12 @@ import array
 import fcntl
 import os
 import termios
+from ..graphics import ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH
+
+#: The pixel fields of `struct winsize` are unsigned shorts, and the
+#: array that carries them is signed. Anything above this is not
+#: reported.
+MAX_WINSIZE_PIXELS = 32767
 
 __all__ = (
     "pty_make_controlling_tty",
@@ -77,14 +83,40 @@ def set_terminal_size(stdout_fileno, rows, cols):
     process that created a pseudo terminal, and the process that's attached to
     the output window are not the same, e.g. in case of a telnet connection, or
     unix domain socket, and then we have to sync the sizes by hand.)
+
+    The size in pixels goes with it. A program that draws images reads
+    it to work out how big a cell is, and a zero there says "I do not
+    know", which leaves the program with no size to draw. The pixels
+    follow the cell that `ptterm.graphics` assumes, so the answer
+    agrees with what "CSI 14 t" and "CSI 16 t" report.
     """
     # Buffer for the C call
     # (The first parameter of 'array.array' needs to be 'str' on both Python 2
     # and Python 3.)
-    buf = array.array("h", [rows, cols, 0, 0])
+    buf = array.array(
+        "h",
+        [
+            rows,
+            cols,
+            _pixels(cols, ASSUMED_CELL_WIDTH),
+            _pixels(rows, ASSUMED_CELL_HEIGHT),
+        ],
+    )
 
     # Do: TIOCSWINSZ (Set)
     fcntl.ioctl(stdout_fileno, termios.TIOCSWINSZ, buf)
+
+
+def _pixels(cells, cell_size):
+    """
+    The size of a number of cells in pixels, in the range that the C
+    structure holds. A terminal too wide to count says nothing rather
+    than a wrong number.
+    """
+    if cells <= 0:
+        return 0
+    size = cells * cell_size
+    return size if size <= MAX_WINSIZE_PIXELS else 0
 
 
 class nonblocking:
