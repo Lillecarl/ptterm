@@ -26,6 +26,15 @@ screens cell by cell.
 - The blanks that "CSI @" and "CSI P" leave took no background, and an
   insert did not drop what falls off the right edge.
 
+- A write over one half of a double width character left the other
+  half behind, and a character that needs two columns wrapped one
+  column too late, so it wrote past the last column.
+- A combining mark after a double width character landed in the empty
+  second half, so the character never got it.
+- A CSI sequence that carries more parameters than its command takes
+  raised a TypeError in pyte and stopped the whole stream. One stray
+  sequence took the pane with it.
+
 - A restore of the cursor was not faithful: it clamped the position
   into the margins that are set now, it read a stack instead of the
   one cursor that a terminal remembers, and it kept a row of the
@@ -39,7 +48,7 @@ screens cell by cell.
 
 ## Where ptterm follows xterm and kitty does something else
 
-These four are in `test_known_deviations.py`. ptterm follows xterm in
+These five are in `test_known_deviations.py`. ptterm follows xterm in
 each; a program is written against xterm, not against kitty.
 
 1. A tab in the last column moves to the next line in kitty.
@@ -49,6 +58,16 @@ each; a program is written against xterm, not against kitty.
    sequence that counts reads a zero as one, on both sides.
 4. The line that a scroll brings in keeps the default style in kitty.
    xterm paints it with the background that is set.
+5. A sequence that carries more parameters than its command takes is
+   dropped whole by kitty. xterm reads the ones it needs and ignores
+   the rest.
+
+## Not compared yet
+
+- A hyperlink (OSC 8) belongs to a cell. kitty holds an identifier on
+  every cell of it; ptterm has no style for one, so the comparison
+  cannot see it.
+- The alternate screen, and the character sets that "ESC ( 0" selects.
 
 ## Open, found by the hunt and not looked at yet
 

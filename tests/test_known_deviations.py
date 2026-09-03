@@ -68,3 +68,24 @@ def test_a_count_of_zero_agrees_everywhere_else(letter):
 )
 def test_the_line_that_a_scroll_brings_in():
     assert not differences("\x1b[42m\x1b[1S", lines=4, columns=6)
+
+
+@pytest.mark.xfail(
+    reason="kitty drops a CSI sequence that carries more parameters than the "
+    "command takes. xterm reads the ones it needs and ignores the rest. "
+    "ptterm follows xterm.",
+    strict=True,
+)
+def test_a_sequence_with_too_many_parameters():
+    # "CSI 3;9;9 G" is CHA, which takes one parameter. ptterm moves to
+    # column three; kitty leaves the cursor where it was.
+    assert not differences("\x1b[3;9;9GX", lines=4, columns=8)
+
+
+def test_a_sequence_with_too_many_parameters_does_not_raise():
+    # Whatever the two do with it, one stray sequence may not stop the
+    # stream of a pane. Everything after it still reaches the screen.
+    from kitty_oracle import ptterm_cells
+
+    rows = ptterm_cells("\x1b[3;9;9GX\r\nok", lines=4, columns=8)
+    assert rows[1][0].char == "o"
