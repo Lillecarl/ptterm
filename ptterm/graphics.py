@@ -32,6 +32,12 @@ __all__ = [
 ASSUMED_CELL_WIDTH = 10
 ASSUMED_CELL_HEIGHT = 20
 
+# Memory guards. A runaway program must not take the whole machine
+# down: refuse payloads and image storage beyond these limits, the same
+# way kitty bounds its image storage.
+MAX_PENDING_PAYLOAD = 256 * 1024 * 1024  # base64 string of one transmission
+MAX_TOTAL_IMAGE_DATA = 1024 * 1024 * 1024  # decoded bytes of all images
+
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 
@@ -239,8 +245,13 @@ class GraphicsState:
         # messages only add payload.)
         if keys.get("m", "0") == "1":
             if self._pending is None:
+                if len(payload) > MAX_PENDING_PAYLOAD:
+                    raise GraphicsError("EINVAL", "too much data")
                 self._pending = (dict(keys), payload)
             else:
+                if len(self._pending[1]) + len(payload) > MAX_PENDING_PAYLOAD:
+                    self._pending = None
+                    raise GraphicsError("EINVAL", "too much data")
                 self._pending = (self._pending[0], self._pending[1] + payload)
             return None
 
@@ -287,6 +298,8 @@ class GraphicsState:
             image = GraphicsImage(
                 fmt, width, height, data, number=self._int(keys, "I")
             )
+            if store and self._total_image_data() + len(data) > MAX_TOTAL_IMAGE_DATA:
+                raise GraphicsError("EINVAL", "image storage quota exceeded")
             if store:
                 if "i" in keys:
                     image_id = int(keys["i"])
@@ -519,6 +532,9 @@ class GraphicsState:
             for image_id, known in self.images_by_id.items()
             if known is image
         ]
+
+    def _total_image_data(self) -> int:
+        return sum(len(image.data) for image in self.images_by_id.values())
 
     def delete_image_data(self, image_id: int) -> None:
         """
