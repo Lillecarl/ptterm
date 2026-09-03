@@ -8,7 +8,7 @@ Changes compared to the original `Screen` class:
     - CPR support and device attributes.
 """
 from collections import defaultdict, namedtuple
-from typing import Callable, DefaultDict, Dict, List, Optional, Tuple
+from typing import Callable, DefaultDict, Dict, List, Optional, Set, Tuple
 
 from prompt_toolkit.cache import FastDictCache
 from prompt_toolkit.layout.screen import Char, Screen
@@ -319,6 +319,9 @@ class BetterScreen:
 
         # The original Screen instance, when going to the alternate screen.
         self._original_screen: Optional[Screen] = None
+        #: The modes that named the alternate screen and are still
+        #: set. Only a mode of this set gives the screen back.
+        self._alternate_modes: Set[int] = set()
 
     def _reset_screen(self) -> None:
         """Reset the Screen content. (also called when switching from/to
@@ -508,7 +511,9 @@ class BetterScreen:
         # On "\e[?1049h", enter alternate screen mode. Backup the current
         # state. "?47" and "?1047" name the same screen; they are what a
         # program that predates "?1049" sends.
-        if self._alternate_screen_mode(modes) and not self._original_screen:
+        taken_by = self._alternate_screen_modes(modes)
+        self._alternate_modes.update(taken_by)
+        if taken_by and not self._original_screen:
             self._original_screen = self.pt_screen
             self._original_screen_vars = {
                 v: getattr(self, v) for v in self.swap_variables
@@ -552,25 +557,26 @@ class BetterScreen:
             self.pt_screen.show_cursor = False
 
         # On "\e[?1049l", restore from alternate screen mode.
-        if self._alternate_screen_mode(modes) and self._original_screen:
+        # Only a mode that is set gives the screen back. kitty reads a
+        # leave on a mode that never took the screen as no leave at all.
+        if self._original_screen and self._alternate_modes.intersection(modes):
             for k, v in self._original_screen_vars.items():
                 setattr(self, k, v)
             self.pt_screen = self._original_screen
 
             self._original_screen = None
+            self._alternate_modes.clear()
             self._original_screen_vars = {}
             self._reset_offset_and_margins()
 
     #: The private modes that name the alternate screen. "?1049" also
     #: saves the cursor; the two older ones do not.
-    _ALTERNATE_SCREEN_MODES = frozenset(
-        [47 << 5, 1047 << 5, 1049 << 5]
-    )
+    _ALTERNATE_SCREEN_MODES = (1049 << 5, 1047 << 5, 47 << 5)
 
     @classmethod
-    def _alternate_screen_mode(cls, modes) -> bool:
-        "Does this list of modes name the alternate screen?"
-        return not cls._ALTERNATE_SCREEN_MODES.isdisjoint(modes)
+    def _alternate_screen_modes(cls, modes) -> "List[int]":
+        "The modes of this list that name the alternate screen."
+        return [mode for mode in cls._ALTERNATE_SCREEN_MODES if mode in modes]
 
     @property
     def in_alternate_screen(self) -> bool:

@@ -38,3 +38,12 @@ def test_the_lines_of_the_alternate_screen_go_away():
     "What the program drew may not come back with the first screen."
     data = "a\r\nb\r\nc\x1b[?1049hx\r\ny\x1b[?1049l"
     assert not differences(data, lines=4, columns=8)
+
+
+@pytest.mark.parametrize(
+    "taken,given_back",
+    [("1049", "47"), ("47", "1049"), ("1047", "47"), ("1049", "1047")],
+)
+def test_only_the_mode_that_took_the_screen_gives_it_back(taken, given_back):
+    data = "0\x1b[?%sh\x1b[?%sl0" % (taken, given_back)
+    assert not differences(data, lines=3, columns=8)
