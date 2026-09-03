@@ -1302,6 +1302,58 @@ class BetterScreen:
             return
         self.write_process_input("\x1bP>|%s\x1b\\" % TERMINAL_VERSION)
 
+    #: The private modes that this screen acts on. DECRQM answers for
+    #: these; every other mode is reported as not recognised, so that a
+    #: program falls back instead of trusting an answer we invent.
+    _known_private_modes = frozenset(
+        [
+            1,  # DECCKM: application cursor keys.
+            3,  # DECCOLM: 132 columns.
+            5,  # DECSCNM: reverse video.
+            6,  # DECOM: origin mode.
+            7,  # DECAWM: autowrap.
+            25,  # DECTCEM: cursor visible.
+            47,  # The alternate screen.
+            1000,  # Mouse reporting.
+            1006,  # SGR mouse encoding.
+            1015,  # urxvt mouse encoding.
+            1047,  # The alternate screen.
+            1049,  # The alternate screen, with the cursor.
+            2004,  # Bracketed paste.
+        ]
+    )
+
+    #: The same for the modes without a private marker.
+    _known_ansi_modes = frozenset([mo.IRM, mo.LNM])
+
+    def report_mode(self, *params: int, private: object = False, **kwargs) -> None:
+        """
+        DECRQM ("CSI ? Ps $ p" and "CSI Ps $ p"): is this mode set?
+
+        The answer is "CSI ? Ps ; Pm $ y", where Pm is 1 for set, 2 for
+        reset and 0 for a mode that this screen does not act on. A
+        program that reads 0 falls back to what it knows, which is
+        safer than an answer that we invent.
+        """
+        number = params[0] if params else 0
+        is_private = private is True
+
+        if is_private:
+            known = number in self._known_private_modes
+            enabled = (number << 5) in self.mode
+        else:
+            known = number in self._known_ansi_modes
+            enabled = number in self.mode
+
+        if not known:
+            state = 0
+        else:
+            state = 1 if enabled else 2
+
+        self.write_process_input(
+            "\x1b[%s%i;%i$y" % ("?" if is_private else "", number, state)
+        )
+
     def report_window(self, *params: int, **kwargs) -> None:
         """
         Window manipulation ("CSI Ps t"). Only the size reports are

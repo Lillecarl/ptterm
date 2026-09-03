@@ -35,6 +35,9 @@ class BetterStream(Stream):
             # XTVERSION ("CSI > q"): the name and the version of the
             # terminal. A plain "CSI Ps q" is DECLL, which we ignore.
             "q": "report_version",
+            # DECRQM ("CSI ? Ps $ p"): is this mode set? (The "$" is an
+            # intermediate byte, and needs the matching pyte patch.)
+            "$p": "report_mode",
             # Kitty's unscroll. The intermediate space is part of the
             # name, so this is not CUB. (It needs the matching pyte
             # patch, which keeps intermediate bytes.)
