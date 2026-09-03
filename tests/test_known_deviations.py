@@ -103,3 +103,22 @@ def test_the_alternate_screen_keeps_what_it_held():
     # "?1049h" clears the alternate screen; "?47h" does not, so the "0"
     # of the first visit is still there on the second.
     assert not differences("\x1b[?1049h0\x1b[?1049l\x1b[?47h", lines=4, columns=6)
+
+
+@pytest.mark.xfail(
+    reason="a combining mark belongs to the character before it. An erased "
+    "cell holds a space in ptterm and nothing in kitty, so kitty drops a "
+    "mark that lands on one and ptterm hangs it on the space. This is a gap "
+    "in ptterm, not a choice between xterm and kitty.",
+    strict=True,
+)
+def test_a_mark_on_an_erased_cell():
+    # "CSI 1 K" erases the cell before the cursor and paints it with the
+    # background. The mark then finds a space where kitty finds nothing.
+    assert not differences("0\x1b[40m\x1b[1Ḱ", lines=3, columns=6)
+
+
+def test_a_mark_on_a_space_that_a_program_wrote():
+    # A space that a program prints is a character, and the mark belongs
+    # to it. Both sides agree there.
+    assert not differences("a ́", lines=3, columns=6)

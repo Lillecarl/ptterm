@@ -42,8 +42,13 @@ column = st.integers(min_value=1, max_value=COLUMNS)
 #:
 #: A double width character takes two cells, so it breaks a pair when
 #: it lands on one and it wraps one column earlier than the rest. A
-#: half width character takes one cell, which is the trap next to it. A
-#: combining mark takes none and belongs to the character before it.
+#: half width character takes one cell, which is the trap next to it.
+#:
+#: No combining mark: it belongs to the character before it, and an
+#: erased cell holds a space here where kitty holds nothing, so the two
+#: disagree about a mark that lands on one. `test_combining_marks`
+#: covers the marks by hand and `test_known_deviations` holds the
+#: difference.
 #:
 #: No emoji: the width of one comes from the tables of the wcwidth
 #: package on our side and from the tables that kitty compiles on
@@ -53,7 +58,6 @@ ALPHABET = (
     "abcXY 0123.#äé"  # Narrow.
     "你好漢Ａ"  # Double width.
     "ｶﾅ"  # Half width.
-    "\u0301\u0308"  # Marks of no width: an acute and a diaeresis.
 )
 
 text = st.text(alphabet=st.sampled_from(ALPHABET), min_size=1, max_size=8)

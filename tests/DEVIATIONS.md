@@ -96,6 +96,10 @@ each; a program is written against xterm, not against kitty.
   screen it takes, so the difference only shows with "?47" and "?1047",
   which do not. `test_known_deviations` holds it as a strict xfail, and
   the hunt leaves those two modes out.
+- An erased cell holds a space in ptterm and nothing in kitty, so a
+  combining mark that lands on one hangs on the space here and goes
+  away there. The hunt leaves the marks out; `test_combining_marks`
+  covers them by hand.
 
 Run it again to find more. Each one needs a decision about whether to
 follow kitty or xterm before it becomes a fix.
