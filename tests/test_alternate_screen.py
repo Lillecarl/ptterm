@@ -109,3 +109,8 @@ def test_a_rendition_set_on_the_alternate_screen_does_not_survive():
 def test_the_older_modes_bring_no_rendition_back():
     data = "\x1b[42m\x1b[?47h0\x1b[?47l0"
     assert not differences(data, lines=4, columns=6, strict=True)
+
+
+def test_the_leave_of_1049_reads_the_saved_cursor_of_the_first_screen():
+    "'?47' saved none, so '?1049l' finds nothing and goes home."
+    assert not differences("\x1b[?47h0\x1b[?1049l0", lines=4, columns=6)
