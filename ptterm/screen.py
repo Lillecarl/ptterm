@@ -598,6 +598,11 @@ class BetterScreen:
             self._original_screen = None
             self._original_screen_vars = {}
 
+            # A link that the program on the alternate screen left open
+            # belongs to that screen. Without this, everything the shell
+            # writes afterwards is a link to whatever it opened.
+            self.set_hyperlink("")
+
             if restores_the_cursor:
                 # The same as "ESC 8". With nothing saved it is the
                 # home position, and the character sets of the start.

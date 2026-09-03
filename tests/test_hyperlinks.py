@@ -144,3 +144,30 @@ def test_the_screen_holds_the_target():
     assert screen.hyperlink == LINK
     stream.feed(CLOSE)
     assert screen.hyperlink == ""
+
+
+def test_a_link_of_the_alternate_screen_does_not_reach_the_first():
+    "A program that leaves a link open may not hand it to the shell."
+    screen, stream = _screen()
+    stream.feed("\x1b[?1049h" + open_link() + "a\x1b[?1049lb")
+    assert screen.hyperlink == ""
+    assert "hyperlink" not in _style(screen, 0)
+
+
+def test_the_alternate_screen_starts_with_no_link():
+    screen, stream = _screen()
+    stream.feed(open_link() + "\x1b[?1049ha")
+    assert screen.hyperlink == ""
+    assert "hyperlink" not in _style(screen, 0)
+
+
+def test_a_link_of_the_first_screen_does_not_come_back():
+    """
+    A link is not part of the cursor that "?1049" saves, and the cells
+    of the first screen keep the one they were drawn with anyway.
+    """
+    screen, stream = _screen()
+    stream.feed(open_link() + "a\x1b[?1049h\x1b[?1049lb")
+    assert screen.hyperlink == ""
+    assert _token(LINK) in _style(screen, 0)
+    assert "hyperlink" not in _style(screen, 1)
