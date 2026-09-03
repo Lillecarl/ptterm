@@ -10,6 +10,7 @@ reference: what it shows is what the user sees outside pymux.
 tests skip when it is not set.
 """
 import os
+import re
 import sys
 import unicodedata
 from typing import List, NamedTuple, Optional, Tuple
@@ -80,6 +81,12 @@ def kitty_is_available() -> bool:
     return True
 
 
+#: The piece of style that carries a hyperlink. Its target is base64,
+#: which can hold the letters of a rendition, so it goes away before
+#: the style is read.
+_HYPERLINK = re.compile(r"\[hyperlink:[^\]]*\]")
+
+
 def _color_of_style(style: str, prefix: str) -> Optional[Tuple]:
     """
     The colour that a prompt_toolkit style string names.
@@ -118,7 +125,7 @@ def ptterm_cells(data: str, lines: int, columns: int) -> List[List[Cell]]:
         cells = []
         for x in range(columns):
             cell = row[x]
-            style = cell.style
+            style = _HYPERLINK.sub("", cell.style)
             char = cell.char
             cells.append(
                 Cell(
