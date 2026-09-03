@@ -89,3 +89,23 @@ def test_each_screen_has_its_own_saved_cursor():
 def test_the_saved_cursor_of_the_first_screen_survives():
     data = "0\x1b7\x1b[?1049h\x1b7\x1b[3;1H\x1b8X\x1b[?1049l\x1b8Y"
     assert not differences(data, lines=5, columns=6)
+
+
+def test_the_alternate_screen_starts_with_a_plain_rendition():
+    assert not differences("\x1b[1m\x1b[?1049h0", lines=4, columns=6, strict=True)
+
+
+def test_the_rendition_comes_back_with_the_cursor():
+    "'?1049' saves the rendition the way 'ESC 7' does."
+    data = "\x1b[1m\x1b[?1049h\x1b[?1049l0"
+    assert not differences(data, lines=4, columns=6, strict=True)
+
+
+def test_a_rendition_set_on_the_alternate_screen_does_not_survive():
+    data = "\x1b[?1049h\x1b[31m\x1b[?1049l0"
+    assert not differences(data, lines=4, columns=6, strict=True)
+
+
+def test_the_older_modes_bring_no_rendition_back():
+    data = "\x1b[42m\x1b[?47h0\x1b[?47l0"
+    assert not differences(data, lines=4, columns=6, strict=True)

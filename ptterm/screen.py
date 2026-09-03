@@ -329,6 +329,8 @@ class BetterScreen:
         #: Did "?1049" take the alternate screen? Only that mode saves
         #: a cursor, and only a saved one comes back.
         self._original_screen_cursor = False
+        #: The rendition that went with that cursor.
+        self._original_screen_attrs = (self._attrs, self._style_str)
 
     def _reset_screen(self) -> None:
         """Reset the Screen content. (also called when switching from/to
@@ -528,7 +530,14 @@ class BetterScreen:
             # The scrolling region belongs to the terminal and not to
             # the screen, so it survives the switch. xterm and kitty
             # both keep it.
+            # The scrolling region belongs to the terminal and not to
+            # one of its screens, so it survives the switch. xterm and
+            # kitty both keep it.
             margins = self.margins
+            # "?1049" saves the rendition along with the cursor, the
+            # same way "ESC 7" does. The alternate screen itself starts
+            # with the plain one.
+            self._original_screen_attrs = (self._attrs, self._style_str)
             self._reset_screen()
             self.margins = margins
             # A list of its own, because a save writes into the list
@@ -595,6 +604,9 @@ class BetterScreen:
                 self.pt_cursor_position.y = row + self.line_offset
                 self.pt_cursor_position.x = column
                 self.ensure_bounds()
+            else:
+                # The cursor comes back, and the rendition with it.
+                self._attrs, self._style_str = self._original_screen_attrs
 
     #: The private modes that name the alternate screen. "?1049" also
     #: saves the cursor; the two older ones do not.
