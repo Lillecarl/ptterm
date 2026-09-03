@@ -11,6 +11,7 @@ tests skip when it is not set.
 """
 import os
 import sys
+import unicodedata
 from typing import List, NamedTuple, Optional, Tuple
 
 from prompt_toolkit.output.vt100 import _256_colors as _256_colors_table
@@ -193,8 +194,39 @@ def kitty_cells(data: str, lines: int, columns: int) -> List[List[Cell]]:
                     reverse=bool(cursor.reverse),
                 )
             )
+        _split_a_double_cell(cells)
         rows.append(cells)
     return rows
+
+
+def _is_a_mark(char: str) -> bool:
+    "A character of no width of its own, which shares the cell before it."
+    return unicodedata.combining(char) != 0 or unicodedata.category(char) in (
+        "Mn",
+        "Me",
+        "Cf",
+    )
+
+
+def _split_a_double_cell(row: List[Cell]) -> None:
+    """
+    Move a second character out of a cell that holds two.
+
+    A cell holds one character and the marks that belong to it. kitty
+    puts a second character of its own in there in one case, which
+    `test_known_deviations` writes down. A reader sees two cells either
+    way, so the comparison reads them as two.
+    """
+    for index in range(len(row) - 1):
+        text = row[index].char
+        if len(text) < 2 or row[index + 1].char != " ":
+            continue
+        for position in range(1, len(text)):
+            if _is_a_mark(text[position]):
+                continue
+            row[index] = row[index]._replace(char=text[:position])
+            row[index + 1] = row[index + 1]._replace(char=text[position:])
+            break
 
 
 def as_seen(cell: Cell) -> Cell:

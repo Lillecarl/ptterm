@@ -76,7 +76,7 @@ screens cell by cell.
 
 ## Where ptterm follows xterm and kitty does something else
 
-These six are in `test_known_deviations.py`. ptterm follows xterm in
+These five are in `test_known_deviations.py`. ptterm follows xterm in
 each; a program is written against xterm, not against kitty.
 
 1. A tab in the last column moves to the next line in kitty.
@@ -89,10 +89,14 @@ each; a program is written against xterm, not against kitty.
 5. A sequence that carries more parameters than its command takes is
    dropped whole by kitty. xterm reads the ones it needs and ignores
    the rest.
-6. kitty puts the second character after a wrap into the cell of the
-   first, when that character is not ASCII and the cursor sits below
-   the scrolling region. Every case around it draws two cells on both
-   sides, so this one looks like a fault of kitty.
+
+## Where kitty looks wrong
+
+kitty puts the second character after a wrap into the cell of the
+first, when that character is not ASCII and the cursor sits below the
+scrolling region. Every case around it draws two cells on both sides.
+The oracle takes the second character out of the cell, because a reader
+sees two cells either way, and `test_known_deviations` holds the case.
 
 ## Not compared yet
 
