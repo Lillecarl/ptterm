@@ -158,9 +158,12 @@ class BetterScreen:
     transformation.
     """
 
+    #: The state that the alternate screen keeps for itself. The
+    #: scrolling region is not in the list: it belongs to the terminal,
+    #: so a region set on one screen holds on the other. xterm and
+    #: kitty both work that way.
     swap_variables = [
         "mode",
-        "margins",
         "charset",
         "g0_charset",
         "g1_charset",
@@ -518,8 +521,12 @@ class BetterScreen:
             self._original_screen_vars = {
                 v: getattr(self, v) for v in self.swap_variables
             }
+            # The scrolling region belongs to the terminal and not to
+            # the screen, so it survives the switch. xterm and kitty
+            # both keep it.
+            margins = self.margins
             self._reset_screen()
-            self._reset_offset_and_margins()
+            self.margins = margins
 
             # The alternate screen has its own, empty kitty keyboard flag
             # stack and its own graphics state. (The main screen state is
@@ -576,7 +583,6 @@ class BetterScreen:
             self._original_screen = None
             self._original_screen_cursor = False
             self._original_screen_vars = {}
-            self._reset_offset_and_margins()
 
             if keeps_the_cursor:
                 self.pt_cursor_position.y = row + self.line_offset

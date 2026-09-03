@@ -64,3 +64,18 @@ def test_the_cursor_comes_back_with_the_mode_that_saved_it():
 def test_a_cursor_that_was_never_saved_does_not_come_back():
     "'?47' takes the screen without a cursor, so '?1049l' has none to read."
     assert not differences("0\x1b[?47h\x1b[?1049l0", lines=3, columns=8)
+
+
+def test_the_scrolling_region_survives_the_switch():
+    "The region belongs to the terminal, so the alternate screen keeps it."
+    assert not differences("\x1b[2;3h\x1b[2;3r\x1b[?1049h0\x1bM", lines=5, columns=6)
+
+
+def test_the_region_scrolls_on_the_alternate_screen():
+    data = "\x1b[2;4r\x1b[?1049hA\x1b[4;1HB\nC"
+    assert not differences(data, lines=5, columns=6)
+
+
+def test_a_region_set_on_the_alternate_screen_holds_after_the_leave():
+    data = "\x1b[2;3r\x1b[?1049h\x1b[1;3r\x1b[?1049l\x1b[9B0"
+    assert not differences(data, lines=5, columns=6)
