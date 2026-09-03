@@ -1,6 +1,7 @@
 """
 The child process.
 """
+import logging
 import time
 from asyncio import get_event_loop
 from typing import Callable, Optional
@@ -14,6 +15,8 @@ from .screen import BetterScreen
 from .stream import BetterStream
 
 __all__ = ["Process"]
+
+logger = logging.getLogger(__name__)
 
 
 class Process:
@@ -142,7 +145,13 @@ class Process:
         if not self.backend.closed:
 
             def process() -> None:
-                self.stream.feed(d)
+                try:
+                    self.stream.feed(d)
+                except Exception:
+                    # One sequence that the emulator cannot handle must
+                    # not stop the pane: the program would then wait
+                    # forever for a reply that never comes.
+                    logger.exception("Feeding the terminal emulator failed.")
                 self.invalidate()
 
             # Feed directly, if this process has priority. (That is when this
