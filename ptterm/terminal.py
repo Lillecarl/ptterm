@@ -51,6 +51,7 @@ class _TerminalControl(UIControl):
         backend: Backend,
         done_callback: Optional[Callable[[], None]] = None,
         bell_func: Optional[Callable[[], None]] = None,
+        osc_func: Optional[Callable[[str, str], None]] = None,
     ) -> None:
         def has_priority() -> bool:
             # Give priority to the processing of this terminal output, if this
@@ -68,6 +69,7 @@ class _TerminalControl(UIControl):
             backend=backend,
             done_callback=done_callback,
             bell_func=bell_func,
+            osc_func=osc_func,
             has_priority=has_priority,
         )
 
@@ -273,6 +275,9 @@ class Terminal:
     :param before_exec_func: Function which is called in the child process,
         right before calling `exec`. Useful for instance for changing the
         current working directory or setting environment variables.
+    :param osc_func: Called with the code and the payload of an OSC
+        sequence that only the terminal of the user can serve. (The
+        clipboard, a notification, the shape of the pointer.)
     """
 
     def __init__(
@@ -285,12 +290,16 @@ class Terminal:
         width: Optional[int] = None,
         height: Optional[int] = None,
         done_callback: Optional[Callable[[], None]] = None,
+        osc_func: Optional[Callable[[str, str], None]] = None,
     ) -> None:
         if backend is None:
             backend = create_backend(command, before_exec_func)
 
         self.terminal_control = _TerminalControl(
-            backend=backend, bell_func=bell_func, done_callback=done_callback
+            backend=backend,
+            bell_func=bell_func,
+            osc_func=osc_func,
+            done_callback=done_callback,
         )
 
         self.terminal_window = _Window(

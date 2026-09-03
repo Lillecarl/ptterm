@@ -35,6 +35,23 @@ from .sixel import decode_sixel
 __all__ = ("BetterScreen",)
 
 
+#: OSC sequences that a pane cannot answer by itself. They ask the
+#: terminal of the user for the clipboard (52), a desktop notification
+#: (99) or the shape of the pointer (22). `BetterScreen.osc_func`
+#: receives them; a ptterm without such a function consumes them.
+FORWARDED_OSC = frozenset(["22", "52", "99"])
+
+
+def _reads_the_clipboard(param: str) -> bool:
+    """
+    True for a clipboard query, e.g. "OSC 52 ; c ; ?". The payload of
+    OSC 52 names a selection and then the data; a question mark asks
+    for the content instead of setting it.
+    """
+    _selection, _semicolon, data = param.partition(";")
+    return data.strip() == "?"
+
+
 class CursorPosition:
     "Mutable CursorPosition."
 
@@ -119,9 +136,11 @@ class BetterScreen:
         write_process_input: Callable[[str], None],
         bell_func: Optional[Callable[[], None]] = None,
         get_history_limit: Optional[Callable[[], int]] = None,
+        osc_func: Optional[Callable[[str, str], None]] = None,
     ) -> None:
         bell_func = bell_func or (lambda: None)
         get_history_limit = get_history_limit or (lambda: 2000)
+        osc_func = osc_func or (lambda code, param: None)
 
         self._history_cleanup_counter = 0
 
@@ -131,6 +150,7 @@ class BetterScreen:
         self.write_process_input = write_process_input
         self.bell_func = bell_func
         self.get_history_limit = get_history_limit
+        self.osc_func = osc_func
 
         # Stack of kitty keyboard protocol flags. ("CSI > flags u" pushes,
         # "CSI < number u" pops. See `report_kitty_keyboard`.)
@@ -1378,9 +1398,15 @@ class BetterScreen:
         """
         An OSC sequence other than the title and the icon name.
 
-        Only the colour queries are answered. A pane has no palette of
-        its own, so the answer is the colour that pymux renders with; a
-        program that asks needs an answer, not the right to change it.
+        The colour queries are answered. A pane has no palette of its
+        own, so the answer is the colour that the embedder renders
+        with; a program that asks needs an answer, not the right to
+        change it.
+
+        A few sequences ask the terminal of the user for something that
+        a pane cannot give: the clipboard, a desktop notification, the
+        shape of the pointer. Those go to `osc_func`, and the embedder
+        decides what reaches the user.
 
         Everything else is consumed. It must not raise: one sequence
         may not stop the pane.
@@ -1391,6 +1417,20 @@ class BetterScreen:
             self._report_named_color(code, param)
         elif code == "21":
             self._report_kitty_colors(param)
+        elif code in FORWARDED_OSC:
+            self._forward_osc(code, param)
+
+    def _forward_osc(self, code: str, param: str) -> None:
+        """
+        Hand an OSC sequence to the embedding application.
+
+        A clipboard query is not handed on. It reads what the user
+        copied somewhere else, and a program in a pane has no claim on
+        that. Writing the clipboard is handed on; reading it is not.
+        """
+        if code == "52" and _reads_the_clipboard(param):
+            return
+        self.osc_func(code, param)
 
     def _report_named_color(self, code: str, param: str) -> None:
         "Answer an xterm colour query, e.g. 'OSC 11 ; ?'."

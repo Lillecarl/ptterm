@@ -33,6 +33,9 @@ class Process:
     :param invalidate: When the screen content changes, and the renderer needs
         to redraw the output, this callback is called.
     :param bell_func: Called when the process does a `bell`.
+    :param osc_func: Called with the code and the payload of an OSC
+        sequence that only the terminal of the user can serve. (The
+        clipboard, a notification, the shape of the pointer.)
     :param done_callback: Called when the process terminates.
     :param has_priority: Callable that returns True when this Process should
         get priority in the event loop. (When this pane has the focus.)
@@ -46,6 +49,7 @@ class Process:
         bell_func: Optional[Callable[[], None]] = None,
         done_callback: Optional[Callable[[], None]] = None,
         has_priority: Optional[Callable[[], bool]] = None,
+        osc_func: Optional[Callable[[str, str], None]] = None,
     ) -> None:
         self.loop = get_event_loop()
         self.invalidate = invalidate
@@ -67,7 +71,11 @@ class Process:
         self.sy = 0
 
         self.screen = BetterScreen(
-            self.sx, self.sy, write_process_input=self.write_input, bell_func=bell_func
+            self.sx,
+            self.sy,
+            write_process_input=self.write_input,
+            bell_func=bell_func,
+            osc_func=osc_func,
         )
 
         self.stream = BetterStream(self.screen)
