@@ -41,6 +41,10 @@ class BetterStream(Stream):
             # DECSCUSR ("CSI Ps SP q"): the shape of the cursor. It is
             # remembered, so that DECRQSS can report it back.
             " q": "set_cursor_style",
+            # SU and SD: move the lines of the scrolling region, without
+            # moving the cursor. pyte has neither.
+            "S": "scroll_up",
+            "T": "scroll_down",
             # Kitty's unscroll. The intermediate space is part of the
             # name, so this is not CUB. (It needs the matching pyte
             # patch, which keeps intermediate bytes.)

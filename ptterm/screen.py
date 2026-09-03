@@ -690,6 +690,57 @@ class BetterScreen:
             else:
                 self.cursor_down()
 
+    def scroll_up(self, count: Optional[int] = None) -> None:
+        """
+        SU ("CSI Ps S"): move the lines of the scrolling region up.
+
+        The cursor does not move. This is what a program sends to
+        scroll a region without a linefeed.
+        """
+        self._scroll_region(count or 1)
+
+    def scroll_down(self, count: Optional[int] = None) -> None:
+        """
+        SD ("CSI Ps T"): move the lines of the scrolling region down.
+
+        The cursor does not move.
+        """
+        self._scroll_region(-(count or 1))
+
+    def _scroll_region(self, amount: int) -> None:
+        """
+        Move the lines of the scrolling region by `amount`.
+
+        A positive amount moves them up, which is what SU asks for. The
+        lines that come in are empty, and the ones that go out are
+        dropped, so this keeps no history.
+        """
+        top, bottom = self.margins or Margins(0, self.lines - 1)
+        height = bottom - top + 1
+        steps = min(abs(amount), height)
+        if steps == 0:
+            return
+
+        line_offset = self.line_offset
+        data_buffer = self.data_buffer
+
+        if amount > 0:
+            rows = range(top, bottom + 1)
+            source = steps
+        else:
+            rows = range(bottom, top - 1, -1)
+            source = -steps
+
+        for row in rows:
+            origin = row + source
+            if top <= origin <= bottom:
+                data_buffer[row + line_offset] = data_buffer[origin + line_offset]
+            else:
+                self._erase_row(row + line_offset)
+
+        # Graphics placements scroll with the text.
+        self.graphics.scroll(top + line_offset, bottom + line_offset, amount)
+
     def _remove_old_lines_from_history(self) -> None:
         """
         Remove top from the scroll buffer. (Outside bounds of history limit.)
