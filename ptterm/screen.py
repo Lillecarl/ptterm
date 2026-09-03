@@ -295,10 +295,13 @@ class BetterScreen:
         #      it seems for us that LAT1_MAP should indeed be the default, if
         #      not a French version of Vim would incorrectly show some
         #      characters.
+        # G1 holds ASCII as well until a program names something
+        # else. pyte starts it on the line drawing set, and a stray
+        # shift out then turned every letter into a box character.
         self.charset = 0
         # self.g0_charset = cs.IBMPC_MAP
         self.g0_charset = cs.LAT1_MAP
-        self.g1_charset = cs.VT100_MAP
+        self.g1_charset = cs.LAT1_MAP
 
         # From ``man terminfo`` -- "... hardware tabs are initially
         # set every `n` spaces when the terminal is powered up. Since
@@ -946,7 +949,7 @@ class BetterScreen:
             # same. :todo: DECAWM?
             self.reset_mode(mo.DECOM)
             self.g0_charset = cs.LAT1_MAP
-            self.g1_charset = cs.VT100_MAP
+            self.g1_charset = cs.LAT1_MAP
             self.charset = 0
             self.cursor_position()
 

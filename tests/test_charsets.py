@@ -38,3 +38,8 @@ def test_a_cursor_move_does_not_change_the_set():
 
 def test_a_set_that_nobody_defines_is_ignored():
     assert not differences("\x1b(Zabc", lines=4, columns=8)
+
+
+def test_g1_holds_ascii_until_a_program_names_something_else():
+    "A shift out with no designation before it changes nothing."
+    assert not differences("\x0eabc", lines=4, columns=8)
