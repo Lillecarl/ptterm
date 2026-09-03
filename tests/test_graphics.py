@@ -377,3 +377,123 @@ def test_history_trimming_drops_old_placements():
     stream.feed("\x1b[100;1H")
     screen._remove_old_lines_from_history()
     assert placement_rows(screen) == []
+
+
+# ----------------------------------------------------------------------
+# Chunked transmissions that carry data in the last chunk, and
+# transmissions without an image id. (What a file manager sends.)
+
+
+def test_the_last_chunk_carries_data_as_well():
+    "An empty last chunk is allowed, not required."
+    screen, stream, responses = make_screen()
+    data = rgb_image(4, 2)
+    encoded = base64.b64encode(data).decode()
+    third = len(encoded) // 3
+    stream.feed(apc("a=t,f=24,s=4,v=2,i=20,m=1", encoded[:third]))
+    stream.feed(apc("m=1", encoded[third : 2 * third]))
+    stream.feed(apc("m=0", encoded[2 * third :]))
+    assert responses == ["\x1b_Gi=20;OK\x1b\\"]
+    assert screen.graphics.images_by_id[20].data == data
+
+
+def test_a_chunked_transmission_keeps_the_first_action():
+    "The keys of the first message govern, so 'a=T' still displays."
+    screen, stream, responses = make_screen()
+    data = rgb_image(20, 40)
+    encoded = base64.b64encode(data).decode()
+    half = len(encoded) // 2
+    stream.feed(apc("a=T,f=24,s=20,v=40,i=21,m=1", encoded[:half]))
+    assert screen.graphics.placements == []
+    stream.feed(apc("m=0", encoded[half:]))
+    assert screen.graphics.images_by_id[21].data == data
+    assert len(screen.graphics.placements) == 1
+    placement = screen.graphics.placements[0]
+    # 20 pixels wide is two cells, 40 pixels high is two rows.
+    assert (placement.columns, placement.rows) == (2, 2)
+
+
+def test_a_transmission_without_an_id_is_displayed():
+    "A file manager sends 'a=T' with no id at all."
+    screen, stream, responses = make_screen()
+    data = rgb_image(20, 40)
+    stream.feed(apc("a=T,f=24,s=20,v=40", base64.b64encode(data).decode()))
+    assert responses == []  # Nothing to address an answer to.
+    assert len(screen.graphics.placements) == 1
+    assert screen.graphics.placements[0].image_id == 0
+    assert screen.graphics.images_by_id[0].data == data
+
+
+def test_a_chunked_transmission_without_an_id_is_displayed():
+    "The same, in pieces: this is what yazi sends."
+    screen, stream, responses = make_screen()
+    data = rgb_image(20, 40)
+    encoded = base64.b64encode(data).decode()
+    third = len(encoded) // 3
+    stream.feed(apc("q=2,a=T,z=-1,C=1,f=24,s=20,v=40,m=1", encoded[:third]))
+    stream.feed(apc("m=1", encoded[third : 2 * third]))
+    stream.feed(apc("m=0", encoded[2 * third :]))
+    assert responses == []
+    assert screen.graphics.images_by_id[0].data == data
+    assert len(screen.graphics.placements) == 1
+    placement = screen.graphics.placements[0]
+    assert placement.z == -1
+    assert not placement.virtual
+    assert (placement.columns, placement.rows) == (2, 2)
+
+
+def test_a_chunked_transmission_that_is_short_stores_nothing():
+    "A transfer that loses a chunk must not become a broken image."
+    screen, stream, responses = make_screen()
+    data = rgb_image(20, 40)
+    encoded = base64.b64encode(data).decode()
+    stream.feed(apc("a=T,f=24,s=20,v=40,i=22,m=1", encoded[: len(encoded) // 2]))
+    stream.feed(apc("m=0"))
+    assert responses == ["\x1b_Gi=22;EINVAL:data size does not match width and height\x1b\\"]
+    assert 22 not in screen.graphics.images_by_id
+    assert screen.graphics.placements == []
+
+
+def test_a_second_transmission_without_an_id_replaces_the_first():
+    """
+    The id-0 slot holds one image at a time, and re-transmitting an id
+    drops the placements of the old image. A file manager that shows
+    one preview after another therefore leaves one image on screen.
+    """
+    screen, stream, _responses = make_screen()
+    first = rgb_image(20, 40)
+    second = rgb_image(30, 20)
+    stream.feed(apc("a=T,f=24,s=20,v=40", base64.b64encode(first).decode()))
+    stream.feed(apc("a=T,f=24,s=30,v=20", base64.b64encode(second).decode()))
+    assert screen.graphics.images_by_id[0].data == second
+    assert len(screen.graphics.placements) == 1
+    assert screen.graphics.placements[0].columns == 3  # 30 pixels.
+
+
+def test_a_transmission_during_a_transfer_continues_it():
+    """
+    kitty reads any transmission that arrives during a transfer as the
+    next chunk of it, whether or not the message repeats the keys.
+    """
+    screen, stream, responses = make_screen()
+    data = rgb_image(4, 2)
+    encoded = base64.b64encode(data).decode()
+    half = len(encoded) // 2
+    stream.feed(apc("a=t,f=24,s=4,v=2,i=25,m=1", encoded[:half]))
+    stream.feed(apc("a=t,f=24,s=4,v=2,i=25", encoded[half:]))
+    assert responses == ["\x1b_Gi=25;OK\x1b\\"]
+    assert screen.graphics.images_by_id[25].data == data
+
+
+def test_a_placement_during_a_transfer_leaves_it_alone():
+    "Only a transmission continues a transfer."
+    screen, stream, _responses = make_screen()
+    first = rgb_image(4, 2)
+    stream.feed(apc("a=t,f=24,s=4,v=2,i=26", base64.b64encode(first).decode()))
+    second = base64.b64encode(rgb_image(20, 40)).decode()
+    half = len(second) // 2
+    stream.feed(apc("a=t,f=24,s=20,v=40,i=27,m=1", second[:half]))
+    stream.feed(apc("a=p,i=26"))  # Place the first image, mid transfer.
+    assert len(screen.graphics.placements) == 1
+    stream.feed(apc("m=0", second[half:]))
+    assert 27 in screen.graphics.images_by_id

@@ -40,6 +40,11 @@ ASSUMED_CELL_HEIGHT = 20
 MAX_PENDING_PAYLOAD = 256 * 1024 * 1024  # base64 string of one transmission
 MAX_TOTAL_IMAGE_DATA = 1024 * 1024 * 1024  # decoded bytes of all images
 
+#: The actions that carry image data. A message with one of them,
+#: arriving while a chunked transfer runs, is the next chunk of it.
+TRANSMIT_ACTIONS = frozenset(["t", "T", "q"])
+
+
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 
@@ -166,9 +171,14 @@ class GraphicsState:
         image number ("I") get a response at all.
         """
         keys, payload = parse_control_data(data)
-        action = keys.get("a", "t")
 
         try:
+            assembled = self._assemble(keys, payload)
+            if assembled is None:
+                return None  # A chunk, and not the last one.
+            keys, payload = assembled
+
+            action = keys.get("a", "t")
             if action == "t":
                 result = self._transmit(keys, payload, store=True)
             elif action == "T":
@@ -225,6 +235,44 @@ class GraphicsState:
     # ------------------------------------------------------------------
     # Transmission.
 
+    def _assemble(
+        self, keys: Dict[str, str], payload: str
+    ) -> Optional[Tuple[Dict[str, str], str]]:
+        """
+        Join the chunks of a chunked transmission ("m=1" on every
+        message but the last). Returns the keys and the whole payload
+        of a finished command, or None while chunks still come.
+
+        The keys of the first message govern the whole transfer: the
+        action, the size, the placement, and who the answer goes to.
+        A later chunk needs to carry nothing but "m" and its own
+        payload, and the last one carries payload as well.
+
+        Like kitty, any transmission that arrives while a transfer
+        runs is the next chunk of it, whether or not it repeats the
+        keys. A placement or a delete passes through untouched.
+        """
+        if self._pending is not None and keys.get("a", "t") in TRANSMIT_ACTIONS:
+            more = keys.get("m", "0")
+            first_keys, first_payload = self._pending
+            self._pending = None
+            if len(first_payload) + len(payload) > MAX_PENDING_PAYLOAD:
+                raise GraphicsError("EINVAL", "too much data")
+            keys, payload = first_keys, first_payload + payload
+            if more != "1":
+                return (keys, payload)
+            self._pending = (keys, payload)
+            return None
+
+        if keys.get("m", "0") == "1":
+            # The first chunk. Nothing happens until the last one.
+            if len(payload) > MAX_PENDING_PAYLOAD:
+                raise GraphicsError("EINVAL", "too much data")
+            self._pending = (dict(keys), payload)
+            return None
+
+        return (keys, payload)
+
     def _transmit(
         self, keys: Dict[str, str], payload: str, store: bool
     ) -> Optional[Tuple[str, bool, Optional[int]]]:
@@ -241,26 +289,6 @@ class GraphicsState:
             raise GraphicsError(
                 "EINVAL", "unsupported transmission medium: %r" % medium
             )
-
-        # Chunked transmissions are buffered until the final chunk.
-        # (Like kitty, the keys of the first message govern; later
-        # messages only add payload.)
-        if keys.get("m", "0") == "1":
-            if self._pending is None:
-                if len(payload) > MAX_PENDING_PAYLOAD:
-                    raise GraphicsError("EINVAL", "too much data")
-                self._pending = (dict(keys), payload)
-            else:
-                if len(self._pending[1]) + len(payload) > MAX_PENDING_PAYLOAD:
-                    self._pending = None
-                    raise GraphicsError("EINVAL", "too much data")
-                self._pending = (self._pending[0], self._pending[1] + payload)
-            return None
-
-        if self._pending is not None:
-            # Final chunk of a chunked transmission.
-            keys, payload = self._pending
-            self._pending = None
 
         image_id: Optional[int] = None
         try:
@@ -323,7 +351,9 @@ class GraphicsState:
                         self.newest_by_number[image.number] = image
                 else:
                     # Without id or number, the image is stored in the
-                    # id-0 slot and cannot be referenced later.
+                    # id-0 slot and cannot be referenced later. "a=T"
+                    # still places it, so the slot is the id to use.
+                    image_id = 0
                     self.delete_image_data(0)
                     self.images_by_id[0] = image
         except GraphicsError:
@@ -337,12 +367,14 @@ class GraphicsState:
                 return (self._prefix(keys) + "OK", True, None)
             return None
 
-        if "i" in keys:
-            return (self._prefix(keys) + "OK", True, image_id)
         if "I" in keys:
             # Report the assigned id together with the image number.
             return ("i=%i,I=%i;OK" % (image_id, image.number), True, image_id)
-        return None  # No response for id-less transmissions.
+
+        # A transmission without an image id is stored all the same,
+        # under the id-0 slot, and "a=T" places it. `handle` drops the
+        # response, because there is nothing to address it to.
+        return (self._prefix(keys) + "OK", True, image_id)
 
     @staticmethod
     def _pending_response_possible(keys: Dict[str, str]) -> bool:
