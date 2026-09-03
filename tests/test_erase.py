@@ -80,3 +80,14 @@ def test_erase_characters_takes_the_background_of_now():
         assert row[column].char == " "
         assert "bg:" in row[column].style
     assert row[3].char == "l"
+
+
+def test_an_underline_reaches_the_erased_cells():
+    screen, stream = _screen()
+    # An underline shows on a blank, so it carries over the same way a
+    # background does.
+    stream.feed("\x1b[4mhi\x1b[K")
+    row = _row(screen, 0)
+    for column in range(2, 20):
+        assert row[column].char == " "
+        assert "underline" in row[column].style

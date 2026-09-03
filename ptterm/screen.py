@@ -1030,25 +1030,27 @@ class BetterScreen:
         it: htop draws the header of its table with "CSI K" and expects
         the colour to reach the end of the line.
 
-        Only a background paints a cell, so nothing else carries over.
-        An empty answer means that the cell can go away instead, which
-        keeps the screen sparse.
+        Only what a reader can see on a blank carries over: the
+        background, reverse video and an underline. An empty answer
+        means that the cell can go away instead, which keeps the screen
+        sparse.
         """
         attrs = self._attrs
+        style = ""
 
         if attrs.reverse:
             # Reverse video paints the cell with the foreground.
-            style = "reverse "
+            style += "reverse "
             if attrs.color:
                 style += "%s " % attrs.color
-            if attrs.bgcolor:
-                style += "bg:%s " % attrs.bgcolor
-            return style
 
         if attrs.bgcolor:
-            return "bg:%s " % attrs.bgcolor
+            style += "bg:%s " % attrs.bgcolor
 
-        return ""
+        if attrs.underline:
+            style += "underline "
+
+        return style
 
     def erase_characters(self, count: Optional[int] = None) -> None:
         """Erases the indicated # of characters, starting with the
