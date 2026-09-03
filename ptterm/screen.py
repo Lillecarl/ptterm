@@ -560,6 +560,37 @@ class BetterScreen:
         "Activates ``G1`` character set."
         self.charset = 1
 
+    def repair_wide_char(self, row, column: int) -> None:
+        """
+        Take away the half of a double width character that an edit at
+        `column` leaves on its own.
+
+        A double width character lives in two cells: the character in
+        the first and an empty string in the second. An edit that
+        touches one of the two leaves half a character behind. No
+        terminal draws that, so the other half goes away as well.
+
+        The two cells around `column` are the ones an edit can break:
+        the cell before it and the cell itself.
+        """
+        columns = self.columns
+        for position in (column - 1, column):
+            if position < 0 or position >= columns:
+                continue
+            cell = row.get(position)
+            if cell is None:
+                continue
+            if cell.width > 1:
+                # The empty second half has to follow.
+                after = row.get(position + 1)
+                if position + 1 >= columns or after is None or after.char != "":
+                    row.pop(position, None)
+            elif cell.char == "":
+                # The character has to come before.
+                before = row.get(position - 1)
+                if position == 0 or before is None or before.width < 2:
+                    row.pop(position, None)
+
     def draw(self, chars: str) -> None:
         """
         Draw characters.
@@ -593,11 +624,12 @@ class BetterScreen:
             pt_char = char_cache[char, style]
             char_width = pt_char.width
 
-            # If this was the last column in a line and auto wrap mode is
-            # enabled, move the cursor to the beginning of the next line,
-            # otherwise replace characters already displayed with newly
-            # entered.
-            if cursor_position_x >= columns:
+            # A character that does not fit in what is left of the line
+            # goes to the next line when auto wrap mode is on, and takes
+            # the place at the right edge when it is off. A double width
+            # character needs two columns, so it moves one column
+            # earlier than a narrow one.
+            if char_width > 0 and cursor_position_x + char_width > columns:
                 if mo.DECAWM in self.mode:
                     self.carriage_return()
                     self.linefeed()
@@ -607,7 +639,7 @@ class BetterScreen:
 
                     self.wrapped_lines.append(cursor_position_y)
                 else:
-                    cursor_position_x -= max(0, char_width)
+                    cursor_position_x = columns - char_width
 
             # If Insert mode is set, new characters move old characters to
             # the right, otherwise terminal is in Replace mode and new
@@ -618,6 +650,8 @@ class BetterScreen:
             row = data_buffer[cursor_position_y]
             if char_width == 1:
                 row[cursor_position_x] = pt_char
+                self.repair_wide_char(row, cursor_position_x)
+                self.repair_wide_char(row, cursor_position_x + 1)
             elif char_width > 1:  # 2
                 # Double width character. Put an empty string in the second
                 # cell, because this is different from every character and
@@ -625,6 +659,8 @@ class BetterScreen:
                 # overwritten.
                 row[cursor_position_x] = pt_char
                 row[cursor_position_x + 1] = char_cache["", style]
+                self.repair_wide_char(row, cursor_position_x)
+                self.repair_wide_char(row, cursor_position_x + 2)
             elif char_width == 0:
                 # This is probably a part of a decomposed unicode character.
                 # Merge into the previous cell.
@@ -1000,6 +1036,11 @@ class BetterScreen:
             for column in range(cursor_x, min(cursor_x + count, columns)):
                 line[column] = blank
 
+        # The cursor and the right edge are where a double width
+        # character can lose half of itself.
+        self.repair_wide_char(line, cursor_x)
+        self.repair_wide_char(line, columns)
+
     def delete_characters(self, count: Optional[int] = None) -> None:
         count = count or 1
         cursor_x = self.pt_cursor_position.x
@@ -1021,6 +1062,9 @@ class BetterScreen:
             blank = Char(" ", style)
             for column in range(max(cursor_x, columns - count), columns):
                 line[column] = blank
+
+        self.repair_wide_char(line, cursor_x)
+        self.repair_wide_char(line, max(cursor_x, columns - count))
 
     def cursor_position(
         self, line: Optional[int] = None, column: Optional[int] = None
@@ -1209,10 +1253,12 @@ class BetterScreen:
         row = self.data_buffer[cursor_position.y]
         style = self.erase_style()
 
-        for column in range(
-            cursor_position.x, min(cursor_position.x + count, self.columns)
-        ):
+        end = min(cursor_position.x + count, self.columns)
+        for column in range(cursor_position.x, end):
             row[column] = Char(" ", style)
+
+        self.repair_wide_char(row, cursor_position.x)
+        self.repair_wide_char(row, end)
 
     def erase_in_line(self, type_of: int = 0, private: bool = False) -> None:
         """Erases a line in a specific way.
@@ -1248,6 +1294,7 @@ class BetterScreen:
             for column in list(line.keys()):
                 if column in columns:
                     line.pop(column, None)
+            self._repair_erased_line(line, columns)
             return
 
         # A background is set, so the erased cells take it.
@@ -1255,6 +1302,12 @@ class BetterScreen:
         erased = Char(" ", style)
         for column in columns:
             line[column] = erased
+        self._repair_erased_line(line, columns)
+
+    def _repair_erased_line(self, line, columns: range) -> None:
+        "Repair the two ends of a range of cells that an erase took away."
+        self.repair_wide_char(line, columns.start)
+        self.repair_wide_char(line, columns.stop)
 
     def erase_in_display(self, type_of: int = 0, private: bool = False) -> None:
         """Erases display in a specific way.
