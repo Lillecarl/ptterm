@@ -26,6 +26,17 @@ screens cell by cell.
 - The blanks that "CSI @" and "CSI P" leave took no background, and an
   insert did not drop what falls off the right edge.
 
+- A restore of the cursor was not faithful: it clamped the position
+  into the margins that are set now, it read a stack instead of the
+  one cursor that a terminal remembers, and it kept a row of the
+  buffer instead of a row of the screen, so a scroll in between
+  dragged the cursor back into the history.
+- A margin held the cursor wherever it was, so a move up above the top
+  margin moved the cursor down. "CSI r" homes the cursor, which puts
+  it above the top margin nearly every time.
+- DL left the cursor where it was. It moves to the first column, the
+  same way IL does.
+
 ## Where ptterm follows xterm and kitty does something else
 
 These four are in `test_known_deviations.py`. ptterm follows xterm in
@@ -41,10 +52,8 @@ each; a program is written against xterm, not against kitty.
 
 ## Open, found by the hunt and not looked at yet
 
-- `'\x1b7\x1b[2;3r\x1b80'`: save the cursor, set the margins, restore
-  the cursor. The two disagree about where the cursor lands. DECSTBM
-  homes the cursor and DECRC brings back what was saved; the question
-  is which of those wins, and what origin mode does to it.
+Nothing. The hunt ran forty thousand examples after the last fix and
+found no more.
 
-Run the hunt to find more. Each one needs a decision about whether to
+Run it again to find more. Each one needs a decision about whether to
 follow kitty or xterm before it becomes a fix.

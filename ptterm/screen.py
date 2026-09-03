@@ -135,6 +135,7 @@ _Savepoint = namedtuple(
     "_Savepoint",
     [
         "cursor_x",
+        # The row within the screen, not within the buffer.
         "cursor_y",
         "g0_charset",
         "g1_charset",
@@ -814,11 +815,22 @@ class BetterScreen:
         self.cursor_back()
 
     def save_cursor(self) -> None:
-        """Push the current cursor position onto the stack."""
-        self.savepoints.append(
+        """
+        Remember the cursor, so that a restore can bring it back.
+
+        A terminal remembers one cursor, not a stack of them: a second
+        save replaces the first, and a restore leaves what it read in
+        place, so two restores in a row give the same answer. kitty and
+        xterm both work that way.
+        """
+        self.savepoints[:] = [
             _Savepoint(
                 self.pt_cursor_position.x,
-                self.pt_cursor_position.y,
+                # The row within the screen, not within the buffer. A
+                # save remembers a place on the screen, so a scroll
+                # between the save and the restore must not drag the
+                # cursor back into the history.
+                self.pt_cursor_position.y - self.line_offset,
                 self.g0_charset,
                 self.g1_charset,
                 self.charset,
@@ -827,14 +839,17 @@ class BetterScreen:
                 self._attrs,
                 self._style_str,
             )
-        )
+        ]
 
     def restore_cursor(self) -> None:
-        """Set the current cursor position to whatever cursor is on top
-        of the stack.
+        """
+        Bring back the cursor that a save remembered.
+
+        The saved cursor stays, so a second restore gives the same
+        answer as the first.
         """
         if self.savepoints:
-            savepoint = self.savepoints.pop()
+            savepoint = self.savepoints[-1]
 
             self.g0_charset = savepoint.g0_charset
             self.g1_charset = savepoint.g1_charset
@@ -847,9 +862,18 @@ class BetterScreen:
             if savepoint.wrap:
                 self.set_mode(mo.DECAWM)
 
+            # `line_offset` follows the cursor, so read it before the
+            # cursor moves.
+            line_offset = self.line_offset
+
             self.pt_cursor_position.x = savepoint.cursor_x
-            self.pt_cursor_position.y = savepoint.cursor_y
-            self.ensure_bounds(use_margins=True)
+            self.pt_cursor_position.y = savepoint.cursor_y + line_offset
+            # Only the screen bounds hold the cursor here. A restore
+            # brings back the place that was saved, which may sit
+            # outside the margins that are set now: "CSI r" homes the
+            # cursor, so a save from before it is usually above the top
+            # margin. kitty and xterm both keep it there.
+            self.ensure_bounds()
         else:
             # If nothing was saved, the cursor moves to home position;
             # origin mode is reset. :todo: DECAWM?
