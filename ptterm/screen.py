@@ -566,6 +566,11 @@ class BetterScreen:
                         line + line_offset + 1
                     ]
                     data_buffer.pop(line + line_offset + 1, None)
+
+                # Graphics placements scroll with the text.
+                self.graphics.scroll(
+                    top + line_offset, bottom + line_offset, 1
+                )
             else:
                 self.cursor_down()
 
@@ -578,6 +583,7 @@ class BetterScreen:
         for line in list(data_buffer):
             if line < remove_above:
                 data_buffer.pop(line, None)
+        self.graphics.prune_above(remove_above)
 
     def clear_history(self) -> None:
         """
@@ -599,6 +605,9 @@ class BetterScreen:
                     i + line_offset
                 ]
                 self.data_buffer.pop(i + line_offset, None)
+
+            # Graphics placements scroll with the text.
+            self.graphics.scroll(top + line_offset, bottom + line_offset, -1)
         else:
             self.cursor_up()
 
@@ -705,6 +714,9 @@ class BetterScreen:
                     ]
                     data_buffer.pop(line + line_offset - count, None)
 
+            self.graphics.scroll(
+                pt_cursor_position.y, bottom + line_offset, -count
+            )
             self.carriage_return()
 
     def delete_lines(self, count: Optional[int] = None) -> None:
@@ -734,6 +746,10 @@ class BetterScreen:
                     data_buffer[line + line_offset] = self.data_buffer[
                         line + count + line_offset
                     ]
+
+            self.graphics.scroll(
+                pt_cursor_position.y, bottom + line_offset, count
+            )
 
     def insert_characters(self, count: Optional[int] = None) -> None:
         """Inserts the indicated # of blank characters at the cursor
@@ -959,9 +975,9 @@ class BetterScreen:
         :param bool private: when ``True`` character attributes aren left
                              unchanged **not implemented**.
         """
-        if type_of == 2:
-            # Clearing the screen removes all graphics placements.
-            # (The image data is kept.)
+        if type_of in (2, 3):
+            # Clearing the screen (ED 2) or the history (ED 3) removes
+            # all graphics placements. (The image data is kept.)
             self.graphics.remove_all_placements()
 
         line_offset = self.line_offset

@@ -558,6 +558,43 @@ class GraphicsState:
         "Remove every placement. (Image data is kept.)"
         self.placements = []
 
+    def scroll(self, first_row: int, last_row: int, count: int) -> None:
+        """
+        Follow a scroll of the region from `first_row` to `last_row`
+        (absolute rows of the data buffer, both inclusive). A positive
+        `count` moves the content up by that many rows.
+
+        Placements outside the region keep their position. Placements
+        that the scroll would tear or move out of the region are
+        removed, the same way kitty drops an image that scrolls out.
+        """
+        kept: List[GraphicsPlacement] = []
+        for placement in self.placements:
+            top = placement.y
+            bottom = placement.y + placement.rows - 1
+
+            if bottom < first_row or top > last_row:
+                kept.append(placement)  # Outside the region.
+                continue
+            if top < first_row or bottom > last_row:
+                continue  # Crosses the edge of the region: torn.
+
+            placement.y -= count
+            if (
+                placement.y >= first_row
+                and placement.y + placement.rows - 1 <= last_row
+            ):
+                kept.append(placement)
+        self.placements = kept
+
+    def prune_above(self, row: int) -> None:
+        "Remove placements that end above `row`. (History was trimmed.)"
+        self.placements = [
+            placement
+            for placement in self.placements
+            if placement.y + placement.rows > row
+        ]
+
     def clear(self) -> None:
         "Forget all images and placements. (Full terminal reset.)"
         self.images_by_id = {}

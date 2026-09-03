@@ -273,3 +273,107 @@ def test_unsupported_actions_error():
     screen, stream, responses = make_screen()
     stream.feed(apc("a=f,i=30"))
     assert responses[0].startswith("\x1b_Gi=30;EINVAL:")
+
+
+# ----------------------------------------------------------------------
+# Scrolling.
+
+
+def place(screen, stream, image_id, rows=1, columns=1):
+    "Transmit a 1x1 image and place it at the cursor."
+    data = base64.b64encode(rgb_image(1, 1)).decode()
+    stream.feed(
+        apc("a=T,f=24,s=1,v=1,c=%i,r=%i,C=1,i=%i" % (columns, rows, image_id), data)
+    )
+
+
+def placement_rows(screen):
+    return sorted(
+        (placement.image_id, placement.y) for placement in screen.graphics.placements
+    )
+
+
+def test_plain_scrolling_keeps_placement_rows():
+    # Without margins the data buffer keeps growing, so absolute rows
+    # stay valid and placements need no adjustment.
+    screen, stream, _ = make_screen()
+    place(screen, stream, 1)
+    for _ in range(30):
+        stream.feed("\r\n")
+    assert placement_rows(screen) == [(1, 0)]
+
+
+def test_scroll_region_moves_placements_up():
+    screen, stream, _ = make_screen()
+    stream.feed("\x1b[1;10r")  # Margins: rows 0..9.
+    stream.feed("\x1b[5;1H")  # Row 4.
+    place(screen, stream, 1)
+    stream.feed("\x1b[10;1H")  # Bottom margin; the next linefeed scrolls.
+    stream.feed("\n")
+    assert placement_rows(screen) == [(1, 3)]
+
+
+def test_placement_scrolled_out_of_the_region_is_dropped():
+    screen, stream, _ = make_screen()
+    stream.feed("\x1b[1;10r")
+    stream.feed("\x1b[1;1H")  # Top of the region.
+    place(screen, stream, 1)
+    stream.feed("\x1b[10;1H")
+    stream.feed("\n")
+    assert placement_rows(screen) == []
+
+
+def test_reverse_index_moves_placements_down():
+    screen, stream, _ = make_screen()
+    stream.feed("\x1b[1;10r")
+    stream.feed("\x1b[5;1H")
+    place(screen, stream, 1)
+    stream.feed("\x1b[1;1H")  # Top of the region.
+    stream.feed("\x1bM")  # Reverse index: the region scrolls down.
+    assert placement_rows(screen) == [(1, 5)]
+
+
+def test_delete_lines_moves_placements_up():
+    screen, stream, _ = make_screen()
+    stream.feed("\x1b[6;1H")  # Row 5.
+    place(screen, stream, 1)
+    stream.feed("\x1b[3;1H")  # Row 2.
+    stream.feed("\x1b[2M")  # Delete two lines.
+    assert placement_rows(screen) == [(1, 3)]
+
+
+def test_insert_lines_moves_placements_down():
+    screen, stream, _ = make_screen()
+    stream.feed("\x1b[6;1H")
+    place(screen, stream, 1)
+    stream.feed("\x1b[3;1H")
+    stream.feed("\x1b[2L")  # Insert two lines.
+    assert placement_rows(screen) == [(1, 7)]
+
+
+def test_a_torn_placement_is_dropped():
+    # A placement that crosses the edge of the scrolling region cannot
+    # move as a whole. It goes away instead of being torn.
+    screen, stream, _ = make_screen()
+    stream.feed("\x1b[5;1H")  # Row 4.
+    place(screen, stream, 1, rows=4)  # Rows 4..7.
+    stream.feed("\x1b[7;10r")  # Margins: rows 6..9.
+    stream.feed("\x1b[10;1H")
+    stream.feed("\n")
+    assert placement_rows(screen) == []
+
+
+def test_erase_saved_lines_removes_placements():
+    screen, stream, _ = make_screen()
+    place(screen, stream, 1)
+    stream.feed("\x1b[3J")
+    assert placement_rows(screen) == []
+
+
+def test_history_trimming_drops_old_placements():
+    screen, stream, _ = make_screen()
+    place(screen, stream, 1)
+    screen.get_history_limit = lambda: 10
+    stream.feed("\x1b[100;1H")
+    screen._remove_old_lines_from_history()
+    assert placement_rows(screen) == []
