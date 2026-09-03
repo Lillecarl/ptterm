@@ -19,7 +19,11 @@ from pyte import charsets as cs
 from pyte import modes as mo
 from pyte.screens import Margins
 
-from .graphics import GraphicsState
+from .graphics import (
+    ASSUMED_CELL_HEIGHT,
+    ASSUMED_CELL_WIDTH,
+    GraphicsState,
+)
 from .sixel import decode_sixel
 
 __all__ = ("BetterScreen",)
@@ -1238,8 +1242,20 @@ class BetterScreen:
         """
         what = params[0] if params else 0
 
-            response = "\x1b[%i;%iR" % (y, x)
-            self.write_process_input(response)
+        if what == 16:
+            # Cell size in pixels: height first, then width.
+            self.write_process_input(
+                "\x1b[6;%i;%it" % (ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH)
+            )
+        elif what == 18:
+            # Size of the text area, in cells.
+            self.write_process_input("\x1b[8;%i;%it" % (self.lines, self.columns))
+        elif what == 14:
+            # Size of the text area, in pixels.
+            self.write_process_input(
+                "\x1b[4;%i;%it"
+                % (self.lines * ASSUMED_CELL_HEIGHT, self.columns * ASSUMED_CELL_WIDTH)
+            )
 
     def report_device_attributes(self, *args, **kwargs) -> None:
         response = "\x1b[>84;0;0c"

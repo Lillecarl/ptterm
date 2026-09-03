@@ -30,6 +30,8 @@ class BetterStream(Stream):
             # enhancement flags. (Parsing the ">", "<" and "=" private
             # markers requires the matching pyte patches.)
             "u": "report_kitty_keyboard",
+            # Window manipulation. Only the size reports are answered.
+            "t": "report_window",
         }
     )
 

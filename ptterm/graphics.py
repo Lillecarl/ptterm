@@ -18,6 +18,8 @@ import zlib
 from typing import Dict, List, Optional, Tuple
 
 __all__ = [
+    "ASSUMED_CELL_HEIGHT",
+    "ASSUMED_CELL_WIDTH",
     "GraphicsError",
     "GraphicsImage",
     "GraphicsPlacement",

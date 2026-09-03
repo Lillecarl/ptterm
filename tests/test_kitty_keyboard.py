@@ -201,3 +201,29 @@ def test_an_unknown_device_status_is_ignored():
     assert responses == []
     row = screen.pt_screen.data_buffer[0]
     assert "".join(row[i].char for i in range(5)) == "hello"
+
+
+def test_the_cell_size_report():
+    screen, stream, responses = make_screen()
+    stream.feed("\x1b[16t")
+    # Height first, then width. It matches the cell that the graphics
+    # state assumes, so both sides count cells alike.
+    assert responses == ["\x1b[6;20;10t"]
+
+
+def test_the_text_area_reports():
+    screen, stream, responses = make_screen()
+    stream.feed("\x1b[18t")
+    assert responses == ["\x1b[8;24;80t"]
+    responses.clear()
+    stream.feed("\x1b[14t")
+    assert responses == ["\x1b[4;480;800t"]
+
+
+def test_other_window_manipulation_is_ignored():
+    screen, stream, responses = make_screen()
+    stream.feed("\x1b[3;10;10t")  # Move the window.
+    stream.feed("hello")
+    assert responses == []
+    row = screen.pt_screen.data_buffer[0]
+    assert "".join(row[i].char for i in range(5)) == "hello"
