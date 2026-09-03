@@ -158,6 +158,20 @@ pieces = st.one_of(
     st.builds(lambda s: "\x1b[%sm" % s, st.sampled_from(RENDITIONS)),
     osc,
     string_sequence,
+    # The character sets. "ESC ( 0" is the line drawing set of the DEC
+    # terminals, and shift out and shift in pick G1 and G0.
+    st.sampled_from(["\x1b(0", "\x1b(B", "\x1b)0", "\x1b)B", "\x0e", "\x0f"]),
+    # The alternate screen, under each of the three names it has.
+    st.sampled_from(
+        [
+            "\x1b[?1049h",
+            "\x1b[?1049l",
+            "\x1b[?47h",
+            "\x1b[?47l",
+            "\x1b[?1047h",
+            "\x1b[?1047l",
+        ]
+    ),
 )
 
 program = st.lists(pieces, min_size=1, max_size=24).map("".join)
