@@ -662,13 +662,21 @@ class BetterScreen:
                 self.repair_wide_char(row, cursor_position_x)
                 self.repair_wide_char(row, cursor_position_x + 2)
             elif char_width == 0:
-                # This is probably a part of a decomposed unicode character.
-                # Merge into the previous cell.
-                # See: https://en.wikipedia.org/wiki/Unicode_equivalence
-                prev_char = row[cursor_position_x - 1]
-                row[cursor_position_x - 1] = char_cache[
-                    prev_char.char + pt_char.char, prev_char.style
-                ]
+                # A mark of no width of its own belongs to the character
+                # before it. See:
+                # https://en.wikipedia.org/wiki/Unicode_equivalence
+                # The cell before can be the empty second half of a
+                # double width character. The character itself then sits
+                # one cell further back.
+                previous = cursor_position_x - 1
+                cell = row.get(previous)
+                if cell is not None and cell.char == "":
+                    previous -= 1
+                    cell = row.get(previous)
+                if previous >= 0 and cell is not None:
+                    row[previous] = char_cache[
+                        cell.char + pt_char.char, cell.style
+                    ]
             else:  # char_width < 0
                 # (Should not happen.)
                 char_width = 0
