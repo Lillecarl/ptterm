@@ -79,3 +79,13 @@ def test_the_region_scrolls_on_the_alternate_screen():
 def test_a_region_set_on_the_alternate_screen_holds_after_the_leave():
     data = "\x1b[2;3r\x1b[?1049h\x1b[1;3r\x1b[?1049l\x1b[9B0"
     assert not differences(data, lines=5, columns=6)
+
+
+def test_each_screen_has_its_own_saved_cursor():
+    "A restore on the alternate screen may not read the cursor of the first."
+    assert not differences("0\x1b7\x1b[?1049h\x1b80", lines=5, columns=6)
+
+
+def test_the_saved_cursor_of_the_first_screen_survives():
+    data = "0\x1b7\x1b[?1049h\x1b7\x1b[3;1H\x1b8X\x1b[?1049l\x1b8Y"
+    assert not differences(data, lines=5, columns=6)

@@ -165,6 +165,10 @@ class BetterScreen:
     swap_variables = [
         "mode",
         "charset",
+        # The cursor that "ESC 7" saves belongs to one screen. A
+        # restore on the alternate screen may not read the one that the
+        # first screen holds.
+        "savepoints",
         "g0_charset",
         "g1_charset",
         "tabstops",
@@ -527,6 +531,9 @@ class BetterScreen:
             margins = self.margins
             self._reset_screen()
             self.margins = margins
+            # A list of its own, because a save writes into the list
+            # that is there rather than making a new one.
+            self.savepoints = []
 
             # The alternate screen has its own, empty kitty keyboard flag
             # stack and its own graphics state. (The main screen state is
