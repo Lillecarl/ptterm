@@ -45,6 +45,23 @@ FORWARDED_OSC = frozenset(["22", "52", "99"])
 #: is what the program in it talks to.
 TERMINAL_VERSION = "ptterm(0.2)"
 
+#: The shape of the cursor that a terminal starts with, as DECSCUSR
+#: names it: a block that blinks.
+DEFAULT_CURSOR_STYLE = 1
+
+
+def _rgb_components(color: Optional[str]) -> Optional[Tuple[int, int, int]]:
+    "The three components of a '#rrggbb' colour, or None for anything else."
+    if not color:
+        return None
+    text = color.lstrip("#")
+    if len(text) != 6:
+        return None
+    try:
+        return (int(text[0:2], 16), int(text[2:4], 16), int(text[4:6], 16))
+    except ValueError:
+        return None
+
 
 def _reads_the_clipboard(param: str) -> bool:
     """
@@ -232,6 +249,10 @@ class BetterScreen:
         # full terminal reset. It also clears all graphics.)
         self.kitty_flags_stack = ()
         self.graphics.clear()
+
+        # The shape of the cursor, as DECSCUSR names it. A reset puts
+        # it back to the shape that the terminal starts with.
+        self.cursor_style = DEFAULT_CURSOR_STYLE
 
         # Reset modes.
         self.mode = {
@@ -1354,6 +1375,71 @@ class BetterScreen:
             "\x1b[%s%i;%i$y" % ("?" if is_private else "", number, state)
         )
 
+    def set_cursor_style(self, *params: int, **kwargs) -> None:
+        """
+        DECSCUSR ("CSI Ps SP q"): the shape of the cursor.
+
+        prompt_toolkit draws one cursor for the whole application, so
+        the shape does not reach the screen. It is remembered, because
+        a program that sets a shape also asks for it back, and it wants
+        to read what it wrote.
+        """
+        style = params[0] if params else 0
+        if 0 <= style <= 6:
+            self.cursor_style = style or DEFAULT_CURSOR_STYLE
+
+    def report_setting(self, name: str) -> None:
+        """
+        DECRQSS ("DCS $ q <name> ST"): the current value of a setting.
+
+        The answer is "DCS 1 $ r <value> <name> ST" for a setting that
+        this screen keeps, and "DCS 0 $ r ST" for one that it does not.
+        """
+        if name == "m":
+            value = self._current_rendition()
+        elif name == " q":
+            value = "%i" % self.cursor_style
+        elif name == "r":
+            margins = self.margins or Margins(0, self.lines - 1)
+            value = "%i;%i" % (margins.top + 1, margins.bottom + 1)
+        else:
+            self.write_process_input("\x1bP0$r\x1b\\")
+            return
+
+        self.write_process_input("\x1bP1$r%s%s\x1b\\" % (value, name))
+
+    def _current_rendition(self) -> str:
+        """
+        The graphic rendition of this screen, as SGR parameters.
+
+        A colour comes back as its three components, also when the
+        program set it by index: the screen keeps the colour, not the
+        index. A program that probes for 24 bit colour reads its own
+        colour back, which is the answer it looks for.
+        """
+        attrs = self._attrs
+        parts = ["0"]
+
+        for flag, number in (
+            (attrs.bold, 1),
+            (attrs.dim, 2),
+            (attrs.italic, 3),
+            (attrs.underline, 4),
+            (attrs.blink, 5),
+            (attrs.reverse, 7),
+            (attrs.hidden, 8),
+            (attrs.strike, 9),
+        ):
+            if flag:
+                parts.append("%i" % number)
+
+        for color, number in ((attrs.color, 38), (attrs.bgcolor, 48)):
+            components = _rgb_components(color)
+            if components is not None:
+                parts.append("%i;2;%i;%i;%i" % ((number,) + components))
+
+        return ";".join(parts)
+
     def report_window(self, *params: int, **kwargs) -> None:
         """
         Window manipulation ("CSI Ps t"). Only the size reports are
@@ -1575,9 +1661,16 @@ class BetterScreen:
 
         A sixel image arrives here. It is decoded and stored in the
         graphics state, next to the images of the kitty graphics
-        protocol, so that one renderer draws both. Every other DCS
-        sequence is consumed without corrupting the screen content.
+        protocol, so that one renderer draws both.
+
+        A DECRQSS request ("DCS $ q <name> ST") also arrives here, and
+        is answered. Every other DCS sequence is consumed without
+        corrupting the screen content.
         """
+        if data.startswith("$q"):
+            self.report_setting(data[2:])
+            return
+
         image = decode_sixel(data)
         if image is None:
             return

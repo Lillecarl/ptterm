@@ -118,3 +118,92 @@ def test_the_query_does_not_change_the_mode():
     query_mode(stream, 2004)
     query_mode(stream, 4, private=False)
     assert screen.mode == before
+
+
+# ----------------------------------------------------------------------
+# DECRQSS.
+
+
+def request_setting(stream, name):
+    stream.feed("\x1bP$q%s\x1b\\" % name)
+
+
+def test_the_rendition_of_a_fresh_screen_is_plain():
+    _screen, stream, answers = make_screen()
+    request_setting(stream, "m")
+    assert answers == ["\x1bP1$r0m\x1b\\"]
+
+
+def test_the_rendition_reports_the_attributes():
+    _screen, stream, answers = make_screen()
+    stream.feed("\x1b[1;3;4;7m")
+    request_setting(stream, "m")
+    assert answers == ["\x1bP1$r0;1;3;4;7m\x1b\\"]
+
+
+def test_the_rendition_reports_a_24_bit_colour():
+    "A program that probes for 24 bit colour reads its own colour back."
+    _screen, stream, answers = make_screen()
+    stream.feed("\x1b[38;2;1;2;3m")
+    request_setting(stream, "m")
+    assert answers == ["\x1bP1$r0;38;2;1;2;3m\x1b\\"]
+
+
+def test_a_colour_by_index_comes_back_as_its_components():
+    "The screen keeps the colour, not the index it was named with."
+    _screen, stream, answers = make_screen()
+    stream.feed("\x1b[48;5;196m")
+    request_setting(stream, "m")
+    assert answers == ["\x1bP1$r0;48;2;255;0;0m\x1b\\"]
+
+
+def test_a_reset_clears_the_rendition():
+    _screen, stream, answers = make_screen()
+    stream.feed("\x1b[1;38;2;1;2;3m\x1b[0m")
+    request_setting(stream, "m")
+    assert answers == ["\x1bP1$r0m\x1b\\"]
+
+
+def test_the_cursor_style_comes_back():
+    _screen, stream, answers = make_screen()
+    request_setting(stream, " q")
+    stream.feed("\x1b[4 q")  # A steady underline.
+    request_setting(stream, " q")
+    assert answers == ["\x1bP1$r1 q\x1b\\", "\x1bP1$r4 q\x1b\\"]
+
+
+def test_the_cursor_style_zero_is_the_default():
+    _screen, stream, answers = make_screen()
+    stream.feed("\x1b[6 q\x1b[0 q")
+    request_setting(stream, " q")
+    assert answers == ["\x1bP1$r1 q\x1b\\"]
+
+
+def test_a_cursor_style_out_of_range_is_ignored():
+    _screen, stream, answers = make_screen()
+    stream.feed("\x1b[4 q\x1b[9 q")
+    request_setting(stream, " q")
+    assert answers == ["\x1bP1$r4 q\x1b\\"]
+
+
+def test_the_margins_come_back():
+    _screen, stream, answers = make_screen(lines=24)
+    request_setting(stream, "r")
+    stream.feed("\x1b[3;10r")
+    request_setting(stream, "r")
+    assert answers == ["\x1bP1$r1;24r\x1b\\", "\x1bP1$r3;10r\x1b\\"]
+
+
+def test_a_setting_that_the_screen_does_not_keep_is_refused():
+    _screen, stream, answers = make_screen()
+    request_setting(stream, "|")  # DECSCPP: the column count.
+    request_setting(stream, "")
+    assert answers == ["\x1bP0$r\x1b\\", "\x1bP0$r\x1b\\"]
+
+
+def test_a_sixel_image_is_still_decoded():
+    "DECRQSS shares the DCS entry point with the images."
+    screen, stream, answers = make_screen()
+    stream.feed('\x1bP0;0;0q"1;1;6;6#4;2;100;0;0#4!6~\x1b\\')
+    assert answers == []
+    assert len(screen.graphics.placements) == 1

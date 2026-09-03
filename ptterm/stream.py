@@ -38,6 +38,9 @@ class BetterStream(Stream):
             # DECRQM ("CSI ? Ps $ p"): is this mode set? (The "$" is an
             # intermediate byte, and needs the matching pyte patch.)
             "$p": "report_mode",
+            # DECSCUSR ("CSI Ps SP q"): the shape of the cursor. It is
+            # remembered, so that DECRQSS can report it back.
+            " q": "set_cursor_style",
             # Kitty's unscroll. The intermediate space is part of the
             # name, so this is not CUB. (It needs the matching pyte
             # patch, which keeps intermediate bytes.)
