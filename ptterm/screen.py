@@ -295,6 +295,11 @@ class BetterScreen:
         #      it seems for us that LAT1_MAP should indeed be the default, if
         #      not a French version of Vim would incorrectly show some
         #      characters.
+        # Has a double width character ever reached the screen? Nearly
+        # no pane draws one, and the repair that a broken pair needs
+        # costs a lookup for every character. The flag skips it.
+        self._wide_chars = False
+
         # G1 holds ASCII as well until a program names something
         # else. pyte starts it on the line drawing set, and a stray
         # shift out then turned every letter into a box character.
@@ -629,6 +634,7 @@ class BetterScreen:
         in_irm = mo.IRM in self.mode
         char_cache = _CHAR_CACHE
         columns = self.columns
+        wide_chars = self._wide_chars
 
         # Translating a given character.
         if self.charset:
@@ -668,9 +674,21 @@ class BetterScreen:
 
             row = data_buffer[cursor_position_y]
             if char_width == 1:
-                row[cursor_position_x] = pt_char
-                self.repair_wide_char(row, cursor_position_x)
-                self.repair_wide_char(row, cursor_position_x + 1)
+                # A write over one half of a double width character
+                # leaves the other half on its own. Only a cell that
+                # holds a half needs the repair, so the test stays
+                # here, and a screen that never saw such a character
+                # does not even look.
+                if wide_chars:
+                    broken = row.get(cursor_position_x)
+                    row[cursor_position_x] = pt_char
+                    if broken is not None and (
+                        broken.char == "" or broken.width > 1
+                    ):
+                        self.repair_wide_char(row, cursor_position_x)
+                        self.repair_wide_char(row, cursor_position_x + 1)
+                else:
+                    row[cursor_position_x] = pt_char
             elif char_width > 1:  # 2
                 # Double width character. Put an empty string in the second
                 # cell, because this is different from every character and
@@ -680,6 +698,8 @@ class BetterScreen:
                 row[cursor_position_x + 1] = char_cache["", style]
                 self.repair_wide_char(row, cursor_position_x)
                 self.repair_wide_char(row, cursor_position_x + 2)
+                if not wide_chars:
+                    wide_chars = self._wide_chars = True
             elif char_width == 0:
                 # A mark of no width of its own belongs to the character
                 # before it. See:
