@@ -32,6 +32,9 @@ class BetterStream(Stream):
             "u": "report_kitty_keyboard",
             # Window manipulation. Only the size reports are answered.
             "t": "report_window",
+            # XTVERSION ("CSI > q"): the name and the version of the
+            # terminal. A plain "CSI Ps q" is DECLL, which we ignore.
+            "q": "report_version",
             # Kitty's unscroll. The intermediate space is part of the
             # name, so this is not CUB. (It needs the matching pyte
             # patch, which keeps intermediate bytes.)

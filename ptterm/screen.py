@@ -41,6 +41,10 @@ __all__ = ("BetterScreen",)
 #: receives them; a ptterm without such a function consumes them.
 FORWARDED_OSC = frozenset(["22", "52", "99"])
 
+#: What XTVERSION ("CSI > q") answers. ptterm draws the pane, so ptterm
+#: is what the program in it talks to.
+TERMINAL_VERSION = "ptterm(0.2)"
+
 
 def _reads_the_clipboard(param: str) -> bool:
     """
@@ -1284,6 +1288,19 @@ class BetterScreen:
         cursor_position = self.pt_cursor_position
         cursor_position.y = max(0, cursor_position.y - count)
         self.ensure_bounds()
+
+    def report_version(self, *params: int, private: object = False, **kwargs) -> None:
+        """
+        XTVERSION ("CSI > q"): the name and the version of the terminal.
+
+        Programs read it to decide which extensions they may use. The
+        answer names ptterm, because ptterm draws the pane. A plain
+        "CSI Ps q" is DECLL, which loads the keyboard lights of a real
+        VT220; it is ignored.
+        """
+        if private != ">":
+            return
+        self.write_process_input("\x1bP>|%s\x1b\\" % TERMINAL_VERSION)
 
     def report_window(self, *params: int, **kwargs) -> None:
         """
