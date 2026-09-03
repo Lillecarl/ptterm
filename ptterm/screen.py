@@ -1000,6 +1000,35 @@ class BetterScreen:
         self.pt_cursor_position.x += count or 1
         self.ensure_bounds()
 
+    def erase_style(self) -> str:
+        """
+        The style that an erased cell takes.
+
+        A terminal paints an erased cell with the background that is set
+        now. xterm, kitty and tmux all do this, and programs count on
+        it: htop draws the header of its table with "CSI K" and expects
+        the colour to reach the end of the line.
+
+        Only a background paints a cell, so nothing else carries over.
+        An empty answer means that the cell can go away instead, which
+        keeps the screen sparse.
+        """
+        attrs = self._attrs
+
+        if attrs.reverse:
+            # Reverse video paints the cell with the foreground.
+            style = "reverse "
+            if attrs.color:
+                style += "%s " % attrs.color
+            if attrs.bgcolor:
+                style += "bg:%s " % attrs.bgcolor
+            return style
+
+        if attrs.bgcolor:
+            return "bg:%s " % attrs.bgcolor
+
+        return ""
+
     def erase_characters(self, count: Optional[int] = None) -> None:
         """Erases the indicated # of characters, starting with the
         character at cursor position. Character attributes are set
@@ -1017,11 +1046,12 @@ class BetterScreen:
         count = count or 1
         cursor_position = self.pt_cursor_position
         row = self.data_buffer[cursor_position.y]
+        style = self.erase_style()
 
         for column in range(
             cursor_position.x, min(cursor_position.x + count, self.columns)
         ):
-            row[column] = Char(style=row[column].style)
+            row[column] = Char(" ", style)
 
     def erase_in_line(self, type_of: int = 0, private: bool = False) -> None:
         """Erases a line in a specific way.
@@ -1038,22 +1068,32 @@ class BetterScreen:
         """
         data_buffer = self.data_buffer
         pt_cursor_position = self.pt_cursor_position
+        style = self.erase_style()
 
-        if type_of == 2:
-            # Delete line completely.
-            data_buffer.pop(pt_cursor_position.y, None)
+        if type_of == 0:
+            columns = range(pt_cursor_position.x, self.columns)
+        elif type_of == 1:
+            columns = range(0, pt_cursor_position.x + 1)
         else:
+            columns = range(0, self.columns)
+
+        if not style:
+            if type_of == 2:
+                # The whole line goes away, which keeps the screen sparse.
+                data_buffer.pop(pt_cursor_position.y, None)
+                return
+
             line = data_buffer[pt_cursor_position.y]
-
-            def should_we_delete(column):  # TODO: check for off-by-one errors!
-                if type_of == 0:
-                    return column >= pt_cursor_position.x
-                if type_of == 1:
-                    return column <= pt_cursor_position.x
-
             for column in list(line.keys()):
-                if should_we_delete(column):
+                if column in columns:
                     line.pop(column, None)
+            return
+
+        # A background is set, so the erased cells take it.
+        line = data_buffer[pt_cursor_position.y]
+        erased = Char(" ", style)
+        for column in columns:
+            line[column] = erased
 
     def erase_in_display(self, type_of: int = 0, private: bool = False) -> None:
         """Erases display in a specific way.
@@ -1092,16 +1132,23 @@ class BetterScreen:
             pt_cursor_position.y = 0
             self.max_y = 0
         else:
+            style = self.erase_style()
+
+            # A line that holds nothing needs no cell, so the erasing
+            # stops at the last line in use. A background has to reach
+            # the bottom of the screen, though.
+            last_line = max(max_line, line_offset + self.lines - 1) if style else max_line
+
             try:
                 interval = (
                     # a) erase from cursor to the end of the display, including
                     # the cursor,
-                    range(pt_cursor_position.y + 1, max_line + 1),
+                    range(pt_cursor_position.y + 1, last_line + 1),
                     # b) erase from the beginning of the display to the cursor,
                     # including it,
                     range(line_offset, pt_cursor_position.y),
                     # c) erase the whole display.
-                    range(line_offset, max_line + 1),
+                    range(line_offset, last_line + 1),
                 )[type_of]
             except IndexError:
                 return
@@ -1109,6 +1156,12 @@ class BetterScreen:
             data_buffer = self.data_buffer
             for line in interval:
                 data_buffer[line] = defaultdict(lambda: Char(" "))
+                if style:
+                    # A background is set, so the erased cells take it.
+                    erased = Char(" ", style)
+                    row = data_buffer[line]
+                    for column in range(self.columns):
+                        row[column] = erased
 
             # In case of 0 or 1 we have to erase the line with the cursor.
             if type_of in [0, 1]:
