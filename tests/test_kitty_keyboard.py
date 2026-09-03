@@ -145,9 +145,10 @@ def test_apc_and_dcs_are_consumed():
     assert row_text().startswith("beforeafter")
     assert "AAAA" not in row_text()
 
-    stream.feed("\x1bP0;1;0qsixel-data\x1b\\!")
+    # A DCS that is not a sixel image. (A DECRQSS request.)
+    stream.feed("\x1bP$q\"p\x1b\\!")
     assert row_text().startswith("beforeafter!")
-    assert "sixel-data" not in row_text()
+    assert "$q" not in row_text()
 
 
 def test_pyte_default_stream_does_not_dispatch_u():

@@ -20,6 +20,7 @@ from pyte import modes as mo
 from pyte.screens import Margins
 
 from .graphics import GraphicsState
+from .sixel import decode_sixel
 
 __all__ = ("BetterScreen",)
 
@@ -1298,10 +1299,16 @@ class BetterScreen:
         """
         DCS string sequence (``ESC P ... ST``).
 
-        Sixel images and other DCS sequences arrive here. Parsing and
-        storing them is not implemented yet: for now the payload is
-        consumed without corrupting the screen content.
+        A sixel image arrives here. It is decoded and stored in the
+        graphics state, next to the images of the kitty graphics
+        protocol, so that one renderer draws both. Every other DCS
+        sequence is consumed without corrupting the screen content.
         """
+        image = decode_sixel(data)
+        if image is None:
+            return
+        width, height, pixels = image
+        self.graphics.add_sixel(width, height, pixels, self)
 
     def define_charset(self, *a, **kw):
         pass

@@ -315,8 +315,7 @@ class GraphicsState:
                 elif "I" in keys:
                     # An image number always creates a new image; the
                     # terminal assigns the id and reports it.
-                    image_id = self.next_image_id
-                    self.next_image_id += 1
+                    image_id = self._new_image_id()
                     self.images_by_id[image_id] = image
                     if image.number:
                         self.newest_by_number[image.number] = image
@@ -533,6 +532,14 @@ class GraphicsState:
             if known is image
         ]
 
+    def _new_image_id(self) -> int:
+        "An id that no image uses. (For images that the terminal names.)"
+        while self.next_image_id in self.images_by_id:
+            self.next_image_id += 1
+        image_id = self.next_image_id
+        self.next_image_id += 1
+        return image_id
+
     def _total_image_data(self) -> int:
         return sum(len(image.data) for image in self.images_by_id.values())
 
@@ -550,6 +557,40 @@ class GraphicsState:
             for number, known in list(self.newest_by_number.items()):
                 if known is image:
                     del self.newest_by_number[number]
+
+    # ------------------------------------------------------------------
+    # Sixel.
+
+    def add_sixel(
+        self, width: int, height: int, data: bytes, screen
+    ) -> Optional[int]:
+        """
+        Store a decoded sixel image and place it at the cursor.
+
+        Sixel has no image ids: every image is new, and the terminal
+        names it. The cursor ends at the left of the row below the
+        image, the way xterm leaves it.
+        """
+        if self._total_image_data() + len(data) > MAX_TOTAL_IMAGE_DATA:
+            return None
+
+        image_id = self._new_image_id()
+        self.images_by_id[image_id] = GraphicsImage(32, width, height, data)
+
+        columns = max(1, -(-width // ASSUMED_CELL_WIDTH))
+        rows = max(1, -(-height // ASSUMED_CELL_HEIGHT))
+
+        cursor = screen.pt_cursor_position
+        self.placements.append(
+            GraphicsPlacement(image_id, 0, cursor.x, cursor.y, columns, rows)
+        )
+        self._clear_cells(screen, cursor.x, cursor.y, columns, rows)
+
+        cursor.x = 0
+        cursor.y += rows
+        screen.max_y = max(screen.max_y, cursor.y)
+        screen.ensure_bounds()
+        return image_id
 
     # ------------------------------------------------------------------
     # Screen interaction.
