@@ -24,6 +24,12 @@ from .graphics import (
     ASSUMED_CELL_WIDTH,
     GraphicsState,
 )
+from .osc import (
+    DEFAULT_COLORS,
+    PALETTE,
+    format_color,
+    parse_kitty_color_query,
+)
 from .sixel import decode_sixel
 
 __all__ = ("BetterScreen",)
@@ -1358,6 +1364,78 @@ class BetterScreen:
 
         # A plain "CSI N u" without a private marker is not part of the
         # protocol. Ignore it.
+
+    # Codes of the xterm colour queries: the code names the colour.
+    _osc_colors = {
+        "10": "foreground",
+        "11": "background",
+        "12": "cursor",
+        "17": "selection_background",
+        "19": "selection_foreground",
+    }
+
+    def osc(self, code: str, param: str) -> None:
+        """
+        An OSC sequence other than the title and the icon name.
+
+        Only the colour queries are answered. A pane has no palette of
+        its own, so the answer is the colour that pymux renders with; a
+        program that asks needs an answer, not the right to change it.
+
+        Everything else is consumed. It must not raise: one sequence
+        may not stop the pane.
+        """
+        if code == "4":
+            self._report_palette_colors(param)
+        elif code in self._osc_colors:
+            self._report_named_color(code, param)
+        elif code == "21":
+            self._report_kitty_colors(param)
+
+    def _report_named_color(self, code: str, param: str) -> None:
+        "Answer an xterm colour query, e.g. 'OSC 11 ; ?'."
+        if param.strip() != "?":
+            return  # A pane cannot change the colours of the terminal.
+        color = DEFAULT_COLORS[self._osc_colors[code]]
+        self.write_process_input(
+            "\x1b]%s;%s\x1b\\" % (code, format_color(color))
+        )
+
+    def _report_palette_colors(self, param: str) -> None:
+        """
+        Answer a palette query, e.g. "OSC 4 ; 1 ; ?". The payload holds
+        index and value pairs; only the queries are answered.
+        """
+        parts = param.split(";")
+        answers = []
+        for index in range(0, len(parts) - 1, 2):
+            number, value = parts[index], parts[index + 1]
+            if value.strip() != "?" or not number.isdigit():
+                continue
+            entry = int(number)
+            if entry < len(PALETTE):
+                answers.append("%i;%s" % (entry, format_color(PALETTE[entry])))
+        if answers:
+            self.write_process_input("\x1b]4;%s\x1b\\" % ";".join(answers))
+
+    def _report_kitty_colors(self, param: str) -> None:
+        "Answer a kitty colour query, e.g. 'OSC 21 ; background=?'."
+        keys = parse_kitty_color_query(param)
+        if keys is None:
+            return
+
+        answers = []
+        for key, is_query in keys:
+            if not is_query:
+                continue
+            if key.isdigit() and int(key) < len(PALETTE):
+                answers.append("%s=%s" % (key, format_color(PALETTE[int(key)])))
+            elif key in DEFAULT_COLORS:
+                answers.append("%s=%s" % (key, format_color(DEFAULT_COLORS[key])))
+            else:
+                answers.append("%s=" % key)  # Not a colour that we hold.
+        if answers:
+            self.write_process_input("\x1b]21;%s\x1b\\" % ";".join(answers))
 
     def set_icon_name(self, param: str) -> None:
         self.icon_name = param
