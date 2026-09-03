@@ -1067,8 +1067,15 @@ class BetterScreen:
         # Ensure bounds.
         # (Following code is faster than calling `self.ensure_bounds`.)
         _, bottom = margins
+        if cursor_position.y - self.line_offset > bottom:
+            # Below the region the bottom of the screen stops the
+            # cursor, not the margin. The margin would move it up,
+            # which is not what a move down means.
+            limit = self.lines - 1
+        else:
+            limit = bottom
         cursor_position.y = min(
-            cursor_position.y + (count or 1), bottom + self.line_offset + 1
+            cursor_position.y + (count or 1), limit + self.line_offset
         )
 
         self.max_y = max(self.max_y, cursor_position.y)
@@ -1088,8 +1095,14 @@ class BetterScreen:
 
         :param int count: number of lines to skip.
         """
+        top, _ = self.margins or Margins(0, self.lines - 1)
+        above_the_region = self.pt_cursor_position.y - self.line_offset < top
+
         self.pt_cursor_position.y -= count or 1
-        self.ensure_bounds(use_margins=True)
+
+        # Above the region the top of the screen stops the cursor, not
+        # the margin. The margin would move it down.
+        self.ensure_bounds(use_margins=not above_the_region)
 
     def cursor_up1(self, count: Optional[int] = None) -> None:
         """Moves cursor up the indicated # of lines to column 1. Cursor
