@@ -34,6 +34,19 @@ screens cell by cell.
 - A CSI sequence that carries more parameters than its command takes
   raised a TypeError in pyte and stopped the whole stream. One stray
   sequence took the pane with it.
+- The first visible line followed the cursor as well as the content, so
+  a cursor that moved above it pulled the screen back into the history
+  and hid the line that a program had just written.
+- A move down that starts above the scrolling region stopped at the
+  bottom margin, and a move up that starts below it stopped at the top
+  margin. The screen stops both now.
+- "ESC ( 0" names the line drawing set of the DEC terminals, which is
+  how ncurses draws a box. pyte dropped it in UTF-8 mode and the screen
+  had no handler for it either, so a box came out as the letters "lqk".
+- A tab found a stop past the last column, put the cursor there, and
+  the next character wrapped to the line below.
+- Only "?1049" took the alternate screen. A program that sends "?47" or
+  "?1047" drew over the shell it came from.
 
 - A restore of the cursor was not faithful: it clamped the position
   into the margins that are set now, it read a stack instead of the
@@ -67,7 +80,8 @@ each; a program is written against xterm, not against kitty.
 - A hyperlink (OSC 8) belongs to a cell. kitty holds an identifier on
   every cell of it; ptterm has no style for one, so the comparison
   cannot see it.
-- The alternate screen, and the character sets that "ESC ( 0" selects.
+- Sixel and the graphics protocol of kitty. Both draw pixels, which
+  asks for a comparison of images and not of cells.
 
 ## Open, found by the hunt and not looked at yet
 
