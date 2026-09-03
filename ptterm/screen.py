@@ -8,7 +8,7 @@ Changes compared to the original `Screen` class:
     - CPR support and device attributes.
 """
 from collections import defaultdict, namedtuple
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, DefaultDict, Dict, List, Optional, Tuple
 
 from prompt_toolkit.cache import FastDictCache
 from prompt_toolkit.layout.screen import Char, Screen
@@ -805,6 +805,27 @@ class BetterScreen:
             self.reset_mode(mo.DECOM)
             self.cursor_position()
 
+    def _erase_row(self, row: int) -> None:
+        """
+        Make the absolute row `row` an empty row.
+
+        A row takes the background that is set now, the same way an
+        erased cell does. Without a background the row can go away,
+        which keeps the screen sparse.
+        """
+        data_buffer = self.data_buffer
+        style = self.erase_style()
+
+        if not style:
+            data_buffer.pop(row, None)
+            return
+
+        line: DefaultDict[int, Char] = defaultdict(lambda: Char(" "))
+        erased = Char(" ", style)
+        for column in range(self.columns):
+            line[column] = erased
+        data_buffer[row] = line
+
     def insert_lines(self, count: Optional[int] = None) -> None:
         """Inserts the indicated # of lines at line with cursor. Lines
         displayed **at** and below the cursor move down. Lines moved
@@ -818,12 +839,15 @@ class BetterScreen:
         data_buffer = self.data_buffer
         line_offset = self.line_offset
         pt_cursor_position = self.pt_cursor_position
+        first = pt_cursor_position.y - line_offset
 
         # If cursor is outside scrolling margins it -- do nothing.
-        if top <= pt_cursor_position.y - self.line_offset <= bottom:
-            for line in range(bottom, pt_cursor_position.y - line_offset, -1):
-                if line - count < top:
-                    data_buffer.pop(line + line_offset, None)
+        if top <= first <= bottom:
+            for line in range(bottom, first - 1, -1):
+                # A line above the cursor stays where it is, so the new
+                # empty lines are the ones that would come from there.
+                if line - count < first:
+                    self._erase_row(line + line_offset)
                 else:
                     data_buffer[line + line_offset] = data_buffer[
                         line + line_offset - count
@@ -857,7 +881,7 @@ class BetterScreen:
                 # When 'x' lines further are out of the margins, replace by an empty line,
                 # Otherwise copy the line from there.
                 if line + count > bottom:
-                    data_buffer.pop(line + line_offset, None)
+                    self._erase_row(line + line_offset)
                 else:
                     data_buffer[line + line_offset] = self.data_buffer[
                         line + count + line_offset
