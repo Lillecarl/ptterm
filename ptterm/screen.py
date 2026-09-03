@@ -768,6 +768,19 @@ class BetterScreen:
 
         cursor_position.x = cursor_position_x
 
+    def _leave_the_pending_wrap(self) -> None:
+        """
+        Bring a cursor that sits past the last column back onto it.
+
+        A character written in the last column leaves the cursor one
+        column further, which is what makes the next character wrap.
+        A move of the cursor ends that wait, so the cursor lands on the
+        last column and not past it.
+        """
+        cursor_position = self.pt_cursor_position
+        if cursor_position.x >= self.columns:
+            cursor_position.x = self.columns - 1
+
     def carriage_return(self) -> None:
         "Move the cursor to the beginning of the current line."
         self.pt_cursor_position.x = 0
@@ -776,6 +789,12 @@ class BetterScreen:
         """Move the cursor down one line in the same column. If the
         cursor is at the last line, create a new line at the bottom.
         """
+        # A character at the right edge leaves the cursor one column
+        # past the line, which is where the next one wraps from. A move
+        # down takes the cursor out of that place: the column it lands
+        # in is the last one.
+        self._leave_the_pending_wrap()
+
         margins = self.margins
 
         # When scrolling over the full screen height -> keep history.
@@ -1227,6 +1246,8 @@ class BetterScreen:
 
         :param int count: number of lines to skip.
         """
+        self._leave_the_pending_wrap()
+
         cursor_position = self.pt_cursor_position
         margins = self.margins or Margins(0, self.lines - 1)
 
