@@ -54,6 +54,27 @@ DEFAULT_CURSOR_STYLE = 1
 #: instead of only through SIGWINCH.
 INBAND_RESIZE = 2048
 
+#: The names that prompt_toolkit gives the first sixteen colours of the
+#: palette, in the order that "CSI 38 ; 5 ; n m" numbers them.
+PALETTE_NAMES = [
+    "ansiblack",
+    "ansired",
+    "ansigreen",
+    "ansiyellow",
+    "ansiblue",
+    "ansimagenta",
+    "ansicyan",
+    "ansigray",
+    "ansibrightblack",
+    "ansibrightred",
+    "ansibrightgreen",
+    "ansibrightyellow",
+    "ansibrightblue",
+    "ansibrightmagenta",
+    "ansibrightcyan",
+    "ansiwhite",
+]
+
 
 def _rgb_components(color: Optional[str]) -> Optional[Tuple[int, int, int]]:
     "The three components of a '#rrggbb' colour, or None for anything else."
@@ -1218,10 +1239,18 @@ class BetterScreen:
     _bg_colors = {v: "#" + k for k, v in BG_ANSI_COLORS.items()}
 
     # Mapping of the escape codes for 256colors to their '#ffffff' value.
+    #
+    # The first sixteen keep their name. A program that asks for number
+    # one asks for "red", which the terminal of the user paints from
+    # its own theme. A number gives that away: kitty with a catppuccin
+    # theme would draw the red of xterm instead of its own.
     _256_colors = {}
 
     for i, (r, g, b) in enumerate(_256_colors_table.colors):
-        _256_colors[1024 + i] = f"#{r:02x}{g:02x}{b:02x}"
+        if i < len(PALETTE_NAMES):
+            _256_colors[1024 + i] = "#" + PALETTE_NAMES[i]
+        else:
+            _256_colors[1024 + i] = f"#{r:02x}{g:02x}{b:02x}"
 
     def select_graphic_rendition(self, *attrs_tuple: int, private: bool = False) -> None:
         """Support 256 colours"""
