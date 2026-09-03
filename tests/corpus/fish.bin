@@ -1,0 +1,2 @@
+[6 qwarning: No TTY for interactive shell (tcgetpgrp failed)
+setpgid: Inappropriate ioctl for device

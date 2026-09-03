@@ -1,0 +1,23 @@
+[?1049h[22;0;0t[24;1H[?1h=Pymux[m
+=====[m
+[m
+*A terminal multiplexer (like tmux) in Python*[m
+[m
+Pymux is written on top of `prompt_toolkit 3.0[m
+<https://github.com/jonathanslenders/python-prompt-toolkit>`_ and requires[m
+Python 3.11 or newer.[m
+[m
+.. image :: https://raw.githubusercontent.com/jonathanslenders/pymux/master/imag[m es/pymux.png[m
+[m
+[m
+Issues, questions, wishes, comments, feedback, remarks? Please create a GitHub[m
+issue, I appreciate it.[m
+[m
+[m
+Installation[m
+------------[m
+[m
+Simply install ``pymux`` using pip:[m
+[m
+::[m
+[7mREADME.rst[27m[K

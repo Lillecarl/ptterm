@@ -1,0 +1,127 @@
+"""
+Random escape sequences, compared cell by cell against kitty.
+
+A hand written test only covers what somebody thought of. This builds
+programs out of the pieces that a real program uses and checks that
+ptterm draws what kitty draws. When one fails, hypothesis cuts it down
+to the shortest sequence that still fails, which is usually short
+enough to read.
+
+This file is not named `test_*`, so a plain run of the suite leaves it
+alone. It is a tool for hunting, not a gate: it finds deviations faster
+than they get fixed, and each one needs a decision about whether to
+follow kitty or xterm. `nix-build -A checks.fuzz` runs it, and
+`PTTERM_FUZZ` says how many examples to try.
+"""
+import os
+
+import pytest
+
+hypothesis = pytest.importorskip("hypothesis")
+
+from hypothesis import HealthCheck, given, settings  # noqa: E402
+from hypothesis import strategies as st  # noqa: E402
+
+from kitty_oracle import differences, kitty_is_available  # noqa: E402
+
+pytestmark = pytest.mark.skipif(
+    not kitty_is_available(), reason="the kitty python package is not there"
+)
+
+LINES, COLUMNS = 8, 24
+
+#: How many examples to try. A build wants to stay quick, so keep the
+#: default low and raise it by hand when hunting.
+EXAMPLES = int(os.environ.get("PTTERM_FUZZ", "300"))
+
+small = st.integers(min_value=0, max_value=9)
+row = st.integers(min_value=1, max_value=LINES)
+column = st.integers(min_value=1, max_value=COLUMNS)
+
+text = st.text(
+    alphabet=st.sampled_from("abcXY 0123.#äé"),
+    min_size=1,
+    max_size=8,
+)
+
+#: The renditions that a program really uses. The first sixteen colours
+#: go by number as well, because a terminal paints those from the theme
+#: of the user.
+RENDITIONS = [
+    "0",
+    "1",
+    "3",
+    "4",
+    "7",
+    "22",
+    "23",
+    "24",
+    "27",
+    "30",
+    "31",
+    "37",
+    "39",
+    "40",
+    "42",
+    "47",
+    "49",
+    "90",
+    "97",
+    "100",
+    "107",
+    "38;5;1",
+    "38;5;9",
+    "38;5;200",
+    "48;5;2",
+    "48;5;250",
+    "38;2;10;20;30",
+    "48;2;200;100;50",
+]
+
+pieces = st.one_of(
+    text,
+    st.just("\r"),
+    st.just("\n"),
+    st.just("\r\n"),
+    # No tab: kitty moves to the next line on a tab at the right
+    # margin and ptterm does not. See `test_known_deviations`.
+    # No backspace: kitty steps back to the end of the row above when
+    # the cursor sits in the first column and ptterm does not. See
+    # `test_known_deviations`.
+    st.just("\x1b7"),
+    st.just("\x1b8"),
+    st.just("\x1bD"),
+    st.just("\x1bM"),
+    st.sampled_from(["\x1b[?7h", "\x1b[?7l"]),
+    st.builds(lambda n, c: "\x1b[%d%s" % (n, c), small,
+              st.sampled_from("ABCDEFGLM@PX")),
+    # SU and SD take their count from one, because kitty reads a zero
+    # as no scroll and xterm reads it as one. See
+    # `test_known_deviations`.
+    st.builds(lambda n, c: "\x1b[%d%s" % (n, c),
+              st.integers(min_value=1, max_value=9), st.sampled_from("ST")),
+    st.builds(lambda n: "\x1b[%dG" % n, column),
+    st.builds(lambda n: "\x1b[%dd" % n, row),
+    st.builds(lambda r, c: "\x1b[%d;%dH" % (r, c), row, column),
+    st.builds(lambda n: "\x1b[%dK" % n, st.integers(0, 2)),
+    st.builds(lambda n: "\x1b[%dJ" % n, st.integers(0, 2)),
+    st.builds(lambda t, b: "\x1b[%d;%dr" % (t, b), row, row),
+    st.builds(lambda s: "\x1b[%sm" % s, st.sampled_from(RENDITIONS)),
+)
+
+program = st.lists(pieces, min_size=1, max_size=24).map("".join)
+
+
+@settings(
+    max_examples=EXAMPLES,
+    deadline=None,
+    suppress_health_check=[HealthCheck.too_slow],
+)
+@given(program)
+def test_a_random_program_gives_the_same_screen(data):
+    # The style of a blank is left out here. ptterm follows xterm and
+    # kitty does not, in more than one place, and each of those is
+    # written down in `test_known_deviations`. What stays is every
+    # character and where it sits, which is where the bugs were.
+    found = differences(data, lines=LINES, columns=COLUMNS, blank_style=False)
+    assert not found, "%r\n%s" % (data, "\n".join(found[:10]))
