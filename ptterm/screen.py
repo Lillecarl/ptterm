@@ -447,13 +447,16 @@ class BetterScreen:
         """
         self.margins = None
 
-    def set_charset(self, code, mode) -> None:
-        """Set active ``G0`` or ``G1`` charset.
+    def define_charset(self, code: str, mode: str = "(") -> None:
+        """Define the ``G0`` or the ``G1`` charset.
 
         :param str code: character set code, should be a character
                          from ``"B0UK"`` -- otherwise ignored.
         :param str mode: if ``"("`` ``G0`` charset is set, if
                          ``")"`` -- we operate on ``G1``.
+
+        ``ESC ( 0`` picks the line drawing set of the DEC terminals,
+        which is how a program without a Unicode font draws a box.
 
         .. warning:: User-defined charsets are currently not supported.
         """
@@ -2031,9 +2034,6 @@ class BetterScreen:
             return
         width, height, pixels = image
         self.graphics.add_sixel(width, height, pixels, self)
-
-    def define_charset(self, *a, **kw):
-        pass
 
     def charset_default(self, *a, **kw):
         "Not implemented."
