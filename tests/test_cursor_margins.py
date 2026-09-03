@@ -61,3 +61,24 @@ def test_a_move_down_without_margins_stops_at_the_bottom():
     screen, stream = _screen()
     stream.feed("\x1b[9B")
     assert _row(screen) == 4
+
+
+def test_a_move_down_above_the_region_reaches_the_bottom():
+    # "CSI r" homes the cursor, which leaves it above a top margin of
+    # two. The bottom margin belongs to the region, not to a cursor
+    # that sits outside it, so the screen stops the move.
+    screen, stream = _screen()
+    stream.feed("\x1b[2;3r\x1b[9B")
+    assert _row(screen) == 4
+
+
+def test_a_move_up_below_the_region_reaches_the_top():
+    screen, stream = _screen()
+    stream.feed("\x1b[2;3r\x1b[5;1H\x1b[9A")
+    assert _row(screen) == 0
+
+
+def test_a_move_down_above_the_region_counts_the_lines():
+    screen, stream = _screen()
+    stream.feed("\x1b[2;3r\x1b[3B")
+    assert _row(screen) == 3
