@@ -497,8 +497,10 @@ class BetterScreen:
         if mo.DECTCEM in modes:
             self.pt_screen.show_cursor = True
 
-        # On "\e[?1049h", enter alternate screen mode. Backup the current state,
-        if (1049 << 5) in modes:
+        # On "\e[?1049h", enter alternate screen mode. Backup the current
+        # state. "?47" and "?1047" name the same screen; they are what a
+        # program that predates "?1049" sends.
+        if self._alternate_screen_mode(modes) and not self._original_screen:
             self._original_screen = self.pt_screen
             self._original_screen_vars = {
                 v: getattr(self, v) for v in self.swap_variables
@@ -542,7 +544,7 @@ class BetterScreen:
             self.pt_screen.show_cursor = False
 
         # On "\e[?1049l", restore from alternate screen mode.
-        if (1049 << 5) in modes and self._original_screen:
+        if self._alternate_screen_mode(modes) and self._original_screen:
             for k, v in self._original_screen_vars.items():
                 setattr(self, k, v)
             self.pt_screen = self._original_screen
@@ -550,6 +552,17 @@ class BetterScreen:
             self._original_screen = None
             self._original_screen_vars = {}
             self._reset_offset_and_margins()
+
+    #: The private modes that name the alternate screen. "?1049" also
+    #: saves the cursor; the two older ones do not.
+    _ALTERNATE_SCREEN_MODES = frozenset(
+        [47 << 5, 1047 << 5, 1049 << 5]
+    )
+
+    @classmethod
+    def _alternate_screen_mode(cls, modes) -> bool:
+        "Does this list of modes name the alternate screen?"
+        return not cls._ALTERNATE_SCREEN_MODES.isdisjoint(modes)
 
     @property
     def in_alternate_screen(self) -> bool:
