@@ -122,3 +122,23 @@ def test_a_mark_on_a_space_that_a_program_wrote():
     # A space that a program prints is a character, and the mark belongs
     # to it. Both sides agree there.
     assert not differences("a ́", lines=3, columns=6)
+
+
+@pytest.mark.xfail(
+    reason="kitty puts the second character after a wrap into the cell of "
+    "the first when that character is not ASCII and the cursor sits below "
+    "the scrolling region. ptterm gives it a cell of its own, which is what "
+    "every other case does, so this looks like a fault of kitty.",
+    strict=True,
+)
+def test_a_character_after_a_wrap_below_the_region():
+    # The same text one column further, or with the two characters the
+    # other way round, agrees on both sides.
+    data = "\x1b[1;2r\x1b[8;23H000ä"
+    assert not differences(data, lines=8, columns=24)
+
+
+@pytest.mark.parametrize("tail", ["0a", "ä0", "äa", "00ä"])
+def test_the_cases_around_it_agree(tail):
+    data = "\x1b[1;2r\x1b[8;23H00" + tail
+    assert not differences(data, lines=8, columns=24)

@@ -46,13 +46,22 @@ screens cell by cell.
 - A tab found a stop past the last column, put the cursor there, and
   the next character wrapped to the line below.
 - Only "?1049" took the alternate screen. A program that sends "?47" or
-  "?1047" drew over the shell it came from. Only "?1049" saves a
-  cursor, so only it brings one back, and the two older ones leave the
-  cursor where the program that drew the screen put it.
+  "?1047" drew over the shell it came from.
+- "?1049" does what "ESC 7" and "ESC 8" do, on the screen it comes
+  from: it saves the place, the rendition and the character sets, and
+  brings them back. The screen did none of that, so a colour set on the
+  alternate screen stayed on the shell behind it. "?47" and "?1047"
+  save nothing, so the cursor stays where the program left it.
+- The scrolling region and the saved cursor sat on the wrong side of
+  the switch: the region belongs to the terminal and survives it, and
+  the saved cursor belongs to one screen and does not.
 - A restore with nothing saved kept the character set that "ESC ( 0"
   had picked, instead of the one a terminal starts with.
 - G1 held the line drawing set before any program named it, so a stray
   shift out turned every letter into a box character.
+- A linefeed, an index and a move down left the cursor past the last
+  column, where a character waits to wrap. A move ends that wait, so
+  the next character went to the line below instead of the last column.
 
 - A restore of the cursor was not faithful: it clamped the position
   into the margins that are set now, it read a stack instead of the
@@ -67,7 +76,7 @@ screens cell by cell.
 
 ## Where ptterm follows xterm and kitty does something else
 
-These five are in `test_known_deviations.py`. ptterm follows xterm in
+These six are in `test_known_deviations.py`. ptterm follows xterm in
 each; a program is written against xterm, not against kitty.
 
 1. A tab in the last column moves to the next line in kitty.
@@ -80,6 +89,10 @@ each; a program is written against xterm, not against kitty.
 5. A sequence that carries more parameters than its command takes is
    dropped whole by kitty. xterm reads the ones it needs and ignores
    the rest.
+6. kitty puts the second character after a wrap into the cell of the
+   first, when that character is not ASCII and the cursor sits below
+   the scrolling region. Every case around it draws two cells on both
+   sides, so this one looks like a fault of kitty.
 
 ## Not compared yet
 
