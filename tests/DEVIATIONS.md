@@ -89,10 +89,13 @@ each; a program is written against xterm, not against kitty.
 - Sixel and the graphics protocol of kitty. Both draw pixels, which
   asks for a comparison of images and not of cells.
 
-## Open, found by the hunt and not looked at yet
+## Open, found by the hunt and not fixed
 
-Nothing. The hunt ran forty thousand examples after the last fix and
-found no more.
+- A terminal keeps one alternate screen and hands it back with what it
+  held. ptterm makes a new one on every switch. "?1049h" clears the
+  screen it takes, so the difference only shows with "?47" and "?1047",
+  which do not. `test_known_deviations` holds it as a strict xfail, and
+  the hunt leaves those two modes out.
 
 Run it again to find more. Each one needs a decision about whether to
 follow kitty or xterm before it becomes a fix.

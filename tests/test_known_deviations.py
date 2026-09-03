@@ -89,3 +89,17 @@ def test_a_sequence_with_too_many_parameters_does_not_raise():
 
     rows = ptterm_cells("\x1b[3;9;9GX\r\nok", lines=4, columns=8)
     assert rows[1][0].char == "o"
+
+
+@pytest.mark.xfail(
+    reason="a terminal keeps one alternate screen and hands it back with "
+    "what it held. ptterm makes a new one on every switch, so a program "
+    "that takes the screen with '?47' or '?1047', which do not clear it, "
+    "finds it empty. This is a gap in ptterm, not a choice between xterm "
+    "and kitty.",
+    strict=True,
+)
+def test_the_alternate_screen_keeps_what_it_held():
+    # "?1049h" clears the alternate screen; "?47h" does not, so the "0"
+    # of the first visit is still there on the second.
+    assert not differences("\x1b[?1049h0\x1b[?1049l\x1b[?47h", lines=4, columns=6)
