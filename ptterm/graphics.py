@@ -633,6 +633,32 @@ class GraphicsState:
         "Remove every placement. (Image data is kept.)"
         self.placements = []
 
+    @property
+    def has_virtual_placements(self) -> bool:
+        """
+        True when the pane holds a placement that the unicode
+        placeholders point at. Scanning the screen for them costs
+        nothing while this is False, which is the usual case.
+        """
+        return any(placement.virtual for placement in self.placements)
+
+    def virtual_placement(
+        self, image_id: int, placement_id: int = 0
+    ) -> Optional["GraphicsPlacement"]:
+        """
+        The virtual placement that a unicode placeholder points at.
+
+        A placeholder that names no placement takes the first one of
+        its image, the way kitty does it.
+        """
+        for placement in self.placements:
+            if not placement.virtual or placement.image_id != image_id:
+                continue
+            if placement_id and placement.placement_id != placement_id:
+                continue
+            return placement
+        return None
+
     def scroll(self, first_row: int, last_row: int, count: int) -> None:
         """
         Follow a scroll of the region from `first_row` to `last_row`

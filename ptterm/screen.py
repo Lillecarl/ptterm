@@ -30,6 +30,7 @@ from .osc import (
     format_color,
     parse_kitty_color_query,
 )
+from .placeholders import PlaceholderRun, merge_runs, runs_in_line
 from .sixel import decode_sixel
 
 __all__ = ("BetterScreen",)
@@ -1347,6 +1348,32 @@ class BetterScreen:
         cursor_position = self.pt_cursor_position
         cursor_position.y = max(0, cursor_position.y - count)
         self.ensure_bounds()
+
+    def placeholder_runs(
+        self, first_row: int, last_row: int
+    ) -> List[PlaceholderRun]:
+        """
+        The unicode placeholder runs between two rows of the scroll
+        buffer, for an embedder that draws the images.
+
+        The runs that sit on top of each other come back as one
+        rectangle, so a screen full of one image is one run and not one
+        per line.
+
+        The answer is empty while the pane holds no virtual placement,
+        so a pane that shows no image pays nothing for the scan.
+        """
+        if not self.graphics.has_virtual_placements:
+            return []
+
+        data_buffer = self.pt_screen.data_buffer
+        columns = self.columns
+        runs: List[PlaceholderRun] = []
+        for row in range(first_row, last_row + 1):
+            line = data_buffer.get(row)
+            if line:
+                runs.extend(runs_in_line(line, columns, row))
+        return merge_runs(runs)
 
     def report_version(self, *params: int, private: object = False, **kwargs) -> None:
         """

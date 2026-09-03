@@ -38,11 +38,27 @@ from prompt_toolkit.utils import Event, is_windows
 from prompt_toolkit.widgets.toolbars import SearchToolbar
 
 from .backends import Backend
+from .placeholders import PLACEHOLDER
 from .process import Process
 
 __all__ = ["Terminal"]
 
 E = KeyPressEvent
+
+
+def _visible_char(char: str) -> str:
+    """
+    What to draw for a cell.
+
+    A unicode placeholder stands for a cell of an image, and the
+    embedder draws that image itself. The character must not reach the
+    screen: a terminal that does not know it paints a box, and the
+    combining characters that carry the row and the column pile up on
+    top of it. A space keeps the cell, and the image covers it.
+    """
+    if char.startswith(PLACEHOLDER):
+        return " "
+    return char
 
 
 class _TerminalControl(UIControl):
@@ -120,7 +136,9 @@ class _TerminalControl(UIControl):
                 return [("", " ")]
             else:
                 cells = [row[i] for i in range(max_column + 1)]
-                return [(cell.style, cell.char) for cell in cells]
+                return [
+                    (cell.style, _visible_char(cell.char)) for cell in cells
+                ]
 
         if data_buffer:
             line_count = (
