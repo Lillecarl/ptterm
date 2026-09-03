@@ -404,7 +404,7 @@ class BetterScreen:
         #       For instance, if we have: max_y=14 and lines=15. Then all lines
         #       from 0..14 have been used. This means 15 lines are used, and
         #       the first index should be 0.
-        return max(0, min(cpos_y, self.max_y - self.lines + 1))
+        return max(0, self.max_y - self.lines + 1)
 
     def set_margins(
         self, top: Optional[int] = None, bottom: Optional[int] = None
