@@ -275,6 +275,12 @@ def decode_sixel(payload: str) -> Optional[Tuple[int, int, bytes]]:
 
     width = max(canvas.width, min(max(0, raster_width), MAX_WIDTH))
     height = max(canvas.height, min(max(0, raster_height), MAX_HEIGHT))
+
+    # Bands round the height up to a multiple of six. When the raster
+    # attributes name a height inside the last band, they hold the exact
+    # one, so the image is cropped to it.
+    if 0 < raster_height <= canvas.height and canvas.height - raster_height < 6:
+        height = raster_height
     if width <= 0 or height <= 0 or width * height > MAX_PIXELS:
         return None
 

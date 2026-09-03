@@ -119,9 +119,21 @@ def test_raster_attributes_extend_the_canvas():
     assert pixel(9, 19) == (0, 0, 0, 255)
 
 
-def test_raster_attributes_never_shrink_the_canvas():
-    width, height, _pixel = decode('"1;1;1;1' + "#0!4~")
+def test_raster_attributes_never_shrink_the_width():
+    width, height, _pixel = decode('"1;1;1;6' + "#0!4~")
     assert (width, height) == (4, 6)
+
+
+def test_the_raster_height_crops_the_last_band():
+    # Two bands make twelve rows, but the image is eight tall.
+    width, height, _pixel = decode('"1;1;4;8' + "#0!4~-!4~")
+    assert (width, height) == (4, 8)
+
+
+def test_a_raster_height_far_below_the_bands_is_ignored():
+    # A bogus value must not throw away rows that the body wrote.
+    width, height, _pixel = decode('"1;1;4;1' + "#0!4~-!4~")
+    assert (width, height) == (4, 12)
 
 
 def test_unwritten_pixels_are_transparent_with_p2_one():
