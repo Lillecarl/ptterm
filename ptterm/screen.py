@@ -1230,6 +1230,35 @@ class BetterScreen:
             # "The terminal is well."
             self.write_process_input("\x1b[0n")
 
+    def unscroll(self, count: Optional[int] = None, *args, **kwargs) -> None:
+        """
+        Kitty's unscroll ("CSI Ps SP D").
+
+        Move the screen down by `count` lines and bring the lines above
+        it back from the scroll buffer. A shell uses it when a
+        full-screen program ends: the lines that the program covered
+        come back instead of leaving blank space under the prompt.
+
+        The lines that leave the bottom of the screen are dropped, and
+        the cursor keeps its position on the screen. Nothing happens
+        when there is no history left to pull from.
+        """
+        count = count or 1
+        count = min(count, self.line_offset, self.lines)
+        if count <= 0:
+            return
+
+        data_buffer = self.data_buffer
+        for row in range(self.max_y - count + 1, self.max_y + 1):
+            data_buffer.pop(row, None)
+
+        self.max_y -= count
+        self.graphics.prune_below(self.max_y)
+
+        cursor_position = self.pt_cursor_position
+        cursor_position.y = max(0, cursor_position.y - count)
+        self.ensure_bounds()
+
     def report_window(self, *params: int, **kwargs) -> None:
         """
         Window manipulation ("CSI Ps t"). Only the size reports are

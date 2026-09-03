@@ -638,6 +638,12 @@ class GraphicsState:
             if placement.y + placement.rows > row
         ]
 
+    def prune_below(self, row: int) -> None:
+        "Remove placements that start below `row`. (Lines were dropped.)"
+        self.placements = [
+            placement for placement in self.placements if placement.y <= row
+        ]
+
     def clear(self) -> None:
         "Forget all images and placements. (Full terminal reset.)"
         self.images_by_id = {}
