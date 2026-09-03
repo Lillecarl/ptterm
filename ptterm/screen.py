@@ -19,6 +19,8 @@ from pyte import charsets as cs
 from pyte import modes as mo
 from pyte.screens import Margins
 
+from .graphics import GraphicsState
+
 __all__ = ("BetterScreen",)
 
 
@@ -93,6 +95,10 @@ class BetterScreen:
         # The kitty keyboard protocol keeps separate flag stacks for the
         # main and the alternate screen. (Immutable tuple: safe to swap.)
         "kitty_flags_stack",
+        # The graphics state is swapped by reference: the alternate
+        # screen gets a fresh GraphicsState, the main screen one is
+        # restored when leaving the alternate screen.
+        "graphics",
     ]
 
     def __init__(
@@ -118,6 +124,11 @@ class BetterScreen:
         # Stack of kitty keyboard protocol flags. ("CSI > flags u" pushes,
         # "CSI < number u" pops. See `report_kitty_keyboard`.)
         self.kitty_flags_stack: Tuple[int, ...] = ()
+
+        # Kitty graphics protocol state: transmitted images and their
+        # placements. (Reset and alternate screen switching replace the
+        # whole state; see `reset` and `set_mode`.)
+        self.graphics = GraphicsState()
 
         self.reset()
 
@@ -183,8 +194,9 @@ class BetterScreen:
         self.icon_name = ""
 
         # Reset the kitty keyboard protocol flag stack as well. (RIS is a
-        # full terminal reset.)
+        # full terminal reset. It also clears all graphics.)
         self.kitty_flags_stack = ()
+        self.graphics.clear()
 
         # Reset modes.
         self.mode = {
@@ -375,9 +387,11 @@ class BetterScreen:
             self._reset_offset_and_margins()
 
             # The alternate screen has its own, empty kitty keyboard flag
-            # stack. (The main screen stack is restored by the swap
-            # variables when leaving the alternate screen.)
+            # stack and its own graphics state. (The main screen state is
+            # restored by the swap variables when leaving the alternate
+            # screen.)
             self.kitty_flags_stack = ()
+            self.graphics = GraphicsState()
 
     def reset_mode(self, *modes_args, **kwargs) -> None:
         """Resets (disables) a given list of modes.
@@ -945,6 +959,11 @@ class BetterScreen:
         :param bool private: when ``True`` character attributes aren left
                              unchanged **not implemented**.
         """
+        if type_of == 2:
+            # Clearing the screen removes all graphics placements.
+            # (The image data is kept.)
+            self.graphics.remove_all_placements()
+
         line_offset = self.line_offset
         pt_cursor_position = self.pt_cursor_position
         try:
@@ -1246,10 +1265,18 @@ class BetterScreen:
         """
         APC string sequence (``ESC _ ... ST``).
 
-        The kitty graphics protocol sequences arrive here. Parsing and
-        storing them is not implemented yet: for now the payload is
-        consumed without corrupting the screen content.
+        Kitty graphics protocol commands arrive here. They are parsed
+        and their images and placements are stored; the pixel data is
+        not rendered (the embedding application, e.g. the pymux
+        multiplexer, decides how to display images).
         """
+        if not data.startswith("G"):
+            return  # Not the graphics protocol.
+
+        result = self.graphics.handle(data[1:], self)
+        if result is not None:
+            response, _is_ok = result
+            self.write_process_input("\x1b_G" + response + "\x1b\\")
 
     def dcs(self, data: str) -> None:
         """
