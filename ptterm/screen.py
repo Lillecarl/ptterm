@@ -49,6 +49,10 @@ TERMINAL_VERSION = "ptterm(0.2)"
 #: names it: a block that blinks.
 DEFAULT_CURSOR_STYLE = 1
 
+#: Private mode 2048: report a resize in the input of the program,
+#: instead of only through SIGWINCH.
+INBAND_RESIZE = 2048
+
 
 def _rgb_components(color: Optional[str]) -> Optional[Tuple[int, int, int]]:
     "The three components of a '#rrggbb' colour, or None for anything else."
@@ -337,6 +341,34 @@ class BetterScreen:
 
             self._reflow()
 
+            # A program that asked for it learns the new size in band.
+            self.notify_of_resize()
+
+    def notify_of_resize(self) -> None:
+        """
+        Tell the program in this pane how big the pane is, in band.
+
+        A program that sets private mode 2048 reads the size from its
+        own input instead of from SIGWINCH. That is what a program
+        behind a multiplexer or an ssh connection needs: the signal
+        does not travel, the escape sequence does.
+
+        The pixel size follows the cell that `ptterm.graphics` assumes,
+        so it agrees with what "CSI 14 t" and "CSI 16 t" report.
+        """
+        if (INBAND_RESIZE << 5) not in self.mode:
+            return
+
+        self.write_process_input(
+            "\x1b[48;%i;%i;%i;%it"
+            % (
+                self.lines,
+                self.columns,
+                self.lines * ASSUMED_CELL_HEIGHT,
+                self.columns * ASSUMED_CELL_WIDTH,
+            )
+        )
+
     @property
     def line_offset(self) -> int:
         "Return the index of the first visible line."
@@ -416,6 +448,12 @@ class BetterScreen:
             modes = tuple(mode << 5 for mode in modes)
 
         self.mode.update(modes)
+
+        # The program asked to be told the size in band. Tell it now,
+        # so that it need not ask separately. (kitty answers a repeated
+        # set the same way.)
+        if (INBAND_RESIZE << 5) in modes:
+            self.notify_of_resize()
 
         # When DECOLM mode is set, the screen is erased and the cursor
         # moves to the home position.
@@ -1341,6 +1379,7 @@ class BetterScreen:
             1047,  # The alternate screen.
             1049,  # The alternate screen, with the cursor.
             2004,  # Bracketed paste.
+            INBAND_RESIZE,  # The size in band.
         ]
     )
 

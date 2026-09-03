@@ -207,3 +207,82 @@ def test_a_sixel_image_is_still_decoded():
     stream.feed('\x1bP0;0;0q"1;1;6;6#4;2;100;0;0#4!6~\x1b\\')
     assert answers == []
     assert len(screen.graphics.placements) == 1
+
+
+# ----------------------------------------------------------------------
+# The size in band (private mode 2048).
+
+
+from ptterm.graphics import ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH  # noqa: E402
+
+
+def resize_report(lines, columns):
+    return "\x1b[48;%i;%i;%i;%it" % (
+        lines,
+        columns,
+        lines * ASSUMED_CELL_HEIGHT,
+        columns * ASSUMED_CELL_WIDTH,
+    )
+
+
+def test_setting_the_mode_reports_the_size_at_once():
+    "A program need not ask separately for the size it just subscribed to."
+    _screen, stream, answers = make_screen(lines=24, columns=80)
+    stream.feed("\x1b[?2048h")
+    assert answers == [resize_report(24, 80)]
+
+
+def test_setting_the_mode_again_reports_again():
+    _screen, stream, answers = make_screen()
+    stream.feed("\x1b[?2048h\x1b[?2048h")
+    assert len(answers) == 2
+
+
+def test_a_resize_reports_the_new_size():
+    screen, stream, answers = make_screen(lines=24, columns=80)
+    stream.feed("\x1b[?2048h")
+    del answers[:]
+    screen.resize(lines=10, columns=40)
+    assert answers == [resize_report(10, 40)]
+
+
+def test_a_resize_without_the_mode_reports_nothing():
+    "SIGWINCH is the only report until a program asks for the other one."
+    screen, _stream, answers = make_screen(lines=24, columns=80)
+    screen.resize(lines=10, columns=40)
+    assert answers == []
+
+
+def test_a_resize_to_the_same_size_reports_nothing():
+    screen, stream, answers = make_screen(lines=24, columns=80)
+    stream.feed("\x1b[?2048h")
+    del answers[:]
+    screen.resize(lines=24, columns=80)
+    assert answers == []
+
+
+def test_resetting_the_mode_stops_the_reports():
+    screen, stream, answers = make_screen(lines=24, columns=80)
+    stream.feed("\x1b[?2048h\x1b[?2048l")
+    del answers[:]
+    screen.resize(lines=10, columns=40)
+    assert answers == []
+
+
+def test_the_mode_is_answered_by_a_mode_query():
+    _screen, stream, answers = make_screen()
+    query_mode(stream, 2048)
+    stream.feed("\x1b[?2048h")
+    del answers[:]
+    query_mode(stream, 2048)
+    assert answers == ["\x1b[?2048;1$y"]
+
+
+def test_the_pixel_size_agrees_with_the_window_report():
+    "Both sides count the same cell, so an image covers the same cells."
+    _screen, stream, answers = make_screen(lines=24, columns=80)
+    stream.feed("\x1b[?2048h")
+    stream.feed("\x1b[14t")  # The text area, in pixels.
+    report = answers[0]
+    _rows, _cols, height, width = report[len("\x1b[48;") : -1].split(";")
+    assert answers[1] == "\x1b[4;%s;%st" % (height, width)
