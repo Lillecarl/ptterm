@@ -160,3 +160,44 @@ def test_pyte_default_stream_does_not_dispatch_u():
     stream.feed(b"\x1b[>1u")
     assert screen.kitty_keyboard_flags == 0
     assert responses == []
+
+
+# ----------------------------------------------------------------------
+# Device and window reports.
+
+
+def test_a_cursor_position_report():
+    screen, stream, responses = make_screen()
+    stream.feed("hello\r\n")
+    stream.feed("\x1b[6n")
+    assert responses == ["\x1b[2;1R"]
+
+
+def test_a_private_cursor_position_report_carries_the_page():
+    screen, stream, responses = make_screen()
+    stream.feed("\x1b[?6n")
+    assert responses == ["\x1b[?1;1;1R"]
+
+
+def test_a_status_report():
+    screen, stream, responses = make_screen()
+    stream.feed("\x1b[5n")
+    assert responses == ["\x1b[0n"]
+
+
+def test_a_colour_scheme_report():
+    # yazi asks this on startup. Before it was answered, the whole
+    # emulator raised and the pane went blank.
+    screen, stream, responses = make_screen()
+    stream.feed("\x1b[?996n")
+    assert responses == ["\x1b[?997;1n"]
+
+
+def test_an_unknown_device_status_is_ignored():
+    screen, stream, responses = make_screen()
+    stream.feed("\x1b[?5522n")
+    stream.feed("\x1b[99n")
+    stream.feed("hello")
+    assert responses == []
+    row = screen.pt_screen.data_buffer[0]
+    assert "".join(row[i].char for i in range(5)) == "hello"

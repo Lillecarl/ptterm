@@ -1188,13 +1188,55 @@ class BetterScreen:
         self._style_str = _unicode_intern_dict[style_str]
         self._attrs = attrs_obj
 
-    def report_device_status(self, data: int) -> None:
+    # Colour scheme that a pane is told about ("CSI ? 996 n"). pymux
+    # renders a dark background, so a pane that asks gets the dark
+    # answer. (One is dark, two is light.)
+    color_scheme = 1
+
+    def report_device_status(
+        self, data: int = 0, *args, private=False, **kwargs
+    ) -> None:
         """
-        Report cursor position.
+        Answer a device status report.
+
+        "CSI 5 n" asks whether the terminal is well, "CSI 6 n" asks for
+        the cursor position and "CSI ? 6 n" asks for it with the page
+        number. "CSI ? 996 n" asks which colour scheme the terminal
+        uses.
+
+        Unknown reports are ignored. The private marker arrives as the
+        `private` keyword; it must not raise, or one sequence would
+        stop the whole pane.
         """
+        if private is True and data == 996:
+            self.write_process_input("\x1b[?997;%in" % self.color_scheme)
+            return
+
         if data == 6:
             y = self.pt_cursor_position.y - self.line_offset + 1
             x = self.pt_cursor_position.x + 1
+            if private is True:
+                # DECXCPR: the page number comes after the position.
+                self.write_process_input("\x1b[?%i;%i;1R" % (y, x))
+            else:
+                self.write_process_input("\x1b[%i;%iR" % (y, x))
+            return
+
+        if data == 5 and private is False:
+            # "The terminal is well."
+            self.write_process_input("\x1b[0n")
+
+    def report_window(self, *params: int, **kwargs) -> None:
+        """
+        Window manipulation ("CSI Ps t"). Only the size reports are
+        answered; the rest is ignored, because a pane cannot move or
+        resize its window.
+
+        A pane that draws images asks for the cell size (16) to work out
+        how many cells an image covers. The answer is the size that
+        `ptterm.graphics` assumes, so both sides count alike.
+        """
+        what = params[0] if params else 0
 
             response = "\x1b[%i;%iR" % (y, x)
             self.write_process_input(response)
