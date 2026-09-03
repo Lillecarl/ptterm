@@ -1242,6 +1242,24 @@ class BetterScreen:
     def set_title(self, param: str) -> None:
         self.title = param
 
+    def apc(self, data: str) -> None:
+        """
+        APC string sequence (``ESC _ ... ST``).
+
+        The kitty graphics protocol sequences arrive here. Parsing and
+        storing them is not implemented yet: for now the payload is
+        consumed without corrupting the screen content.
+        """
+
+    def dcs(self, data: str) -> None:
+        """
+        DCS string sequence (``ESC P ... ST``).
+
+        Sixel images and other DCS sequences arrive here. Parsing and
+        storing them is not implemented yet: for now the payload is
+        consumed without corrupting the screen content.
+        """
+
     def define_charset(self, *a, **kw):
         pass
 

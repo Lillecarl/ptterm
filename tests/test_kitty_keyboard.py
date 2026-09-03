@@ -132,6 +132,24 @@ def test_plain_csi_u_is_ignored():
     assert responses == []
 
 
+def test_apc_and_dcs_are_consumed():
+    "Graphics sequences must not corrupt the screen content."
+    screen, stream, responses = make_screen()
+
+    def row_text():
+        return "".join(
+            screen.pt_screen.data_buffer[0][i].char for i in range(40)
+        )
+
+    stream.feed("before\x1b_Gf=32,s=10,v=10;AAAA\x1b\\after")
+    assert row_text().startswith("beforeafter")
+    assert "AAAA" not in row_text()
+
+    stream.feed("\x1bP0;1;0qsixel-data\x1b\\!")
+    assert row_text().startswith("beforeafter!")
+    assert "sixel-data" not in row_text()
+
+
 def test_pyte_default_stream_does_not_dispatch_u():
     # pyte's own Stream class has no "u" entry in its csi map, so the
     # sequences don't reach the handler. (BetterStream adds the mapping.)
