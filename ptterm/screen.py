@@ -940,9 +940,14 @@ class BetterScreen:
             # margin. kitty and xterm both keep it there.
             self.ensure_bounds()
         else:
-            # If nothing was saved, the cursor moves to home position;
-            # origin mode is reset. :todo: DECAWM?
+            # Nothing was saved, so the restore brings back the state
+            # that a terminal starts with: the home position, no origin
+            # mode and the character sets of the start. kitty does the
+            # same. :todo: DECAWM?
             self.reset_mode(mo.DECOM)
+            self.g0_charset = cs.LAT1_MAP
+            self.g1_charset = cs.VT100_MAP
+            self.charset = 0
             self.cursor_position()
 
     def _erase_row(self, row: int) -> None:

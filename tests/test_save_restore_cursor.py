@@ -75,3 +75,18 @@ def test_a_restore_after_a_scroll_stays_on_the_screen():
     ]
     # The "A" scrolled away, and the "B" landed where the save was.
     assert rows[0] == " B"
+
+
+def test_a_restore_with_nothing_saved_brings_back_the_first_charset():
+    # A terminal starts with the ASCII set. A restore that has nothing
+    # to read brings back the state of the start, so "ESC ( 0" before
+    # it is undone.
+    screen, stream = _screen()
+    stream.feed("\x1b(0\x1b8q")
+    assert screen.pt_screen.data_buffer[0][0].char == "q"
+
+
+def test_a_restore_brings_back_the_charset_that_was_saved():
+    screen, stream = _screen()
+    stream.feed("\x1b(0\x1b7\x1b(B\x1b8q")
+    assert screen.pt_screen.data_buffer[0][0].char == "─"
