@@ -951,26 +951,48 @@ class BetterScreen:
         :param int count: number of characters to insert.
         """
         count = count or 1
-
+        cursor_x = self.pt_cursor_position.x
+        columns = self.columns
         line = self.data_buffer[self.pt_cursor_position.y]
 
-        if line:
-            max_columns = max(line.keys())
+        # Move what sits at and after the cursor to the right. What
+        # falls off the right edge is lost.
+        moved = {}
+        for column in list(line.keys()):
+            if column < cursor_x:
+                continue
+            cell = line.pop(column)
+            if column + count < columns:
+                moved[column + count] = cell
+        line.update(moved)
 
-            for i in range(max_columns, self.pt_cursor_position.x - 1, -1):
-                line[i + count] = line[i]
-                del line[i]
+        style = self.erase_style()
+        if style:
+            blank = Char(" ", style)
+            for column in range(cursor_x, min(cursor_x + count, columns)):
+                line[column] = blank
 
     def delete_characters(self, count: Optional[int] = None) -> None:
         count = count or 1
-
+        cursor_x = self.pt_cursor_position.x
+        columns = self.columns
         line = self.data_buffer[self.pt_cursor_position.y]
-        if line:
-            max_columns = max(line.keys())
 
-            for i in range(self.pt_cursor_position.x, max_columns + 1):
-                line[i] = line[i + count]
-                del line[i + count]
+        # Move what sits after the deleted characters to the left.
+        moved = {}
+        for column in list(line.keys()):
+            if column < cursor_x:
+                continue
+            cell = line.pop(column)
+            if column - count >= cursor_x:
+                moved[column - count] = cell
+        line.update(moved)
+
+        style = self.erase_style()
+        if style:
+            blank = Char(" ", style)
+            for column in range(max(cursor_x, columns - count), columns):
+                line[column] = blank
 
     def cursor_position(
         self, line: Optional[int] = None, column: Optional[int] = None
