@@ -942,6 +942,10 @@ class BetterScreen:
                 pt_cursor_position.y, bottom + line_offset, count
             )
 
+            # DL moves the cursor to the first column, the same way IL
+            # does.
+            self.carriage_return()
+
     def insert_characters(self, count: Optional[int] = None) -> None:
         """Inserts the indicated # of blank characters at the cursor
         position. The cursor does not move and remains at the beginning
