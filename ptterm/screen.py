@@ -843,15 +843,20 @@ class BetterScreen:
         self.ensure_bounds()
 
     def tab(self) -> None:
-        """Move to the next tab space, or the end of the screen if there
-        aren't anymore left.
+        """Move to the next tab stop, or to the last column when no stop
+        is left on the line.
+
+        The tab stops do not know how wide the screen is, so a stop can
+        sit past the last column. The last column stops the cursor: a
+        tab never moves it off the line.
         """
+        last = self.columns - 1
         for stop in sorted(self.tabstops):
             if self.pt_cursor_position.x < stop:
-                column = stop
+                column = min(stop, last)
                 break
         else:
-            column = self.columns - 1
+            column = last
 
         self.pt_cursor_position.x = column
 
