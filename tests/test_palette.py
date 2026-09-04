@@ -74,6 +74,46 @@ def test_an_intensity_spec_reads_through_the_xcms_tables(spec, color):
     assert parse_color(spec) == color
 
 
+@pytest.mark.parametrize("spec, color", [
+    # The six spaces of CIE, checked against what xterm answers. Every
+    # one of these goes through the screen description of Xcms, so a
+    # match here says the port of it is right.
+    ("CIEXYZ:0.5/0.5/0.5", Color(0xDD, 0xB5, 0xA0)),
+    # libX11 divides the lightness by 9.03292 where CIE says 903.292,
+    # so a lightness of one is a hundred times too bright. xterm
+    # answers what libX11 computes, and so does this.
+    ("CIELab:1/1/1", Color(0x6C, 0x67, 0x67)),
+    ("CIELab:0.5/0.5/0.5", Color(0x52, 0x4F, 0x4F)),
+    ("TekHVC:1/1/1", Color(0x1A, 0x13, 0x0F)),
+    ("TekHVC:0.5/0.5/0.5", Color(0x11, 0x13, 0x0E)),
+])
+def test_a_cie_spec_reads_the_way_xterm_reads_it(spec, color):
+    assert parse_color(spec) == color
+
+
+@pytest.mark.parametrize("spec", [
+    # A screen shows only part of what the eye sees, and these fall
+    # outside it. Xcms answers them by pulling the colour in, which
+    # ptterm does not do yet, so there is no colour to give.
+    "CIEXYZ:1/1/1",
+    "CIEuvY:0.5/0.5/0.5",
+    "CIExyY:0.5/0.5/0.5",
+    "CIELuv:1/1/1",
+])
+def test_a_cie_colour_that_the_screen_cannot_show_is_no_colour(spec):
+    assert parse_color(spec) is None
+
+
+@pytest.mark.parametrize("spec", [
+    "CIELab:1/1",       # Two components.
+    "CIELab:x/1/1",     # Not a number.
+    "CIELab:nan/1/1",
+    "CIEXWZ:1/1/1",     # Not a space that X11 knows.
+])
+def test_a_cie_spec_that_does_not_read_is_no_colour(spec):
+    assert parse_color(spec) is None
+
+
 @pytest.mark.parametrize("spec", [
     "rgbi:2/0/0",     # Past all the light there is.
     "rgbi:-0.5/0/0",  # Less than none.

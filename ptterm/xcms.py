@@ -25,11 +25,14 @@ The source is libX11, `src/xcms/LRGB.c`. The tables are
 `Default_RGB_BlueTuples`; the search is `_XcmsTableSearch` with
 `_XcmsIntensityCmp` and `_XcmsIntensityInterpolation`.
 """
+import math
 from typing import List, Tuple
 
 __all__ = [
     "BITS_PER_RGB",
+    "SPACES",
     "intensity_to_value",
+    "screen_rgb",
 ]
 
 #: How many bits of each component a display really tells apart. Xcms
@@ -185,3 +188,215 @@ def intensity_to_value(
             low = middle
 
     return _interpolate(table[low], table[high], intensity, bits)
+
+
+# ----------------------------------------------------------------------
+# The colour spaces of CIE, and the screen that Xcms converts them for.
+#
+# `XParseColor` reads six names that are not device values at all. They
+# describe a colour by what the eye sees, so turning one into something
+# a display can show needs to know what that display emits. Xcms holds
+# the two matrices below for the display it assumes, and the tables
+# above for its channels.
+#
+# The conversions come from libX11: `src/xcms/LRGB.c` for the matrices,
+# and `Lab.c`, `Luv.c`, `uvY.c`, `xyY.c` and `HVC.c` for the spaces.
+# They are ported as written and not from the textbook, because the
+# answer has to be the one xterm gives. Where the two differ, the
+# comment says so.
+
+
+#: The matrix that turns CIEXYZ into the light each channel gives.
+#: `XYZtoRGBmatrix` of `Default_RGB_SCCData`.
+_XYZ_TO_RGB = (
+    (3.48340481253539000, -1.52176374927285200, -0.55923133354049780),
+    (-1.07152751306193600, 1.96593795204372400, 0.03673691339553462),
+    (0.06351179790497788, -0.20020501000496480, 0.81070942031648220),
+)
+
+#: The matrix the other way. `RGBtoXYZmatrix` of the same.
+_RGB_TO_XYZ = (
+    (0.38106149108714790, 0.32025712365352110, 0.24834578525933100),
+    (0.20729745115140850, 0.68054638776373240, 0.11215616108485920),
+    (0.02133944350088028, 0.14297193020246480, 1.24172892629665500),
+)
+
+#: How far a value may leave the range before Xcms calls the colour
+#: unshowable. `EPS` of `src/xcms/LRGB.c`.
+_GAMUT_SLOP = 0.001
+
+#: Below this the CIE lightness formula turns into a straight line.
+#: `903.29` is the slope, and this is where the two meet.
+_LOW_LIGHTNESS = 7.99953624
+
+#: The lightness that the cube root formula gives at that point.
+_LOW_Y = 0.008856
+
+#: The colour that TekHVC measures its hue from: "best red".
+#: `u_BR` and `v_BR` of `src/xcms/HVC.c`.
+_BEST_RED = (0.7127, 0.4931)
+
+#: What TekHVC divides its chroma by. `CHROMA_SCALE_FACTOR`.
+_CHROMA_SCALE = 7.50725
+
+#: A full turn, in degrees.
+_TURN = 360.0
+
+
+def _matvec(matrix, vector) -> Tuple[float, float, float]:
+    "One 3x3 matrix times one vector. `_XcmsMatVec`."
+    return tuple(  # type: ignore[return-value]
+        sum(matrix[row][column] * vector[column] for column in range(3))
+        for row in range(3)
+    )
+
+
+def _uvy_to_xyz(u_prime: float, v_prime: float, cap_y: float):
+    "`XcmsCIEuvYToCIEXYZ`."
+    divisor = 6.0 * u_prime - 16.0 * v_prime + 12.0
+    if divisor == 0.0:
+        return (0.0, cap_y, 0.0)
+    x = 9.0 * u_prime / divisor
+    y = 4.0 * v_prime / divisor
+    z = 1.0 - x - y
+    if y == 0.0:
+        return (x, cap_y, z)
+    return (x * cap_y / y, cap_y, z * cap_y / y)
+
+
+def _xyz_to_uvy(xyz):
+    "`XcmsCIEXYZToCIEuvY`."
+    cap_x, cap_y, cap_z = xyz
+    divisor = cap_x + 15.0 * cap_y + 3.0 * cap_z
+    if divisor == 0.0:
+        return (0.0, 0.0, cap_y)
+    return (4.0 * cap_x / divisor, 9.0 * cap_y / divisor, cap_y)
+
+
+#: The white of the assumed screen: what a full signal on every channel
+#: gives. The CIE spaces measure a colour against it.
+_WHITE = _matvec(_RGB_TO_XYZ, (1.0, 1.0, 1.0))
+_WHITE_UVY = _xyz_to_uvy(_WHITE)
+
+#: Where TekHVC starts counting hue, given that white. `ThetaOffset`.
+_THETA_OFFSET = math.degrees(math.atan(
+    (_BEST_RED[1] - _WHITE_UVY[1]) / (_BEST_RED[0] - _WHITE_UVY[0])
+))
+
+
+def _lightness_to_y(lightness: float) -> float:
+    "The CIE lightness formula, as `Luv.c` and `HVC.c` write it."
+    if lightness < _LOW_LIGHTNESS:
+        return lightness / 903.29
+    root = (lightness + 16.0) / 116.0
+    return root * root * root
+
+
+def _xyz(x: float, y: float, z: float):
+    "CIEXYZ, which needs no conversion at all."
+    return (x, y, z)
+
+
+def _xyy(x: float, y: float, cap_y: float):
+    "`XcmsCIExyYToCIEXYZ`."
+    if y == 0.0:
+        return (x, cap_y, 1.0 - x - y)
+    return (x * cap_y / y, cap_y, (1.0 - x - y) * cap_y / y)
+
+
+def _lab(lightness: float, a_star: float, b_star: float):
+    """
+    `XcmsCIELabToCIEXYZ`.
+
+    The low branch divides the lightness by 9.03292. The CIE formula
+    says 903.292, so libX11 is a hundred times bright here. It is not a
+    difference that can be corrected: xterm answers what libX11
+    computes, and a colour spec is only useful if it means the same
+    thing on both. "CIELab:1/1/1" comes back 0x6c and not 0x07.
+    """
+    root = (lightness + 16.0) / 116.0
+    cap_y = root * root * root
+    if cap_y < _LOW_Y:
+        root = lightness / 9.03292
+        return (
+            _WHITE[0] * (a_star / 3893.5 + root),
+            root,
+            _WHITE[2] * (root - b_star / 1557.4),
+        )
+    return (
+        _WHITE[0] * (root + a_star / 5.0) ** 3,
+        cap_y,
+        _WHITE[2] * (root - b_star / 2.0) ** 3,
+    )
+
+
+def _luv(lightness: float, u_star: float, v_star: float):
+    """
+    `XcmsCIELuvToCIEuvY`, then on to CIEXYZ.
+
+    The chroma is divided by the lightness over a hundred, where the
+    CIE formula divides by the lightness itself.
+    """
+    cap_y = _lightness_to_y(lightness)
+    if lightness == 0.0:
+        return _uvy_to_xyz(_WHITE_UVY[0], _WHITE_UVY[1], cap_y)
+    scale = 13.0 * (lightness / 100.0)
+    return _uvy_to_xyz(
+        u_star / scale + _WHITE_UVY[0],
+        v_star / scale + _WHITE_UVY[1],
+        cap_y,
+    )
+
+
+def _uvy(u_prime: float, v_prime: float, cap_y: float):
+    "`XcmsCIEuvYToCIEXYZ`."
+    return _uvy_to_xyz(u_prime, v_prime, cap_y)
+
+
+def _hvc(hue: float, value: float, chroma: float):
+    "`XcmsTekHVCToCIEuvY`, then on to CIEXYZ."
+    if value == 0.0 or value == 100.0:
+        cap_y = 1.0 if value == 100.0 else 0.0
+        return _uvy_to_xyz(_WHITE_UVY[0], _WHITE_UVY[1], cap_y)
+    turned = math.radians((hue + _THETA_OFFSET) % _TURN)
+    reach = chroma / (value * _CHROMA_SCALE)
+    return _uvy_to_xyz(
+        math.cos(turned) * reach + _WHITE_UVY[0],
+        math.sin(turned) * reach + _WHITE_UVY[1],
+        _lightness_to_y(value),
+    )
+
+
+#: The colour spaces that a spec may name, and the conversion of each
+#: one to CIEXYZ. The name is what the spec writes before the colon.
+SPACES = {
+    "CIEXYZ": _xyz,
+    "CIEuvY": _uvy,
+    "CIExyY": _xyy,
+    "CIELab": _lab,
+    "CIELuv": _luv,
+    "TekHVC": _hvc,
+}
+
+
+def screen_rgb(xyz) -> Tuple[int, int, int] | None:
+    """
+    The eight bit colour that shows a CIEXYZ colour on the screen that
+    Xcms assumes, or `None` for a colour it cannot show.
+
+    A screen reaches only part of what the eye sees. Xcms answers a
+    colour outside that part by pulling it in, which is a search
+    through the TekHVC space that is not here yet. Until it is, an
+    unshowable colour is no colour: an answer that guessed would be a
+    colour the program did not ask for, and it could not tell.
+    """
+    lights = _matvec(_XYZ_TO_RGB, xyz)
+    if min(lights) < -_GAMUT_SLOP or max(lights) > 1.0 + _GAMUT_SLOP:
+        return None
+    kept = []
+    for channel, intensity in enumerate(lights):
+        # The slop above lets a value just outside the range through,
+        # so it is cut back before the table reads it.
+        intensity = max(0.0, min(1.0, intensity))
+        kept.append(intensity_to_value(channel, intensity) >> 8)
+    return kept[0], kept[1], kept[2]

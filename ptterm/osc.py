@@ -15,7 +15,7 @@ the code itself ("OSC 10" is the foreground, "OSC 11" the background,
 from string import hexdigits
 from typing import Dict, List, NamedTuple
 
-from .xcms import intensity_to_value
+from .xcms import SPACES, intensity_to_value, screen_rgb
 
 __all__ = [
     "Color",
@@ -247,17 +247,40 @@ def _parse_intensities(spec: str) -> Color | None:
     return Color(*values)
 
 
+def _parse_space(name: str, spec: str) -> Color | None:
+    """
+    A colour in one of the six spaces of CIE, such as "CIELab:1/1/1".
+
+    A space describes what the eye sees and not what a display emits,
+    so the three numbers go through the screen description of Xcms.
+    `xcms.py` says which screen and why it is that one.
+    """
+    parts = spec.split("/")
+    if len(parts) != _COMPONENTS:
+        return None
+    try:
+        numbers = [float(part) for part in parts]
+    except ValueError:
+        return None
+    if any(number != number for number in numbers):
+        return None  # "nan", which `float` reads and a colour is not.
+    color = screen_rgb(SPACES[name](*numbers))
+    return Color(*color) if color is not None else None
+
+
 def parse_color(spec: str) -> Color | None:
     """
     The colour that a spec names, or `None` for one that X11 does not
     read.
 
     This is the syntax of `XParseColor`, which is what a program writing
-    "OSC 4" uses. Three forms are read here:
+    "OSC 4" uses. The forms read here:
 
     - "#rgb", "#rrggbb", "#rrrgggbbb" and "#rrrrggggbbbb".
     - "rgb:r/g/b", with one to four hexadecimal digits per component.
     - "rgbi:r/g/b", with the light that each channel gives.
+    - "CIEXYZ:", "CIEuvY:", "CIExyY:", "CIELab:", "CIELuv:" and
+      "TekHVC:", which name a colour by what the eye sees.
 
     A pane keeps eight bits per component, which is what it reports.
     """
@@ -269,6 +292,9 @@ def parse_color(spec: str) -> Color | None:
         return _parse_parts(spec[len("rgb:"):].split("/"), scale=True)
     if spec.startswith("rgbi:"):
         return _parse_intensities(spec[len("rgbi:"):])
+    name, colon, rest = spec.partition(":")
+    if colon and name in SPACES:
+        return _parse_space(name, rest)
     return None
 
 
