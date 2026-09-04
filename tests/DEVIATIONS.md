@@ -121,6 +121,25 @@ scrolling region. Every case around it draws two cells on both sides.
 The oracle takes the second character out of the cell, because a reader
 sees two cells either way, and `test_known_deviations` holds the case.
 
+## Where libvterm cannot answer
+
+libvterm is the second opinion, not a second authority. It holds less
+than kitty does, and a comparison that asks for more reads a limit of
+the reference as a difference. `test_against_vterm.py` writes each of
+these down.
+
+- It reads "?1047" and "?1049" and not "?47", so it draws the
+  alternate screen of the oldest name on the first screen.
+- It knows three shapes of underline: single, double and curly. A
+  dotted and a dashed line both come out single, so the comparison
+  reads those two as single on every side.
+- It carries no colour for the line itself ("SGR 58"), so the
+  comparison drops the colour before it looks.
+- It reads a colour of its own as "38:2:r:g:b" only. ISO 8613-6 writes
+  "38:2:<colour space>:r:g:b", with the colour space empty, and
+  libvterm takes that empty part for the red. kitty reads both forms
+  and ptterm follows kitty.
+
 ## Not compared yet
 
 - A hyperlink (OSC 8) belongs to a cell. ptterm carries one now, in

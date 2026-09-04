@@ -64,8 +64,24 @@ class Cell(NamedTuple):
     bg: Optional[Tuple]
     bold: bool
     italic: bool
-    underline: bool
+    #: The shape of the underline, as kitty numbers it: none, single,
+    #: double, curly, dotted, dashed.
+    underline: int
     reverse: bool
+    #: The colour of the underline itself, or None for the colour of
+    #: the text.
+    underline_color: Optional[Tuple] = None
+
+
+#: The word that a style string of prompt_toolkit gives each shape,
+#: against the number that kitty gives it.
+UNDERLINE_NUMBERS = {
+    "underline": 1,
+    "underdouble": 2,
+    "undercurl": 3,
+    "underdotted": 4,
+    "underdashed": 5,
+}
 
 
 def kitty_is_available() -> bool:
@@ -110,6 +126,15 @@ def _color_of_style(style: str, prefix: str) -> Optional[Tuple]:
     return None
 
 
+def _underline_of_style(style: str) -> int:
+    "The shape of the underline that a style string names."
+    for part in style.split():
+        number = UNDERLINE_NUMBERS.get(part)
+        if number is not None:
+            return number
+    return 0
+
+
 def ptterm_cells(data: str, lines: int, columns: int) -> List[List[Cell]]:
     "Feed `data` to ptterm and read the screen back."
     screen = BetterScreen(lines, columns, write_process_input=lambda answer: None)
@@ -134,8 +159,9 @@ def ptterm_cells(data: str, lines: int, columns: int) -> List[List[Cell]]:
                     bg=_color_of_style(style, "bg:"),
                     bold="bold" in style,
                     italic="italic" in style,
-                    underline="underline" in style,
+                    underline=_underline_of_style(style),
                     reverse="reverse" in style,
+                    underline_color=_color_of_style(style, "ul:"),
                 )
             )
         rows.append(cells)
@@ -197,8 +223,15 @@ def kitty_cells(data: str, lines: int, columns: int) -> List[List[Cell]]:
                     bg=_kitty_color(cursor.bg),
                     bold=bool(cursor.bold),
                     italic=bool(cursor.italic),
-                    underline=bool(cursor.decoration),
+                    underline=int(cursor.decoration),
                     reverse=bool(cursor.reverse),
+                    # kitty keeps the colour of a line that it does not
+                    # draw. Nobody sees that, so it goes away.
+                    underline_color=(
+                        _kitty_color(cursor.decoration_fg)
+                        if cursor.decoration
+                        else None
+                    ),
                 )
             )
         _split_a_double_cell(cells)
@@ -271,7 +304,7 @@ def as_seen(cell: Cell) -> Cell:
 def as_text(cell: Cell) -> Cell:
     "Only the character of a blank cell, with every style dropped."
     if cell.char == " ":
-        return Cell(" ", None, None, False, False, False, False)
+        return Cell(" ", None, None, False, False, 0, False, None)
     return cell
 
 

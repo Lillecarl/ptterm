@@ -80,6 +80,37 @@ PALETTE_NAMES = [
 ]
 
 
+#: The shape of the line that each sub-parameter of "SGR 4" draws.
+#: Zero draws none. An empty name is the single line that a plain
+#: "SGR 4" draws, and prompt_toolkit reads it as such.
+UNDERLINE_SHAPES = {
+    0: "",
+    1: "",
+    2: "double",
+    3: "curly",
+    4: "dotted",
+    5: "dashed",
+}
+
+#: The word that a style string gives each shape.
+UNDERLINE_WORDS = {
+    "": "underline",
+    "double": "underdouble",
+    "curly": "undercurl",
+    "dotted": "underdotted",
+    "dashed": "underdashed",
+}
+
+#: The sub-parameter of "SGR 4" that each shape answers with.
+UNDERLINE_PARAMETERS = {
+    "": "4",
+    "double": "4:2",
+    "curly": "4:3",
+    "dotted": "4:4",
+    "dashed": "4:5",
+}
+
+
 def _rgb_components(color: Optional[str]) -> Optional[Tuple[int, int, int]]:
     "The three components of a '#rrggbb' colour, or None for anything else."
     if not color:
@@ -363,6 +394,8 @@ class BetterScreen:
             blink=False,
             reverse=False,
             hidden=False,
+            underline_style="",
+            underline_color="",
         )
         self._style_str = ""
         # The rendition alone, without the hyperlink. The two change
@@ -1433,7 +1466,9 @@ class BetterScreen:
             style += "bg:%s " % attrs.bgcolor
 
         if attrs.underline:
-            style += "underline "
+            style += UNDERLINE_WORDS[attrs.underline_style or ""] + " "
+            if attrs.underline_color:
+                style += "ul:%s " % attrs.underline_color
 
         return style
 
@@ -1711,6 +1746,16 @@ class BetterScreen:
                     color = self._color_of_parameters(list(attr))
                     if color is not None:
                         replace["color" if attr[0] == 38 else "bgcolor"] = color
+                elif attr[0] == 58:
+                    replace["underline_color"] = (
+                        self._color_of_parameters(list(attr)) or ""
+                    )
+                elif attr[0] == 4:
+                    number = attr[1] if len(attr) > 1 else 1
+                    shape = UNDERLINE_SHAPES.get(number)
+                    if shape is not None:
+                        replace["underline"] = number != 0
+                        replace["underline_style"] = shape
                 continue
 
             if attr in self._fg_colors:
@@ -1725,6 +1770,9 @@ class BetterScreen:
                 replace["italic"] = True
             elif attr == 4:
                 replace["underline"] = True
+                # A plain "4" draws a single line, whatever shape came
+                # before it.
+                replace["underline_style"] = ""
             elif attr == 5:
                 replace["blink"] = True
             elif attr == 6:
@@ -1738,7 +1786,12 @@ class BetterScreen:
                 replace["dim"] = False
             elif attr == 23:
                 replace["italic"] = False
+            elif attr == 21:
+                replace["underline"] = True
+                replace["underline_style"] = "double"
             elif attr == 24:
+                # The colour of the line stays: a program that turns
+                # the line on again writes no colour a second time.
                 replace["underline"] = False
             elif attr == 25:
                 replace["blink"] = False
@@ -1757,8 +1810,12 @@ class BetterScreen:
                     blink=False,
                     reverse=False,
                     hidden=False,
+                    underline_style="",
+                    underline_color="",
                 )
 
+            elif attr == 59:
+                replace["underline_color"] = ""
             elif attr in (38, 48):
                 # The colour follows in the parameters that come next.
                 parameters = [attr]
@@ -1767,6 +1824,14 @@ class BetterScreen:
                 color = self._color_of_parameters(parameters)
                 if color is not None:
                     replace["color" if attr == 38 else "bgcolor"] = color
+
+            elif attr == 58:
+                parameters = [attr]
+                while attrs and len(parameters) < self._color_parameters(parameters):
+                    parameters.append(attrs.pop())
+                replace["underline_color"] = (
+                    self._color_of_parameters(parameters) or ""
+                )
 
         attrs_obj = self._attrs._replace(**replace)  # type:ignore
 
@@ -1783,7 +1848,11 @@ class BetterScreen:
         if attrs_obj.italic:
             style_str += "italic "
         if attrs_obj.underline:
-            style_str += "underline "
+            style_str += UNDERLINE_WORDS[attrs_obj.underline_style or ""] + " "
+            # The colour of a line that nobody draws would travel with
+            # every cell for nothing.
+            if attrs_obj.underline_color:
+                style_str += "ul:%s " % attrs_obj.underline_color
         if attrs_obj.blink:
             style_str += "blink "
         if attrs_obj.reverse:
@@ -2028,23 +2097,27 @@ class BetterScreen:
         attrs = self._attrs
         parts = ["0"]
 
-        for flag, number in (
-            (attrs.bold, 1),
-            (attrs.dim, 2),
-            (attrs.italic, 3),
-            (attrs.underline, 4),
-            (attrs.blink, 5),
-            (attrs.reverse, 7),
-            (attrs.hidden, 8),
-            (attrs.strike, 9),
+        for flag, parameter in (
+            (attrs.bold, "1"),
+            (attrs.dim, "2"),
+            (attrs.italic, "3"),
+            (attrs.underline, UNDERLINE_PARAMETERS[attrs.underline_style or ""]),
+            (attrs.blink, "5"),
+            (attrs.reverse, "7"),
+            (attrs.hidden, "8"),
+            (attrs.strike, "9"),
         ):
             if flag:
-                parts.append("%i" % number)
+                parts.append(parameter)
 
         for color, number in ((attrs.color, 38), (attrs.bgcolor, 48)):
             components = _rgb_components(color)
             if components is not None:
                 parts.append("%i;2;%i;%i;%i" % ((number,) + components))
+
+        components = _rgb_components(attrs.underline_color)
+        if attrs.underline and components is not None:
+            parts.append("58:2::%i:%i:%i" % components)
 
         return ";".join(parts)
 

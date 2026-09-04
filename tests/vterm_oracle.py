@@ -190,7 +190,10 @@ def vterm_cells(data: str, lines: int, columns: int) -> List[List[Cell]]:
                         bg=_color(cell.bg, background=True),
                         bold=bool(cell.attrs.bold),
                         italic=bool(cell.attrs.italic),
-                        underline=bool(cell.attrs.underline),
+                        # The three shapes of libvterm are the first
+                        # three that kitty numbers. It carries no
+                        # colour for the line itself.
+                        underline=int(cell.attrs.underline),
                         reverse=bool(cell.attrs.reverse),
                     )
                 )
@@ -200,10 +203,31 @@ def vterm_cells(data: str, lines: int, columns: int) -> List[List[Cell]]:
         library.vterm_free(term)
 
 
+#: What libvterm draws for a shape that it does not know. It has
+#: three, so a dotted and a dashed line both come out single.
+_SHAPES_OF_LIBVTERM = {4: 1, 5: 1}
+
+
+def _as_libvterm_sees(cell: Cell) -> Cell:
+    """
+    The cell with everything dropped that libvterm cannot hold.
+
+    It knows a single, a double and a curly line, and it paints the
+    line like the text. A comparison that keeps more than that reports
+    a limit of the reference as a difference.
+    """
+    return cell._replace(
+        underline=_SHAPES_OF_LIBVTERM.get(cell.underline, cell.underline),
+        underline_color=None,
+    )
+
+
 def _keeper(strict: bool, blank_style: bool):
     if strict:
-        return lambda cell: cell
-    return as_seen if blank_style else as_text
+        return _as_libvterm_sees
+    if blank_style:
+        return lambda cell: _as_libvterm_sees(as_seen(cell))
+    return lambda cell: _as_libvterm_sees(as_text(cell))
 
 
 def vterm_differences(

@@ -130,6 +130,22 @@ RENDITIONS = [
     "48;5;250",
     "38;2;10;20;30",
     "48;2;200;100;50",
+    # The same colours, with colons between the parts of one parameter.
+    "38:5:9",
+    "38:2:10:20:30",
+    "38:2::10:20:30",
+    "48:2::200:100:50",
+    # The shape of an underline, and its colour.
+    "4:0",
+    "4:1",
+    "4:2",
+    "4:3",
+    "4:4",
+    "4:5",
+    "21",
+    "58:5:9",
+    "58:2::255:0:0",
+    "59",
 ]
 
 pieces = st.one_of(

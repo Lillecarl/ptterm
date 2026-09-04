@@ -47,6 +47,12 @@ SAME = [
     "\x1b7abc\x1b8X",
     "\x1b[3;1H\x1bM",
     "\x1b[1;1H\x1bD",
+    "\x1b[4:2mdouble\x1b[24m plain",
+    "\x1b[4:3mcurly\x1b[0m plain",
+    "\x1b[21mdouble\x1b[24m plain",
+    "\x1b[4:3m\x1b[4msingle",
+    "\x1b[38:5:9mindex\x1b[0m",
+    "\x1b[38:2:10:20:30mtruecolor\x1b[0m",
 ]
 
 
@@ -116,6 +122,31 @@ def test_libvterm_does_not_take_the_alternate_screen_on_the_oldest_name():
     """
     # The "X" of the alternate screen shows up on the first screen.
     assert vterm_differences("M\x1b[?47hX\x1b[?47l", lines=3, columns=6)
+
+
+def test_libvterm_reads_no_colour_space_in_a_colour():
+    """
+    ISO 8613-6 writes a colour as "38:2:<space>:r:g:b", where the
+    colour space is empty. libvterm reads the five parts of
+    "38:2:r:g:b" only, so it takes the empty part for the red.
+
+    kitty reads both, and ptterm follows kitty. The comparison against
+    kitty covers the form with the colour space.
+    """
+    assert not vterm_differences("\x1b[38:2:1:2:3mA", lines=3, columns=6)
+    assert vterm_differences("\x1b[38:2::1:2:3mA", lines=3, columns=6)
+
+
+def test_libvterm_draws_three_shapes_of_underline():
+    """
+    libvterm knows a single, a double and a curly line and draws a
+    single one for the two that are left. The comparison drops what it
+    cannot hold, so a dotted line reads as a single one on both sides.
+    """
+    for shape in ("4:2", "4:3"):
+        assert three_way("\x1b[%smA" % shape, lines=3, columns=6) == "agree"
+    for shape in ("4:4", "4:5"):
+        assert not vterm_differences("\x1b[%smA" % shape, lines=3, columns=6)
 
 
 def test_who_clears_the_alternate_screen_is_a_choice():

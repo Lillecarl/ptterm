@@ -61,6 +61,17 @@ def test_text_and_the_cursor(data):
         "\x1b[38;5;9m\x1b[48;5;12mx",
         "\x1b[90mbright\x1b[m",
         "\x1b[41;32mmix\x1b[39mfg\x1b[49mbg",
+        # The shape of an underline, and the colour of the line.
+        "\x1b[4:2mdouble\x1b[4:3mcurly\x1b[4:4mdotted\x1b[4:5mdashed\x1b[4:0m",
+        "\x1b[21mdouble\x1b[24m plain",
+        "\x1b[4:3m\x1b[4msingle",
+        "\x1b[4;58:2::255:0:0mred line\x1b[59m plain",
+        "\x1b[4;58:5:9mindex\x1b[24m none\x1b[4m again",
+        "\x1b[4;58;5;9mold form\x1b[0m",
+        # The parts of one colour, with colons between them.
+        "\x1b[38:5:9m\x1b[48:5:12mx",
+        "\x1b[38:2::10:20:30m\x1b[48:2::40:50:60mx",
+        "\x1b[38:2:10:20:30mx",
     ],
 )
 def test_colours_and_attributes(data):
