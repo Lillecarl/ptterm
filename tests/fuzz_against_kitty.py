@@ -23,6 +23,7 @@ from hypothesis import HealthCheck, given, settings  # noqa: E402
 from hypothesis import strategies as st  # noqa: E402
 
 from kitty_oracle import differences, kitty_is_available  # noqa: E402
+from vterm_oracle import libvterm_is_available, three_way  # noqa: E402
 
 pytestmark = pytest.mark.skipif(
     not kitty_is_available(), reason="the kitty python package is not there"
@@ -187,3 +188,28 @@ def test_a_random_program_gives_the_same_screen(data):
     # character and where it sits, which is where the bugs were.
     found = differences(data, lines=LINES, columns=COLUMNS, blank_style=False)
     assert not found, "%r\n%s" % (data, "\n".join(found[:10]))
+
+
+@settings(
+    max_examples=EXAMPLES,
+    deadline=None,
+    suppress_health_check=[HealthCheck.too_slow],
+)
+@given(program)
+@pytest.mark.skipif(
+    not libvterm_is_available(), reason="PTTERM_LIBVTERM names no library"
+)
+def test_a_random_program_never_leaves_ptterm_alone(data):
+    """
+    kitty and libvterm never agree with each other against ptterm.
+
+    This is the hunt that needs no decision afterwards. A difference
+    from one emulator is a question: which of the two is right? A
+    difference from both of them at once is an answer.
+    """
+    verdict = three_way(data, lines=LINES, columns=COLUMNS, blank_style=False)
+    assert verdict != "ptterm-wrong", "%r\n%s" % (
+        data,
+        "\n".join(differences(data, lines=LINES, columns=COLUMNS,
+                              blank_style=False)[:10]),
+    )
