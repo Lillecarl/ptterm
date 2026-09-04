@@ -336,20 +336,22 @@ class BetterScreen:
 
         # The original Screen instance, when going to the alternate screen.
         self._original_screen: Optional[Screen] = None
+        # The alternate screen, while the first one is in front. A
+        # terminal keeps one alternate screen for its whole life and
+        # hands it back with what it held, so this outlives a visit.
+        # `None` means that nothing was ever drawn on it.
+        self._alternate_screen: Optional[Screen] = None
+        self._alternate_screen_vars: dict = {}
 
-    def _reset_screen(self) -> None:
-        """Reset the Screen content. (also called when switching from/to
-        alternate buffer."""
-        self.pt_screen = Screen(
-            default_char=Char(" ", "")
-        )  # TODO: Stop using this Screen class!
+    def _reset_rendition(self) -> None:
+        """
+        Draw what comes next plainly, and under no hyperlink.
 
-        self.pt_screen.show_cursor = True
-
-        self.data_buffer = self.pt_screen.data_buffer
-        self.pt_cursor_position = CursorPosition(0, 0)
-        self.wrapped_lines: List[int] = []  # List of line indexes that were wrapped.
-
+        A screen carries neither: its cells hold the rendition and the
+        link that they were drawn with. Taking a screen therefore
+        starts plain, whether the screen is a new one or the one that
+        the last visit left.
+        """
         self._attrs = Attrs(
             color=None,
             bgcolor=None,
@@ -371,6 +373,21 @@ class BetterScreen:
         # piece of style that carries it.
         self.hyperlink = ""
         self._hyperlink_str = ""
+
+    def _reset_screen(self) -> None:
+        """Reset the Screen content. (also called when switching from/to
+        alternate buffer."""
+        self.pt_screen = Screen(
+            default_char=Char(" ", "")
+        )  # TODO: Stop using this Screen class!
+
+        self.pt_screen.show_cursor = True
+
+        self.data_buffer = self.pt_screen.data_buffer
+        self.pt_cursor_position = CursorPosition(0, 0)
+        self.wrapped_lines: List[int] = []  # List of line indexes that were wrapped.
+
+        self._reset_rendition()
 
         self.margins = None
 
@@ -554,18 +571,41 @@ class BetterScreen:
             # one of its screens, so it survives the switch. xterm and
             # kitty both keep it.
             margins = self.margins
-            self._reset_screen()
-            self.margins = margins
-            # A list of its own, because a save writes into the list
-            # that is there rather than making a new one.
-            self.savepoints = []
 
-            # The alternate screen has its own, empty kitty keyboard flag
-            # stack and its own graphics state. (The main screen state is
-            # restored by the swap variables when leaving the alternate
-            # screen.)
-            self.kitty_flags_stack = ()
-            self.graphics = GraphicsState()
+            # "?1049" clears the screen it takes. The two older modes
+            # do not, so they find what the last visit left.
+            keeps_the_content = (
+                (1049 << 5) not in taken_by and self._alternate_screen is not None
+            )
+            if keeps_the_content:
+                self.pt_screen = self._alternate_screen
+                for name, value in self._alternate_screen_vars.items():
+                    setattr(self, name, value)
+                self._alternate_screen = None
+                self._alternate_screen_vars = {}
+
+                # The cursor is not part of what the screen held. Taking
+                # the screen puts it home, the same way taking a screen
+                # that is cleared does.
+                self.pt_cursor_position.y = self.line_offset
+                self.pt_cursor_position.x = 0
+                # A screen carries no rendition and no link of its own:
+                # its cells hold the ones they were drawn with.
+                self._reset_rendition()
+            else:
+                self._reset_screen()
+                # A list of its own, because a save writes into the
+                # list that is there rather than making a new one.
+                self.savepoints = []
+
+                # The alternate screen has its own, empty kitty keyboard
+                # flag stack and its own graphics state. (The main screen
+                # state is restored by the swap variables when leaving
+                # the alternate screen.)
+                self.kitty_flags_stack = ()
+                self.graphics = GraphicsState()
+
+            self.margins = margins
 
     def reset_mode(self, *modes_args, **kwargs) -> None:
         """Resets (disables) a given list of modes.
@@ -602,6 +642,20 @@ class BetterScreen:
             restores_the_cursor = (1049 << 5) in given_back
             row = self.pt_cursor_position.y - self.line_offset
             column = self.pt_cursor_position.x
+
+            # The screen that is given back is kept, not thrown away:
+            # a terminal has one alternate screen for its whole life
+            # and hands it back with what it held. "?1047" is the
+            # exception. xterm clears the alternate screen before it
+            # switches back, and libvterm does the same; kitty keeps it.
+            if (1047 << 5) in given_back:
+                self._alternate_screen = None
+                self._alternate_screen_vars = {}
+            else:
+                self._alternate_screen = self.pt_screen
+                self._alternate_screen_vars = {
+                    name: getattr(self, name) for name in self.swap_variables
+                }
 
             for k, v in self._original_screen_vars.items():
                 setattr(self, k, v)

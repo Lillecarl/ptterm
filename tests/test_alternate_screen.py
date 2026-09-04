@@ -114,3 +114,39 @@ def test_the_older_modes_bring_no_rendition_back():
 def test_the_leave_of_1049_reads_the_saved_cursor_of_the_first_screen():
     "'?47' saved none, so '?1049l' finds nothing and goes home."
     assert not differences("\x1b[?47h0\x1b[?1049l0", lines=4, columns=6)
+
+
+# ----------------------------------------------------------------------
+# One screen, kept between visits.
+#
+# A terminal has one alternate screen for its whole life and hands it
+# back with what it held. "?1049h" clears the screen it takes; the two
+# older names do not.
+
+
+def test_a_second_visit_finds_what_the_first_left():
+    assert not differences("\x1b[?47hX\x1b[?47l\x1b[?47h", lines=3, columns=6)
+
+
+def test_the_mode_that_clears_still_clears():
+    assert not differences("\x1b[?1049hX\x1b[?1049l\x1b[?1049h", lines=3, columns=6)
+
+
+def test_a_screen_that_1049_left_is_still_there_for_an_older_name():
+    assert not differences("\x1b[?1049hX\x1b[?1049l\x1b[?47h", lines=3, columns=6)
+
+
+def test_the_cursor_goes_home_on_a_second_visit():
+    "The cells come back; the cursor does not."
+    assert not differences("\x1b[?47habc\x1b[?47l\x1b[?47hZ", lines=3, columns=6)
+
+
+def test_the_first_screen_is_untouched_by_all_of_it():
+    data = "M\x1b[?47hX\x1b[?47l\x1b[?47hY\x1b[?47l"
+    assert not differences(data, lines=3, columns=6)
+
+
+def test_a_rendition_of_the_first_visit_does_not_come_back():
+    "The cells keep the colour they were drawn with; the next one is plain."
+    data = "\x1b[?47h\x1b[31mred\x1b[?47l\x1b[?47hplain"
+    assert not differences(data, lines=3, columns=6, strict=True)
