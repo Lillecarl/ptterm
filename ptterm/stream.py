@@ -122,6 +122,10 @@ class Csi(StrEnum):
     #: from the left margin in origin mode, and HPA does not.
     HPA = "`"
 
+    #: Repeat the last character that was drawn. It saves a program
+    #: the bytes of a run of one character.
+    REP = "b"
+
     #: Scroll down: move the lines of the scrolling region, without
     #: moving the cursor. pyte has neither this nor SU.
     SD = "T"
@@ -187,6 +191,7 @@ class BetterStream(Stream):
             Csi.DECSLRM: "set_left_right_margins",
             Csi.DECSTR: "soft_reset",
             Csi.HPA: "cursor_to_absolute_column",
+            Csi.REP: "repeat_last_character",
             Csi.SD: "scroll_down",
             Csi.SU: "scroll_up",
             Csi.KITTY_KEYBOARD: "report_kitty_keyboard",

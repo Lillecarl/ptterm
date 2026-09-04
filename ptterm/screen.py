@@ -866,6 +866,10 @@ class BetterScreen:
         # program draws next. Nothing is marked to start with.
         self.protection = 0
 
+        # The character that REP repeats. Nothing is drawn yet, so a
+        # repeat now draws nothing.
+        self.last_character = ""
+
         # The colours that a program set with "OSC 4", "OSC 5" and
         # "OSC 10". A pane starts with neither table filled and
         # answers a query from the defaults. A set puts an entry here,
@@ -1566,6 +1570,11 @@ class BetterScreen:
         else:
             key_tail = (self._style_str,)
 
+        # What REP repeats. It is kept before the translation, so that
+        # a repeat travels the same road the character did.
+        if chars:
+            self.last_character = chars[-1]
+
         # Translating a given character.
         if self.charset:
             chars = chars.translate(self.g1_charset)
@@ -1992,6 +2001,25 @@ class BetterScreen:
             else:
                 column = 0
             self.pt_cursor_position.x = column
+
+    def repeat_last_character(self, count: int | None = None) -> None:
+        """
+        REP ("CSI Pn b"): draw the last character again, `count` times.
+
+        It saves a program the bytes of a run of one character, which
+        is what a box or a rule is made of.
+
+        The repeat goes through `draw`, so it wraps at the right
+        margin and scrolls at the bottom one exactly the way the
+        typing would have. ECMA-48 says nothing about margins; xterm
+        reads it this way to match the rest of the terminal, and
+        esctest2 asks for it.
+
+        A repeat before anything is drawn draws nothing. There is no
+        character to repeat, and a space would be a guess.
+        """
+        if self.last_character:
+            self.draw(self.last_character * (count or 1))
 
     def backspace(self) -> None:
         """
