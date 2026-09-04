@@ -137,10 +137,24 @@ def _underline_of_style(style: str) -> int:
 
 def ptterm_cells(data: str, lines: int, columns: int) -> List[List[Cell]]:
     "Feed `data` to ptterm and read the screen back."
+    return ptterm_cells_in_pieces([data], lines, columns)
+
+
+def ptterm_cells_in_pieces(
+    pieces: List[str], lines: int, columns: int
+) -> List[List[Cell]]:
+    """
+    Feed ptterm one piece at a time, and read the screen back.
+
+    A pty hands over what it has when it has it, so a sequence arrives
+    in two reads as often as in one. The screen has to be the same
+    either way.
+    """
     screen = BetterScreen(lines, columns, write_process_input=lambda answer: None)
     stream = BetterStream(screen)
     stream.attach(screen)
-    stream.feed(data)
+    for piece in pieces:
+        stream.feed(piece)
 
     buffer = screen.pt_screen.data_buffer
     offset = screen.line_offset
