@@ -118,9 +118,11 @@ CAPABILITIES: Dict[str, object] = {
     "fullkbd": True,
     # The clipboard, which a pane may write.
     "Ms": r"\E]52;%p1%s;%p2%s\E\\",
-    "colors": "256",
-    "Co": "256",
-    "pairs": "32767",
+    # A number is a number here, so that one table can answer a
+    # query and describe an entry of terminfo.
+    "colors": 256,
+    "Co": 256,
+    "pairs": 32767,
 }
 
 #: The shape of the line that each sub-parameter of "SGR 4" draws.
