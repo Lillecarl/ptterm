@@ -23,7 +23,7 @@ from hypothesis import HealthCheck, given, settings  # noqa: E402
 from hypothesis import strategies as st  # noqa: E402
 
 from kitty_oracle import differences, kitty_is_available  # noqa: E402
-from vterm_oracle import libvterm_is_available, three_way  # noqa: E402
+from panel import judges, report, verdict  # noqa: E402
 
 pytestmark = pytest.mark.skipif(
     not kitty_is_available(), reason="the kitty python package is not there"
@@ -229,20 +229,26 @@ def test_a_random_program_gives_the_same_screen(data):
     suppress_health_check=[HealthCheck.too_slow],
 )
 @given(program)
-@pytest.mark.skipif(
-    not libvterm_is_available(), reason="PTTERM_LIBVTERM names no library"
-)
+@pytest.mark.skipif(len(judges()) < 2, reason="fewer than two judges are here")
 def test_a_random_program_never_leaves_ptterm_alone(data):
     """
-    kitty and libvterm never agree with each other against ptterm.
+    The judges never agree with each other against ptterm.
 
     This is the hunt that needs no decision afterwards. A difference
-    from one emulator is a question: which of the two is right? A
-    difference from both of them at once is an answer.
+    from one emulator is a question: which of them is right? A
+    difference from all of them at once is an answer.
+
+    ptterm is not a judge, so it does not vote. `panel.judges` names
+    the ones that this machine can run.
     """
-    verdict = three_way(data, lines=LINES, columns=COLUMNS, blank_style=False)
-    assert verdict != "ptterm-wrong", "%r\n%s" % (
+    said = verdict(data, lines=LINES, columns=COLUMNS, blank_style=False)
+    assert said != "ptterm-wrong", "%r\n%s" % (
         data,
-        "\n".join(differences(data, lines=LINES, columns=COLUMNS,
-                              blank_style=False)[:10]),
+        "\n".join(
+            "%s: %s" % (name, found[0])
+            for name, found in report(
+                data, lines=LINES, columns=COLUMNS, blank_style=False
+            ).items()
+            if found
+        ),
     )
