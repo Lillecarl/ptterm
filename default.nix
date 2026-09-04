@@ -20,6 +20,11 @@
   ncurses,
   kitty,
   libvterm-neovim,
+  libghostty-vt,
+  stdenv,
+  nodejs,
+  fetchurl,
+  writeShellScriptBin,
 }:
 let
   package = buildPythonPackage {
@@ -95,7 +100,57 @@ let
     '';
   };
 
-  # Two emulators to compare the screen of ptterm against. `PTTERM_KITTY` is
+  # The judge that reads Ghostty. libghostty-vt is the terminal of Ghostty
+  # as a library with a C API, and this is C and not a binding because the
+  # library hands out sized structs and tagged unions: the compiler knows
+  # their layout, and a hand written binding only thinks it does.
+  ghosttyJudge = stdenv.mkDerivation {
+    pname = "ptterm-ghostty-judge";
+    version = "0.1.0";
+    src = builtins.path {
+      path = ./tests/judges-c;
+      name = "ptterm-ghostty-judge-source";
+    };
+    buildInputs = [ libghostty-vt ];
+    buildPhase = ''
+      $CC -O2 -I${libghostty-vt.dev}/include -o ghostty-judge ghostty_judge.c \
+        -L${libghostty-vt}/lib -lghostty-vt
+    '';
+    installPhase = ''
+      install -Dm755 ghostty-judge $out/bin/ghostty-judge
+    '';
+  };
+
+  # The judge that reads xterm.js, the terminal that VS Code draws in.
+  # `@xterm/headless` is that emulator with no drawing attached, and it
+  # depends on nothing, so one tarball is the whole of it. node is a build
+  # input of the tests and reaches no closure that runs.
+  xtermHeadless = fetchurl {
+    url = "https://registry.npmjs.org/@xterm/headless/-/headless-6.0.0.tgz";
+    hash = "sha256-B+SXCxZ05+9svVfIwXdG6q3NQap99bM2lf1knm7E14o=";
+  };
+
+  xtermJudge = stdenv.mkDerivation {
+    pname = "ptterm-xterm-judge";
+    version = "6.0.0";
+    src = builtins.path {
+      path = ./tests/judges-js;
+      name = "ptterm-xterm-judge-source";
+    };
+    dontBuild = true;
+    installPhase = ''
+      mkdir -p $out/lib
+      tar xzf ${xtermHeadless} -C $out/lib --strip-components=1
+      cp xterm_judge.js $out/lib/
+    '';
+  };
+
+  xtermJudgeRunner = writeShellScriptBin "xterm-judge" ''
+    exec ${nodejs}/bin/node ${xtermJudge}/lib/xterm_judge.js \
+      ${xtermJudge}/lib/lib-headless/xterm-headless.js "$@"
+  '';
+
+  # The emulators to compare the screen of ptterm against. `PTTERM_KITTY` is
   # the one kitty carries as a python extension, and kitty is the terminal
   # that pymux runs inside. `PTTERM_LIBVTERM` is the one that Vim and Neovim
   # carry, which leans towards xterm. Where the two agree and ptterm differs,
@@ -104,6 +159,8 @@ let
     export PTTERM_KITTY=${kitty}/lib/kitty
     export PTTERM_LIBVTERM=${libvterm-neovim}/lib/libvterm.so
     export PTTERM_JUDGES=${judges}/bin/ptterm-judges
+    export PTTERM_GHOSTTY=${ghosttyJudge}/bin/ghostty-judge
+    export PTTERM_XTERM=${xtermJudgeRunner}/bin/xterm-judge
   '';
 
   checks = {
@@ -126,6 +183,8 @@ let
       python -c "import sys; sys.path.insert(0, sys.argv[1]); import kitty.fast_data_types" "$PTTERM_KITTY"
       python -c "import ctypes, os; ctypes.CDLL(os.environ['PTTERM_LIBVTERM'])"
       echo '{"data":"x","lines":1,"columns":1}' | "$PTTERM_JUDGES" > /dev/null
+      echo '{"data":"x","lines":1,"columns":1}' | "$PTTERM_GHOSTTY" > /dev/null
+      echo '{"data":"x","lines":1,"columns":1}' | "$PTTERM_XTERM" > /dev/null
 
       python -m pytest tests -q -p no:cacheprovider
       touch "$out"

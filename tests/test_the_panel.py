@@ -1,9 +1,10 @@
 """
 What the whole panel says about the differences that stand.
 
-ptterm is not a judge: it is the thing on trial. Four emulators vote,
+ptterm is not a judge: it is the thing on trial. Six emulators vote,
 each written by other people and each from a different line — kitty in
-C, WezTerm and Alacritty in Rust, libvterm in C.
+C, WezTerm and Alacritty in Rust, libvterm in C, Ghostty in Zig and
+xterm.js in TypeScript.
 
 A tally is worth more than a verdict when the answer is a choice. Each
 test here writes down who is on which side, so that a decision rests on
@@ -18,7 +19,7 @@ import pytest
 from panel import judges, report, verdict
 
 #: Every judge that this file wants. With fewer, a tally means nothing.
-WANTED = {"kitty", "wezterm", "alacritty", "libvterm"}
+WANTED = {"kitty", "wezterm", "alacritty", "libvterm", "ghostty", "xterm"}
 
 pytestmark = pytest.mark.skipif(
     not WANTED.issubset({judge.name for judge in judges()}),
@@ -65,67 +66,97 @@ def test_a_tab_at_the_right_margin_follows_the_panel():
 # the decision rested on, so that nobody has to build it again.
 
 
-def test_a_tab_on_the_last_row_splits_the_panel():
-    "Two scroll the screen and two do not."
+def test_a_tab_on_the_last_row_keeps_the_panel():
+    """
+    Two scroll the screen and four do not.
+
+    This was two against two when the panel was four. Ghostty and
+    xterm.js both leave the screen alone, so the side ptterm is on has
+    the numbers now.
+    """
     against, with_us = sides("\x1b[8;20H12345\t")
     assert against == ["alacritty", "kitty"]
-    assert with_us == ["libvterm", "wezterm"]
+    assert with_us == ["ghostty", "libvterm", "wezterm", "xterm"]
 
 
 def test_a_backspace_in_the_first_column_keeps_the_panel():
-    "kitty steps back to the row above. Nobody else does."
+    "kitty steps back to the row above. None of the other five does."
     against, with_us = sides("\n\x080", lines=4, columns=8)
     assert against == ["kitty"]
-    assert with_us == ["alacritty", "libvterm", "wezterm"]
+    assert with_us == ["alacritty", "ghostty", "libvterm", "wezterm", "xterm"]
 
 
 def test_a_count_of_zero_for_su_keeps_the_panel():
-    "kitty reads a zero as no scroll. Everybody else reads it as one."
+    "kitty and Ghostty read a zero as no scroll. The other four read one."
     against, with_us = sides("a\r\nb\x1b[0S", lines=4, columns=8)
-    assert against == ["kitty"]
-    assert with_us == ["alacritty", "libvterm", "wezterm"]
+    assert against == ["ghostty", "kitty"]
+    assert with_us == ["alacritty", "libvterm", "wezterm", "xterm"]
 
 
 def test_too_many_parameters_splits_the_panel():
-    "Two drop the sequence whole and two read the ones they need."
+    """
+    Three drop the sequence whole and three read the ones they need.
+
+    Two against two before, and three against three now: the two new
+    judges took one side each. Nothing here decides it.
+    """
     against, with_us = sides("\x1b[3;9;9GX", lines=4, columns=8)
-    assert against == ["kitty", "wezterm"]
-    assert with_us == ["alacritty", "libvterm"]
+    assert against == ["ghostty", "kitty", "wezterm"]
+    assert with_us == ["alacritty", "libvterm", "xterm"]
 
 
-def test_who_clears_the_alternate_screen_splits_the_panel():
+def test_who_clears_the_alternate_screen_keeps_the_panel():
+    """
+    Two keep the content of the alternate screen and four clear it.
+
+    Two against two before. Ghostty and xterm.js both clear, so the
+    reading that xterm documents has the numbers now.
+    """
     against, with_us = sides("\x1b[?1047h X \x1b[?1047l \x1b[?47h", lines=3, columns=6)
     assert against == ["alacritty", "kitty"]
-    assert with_us == ["libvterm", "wezterm"]
+    assert with_us == ["ghostty", "libvterm", "wezterm", "xterm"]
 
 
-def test_decaln_sends_the_cursor_home_for_half_the_panel():
+def test_decaln_sends_the_cursor_home_for_most_of_the_panel():
     """
     ptterm follows the DEC manuals here, and the change is not a
-    guess: kitty and WezTerm do the same.
+    guess: four of the six do the same.
     """
     against, with_us = sides("ab\x1b#8X", lines=4, columns=6)
     assert against == ["alacritty", "libvterm"]
-    assert with_us == ["kitty", "wezterm"]
+    assert with_us == ["ghostty", "kitty", "wezterm", "xterm"]
 
 
-def test_a_mark_on_an_erased_cell_follows_kitty_and_wezterm():
+def test_a_mark_on_an_erased_cell_splits_the_panel():
     """
     The erase takes the "0" away, and a combining mark arrives with no
     character to hang on.
 
-    ptterm drops the mark, and kitty and WezTerm drop it too. Alacritty
-    keeps it on the blank. libvterm puts the "0" back and hangs the
-    mark on that, which is a third answer.
+    ptterm drops the mark, and kitty, WezTerm and xterm.js drop it too.
+    Alacritty and Ghostty keep it on the blank, and libvterm puts the
+    "0" back and hangs the mark on that.
 
-    ptterm hung the mark on the blank before, but only when a
-    background was set: an erase with no background drops the cell
-    whole, so the mark had nothing to reach. One program gave two
-    answers, and that was the bug.
+    Three against three. ptterm sits with the three that drop it.
     """
     against, with_us = sides("0\x1b[40m\x1b[1Ḱ", lines=3, columns=6)
-    assert against == ["alacritty", "libvterm"]
-    assert with_us == ["kitty", "wezterm"]
+    assert against == ["alacritty", "ghostty", "libvterm"]
+    assert with_us == ["kitty", "wezterm", "xterm"]
+
+
+def test_moving_back_over_a_tab_stop_splits_the_panel():
+    """
+    CBT and CHT ("CSI Ps Z" and "CSI Ps I") move over the tab stops
+    without drawing. Three of the six land somewhere else than ptterm.
+
+    This looked like a quirk of Alacritty while the panel was four.
+    Ghostty and xterm.js both take that side, so it is a difference
+    that stands and not one emulator being odd.
+    """
+    against, with_us = sides(
+        "\x1b[Ix\x1b[2Iy\x1b[Zz", lines=8, columns=24, blank_style=False
+    )
+    assert against == ["alacritty", "ghostty", "xterm"]
+    assert with_us == ["kitty", "libvterm", "wezterm"]
 
 
 # ----------------------------------------------------------------------
@@ -160,8 +191,6 @@ def test_the_panel_agrees(data):
         # libvterm reads a colour of its own as "38:2:r:g:b" only, and
         # takes the empty colour space of the ISO form for the red.
         ("libvterm", "\x1b[38:2::10:20:30mcolon colour"),
-        # Alacritty moves back over a tab stop differently.
-        ("alacritty", "\x1b[Ix\x1b[2Iy\x1b[Zz"),
         # Alacritty sets a tab stop differently.
         ("alacritty", "\x1b[1;3H\x1bH\x1b[1;1H\tX"),
         # WezTerm scrolls inside a region under origin mode
@@ -172,4 +201,4 @@ def test_the_panel_agrees(data):
 def test_one_judge_stands_apart(name, data):
     against, with_us = sides(data, lines=8, columns=24, blank_style=False)
     assert against == [name]
-    assert len(with_us) == 3
+    assert len(with_us) == len(WANTED) - 1

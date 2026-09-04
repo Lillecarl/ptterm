@@ -7,15 +7,19 @@ among emulators that other people wrote:
 - kitty, in C, through the python extension that kitty ships.
 - WezTerm and Alacritty, in Rust, through `tests/judges`.
 - libvterm, in C, the one that Vim and Neovim carry.
+- Ghostty, in Zig, through libghostty-vt and `tests/judges-c`.
+- xterm.js, in TypeScript, the one VS Code draws in, through
+  `tests/judges-js`.
 
 Each comes from a different line, which is the point. A difference
 from one judge is a question; a difference from all of them is an
 answer.
 
 A judge that cannot hold something says nothing about it. libvterm
-knows three shapes of underline and no colour for the line, so its
-answers are read through a projection that drops what it cannot hold.
-The two written in Rust hold everything a cell of ours holds.
+knows three shapes of underline and no colour for the line, and
+xterm.js says only whether a line is there. Their answers are read
+through a projection that drops what they cannot hold. kitty, Ghostty
+and the two written in Rust hold everything a cell of ours holds.
 
 `verdict()` says one of:
 
@@ -74,6 +78,22 @@ def judges() -> List[Judge]:
     else:
         if libvterm_is_available():
             found.append(Judge("libvterm", vterm_cells, _as_libvterm_sees))
+
+    try:
+        from ghostty_oracle import ghostty_cells, ghostty_is_available
+    except ImportError:
+        pass
+    else:
+        if ghostty_is_available():
+            found.append(Judge("ghostty", ghostty_cells, None))
+
+    try:
+        from xterm_oracle import _as_xterm_sees, xterm_cells, xterm_is_available
+    except ImportError:
+        pass
+    else:
+        if xterm_is_available():
+            found.append(Judge("xterm", xterm_cells, _as_xterm_sees))
 
     return found
 

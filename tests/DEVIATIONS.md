@@ -1,11 +1,14 @@
 # Deviations from the panel
 
-Four emulators judge ptterm, and ptterm is not one of them. Each is
+Six emulators judge ptterm, and ptterm is not one of them. Each is
 written by other people, and each comes from a different line:
 
 - kitty, in C, through the python extension that kitty ships.
 - WezTerm and Alacritty, in Rust, through `tests/judges`.
 - libvterm, in C, the one that Vim and Neovim carry.
+- Ghostty, in Zig, through libghostty-vt and `tests/judges-c`.
+- xterm.js, in TypeScript, the one VS Code draws in, through
+  `tests/judges-js`.
 
 **A tally says more than a comparison.** Where every judge differs from
 ptterm and the judges agree with each other, ptterm is wrong and nobody
@@ -28,6 +31,10 @@ of them without asking a person.
 - `tests/test_corpus_against_kitty.py` and
   `tests/test_corpus_against_the_panel.py` replay what real programs
   wrote.
+- `tests/judges` builds the two written in Rust, `tests/judges-c` the
+  one that reads libghostty-vt, and `tests/judges-js` the one that
+  reads xterm.js. Each is a program that answers one line of JSON with
+  another; `tests/line_judge.py` is the side that asks.
 - `tests/fuzz_against_kitty.py` builds random programs with hypothesis.
   `nix-build -A checks.ptterm-fuzz` runs it from the pyterm checkout
   and `nix-build -A checks.fuzz` from this one. `PTTERM_FUZZ` says how
@@ -126,34 +133,43 @@ of them without asking a person.
 
 ## The deviations that stand
 
-**The user has decided every one of these, and ptterm keeps what it
-does in each.** Do not reopen one without a new reason. The tally is
-what the decision rested on, so it stands beside each entry.
+**The user has decided seven of these nine, and ptterm keeps what it
+does in each.** Do not reopen one of those without a new reason. The
+tally is what the decision rested on, so it stands beside each entry.
 
-Four split the panel two against two. In the other three, kitty stands
-alone against the other three judges and against xterm.
+**The standing rule, when a tally leaves ptterm alone against the
+rest:** follow the rest. That settles it, and no one has to be asked. A
+tally where ptterm sits with one or more judges is not that case, and
+it goes to the user.
 
-**The standing rule, when a tally is three to one:** follow the three.
-If ptterm is the only one that deviates, that settles it, and no one
-has to be asked. A tally where ptterm sits with one of the judges is
-not that case, and it goes to the user.
+**Two new judges changed the picture, and they changed it our way.**
+Ghostty and xterm.js joined a panel of four. Three differences that
+split it two against two are now four against two for the side ptterm
+is on: the tab on the last row, `?1047l`, and DECALN. Nothing that was
+decided has to be decided again.
+
+They also found one. What looked like a quirk of Alacritty, in CBT and
+CHT, is a real difference: Ghostty and xterm.js take that side too, and
+the panel is three against three. It is number 9, and it is open.
 
 | # | What | With ptterm | Against ptterm |
 | --- | --- | --- | --- |
-| 1 | A tab in the last column of the last row | libvterm, WezTerm | Alacritty, kitty |
-| 2 | `?1047l` clears the alternate screen | libvterm, WezTerm | Alacritty, kitty |
-| 3 | A sequence with too many parameters | Alacritty, libvterm | kitty, WezTerm |
-| 4 | DECALN homes the cursor and clears the margins | kitty, WezTerm | Alacritty, libvterm |
-| 5 | A backspace in the first column | Alacritty, libvterm, WezTerm | kitty |
-| 6 | A count of zero for SU or SD | Alacritty, libvterm, WezTerm | kitty |
-| 7 | The background of the line a scroll brings in | Alacritty, libvterm, WezTerm | kitty |
+| 1 | A tab in the last column of the last row | Ghostty, libvterm, WezTerm, xterm.js | Alacritty, kitty |
+| 2 | `?1047l` clears the alternate screen | Ghostty, libvterm, WezTerm, xterm.js | Alacritty, kitty |
+| 3 | A sequence with too many parameters | Alacritty, libvterm, xterm.js | Ghostty, kitty, WezTerm |
+| 4 | DECALN homes the cursor and clears the margins | Ghostty, kitty, WezTerm, xterm.js | Alacritty, libvterm |
+| 5 | A backspace in the first column | every other judge | kitty |
+| 6 | A count of zero for SU or SD | Alacritty, libvterm, WezTerm, xterm.js | Ghostty, kitty |
+| 7 | The background of the line a scroll brings in | Alacritty, libvterm, WezTerm, xterm.js | Ghostty, kitty |
+| 8 | A combining mark on a cell an erase left | kitty, WezTerm, xterm.js | Alacritty, Ghostty, libvterm |
+| 9 | CBT and CHT over the tab stops | kitty, libvterm, WezTerm | Alacritty, Ghostty, xterm.js |
 
 ### 1. A tab in the last column of the last row
 
 `\x1b[8;20H12345\t` on 8 lines and 24 columns.
 
-ptterm keeps the cursor where it is. kitty and Alacritty scroll the
-screen up.
+ptterm keeps the cursor where it is, and so do Ghostty, libvterm,
+WezTerm and xterm.js. kitty and Alacritty scroll the screen up.
 
 A tab draws nothing. A character in the last column leaves the cursor
 waiting to wrap, and a tab leaves that wait alone, so no character has
@@ -168,8 +184,9 @@ on the last row. Cheap to add if a program ever needs it.
 
 `\x1b[?1047h X \x1b[?1047l \x1b[?47h` on 3 lines and 6 columns.
 
-ptterm clears the alternate screen before it gives it back. kitty and
-Alacritty keep the content.
+ptterm clears the alternate screen before it gives it back, and so do
+Ghostty, libvterm, WezTerm and xterm.js. kitty and Alacritty keep the
+content.
 
 xterm documents the clear for this mode. `?1049l` and `?47l` do not
 clear, and ptterm keeps the screen for both of those, so a program that
@@ -187,8 +204,9 @@ pane, and it decides once, where the program writes the mode.
 
 `\x1b[3;9;9GX` on 4 lines and 8 columns.
 
-ptterm reads the parameters the command takes and ignores the rest.
-kitty and WezTerm drop the sequence whole.
+ptterm reads the parameters the command takes and ignores the rest, and
+so do Alacritty, libvterm and xterm.js. kitty, WezTerm and Ghostty drop
+the sequence whole. Three against three.
 
 xterm reads the ones it needs. Dropping the sequence loses a move that
 the program meant. pyte raised a TypeError here and took the whole
@@ -202,8 +220,9 @@ parameters. Little value: no program sends these on purpose.
 `ab\x1b#8X` on 4 lines and 6 columns.
 
 ptterm draws the pattern, puts the margins back to the whole screen and
-sends the cursor home. Alacritty and libvterm draw the pattern and
-leave the cursor where it was.
+sends the cursor home, and so do Ghostty, kitty, WezTerm and xterm.js.
+Alacritty and libvterm draw the pattern and leave the cursor where it
+was.
 
 The DEC manuals say all three, and kitty and WezTerm do all three.
 
@@ -214,8 +233,8 @@ Nothing in daily use sends it.
 
 `\n\x080` on 4 lines and 8 columns.
 
-ptterm keeps the cursor in the first column. kitty steps back to the
-end of the row above.
+ptterm keeps the cursor in the first column, and so does every other
+judge. kitty alone steps back to the end of the row above.
 
 xterm does that only with reverse wraparound, `DECSET 45`, and that
 mode is off by default.
@@ -229,7 +248,8 @@ way it does in xterm.
 
 `a\r\nb\x1b[0S` on 4 lines and 8 columns.
 
-ptterm reads a count of zero as one. kitty reads it as no scroll.
+ptterm reads a count of zero as one, and so do Alacritty, libvterm,
+WezTerm and xterm.js. kitty and Ghostty read it as no scroll.
 
 Every other sequence that counts reads a zero as one, on both sides.
 `test_known_deviations.py` checks twelve of them.
@@ -241,8 +261,9 @@ count differently from the rest.
 
 `\x1b[42m\x1b[1S` on 4 lines and 6 columns.
 
-ptterm paints the new line with the background that is set. kitty gives
-it the default.
+ptterm paints the new line with the background that is set, and so do
+Alacritty, libvterm, WezTerm and xterm.js. kitty and Ghostty give it
+the default.
 
 xterm paints it, and the terminfo entry of ptterm claims `bce`. A
 capability that is claimed has to hold.
@@ -250,6 +271,41 @@ capability that is claimed has to hold.
 **As a setting:** no, not on its own. It would have to move with the
 `bce` claim in the terminfo entry, because a program reads that and
 draws what it says.
+
+### 8. A combining mark on a cell that an erase left
+
+`0\x1b[40m\x1b[1K\u0301` on 3 lines and 6 columns.
+
+The erase takes the "0" away. A combining mark then arrives with no
+character to hang on.
+
+ptterm drops it, and kitty, WezTerm and xterm.js drop it too. Alacritty
+and Ghostty hang it on the blank that the erase left. libvterm puts the
+"0" back and hangs the mark on that.
+
+Three against three. ptterm used to hang the mark on the blank, but
+only when a background was set, which is the bug in the list above.
+Whichever side it takes, it has to take the same one both times.
+
+**As a setting:** no. Not while the panel is this evenly divided and
+nothing turns on it.
+
+### 9. CBT and CHT over the tab stops
+
+`\x1b[Ix\x1b[2Iy\x1b[Zz` on 8 lines and 24 columns.
+
+"CSI Ps I" moves forward over tab stops and "CSI Ps Z" moves back, and
+neither draws anything. Alacritty, Ghostty and xterm.js land somewhere
+else than ptterm, kitty, libvterm and WezTerm.
+
+**This is the one the new judges found.** It read as a quirk of
+Alacritty while the panel was four, and it sat in the list of judges
+standing apart. Two more judges took that side, so it is a difference
+that stands. Nobody has ruled on it.
+
+**As a setting:** too early. Work out which reading is right first.
+ncurses uses CHT to reach a column without drawing the blanks in
+between, so a program does depend on this.
 
 ## Where kitty looks wrong
 
@@ -290,6 +346,21 @@ than kitty does. `test_against_vterm.py` writes each of these down.
   "38:2:<colour space>:r:g:b", with the colour space empty, and
   libvterm takes that empty part for the red. kitty reads both forms
   and ptterm follows kitty.
+
+### xterm.js
+
+The buffer API of xterm.js says whether a cell carries an underline
+and nothing more: not the shape of the line, and not its colour. The
+judge reports a plain single line for any of them, and the comparison
+drops the shape and the colour from both sides before it looks.
+
+Everything else a cell of ours holds, xterm.js holds.
+
+### Ghostty
+
+Nothing. libghostty-vt holds every part of a cell that ptterm holds,
+the shape of an underline and the colour of the line included, so its
+answers pass through no projection.
 
 ## Not compared yet
 
