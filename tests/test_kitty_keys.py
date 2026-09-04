@@ -223,3 +223,68 @@ def test_the_text_of_a_key_reaches_a_pane_that_asked():
     assert translate_key_data("\x01", flags=REPORT_ALL | ASSOCIATED_TEXT) == (
         "\x1b[97;5u"
     )
+
+
+# ----------------------------------------------------------------------
+# What a legacy keyboard cannot send, made up. A pane that asked for
+# the event types reads every key going down and coming up; only the
+# time between the two is lost.
+
+
+def test_a_legacy_key_answers_with_a_press_and_a_release():
+    assert translate_key_data("a", flags=EVENT_TYPES) == "a\x1b[97;:3u"
+    assert (
+        translate_key_data("a", flags=EVENT_TYPES | DISAMBIGUATE)
+        == "a\x1b[97;:3u"
+    )
+    assert translate_key_data("\x01", flags=EVENT_TYPES) == "\x01\x1b[97;5:3u"
+    assert translate_key_data("A", flags=EVENT_TYPES) == "A\x1b[97;2:3u"
+
+
+def test_a_made_up_release_keeps_the_form_of_the_key():
+    "An arrow comes up in the form of an arrow, not of a text key."
+    assert translate_key_data("\x1b[D", flags=EVENT_TYPES) == "\x1b[D\x1b[1;:3D"
+    assert translate_key_data("\x1b[2~", flags=EVENT_TYPES) == (
+        "\x1b[2~\x1b[2;:3~"
+    )
+
+
+def test_enter_gets_no_made_up_release_either():
+    """
+    Enter, Tab and Backspace have no release in the protocol unless the
+    pane asks for every key as an escape code. The rule that drops a
+    real one drops a made up one.
+    """
+    assert translate_key_data("\r", flags=EVENT_TYPES) == "\r"
+    assert translate_key_data("\t", flags=EVENT_TYPES) == "\t"
+    assert translate_key_data("\r", flags=EVENT_TYPES | REPORT_ALL) == (
+        "\x1b[13u\x1b[13;:3u"
+    )
+
+
+def test_a_keyboard_that_sends_its_own_release_is_left_alone():
+    "Two releases for one key would be worse than none."
+    assert (
+        translate_key_data("a", flags=EVENT_TYPES, source_flags=0b11111) == "a"
+    )
+    assert (
+        translate_key_data(
+            "\x1b[97;:3u", flags=EVENT_TYPES, source_flags=0b11111
+        )
+        == "\x1b[97;:3u"
+    )
+
+
+def test_nothing_is_made_up_without_the_switch():
+    "The host can ask for presses only. The pane then hears that."
+    assert translate_key_data("a", flags=EVENT_TYPES, synthesize=False) == "a"
+    assert (
+        translate_key_data("\x01", flags=EVENT_TYPES, synthesize=False)
+        == "\x01"
+    )
+
+
+def test_a_pane_that_asked_for_no_event_type_reads_no_release():
+    assert translate_key_data("a", flags=0) == "a"
+    assert translate_key_data("a", flags=DISAMBIGUATE) == "a"
+    assert translate_key_data("a", flags=REPORT_ALL) == "\x1b[97u"

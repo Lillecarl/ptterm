@@ -20,11 +20,17 @@ Three parts of a key event need a terminal that speaks the protocol:
 the event type (press, repeat or release), the other codes of the key
 (the shifted key and the key of the base layout), and the text that
 the key writes. What such a terminal sends passes through to a pane
-that asked for it, and goes away for a pane that did not. Nothing is
-invented: the legacy encoding says that a key went down and no more.
+that asked for it, and goes away for a pane that did not.
 
-The one part that needs no modern terminal is the text of a printable
-key. The character that the terminal sends is that text.
+Two of the three are served for a legacy terminal as well:
+
+- The text of a printable key needs nothing. The character that the
+  terminal sends is that text.
+- A key release is made up. The legacy encoding says that a key went
+  down and never that it came up, so a key answers with a press and a
+  release at once. The pane reads every key going down and coming up;
+  only the time between the two is lost. `translate_key_data` takes
+  `synthesize=False` to leave that off.
 
 The forms follow the encoder of kitty (`kitty/key_encoding.c`), so a
 pane sees what a real kitty gives it.
@@ -353,16 +359,46 @@ def _encode_event(event: KeyEvent, flags: int, application_mode: bool) -> str:
 
 
 def translate_key_data(
-    data: str, flags: int, application_mode: bool = False
+    data: str,
+    flags: int,
+    application_mode: bool = False,
+    source_flags: int = 0,
+    synthesize: bool = True,
 ) -> str:
     """
     Translate raw key data into the encoding for a pane with the given
     keyboard protocol flags.
+
+    `source_flags` says what the terminal that sends the keys reports,
+    in the same flags. A terminal that reports the event types sends a
+    release of its own, and the release passes through.
+
+    `synthesize` says what to do when that terminal reports no event
+    type and the pane asked for one. With it, a key answers with a
+    press and a release at once: the pane then reads every key it went
+    down and came up, and only the time between the two is lost. That
+    is what a pane asked for, and no terminal can do better than the
+    keyboard it has. Without it, the pane hears that it has no event
+    types (see `BetterScreen.deliverable_kitty_keyboard_flags`) and
+    reads presses only.
     """
-    items = _parse_key_data(data)
-    return "".join(
-        _encode_event(item, flags, application_mode)
-        if isinstance(item, KeyEvent)
-        else item
-        for item in items
+    # The release of a key that the terminal never reports coming up.
+    double = bool(
+        synthesize
+        and flags & _REPORT_EVENT_TYPES
+        and not source_flags & _REPORT_EVENT_TYPES
     )
+
+    parts = []
+    for item in _parse_key_data(data):
+        if not isinstance(item, KeyEvent):
+            parts.append(item)
+            continue
+        parts.append(_encode_event(item, flags, application_mode))
+        if double and item.event == _PRESS:
+            parts.append(
+                _encode_event(
+                    item._replace(event=_RELEASE), flags, application_mode
+                )
+            )
+    return "".join(parts)

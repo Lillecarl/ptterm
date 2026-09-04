@@ -142,6 +142,8 @@ class Process:
                 data,
                 flags=self.screen.deliverable_kitty_keyboard_flags,
                 application_mode=self.screen.in_application_mode,
+                source_flags=self.screen.keyboard_source_flags,
+                synthesize=self.screen.synthesize_key_events,
             )
         )
 

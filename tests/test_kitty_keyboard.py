@@ -106,21 +106,30 @@ def test_set_replaces_top_of_stack():
 
 def test_query_reports_current_flags():
     screen, stream, responses = make_screen()
-    screen.keyboard_source_flags = 0b11111
     stream.feed("\x1b[>5u")
     stream.feed("\x1b[?u")
     assert responses == ["\x1b[?5u"]
 
 
-def test_query_drops_a_flag_that_the_keyboard_cannot_serve():
+def test_query_claims_every_flag_of_a_legacy_keyboard_as_well():
     """
     A pane asks the terminal what it does, and the answer has to hold.
-    The event type of a key and the other codes of a key need a
-    terminal that speaks the protocol, so a legacy keyboard gets
-    neither claimed for it.
+    It holds for a legacy keyboard too: the release that such a
+    keyboard never sends is made up, and the shifted key of a letter
+    is known.
     """
     screen, stream, responses = make_screen()
     assert screen.keyboard_source_flags == 0
+    assert screen.synthesize_key_events is True
+    stream.feed("\x1b[>31u")
+    stream.feed("\x1b[?u")
+    assert responses == ["\x1b[?31u"]
+
+
+def test_query_drops_what_the_keyboard_cannot_serve_on_its_own():
+    "With nothing made up, the answer holds only what really arrives."
+    screen, stream, responses = make_screen()
+    screen.synthesize_key_events = False
     stream.feed("\x1b[>31u")
     stream.feed("\x1b[?u")
     # 31 without the event types (2) and the other codes (4).
@@ -130,6 +139,7 @@ def test_query_drops_a_flag_that_the_keyboard_cannot_serve():
 
 def test_query_keeps_a_flag_that_the_keyboard_serves():
     screen, stream, responses = make_screen()
+    screen.synthesize_key_events = False
     screen.keyboard_source_flags = 0b10
     stream.feed("\x1b[>31u")
     stream.feed("\x1b[?u")
@@ -141,8 +151,10 @@ def test_the_keyboard_of_the_host_survives_a_reset():
     "It says what the terminal of the user does, and a pane cannot."
     screen, stream, responses = make_screen()
     screen.keyboard_source_flags = 0b110
+    screen.synthesize_key_events = False
     stream.feed("\x1bc")
     assert screen.keyboard_source_flags == 0b110
+    assert screen.synthesize_key_events is False
     assert screen.kitty_keyboard_flags == 0
 
 

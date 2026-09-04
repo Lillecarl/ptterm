@@ -320,6 +320,12 @@ class BetterScreen:
         # and not to the screen, so a reset leaves it alone.
         self.keyboard_source_flags: int = 0
 
+        # Whether to make up the halves of a key event that such a
+        # terminal cannot send. With it, a pane gets what it asked for
+        # from any keyboard; without it, a pane hears that it does not
+        # have it. The host sets this one as well.
+        self.synthesize_key_events: bool = True
+
         # The shapes of the pointer that "OSC 22" pushed. The last one
         # is the shape now. Each screen keeps its own, the way kitty
         # does.
@@ -370,9 +376,9 @@ class BetterScreen:
     #: The kitty keyboard protocol flags that need a terminal that
     #: speaks the protocol. The event type of a key needs a key
     #: release, and the other codes of a key need the layout of the
-    #: user. The legacy encoding carries neither, and a guess is a
-    #: wrong answer. The other three flags are a form to write a key
-    #: in, so any terminal can serve them.
+    #: user. The legacy encoding carries neither of them by itself.
+    #: The other three flags are a form to write a key in, so any
+    #: terminal serves them.
     kitty_flags_that_need_a_source = 0b110
 
     @property
@@ -381,9 +387,13 @@ class BetterScreen:
         The flags that this pane really gets, of the ones it asked for.
 
         A pane asks the terminal what it does, and the answer has to
-        hold. So the answer drops a flag that the terminal feeding the
-        keys cannot serve.
+        hold. With `synthesize_key_events`, every flag holds: a key
+        release that the keyboard never sends is made up, and the
+        shifted key of a letter is known. Without it, the answer drops
+        what the keyboard cannot serve on its own.
         """
+        if self.synthesize_key_events:
+            return self.kitty_keyboard_flags
         missing = self.kitty_flags_that_need_a_source & ~self.keyboard_source_flags
         return self.kitty_keyboard_flags & ~missing
 
