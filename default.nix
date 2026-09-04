@@ -196,7 +196,7 @@ let
     #
     # `PTTERM_FUZZ` says how many examples to try. It reaches the evaluation
     # through the environment, so it only works with impure evaluation,
-    # which `nix-build` uses by default.
+    # which a build from a file uses.
     fuzz =
       let
         value = builtins.getEnv "PTTERM_FUZZ";

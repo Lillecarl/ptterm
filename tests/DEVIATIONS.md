@@ -36,8 +36,8 @@ of them without asking a person.
   reads xterm.js. Each is a program that answers one line of JSON with
   another; `tests/line_judge.py` is the side that asks.
 - `tests/fuzz_against_kitty.py` builds random programs with hypothesis.
-  `nix-build -A checks.ptterm-fuzz` runs it from the pyterm checkout
-  and `nix-build -A checks.fuzz` from this one. `PTTERM_FUZZ` says how
+  `nix build --file . checks.ptterm-fuzz` runs it from the pyterm checkout
+  and `nix build --file . checks.fuzz` from this one. `PTTERM_FUZZ` says how
   many examples.
 
 ## Fixed by the comparison

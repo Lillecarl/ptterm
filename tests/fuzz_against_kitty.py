@@ -10,7 +10,7 @@ enough to read.
 This file is not named `test_*`, so a plain run of the suite leaves it
 alone. It is a tool for hunting, not a gate: it finds deviations faster
 than they get fixed, and each one needs a decision about whether to
-follow kitty or xterm. `nix-build -A checks.fuzz` runs it, and
+follow kitty or xterm. `nix build --file . checks.fuzz` runs it, and
 `PTTERM_FUZZ` says how many examples to try.
 """
 import os
