@@ -105,3 +105,30 @@ def test_mixed_data():
 def test_trailing_escape():
     assert translate_key_data("\x1b", flags=0) == "\x1b"
     assert translate_key_data("\x1b", flags=DISAMBIGUATE) == "\x1b[27u"
+
+
+def test_the_key_code_is_the_key_without_shift():
+    """
+    An upper case letter from a legacy terminal becomes the lower case
+    key plus shift, because the protocol asks for the unshifted key.
+    """
+    assert translate_key_data("A", flags=REPORT_ALL) == "\x1b[97;2u"
+    assert translate_key_data("Z", flags=REPORT_ALL) == "\x1b[122;2u"
+    # A letter outside ASCII follows the same rule.
+    assert translate_key_data("Ä", flags=REPORT_ALL) == "\x1b[228;2u"
+
+
+def test_a_shifted_character_keeps_its_own_code():
+    """
+    Which key gives an exclamation mark depends on the layout, and the
+    legacy encoding does not say. The character keeps its own code.
+    """
+    assert translate_key_data("!", flags=REPORT_ALL) == "\x1b[33u"
+    assert translate_key_data(":", flags=REPORT_ALL) == "\x1b[58u"
+
+
+def test_an_upper_case_letter_still_reaches_a_legacy_pane():
+    "The shift goes back into the character on the way out."
+    assert translate_key_data("A", flags=0) == "A"
+    assert translate_key_data("A", flags=DISAMBIGUATE) == "A"
+    assert translate_key_data("Ä", flags=0) == "Ä"

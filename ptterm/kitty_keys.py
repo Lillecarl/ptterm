@@ -58,7 +58,19 @@ def _split_subparams(part: str) -> List[int]:
 
 
 def _control_or_text_event(char: str) -> KeyEvent:
-    "Decode a non-escape character into a key event."
+    """
+    Decode a non-escape character into a key event.
+
+    The key code of the protocol is the key without shift, so an upper
+    case letter becomes the lower case one plus the shift modifier.
+    The spec says it in these words: "the codepoint used is always the
+    lower-case (or more technically, un-shifted) version of the key".
+
+    Only letters take that treatment. Which key gives an exclamation
+    mark depends on the layout of the user, and the legacy encoding
+    does not carry the layout, so a guess there would be a wrong
+    answer on most keyboards. Such a character keeps its own code.
+    """
     code = ord(char)
     if char == "\r":
         return KeyEvent(13, 0, "u")
@@ -72,6 +84,9 @@ def _control_or_text_event(char: str) -> KeyEvent:
         return KeyEvent(64, _CTRL, "u")
     if 28 <= code <= 31:  # ctrl+\ ^ _
         return KeyEvent(code + 64, _CTRL, "u")
+    lower = char.lower()
+    if char.isupper() and lower != char and len(lower) == 1:
+        return KeyEvent(ord(lower), _SHIFT, "u")
     return KeyEvent(code, 0, "u")
 
 
