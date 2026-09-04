@@ -2445,8 +2445,7 @@ class BetterScreen:
         else:
             first_column, last_column = 0, columns - 1
 
-        top = first_row + (top or 1) - 1
-        left = first_column + (left or 1) - 1
+        top, left = self._corner(top, left)
         bottom = first_row + bottom - 1 if bottom else last_row
         right = first_column + right - 1 if right else last_column
 
@@ -2459,6 +2458,27 @@ class BetterScreen:
             return None
 
         return top, left, min(bottom, lines - 1), min(right, columns - 1)
+
+    def _corner(self, top: int, left: int) -> Tuple[int, int]:
+        """
+        Read the row and the column of one corner of a rectangle.
+
+        The numbers count from one, and origin mode counts them from
+        the margins. Nothing here holds the corner on the screen: the
+        caller knows what it wants to do with a corner past the edge.
+        """
+        row = (top or 1) - 1
+        column = (left or 1) - 1
+
+        if mo.DECOM in self.mode:
+            vertical = self.margins
+            if vertical is not None:
+                row += vertical.top
+            horizontal = self.horizontal_margins
+            if horizontal is not None:
+                column += horizontal.left
+
+        return row, column
 
     #: The characters that DECFRA writes. They are the two ranges of a
     #: Latin-1 terminal, and xterm drops a code outside them.
@@ -2497,6 +2517,60 @@ class BetterScreen:
             line = data_buffer[row + line_offset]
             for column in range(left, right + 1):
                 line[column] = cell
+            self.repair_wide_char(line, left)
+            self.repair_wide_char(line, right + 1)
+
+    def erase_rectangle(self, *params: int, **kwargs) -> None:
+        """
+        DECERA ("CSI Pt ; Pl ; Pb ; Pr $ z"): erase a rectangle.
+
+        Each cell takes the background that is set now, the way every
+        other erase leaves a cell. No mark holds DECERA away from a
+        cell. DECSERA is the one that reads a mark.
+
+        The cursor does not move.
+        """
+        self._erase_rectangle(self._rectangle(*_four(params, 0)), False)
+
+    def selective_erase_rectangle(self, *params: int, **kwargs) -> None:
+        """
+        DECSERA ("CSI Pt ; Pl ; Pb ; Pr $ {"): erase a rectangle, and
+        leave the cells that DECSCA marked alone.
+
+        Only the mark of DECSCA holds DECSERA away from a cell. The
+        mark of ISO 6429 does not, and that is where DECSERA and DECSEL
+        part: DECSEL reads both marks, and xterm's own conformance
+        suite asks for each of the two.
+
+        The cursor does not move.
+        """
+        self._erase_rectangle(self._rectangle(*_four(params, 0)), True)
+
+    def _erase_rectangle(
+        self, corners: Optional[Tuple[int, int, int, int]], selective: bool
+    ) -> None:
+        "Erase every cell of a rectangle that no mark holds back."
+        if corners is None:
+            return
+        top, left, bottom, right = corners
+
+        style = self.erase_style()
+        erased = ErasedChar(" ", style) if style else None
+        reads_the_marks = selective and self._protected_chars
+
+        data_buffer = self.data_buffer
+        line_offset = self.line_offset
+        for row in range(top, bottom + 1):
+            line = data_buffer[row + line_offset]
+            for column in range(left, right + 1):
+                if reads_the_marks:
+                    cell = line.get(column)
+                    if cell is not None and protection_of(cell) & Protection.DEC:
+                        continue
+                if erased is None:
+                    line.pop(column, None)
+                else:
+                    line[column] = erased
             self.repair_wide_char(line, left)
             self.repair_wide_char(line, right + 1)
 

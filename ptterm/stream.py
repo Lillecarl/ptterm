@@ -61,6 +61,9 @@ class Csi(StrEnum):
     #: Delete column: take columns out of the scrolling region.
     DECDC = "'~"
 
+    #: Erase rectangular area.
+    DECERA = "$z"
+
     #: Fill rectangular area: write one character over a rectangle.
     DECFRA = "$x"
 
@@ -82,6 +85,10 @@ class Csi(StrEnum):
     #: Set cursor style. ptterm remembers it, so that DECRQSS can
     #: report it back.
     DECSCUSR = " q"
+
+    #: Selective erase rectangular area: erase a rectangle, and leave
+    #: the cells that DECSCA marked alone.
+    DECSERA = "${"
 
     #: Set left and right margin. It answers only while private mode
     #: 69 is set, because the same final byte names SCOSC otherwise.
@@ -144,12 +151,14 @@ class BetterStream(Stream):
             Csi.CBT: "cursor_to_previous_tab",
             Csi.CHT: "cursor_to_next_tab",
             Csi.DECDC: "delete_columns",
+            Csi.DECERA: "erase_rectangle",
             Csi.DECFRA: "fill_rectangle",
             Csi.DECIC: "insert_columns",
             Csi.DECRQCRA: "report_checksum",
             Csi.DECRQM: "report_mode",
             Csi.DECSCA: "set_character_protection",
             Csi.DECSCUSR: "set_cursor_style",
+            Csi.DECSERA: "selective_erase_rectangle",
             Csi.DECSLRM: "set_left_right_margins",
             Csi.DECSTR: "soft_reset",
             Csi.HPA: "cursor_to_absolute_column",

@@ -1,14 +1,13 @@
 """
-The four commands that take a rectangle of the screen.
+The commands that take a rectangle of the screen.
 
 DECFRA ("CSI Pch ; Pt ; Pl ; Pb ; Pr $ x") fills one with a character.
 DECERA ("CSI Pt ; Pl ; Pb ; Pr $ z") erases one. DECSERA ("$ {") erases
-one and leaves a cell that DECSCA marked alone. DECCRA ("$ v") copies
-one to another place.
+one and leaves a cell that DECSCA marked alone.
 
-All four read the corners the same way. The numbers count from one,
+They all read the corners the same way. The numbers count from one,
 origin mode counts them from the margins, and a margin does not hold
-the rectangle in. None of the four moves the cursor.
+the rectangle in. None of them moves the cursor.
 """
 from ptterm.screen import BetterScreen
 from ptterm.stream import BetterStream
@@ -157,3 +156,109 @@ def test_a_filled_cell_carries_the_mark_of_decsca():
     stream.feed('\x1b[1"q\x1b[37;1;1;1;3$x\x1b[0"q')
     stream.feed("\x1b[1;1H\x1b[?2K")
     assert _line(screen, 0).rstrip() == "%%%"
+
+
+# ----------------------------------------------------------------------
+# DECERA.
+
+
+def test_an_erase_takes_the_rectangle_it_names():
+    screen, stream = _screen()
+    _prepare(stream)
+    stream.feed("\x1b[5;5;7;7$z")
+    assert _lines(screen) == [
+        "abcdefgh",
+        "ijklmnop",
+        "qrstuvwx",
+        "yz012345",
+        "ABCD   H",
+        "IJKL   P",
+        "QRST   X",
+        "YZ6789!@",
+    ]
+
+
+def test_an_erase_of_a_rectangle_that_ends_before_it_starts_does_nothing():
+    screen, stream = _screen()
+    _prepare(stream)
+    stream.feed("\x1b[5;5;4;4$z")
+    assert _lines(screen) == DATA
+
+
+def test_an_erase_with_no_corners_takes_the_whole_screen():
+    screen, stream = _screen()
+    _prepare(stream)
+    stream.feed("\x1b[$z")
+    assert _lines(screen) == [" " * 8] * 8
+
+
+def test_an_erased_rectangle_keeps_the_background():
+    screen, stream = _screen()
+    _prepare(stream)
+    stream.feed("\x1b[42m\x1b[1;1;1;3$z")
+    row = screen.pt_screen.data_buffer[0]
+    for column in range(3):
+        assert row[column].char == " "
+        assert "bg:" in row[column].style
+    assert row[3].char == "d"
+
+
+def test_an_erase_reaches_a_cell_that_decsca_marked():
+    screen, stream = _screen()
+    stream.feed('\x1b[1"qabc\x1b[0"q')
+    stream.feed("\x1b[1;1;1;3$z")
+    assert _line(screen, 0).rstrip() == ""
+
+
+def test_an_erase_does_not_move_the_cursor():
+    screen, stream = _screen()
+    _prepare(stream)
+    stream.feed("\x1b[4;3H\x1b[2;2;4;4$z")
+    assert (screen.pt_cursor_position.x, screen.pt_cursor_position.y) == (2, 3)
+
+
+# ----------------------------------------------------------------------
+# DECSERA.
+
+
+def test_a_selective_erase_leaves_a_cell_that_decsca_marked():
+    screen, stream = _screen()
+    stream.feed('\x1b[1"qabc\x1b[0"qde')
+    stream.feed("\x1b[1;1;1;5${")
+    assert _line(screen, 0).rstrip() == "abc"
+
+
+def test_a_selective_erase_reaches_a_cell_that_spa_marked():
+    """
+    Only the mark of DECSCA holds DECSERA away from a cell.
+
+    DECSEL reads the mark of ISO 6429 as well, and DECSERA does not.
+    xterm's own conformance suite asks for each of the two.
+    """
+    screen, stream = _screen()
+    stream.feed("a\x1bVb\x1bW")
+    stream.feed("\x1b[1;1;1;2${")
+    assert _line(screen, 0).rstrip() == ""
+
+
+def test_a_selective_erase_takes_the_rectangle_it_names():
+    screen, stream = _screen()
+    _prepare(stream)
+    stream.feed("\x1b[5;5;7;7${")
+    assert _lines(screen) == [
+        "abcdefgh",
+        "ijklmnop",
+        "qrstuvwx",
+        "yz012345",
+        "ABCD   H",
+        "IJKL   P",
+        "QRST   X",
+        "YZ6789!@",
+    ]
+
+
+def test_a_selective_erase_does_not_move_the_cursor():
+    screen, stream = _screen()
+    _prepare(stream)
+    stream.feed("\x1b[4;3H\x1b[2;2;4;4${")
+    assert (screen.pt_cursor_position.x, screen.pt_cursor_position.y) == (2, 3)
