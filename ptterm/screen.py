@@ -51,24 +51,95 @@ FORWARDED_OSC = frozenset(["22", "52", "99"])
 #: is what the program in it talks to.
 TERMINAL_VERSION = "ptterm(0.2)"
 
-#: The shape of the cursor that a terminal starts with, as DECSCUSR
-#: names it: a block that blinks.
-DEFAULT_CURSOR_STYLE = 1
+class CursorShape(IntEnum):
+    """
+    The shape of the cursor, as DECSCUSR ("CSI Ps SP q") names it.
 
-#: Private mode 12 (att610): does the cursor blink? DECSCUSR names the
-#: shape and the blinking in one number, and this mode names only the
-#: blinking, so both write `cursor_style`. The blinking shapes are the
-#: odd numbers, and the steady one of a pair is the number after it.
-CURSOR_BLINK = 12
+    One number carries the shape and the blinking together. The
+    blinking shapes are the odd numbers, and the steady one of a pair
+    is the number after it. Private mode 12 writes the blinking alone,
+    so both sequences write this one value.
+    """
 
-#: Private mode 69 (DECLRMM): may DECSLRM set a left and a right
-#: margin? The mode alone changes nothing. It says whether "CSI Pl ;
-#: Pr s" names the margins, and resetting it takes the margins away.
-LEFT_RIGHT_MARGIN_MODE = 69
+    BLINKING_BLOCK = 1
+    STEADY_BLOCK = 2
+    BLINKING_UNDERLINE = 3
+    STEADY_UNDERLINE = 4
+    BLINKING_BAR = 5
+    STEADY_BAR = 6
 
-#: Private mode 2048: report a resize in the input of the program,
-#: instead of only through SIGWINCH.
-INBAND_RESIZE = 2048
+
+#: The shape that a terminal starts with.
+DEFAULT_CURSOR_STYLE = CursorShape.BLINKING_BLOCK
+
+
+class PrivateMode(IntEnum):
+    """
+    A private mode, by the number that "CSI ? Ps h" carries.
+
+    pyte shifts a private mode five bits to the left, to tell it from a
+    mode that carries no marker, and `self.mode` holds the shifted
+    value. `flag` is that value, and the member itself is the number
+    that a program writes. `pyte.modes` carries the modes that pyte
+    knows about, already shifted, under its own names; these are the
+    ones it does not carry.
+    """
+
+    #: att610: does the cursor blink? DECSCUSR names the shape and the
+    #: blinking in one number, and this mode names only the blinking,
+    #: so both of them write `cursor_style`.
+    CURSOR_BLINK = 12
+
+    #: DECLRMM: may DECSLRM set a left and a right margin? The mode
+    #: alone changes nothing. It says whether "CSI Pl ; Pr s" names the
+    #: margins, and resetting it takes the margins away.
+    LEFT_RIGHT_MARGIN = 69
+
+    #: Report a resize in the input of the program, instead of only
+    #: through SIGWINCH.
+    INBAND_RESIZE = 2048
+
+    @property
+    def flag(self) -> int:
+        "The value that `self.mode` holds while this mode is set."
+        return self.value << 5
+
+
+class ModeReport(IntEnum):
+    """
+    What DECRQM ("CSI Ps $ p") answers about a mode.
+
+    Zero says that the terminal never heard of the mode, and a program
+    that reads it falls back to what it knows. Four says that the mode
+    exists and can never be on, which is what a program needs to stop
+    asking.
+    """
+
+    UNKNOWN = 0
+    SET = 1
+    RESET = 2
+    PERMANENTLY_SET = 3
+    PERMANENTLY_RESET = 4
+
+
+class WindowOp(IntEnum):
+    "The operations of \"CSI Ps t\" that a pane can answer."
+
+    REPORT_TEXT_AREA_PIXELS = 14
+    REPORT_CELL_SIZE_PIXELS = 16
+    REPORT_TEXT_AREA_CHARS = 18
+    REPORT_ICON_LABEL = 20
+    REPORT_WINDOW_TITLE = 21
+    PUSH_TITLE = 22
+    POP_TITLE = 23
+
+
+class TitlePart(IntEnum):
+    "Which title a push or a pop of \"CSI 22 t\" and \"CSI 23 t\" names."
+
+    BOTH = 0
+    ICON = 1
+    WINDOW = 2
 
 #: The names that prompt_toolkit gives the first sixteen colours of the
 #: palette, in the order that "CSI 38 ; 5 ; n m" numbers them.
@@ -749,7 +820,7 @@ class BetterScreen:
         The pixel size follows the cell that `ptterm.graphics` assumes,
         so it agrees with what "CSI 14 t" and "CSI 16 t" report.
         """
-        if (INBAND_RESIZE << 5) not in self.mode:
+        if PrivateMode.INBAND_RESIZE.flag not in self.mode:
             return
 
         self.write_process_input(
@@ -866,7 +937,7 @@ class BetterScreen:
         the whole width is no region at all. The cursor goes home
         afterwards, which is what DECSTBM does as well.
         """
-        if (LEFT_RIGHT_MARGIN_MODE << 5) not in self.mode:
+        if PrivateMode.LEFT_RIGHT_MARGIN.flag not in self.mode:
             return
 
         left = (params[0] if len(params) > 0 else 0) or 1
@@ -920,13 +991,13 @@ class BetterScreen:
 
         self.mode.update(modes)
 
-        if (CURSOR_BLINK << 5) in modes:
+        if PrivateMode.CURSOR_BLINK.flag in modes:
             self.set_cursor_blink(True)
 
         # The program asked to be told the size in band. Tell it now,
         # so that it need not ask separately. (kitty answers a repeated
         # set the same way.)
-        if (INBAND_RESIZE << 5) in modes:
+        if PrivateMode.INBAND_RESIZE.flag in modes:
             self.notify_of_resize()
 
         # When DECOLM mode is set, the screen is erased and the cursor
@@ -1018,13 +1089,13 @@ class BetterScreen:
 
         self.mode.difference_update(modes)
 
-        if (CURSOR_BLINK << 5) in modes:
+        if PrivateMode.CURSOR_BLINK.flag in modes:
             self.set_cursor_blink(False)
 
         # DECLRMM off takes the columns of the region away. The region
         # is the whole width again, and a later DECSLRM does nothing
         # until a program sets the mode again.
-        if (LEFT_RIGHT_MARGIN_MODE << 5) in modes:
+        if PrivateMode.LEFT_RIGHT_MARGIN.flag in modes:
             self.horizontal_margins = None
 
         # Lines below follow the logic in :meth:`set_mode`.
@@ -2740,20 +2811,20 @@ class BetterScreen:
         [
             1,  # DECCKM: application cursor keys.
             3,  # DECCOLM: 132 columns.
-            CURSOR_BLINK,  # att610: the cursor blinks.
+            PrivateMode.CURSOR_BLINK,
             5,  # DECSCNM: reverse video.
             6,  # DECOM: origin mode.
             7,  # DECAWM: autowrap.
             25,  # DECTCEM: cursor visible.
             47,  # The alternate screen.
-            LEFT_RIGHT_MARGIN_MODE,  # DECLRMM: DECSLRM sets the columns.
+            PrivateMode.LEFT_RIGHT_MARGIN,
             1000,  # Mouse reporting.
             1006,  # SGR mouse encoding.
             1015,  # urxvt mouse encoding.
             1047,  # The alternate screen.
             1049,  # The alternate screen, with the cursor.
             2004,  # Bracketed paste.
-            INBAND_RESIZE,  # The size in band.
+            PrivateMode.INBAND_RESIZE,
         ]
     )
 
@@ -2813,7 +2884,7 @@ class BetterScreen:
         if is_private:
             permanent = number in self._permanently_reset_private_modes
             known = number in self._known_private_modes
-            if number == CURSOR_BLINK:
+            if number == PrivateMode.CURSOR_BLINK:
                 # DECSCUSR writes this one as well, and the alternate
                 # screen carries a `mode` of its own. So the answer
                 # comes from the shape, which is the one value that
@@ -2827,11 +2898,11 @@ class BetterScreen:
             enabled = number in self.mode
 
         if permanent:
-            state = 4
+            state = ModeReport.PERMANENTLY_RESET
         elif not known:
-            state = 0
+            state = ModeReport.UNKNOWN
         else:
-            state = 1 if enabled else 2
+            state = ModeReport.SET if enabled else ModeReport.RESET
 
         self.write_process_input(
             "\x1b[%s%i;%i$y" % ("?" if is_private else "", number, state)
@@ -2847,8 +2918,10 @@ class BetterScreen:
         shape also asks for it back, and it reads what it wrote.
         """
         style = params[0] if params else 0
-        if 0 <= style <= 6:
-            self.cursor_style = style or DEFAULT_CURSOR_STYLE
+        if style == 0:
+            self.cursor_style = DEFAULT_CURSOR_STYLE
+        elif style in iter(CursorShape):
+            self.cursor_style = CursorShape(style)
 
     def set_cursor_blink(self, blinking: bool) -> None:
         """
@@ -2861,9 +2934,9 @@ class BetterScreen:
         """
         style = self.cursor_style
         if blinking and style % 2 == 0:
-            self.cursor_style = style - 1
+            self.cursor_style = CursorShape(style - 1)
         elif not blinking and style % 2 == 1:
-            self.cursor_style = style + 1
+            self.cursor_style = CursorShape(style + 1)
 
     @property
     def cursor_blinks(self) -> bool:
@@ -2978,25 +3051,23 @@ class BetterScreen:
         what = params[0] if params else 0
         which = params[1] if len(params) > 1 else 0
 
-        if what == 20:
-            # The icon label.
+        if what == WindowOp.REPORT_ICON_LABEL:
             self.write_process_input("\x1b]L%s\x1b\\" % self.icon_name)
-        elif what == 21:
-            # The window title.
+        elif what == WindowOp.REPORT_WINDOW_TITLE:
             self.write_process_input("\x1b]l%s\x1b\\" % self.title)
-        elif what == 22:
+        elif what == WindowOp.PUSH_TITLE:
             self._push_title()
-        elif what == 23:
+        elif what == WindowOp.POP_TITLE:
             self._pop_title(which)
-        elif what == 16:
+        elif what == WindowOp.REPORT_CELL_SIZE_PIXELS:
             # Cell size in pixels: height first, then width.
             self.write_process_input(
                 "\x1b[6;%i;%it" % (ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH)
             )
-        elif what == 18:
+        elif what == WindowOp.REPORT_TEXT_AREA_CHARS:
             # Size of the text area, in cells.
             self.write_process_input("\x1b[8;%i;%it" % (self.lines, self.columns))
-        elif what == 14:
+        elif what == WindowOp.REPORT_TEXT_AREA_PIXELS:
             # Size of the text area, in pixels.
             self.write_process_input(
                 "\x1b[4;%i;%it"
@@ -3031,9 +3102,9 @@ class BetterScreen:
             return
 
         icon_name, title = self.title_stack.pop()
-        if which in (0, 1):
+        if which in (TitlePart.BOTH, TitlePart.ICON):
             self.icon_name = icon_name
-        if which in (0, 2):
+        if which in (TitlePart.BOTH, TitlePart.WINDOW):
             self.title = title
 
     def report_checksum(self, *params: int, **kwargs) -> None:
