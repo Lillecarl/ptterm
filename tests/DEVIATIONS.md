@@ -56,6 +56,11 @@ is a real choice. `three_way` answers "agree", "ptterm-wrong" or
   the next character wrapped to the line below.
 - Only "?1049" took the alternate screen. A program that sends "?47" or
   "?1047" drew over the shell it came from.
+- A terminal keeps one alternate screen for its whole life and hands it
+  back with what it held. ptterm made a new one on every switch, so a
+  program that takes the screen with "?47" or "?1047", which do not
+  clear it, found it empty. The vote called this one: kitty and
+  libvterm both keep the content.
 - "?1049" does what "ESC 7" and "ESC 8" do, on the screen it comes
   from: it saves the place, the rendition and the character sets, and
   brings them back. The screen did none of that, so a colour set on the
@@ -85,7 +90,7 @@ is a real choice. `three_way` answers "agree", "ptterm-wrong" or
 
 ## Where ptterm follows xterm and kitty does something else
 
-These five are in `test_known_deviations.py`. ptterm follows xterm in
+These six are in `test_known_deviations.py` and in `test_against_vterm.py`. ptterm follows xterm in
 each; a program is written against xterm, not against kitty.
 
 **libvterm draws what ptterm draws in all five.** That was a reading of
@@ -102,6 +107,11 @@ vote calls each of these a split and not a bug.
 5. A sequence that carries more parameters than its command takes is
    dropped whole by kitty. xterm reads the ones it needs and ignores
    the rest.
+6. "?1047l" clears the alternate screen before it switches back. xterm
+   documents that and libvterm does it; kitty keeps the content. (The
+   three do not line up here: libvterm clears whenever it leaves,
+   whatever the mode, and ptterm and kitty keep the screen that
+   "?1049l" and "?47l" leave.)
 
 ## Where kitty looks wrong
 
@@ -122,18 +132,12 @@ sees two cells either way, and `test_known_deviations` holds the case.
 
 ## Open, found by the hunt and not fixed
 
-- A terminal keeps one alternate screen and hands it back with what it
-  held. ptterm makes a new one on every switch. **The vote calls this a
-  bug**: kitty and libvterm both keep the content. "?1049h" clears the
-  screen it takes, so the difference only shows with "?47" and "?1047",
-  which do not. `test_known_deviations` holds it as a strict xfail, and
-  the hunt leaves those two modes out.
 - An erased cell holds a space in ptterm and nothing in kitty, so a
   combining mark that lands on one hangs on the space here and goes
   away there. libvterm gives a third answer: it hangs the mark on the
   character that the erase was meant to take away. Three emulators,
-  three answers, so there is nothing to follow. The hunt leaves the marks out; `test_combining_marks`
-  covers them by hand.
+  three answers, so there is nothing to follow. The hunt leaves the
+  marks out; `test_combining_marks` covers them by hand.
 
 Run it again to find more. Each one needs a decision about whether to
 follow kitty or xterm before it becomes a fix.

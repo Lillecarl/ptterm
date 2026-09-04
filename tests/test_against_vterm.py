@@ -97,11 +97,35 @@ def test_the_two_emulators_disagree_about_a_mark_on_an_erased_cell():
     assert three_way("0\x1b[40m\x1b[1K\u0301", lines=3, columns=6) == "split"
 
 
-def test_the_alternate_screen_that_ptterm_does_not_keep_is_a_real_bug():
+def test_the_alternate_screen_keeps_what_it_held():
     """
-    Both of the others hand the alternate screen back with what it
-    held. This is the one open gap, and the vote says it is a bug and
-    not a choice.
+    The vote called this a bug, and the bug is fixed.
+
+    A terminal has one alternate screen and hands it back with what it
+    held. Both of the others do; ptterm made a new one every time.
+    """
+    data = "\x1b[?47h X \x1b[?47l \x1b[?47h"
+    assert three_way(data, lines=3, columns=6) == "agree"
+
+
+def test_libvterm_does_not_take_the_alternate_screen_on_the_oldest_name():
+    """
+    libvterm reads "?1047" and "?1049" and not "?47", so it draws on
+    one screen there. It is no reference for that mode, and the
+    comparison against kitty covers it instead.
+    """
+    # The "X" of the alternate screen shows up on the first screen.
+    assert vterm_differences("M\x1b[?47hX\x1b[?47l", lines=3, columns=6)
+
+
+def test_who_clears_the_alternate_screen_is_a_choice():
+    """
+    The three do not agree about when the screen is cleared, and each
+    pair takes a different side.
+
+    ptterm clears on "?1049h" and on "?1047l", which is what xterm
+    documents. kitty clears only on "?1049h". libvterm clears when it
+    leaves, whichever mode leaves.
     """
     # Leaving with "?1049l" keeps the content here and in kitty.
     assert three_way("\x1b[?1049h0\x1b[?1049l\x1b[?47h", 4, 6) == "split"
