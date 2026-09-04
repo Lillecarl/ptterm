@@ -112,6 +112,28 @@ def test_a_mode_without_a_private_marker_is_answered_without_one():
     assert answers == ["\x1b[4;1$y", "\x1b[20;2$y", "\x1b[?4;0$y"]
 
 
+def test_a_mode_that_can_never_be_on_reports_four():
+    """
+    The ANSI modes that no terminal implements.
+
+    Four reads as "permanently reset". It says the mode exists and can
+    never be on, which is what a program needs to stop asking. A zero
+    would say "I never heard of this", and the program would guess.
+    """
+    _screen, stream, answers = make_screen()
+    query_mode(stream, 1, private=False)  # GATM.
+    query_mode(stream, 19, private=False)  # EBM.
+    query_mode(stream, 60)  # DECHCCM.
+    assert answers == ["\x1b[1;4$y", "\x1b[19;4$y", "\x1b[?60;4$y"]
+
+
+def test_setting_a_mode_that_can_never_be_on_changes_no_answer():
+    _screen, stream, answers = make_screen()
+    stream.feed("\x1b[1h")  # GATM on, which does nothing.
+    query_mode(stream, 1, private=False)
+    assert answers == ["\x1b[1;4$y"]
+
+
 def test_the_query_does_not_change_the_mode():
     screen, stream, _answers = make_screen()
     before = set(screen.mode)

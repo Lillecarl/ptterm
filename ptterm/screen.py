@@ -2221,19 +2221,58 @@ class BetterScreen:
     #: The same for the modes without a private marker.
     _known_ansi_modes = frozenset([mo.IRM, mo.LNM])
 
+    #: The modes that a terminal knows about and never implements.
+    #: DECRQM answers 4 for these, which reads as "permanently reset".
+    #:
+    #: That is a different answer from 0. A 0 says "I never heard of
+    #: this mode", and a program then has to guess. A 4 says "the mode
+    #: exists, and it can never be on", which is the truth here and
+    #: what a program needs to stop asking.
+    #:
+    #: These twelve come from the ANSI standard. No terminal that
+    #: anybody uses implements one of them, and xterm answers 4 for
+    #: every one.
+    _permanently_reset_ansi_modes = frozenset(
+        [
+            1,  # GATM: guarded area transfer.
+            5,  # SRTM: status report transfer.
+            7,  # VEM: vertical editing.
+            10,  # HEM: horizontal editing.
+            11,  # PUM: positioning unit.
+            13,  # FEAM: format effector action.
+            14,  # FETM: format effector transfer.
+            15,  # MATM: multiple area transfer.
+            16,  # TTM: transfer termination.
+            17,  # SATM: selected area transfer.
+            18,  # TSM: tabulation stop.
+            19,  # EBM: editing boundary.
+        ]
+    )
+
+    #: The same for the modes with a private marker.
+    _permanently_reset_private_modes = frozenset(
+        [
+            60,  # DECHCCM: horizontal cursor coupling.
+        ]
+    )
+
     def report_mode(self, *params: int, private: object = False, **kwargs) -> None:
         """
         DECRQM ("CSI ? Ps $ p" and "CSI Ps $ p"): is this mode set?
 
-        The answer is "CSI ? Ps ; Pm $ y", where Pm is 1 for set, 2 for
-        reset and 0 for a mode that this screen does not act on. A
-        program that reads 0 falls back to what it knows, which is
-        safer than an answer that we invent.
+        The answer is "CSI ? Ps ; Pm $ y". Pm is 1 for set, 2 for reset,
+        4 for a mode that exists and can never be on, and 0 for a mode
+        that this screen does not act on.
+
+        A program that reads 0 falls back to what it knows, which is
+        safer than an answer that we invent. So a mode gets 1 or 2 only
+        when this screen really acts on it.
         """
         number = params[0] if params else 0
         is_private = private is True
 
         if is_private:
+            permanent = number in self._permanently_reset_private_modes
             known = number in self._known_private_modes
             if number == CURSOR_BLINK:
                 # DECSCUSR writes this one as well, and the alternate
@@ -2244,10 +2283,13 @@ class BetterScreen:
             else:
                 enabled = (number << 5) in self.mode
         else:
+            permanent = number in self._permanently_reset_ansi_modes
             known = number in self._known_ansi_modes
             enabled = number in self.mode
 
-        if not known:
+        if permanent:
+            state = 4
+        elif not known:
             state = 0
         else:
             state = 1 if enabled else 2
