@@ -95,6 +95,11 @@ class PrivateMode(IntEnum):
     #: margins, and resetting it takes the margins away.
     LEFT_RIGHT_MARGIN = 69
 
+    #: Save the cursor on a set, and bring it back on a reset. It is
+    #: the pair of "ESC 7" and "ESC 8" written as one mode. "?1049"
+    #: holds this mode and the alternate screen together.
+    SAVE_CURSOR = 1048
+
     #: Report a resize in the input of the program, instead of only
     #: through SIGWINCH.
     INBAND_RESIZE = 2048
@@ -945,14 +950,17 @@ class BetterScreen:
 
         The sequence works only while private mode 69 (DECLRMM) is set.
         Without the mode the same final byte names SCOSC, which saves
-        the cursor, so a terminal that acts on the parameters here
-        would move text that a program means to leave alone.
+        the cursor. So a terminal reads one byte two ways, and the mode
+        says which. xterm does the same.
 
         A region needs two columns, the way the rows of DECSTBM do, and
         the whole width is no region at all. The cursor goes home
         afterwards, which is what DECSTBM does as well.
         """
         if PrivateMode.LEFT_RIGHT_MARGIN.flag not in self.mode:
+            # SCOSC. It saves what DECSC saves, and SCORC ("CSI u")
+            # brings it back.
+            self.save_cursor()
             return
 
         left = (params[0] if len(params) > 0 else 0) or 1
@@ -1008,6 +1016,9 @@ class BetterScreen:
 
         if PrivateMode.CURSOR_BLINK.flag in modes:
             self.set_cursor_blink(True)
+
+        if PrivateMode.SAVE_CURSOR.flag in modes:
+            self.save_cursor()
 
         # The program asked to be told the size in band. Tell it now,
         # so that it need not ask separately. (kitty answers a repeated
@@ -1106,6 +1117,9 @@ class BetterScreen:
 
         if PrivateMode.CURSOR_BLINK.flag in modes:
             self.set_cursor_blink(False)
+
+        if PrivateMode.SAVE_CURSOR.flag in modes:
+            self.restore_cursor()
 
         # DECLRMM off takes the columns of the region away. The region
         # is the whole width again, and a later DECSLRM does nothing
@@ -3451,8 +3465,11 @@ class BetterScreen:
                 # same way.)
                 self.kitty_flags_stack = (new_flags,)
 
-        # A plain "CSI N u" without a private marker is not part of the
-        # protocol. Ignore it.
+        else:
+            # A plain "CSI u" carries no private marker, so it is not
+            # part of the protocol at all. It is SCORC, the restore of
+            # the SCO console, and xterm reads it that way.
+            self.restore_cursor()
 
     # Codes of the xterm colour queries: the code names the colour.
     _osc_colors = {
