@@ -159,9 +159,31 @@ class _UnicodeInternDict(Dict[str, str]):
 _unicode_intern_dict = _UnicodeInternDict()
 
 
+class TerminalChar(Char):
+    """
+    One cell of a pane, holding what the program wrote.
+
+    prompt_toolkit shows a no-break space as a space that is underlined
+    in yellow, so that a reader of a widget can see one. A pane is not
+    a widget: "tree" draws its indentation with no-break spaces, and
+    every emulator keeps them as they are. So does this.
+    """
+
+    __slots__ = ()
+
+    def __init__(self, char: str = " ", style: str = "") -> None:
+        if char == "\xa0":
+            # Skip the mapping of the parent, and keep the character.
+            self.char = char
+            self.style = style
+            self.width = 1
+        else:
+            super().__init__(char, style)
+
+
 # Cache for Char objects.
 _CHAR_CACHE: FastDictCache[Tuple[str, str], Char] = FastDictCache(
-    Char, size=1000 * 1000
+    TerminalChar, size=1000 * 1000
 )
 
 
