@@ -94,3 +94,32 @@ def test_a_plain_csi_u_is_not_the_keyboard_protocol():
     stream.feed("\x1b[2;3H\x1b[s\x1b[5;5H\x1b[u")
     assert _position(screen) == (2, 1)
     assert screen.kitty_keyboard_flags == 0
+
+
+@pytest.mark.parametrize("save, restore", PAIRS)
+def test_a_restore_takes_origin_mode_off_again(save, restore):
+    """
+    Origin mode comes back the way it was saved, both ways.
+
+    A save with the mode off has to take the mode off again. Only
+    setting it back leaves a mode on that the program turned off.
+    """
+    screen, stream = _screen()
+    stream.feed(save + "\x1b[2;5r\x1b[?6h" + restore)
+    stream.feed("\x1b[1;1HX")
+    assert screen.data_buffer[0][0].char == "X"
+
+
+@pytest.mark.parametrize("save, restore", PAIRS)
+def test_a_restore_leaves_the_wrap_alone(save, restore):
+    """
+    DECAWM is not part of the saved cursor.
+
+    xterm does not bring the wrap back on a restore, and its own suite
+    asks for that. A save with the wrap on, a reset and a restore
+    leaves the wrap off.
+    """
+    screen, stream = _screen(lines=4, columns=8)
+    stream.feed("\x1b[?7h" + save + "\x1b[?7l" + restore)
+    stream.feed("\x1b[1;7Habcd")
+    assert screen.pt_cursor_position.y == 0

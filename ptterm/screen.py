@@ -414,7 +414,6 @@ _Savepoint = namedtuple(
         "g1_charset",
         "charset",
         "origin",
-        "wrap",
         "attrs",
         "style_str",
         # The marks that SPA and DECSCA set. They belong to the cursor,
@@ -1701,7 +1700,10 @@ class BetterScreen:
                 self.g1_charset,
                 self.charset,
                 mo.DECOM in self.mode,
-                mo.DECAWM in self.mode,
+                # DECAWM is not here. xterm does not bring the wrap
+                # back on a restore, and its own suite asks for that:
+                # a save with the wrap on, a reset, and a restore
+                # leaves the wrap off.
                 self._attrs,
                 # The rendition alone. A hyperlink is not part of the
                 # cursor that "ESC 7" remembers.
@@ -1728,10 +1730,13 @@ class BetterScreen:
             self.protection = savepoint.protection
             self._rebuild_style()
 
+            # Origin mode is part of the cursor, so it comes back the
+            # way it was saved. Both ways: a save with the mode off
+            # takes the mode off again.
             if savepoint.origin:
                 self.set_mode(mo.DECOM)
-            if savepoint.wrap:
-                self.set_mode(mo.DECAWM)
+            else:
+                self.reset_mode(mo.DECOM)
 
             # `line_offset` follows the cursor, so read it before the
             # cursor moves.
