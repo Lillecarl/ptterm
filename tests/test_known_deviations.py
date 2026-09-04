@@ -115,7 +115,7 @@ def test_the_alternate_screen_keeps_what_it_held():
 def test_a_mark_on_an_erased_cell():
     # "CSI 1 K" erases the cell before the cursor and paints it with the
     # background. The mark then finds a space where kitty finds nothing.
-    assert not differences("0\x1b[40m\x1b[1Ḱ", lines=3, columns=6)
+    assert not differences("0\x1b[40m\x1b[1K\u0301", lines=3, columns=6)
 
 
 def test_a_mark_on_a_space_that_a_program_wrote():
