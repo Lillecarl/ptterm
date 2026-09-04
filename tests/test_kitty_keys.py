@@ -8,7 +8,10 @@ kitty keyboard protocol flags.
 from ptterm.kitty_keys import translate_key_data
 
 DISAMBIGUATE = 0b1
+EVENT_TYPES = 0b10
+ALTERNATE_KEYS = 0b100
 REPORT_ALL = 0b1000
+ASSOCIATED_TEXT = 0b10000
 
 
 def test_flags_zero_legacy_passthrough():
@@ -70,7 +73,14 @@ def test_disambiguate_kitty_input_round_trips():
 def test_report_all_keys_encodes_everything():
     assert translate_key_data("a", flags=REPORT_ALL) == "\x1b[97u"
     assert translate_key_data("\r", flags=REPORT_ALL) == "\x1b[13u"
-    assert translate_key_data("\x1b[D", flags=REPORT_ALL) == "\x1b[1D"
+    # An arrow keeps the short form: the number of the sequence is one,
+    # and kitty leaves out a parameter that holds its default. Only the
+    # SS3 form of application mode goes away.
+    assert translate_key_data("\x1b[D", flags=REPORT_ALL) == "\x1b[D"
+    assert (
+        translate_key_data("\x1b[D", flags=REPORT_ALL, application_mode=True)
+        == "\x1b[D"
+    )
     assert translate_key_data("\x01", flags=REPORT_ALL) == "\x1b[97;5u"
 
 
@@ -132,3 +142,84 @@ def test_an_upper_case_letter_still_reaches_a_legacy_pane():
     assert translate_key_data("A", flags=0) == "A"
     assert translate_key_data("A", flags=DISAMBIGUATE) == "A"
     assert translate_key_data("Ä", flags=0) == "Ä"
+
+
+# ----------------------------------------------------------------------
+# What only a terminal that speaks the protocol can send. ptterm passes
+# it on when the pane asked for it, and drops it when the pane did not.
+# The forms follow the encoder of kitty (kitty/key_encoding.c).
+
+RELEASE = "\x1b[98;5:3u"
+
+
+def test_a_release_reaches_a_pane_that_asked_for_the_event_types():
+    assert translate_key_data(RELEASE, flags=EVENT_TYPES) == "\x1b[98;5:3u"
+    assert (
+        translate_key_data(RELEASE, flags=EVENT_TYPES | DISAMBIGUATE)
+        == "\x1b[98;5:3u"
+    )
+
+
+def test_a_release_stops_at_a_pane_that_did_not_ask():
+    "Nothing in the legacy encoding says that a key came back up."
+    assert translate_key_data(RELEASE, flags=0) == ""
+    assert translate_key_data(RELEASE, flags=DISAMBIGUATE) == ""
+    assert translate_key_data(RELEASE, flags=REPORT_ALL) == ""
+
+
+def test_a_release_of_a_text_key_leaves_the_modifiers_empty():
+    "kitty writes the empty field rather than the value of no modifier."
+    assert translate_key_data("\x1b[97;:3u", flags=EVENT_TYPES) == "\x1b[97;:3u"
+
+
+def test_a_release_of_enter_needs_all_keys_as_escape_codes():
+    """
+    Enter, Tab and Backspace have a legacy form of one character, and
+    kitty reports the release of one of them only when the pane asks
+    for every key as an escape code.
+    """
+    for code in (13, 9, 127):
+        release = "\x1b[%d;:3u" % code
+        assert translate_key_data(release, flags=EVENT_TYPES) == ""
+        assert (
+            translate_key_data(release, flags=EVENT_TYPES | REPORT_ALL)
+            == release
+        )
+
+
+def test_a_repeat_without_the_flag_is_a_press():
+    "That is what the key did, and the legacy encoding says no more."
+    assert translate_key_data("\x1b[97;1:2u", flags=0) == "a"
+    assert translate_key_data("\x1b[97;1:2u", flags=EVENT_TYPES) == "\x1b[97;:2u"
+
+
+def test_the_other_codes_of_a_key_reach_a_pane_that_asked():
+    "The shifted key and the key of the base layout."
+    assert (
+        translate_key_data("\x1b[97:65;2u", flags=ALTERNATE_KEYS)
+        == "\x1b[97:65;2u"
+    )
+    assert (
+        translate_key_data("\x1b[97::99;2u", flags=ALTERNATE_KEYS)
+        == "\x1b[97::99;2u"
+    )
+    # Without the flag they go away, and the key itself stays.
+    assert translate_key_data("\x1b[97:65;2u", flags=REPORT_ALL) == "\x1b[97;2u"
+
+
+def test_the_text_of_a_key_reaches_a_pane_that_asked():
+    """
+    The text of a printable key needs no modern terminal: the character
+    that a legacy terminal sends is the text of that key event.
+    """
+    assert translate_key_data("A", flags=REPORT_ALL | ASSOCIATED_TEXT) == (
+        "\x1b[97;2;65u"
+    )
+    assert translate_key_data("a", flags=ASSOCIATED_TEXT) == "\x1b[97;;97u"
+    # A key that writes no text carries none.
+    assert translate_key_data("\r", flags=REPORT_ALL | ASSOCIATED_TEXT) == (
+        "\x1b[13u"
+    )
+    assert translate_key_data("\x01", flags=REPORT_ALL | ASSOCIATED_TEXT) == (
+        "\x1b[97;5u"
+    )

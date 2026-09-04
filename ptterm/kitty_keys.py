@@ -16,11 +16,20 @@ translates raw key data into the encoding that the pane expects:
 - flags & 0b1000 (report all keys as escape codes): everything is
   encoded as CSI u.
 
-Key release events are dropped: prompt_toolkit delivers only key
-presses. Alternate key codes and text-as-code-points are not
-synthesized.
+Three parts of a key event need a terminal that speaks the protocol:
+the event type (press, repeat or release), the other codes of the key
+(the shifted key and the key of the base layout), and the text that
+the key writes. What such a terminal sends passes through to a pane
+that asked for it, and goes away for a pane that did not. Nothing is
+invented: the legacy encoding says that a key went down and no more.
+
+The one part that needs no modern terminal is the text of a printable
+key. The character that the terminal sends is that text.
+
+The forms follow the encoder of kitty (`kitty/key_encoding.c`), so a
+pane sees what a real kitty gives it.
 """
-from typing import List, NamedTuple, Tuple, Union
+from typing import List, NamedTuple, Optional, Sequence, Tuple, Union
 
 __all__ = ["translate_key_data"]
 
@@ -33,7 +42,15 @@ _CTRL = 4
 
 # Keyboard protocol flags. (BetterScreen.kitty_keyboard_flags.)
 _DISAMBIGUATE = 0b1
+_REPORT_EVENT_TYPES = 0b10
+_REPORT_ALTERNATE_KEYS = 0b100
 _REPORT_ALL_KEYS = 0b1000
+_REPORT_ASSOCIATED_TEXT = 0b10000
+
+# Event types. (The encoded value is the one below.)
+_PRESS = 1
+_REPEAT = 2
+_RELEASE = 3
 
 # Final bytes of the "CSI 1 ; modifier <letter>" functional key form.
 _LETTER_FINALS = "ABCDEFHPQS"
@@ -45,6 +62,14 @@ class KeyEvent(NamedTuple):
     mods: int  # shift/alt/ctrl bitmask (without the +1 offset)
     final: str  # "u", "~" or one of _LETTER_FINALS
     text: str = ""  # reported text, if the terminal sent it
+    #: The other codes of the key: the shifted key, then the key of the
+    #: base layout. Only a terminal that speaks the protocol sends
+    #: them, and it leaves a slot empty when it has nothing for it, so
+    #: a slot holds None. Nothing reconstructs these from legacy data:
+    #: which key gives a character depends on the layout of the user.
+    alternates: Tuple[Optional[int], ...] = ()
+    #: Press, repeat or release. Legacy data holds presses only.
+    event: int = _PRESS
 
 
 # Parse result items: KeyEvent, or a str to pass through verbatim
@@ -52,9 +77,30 @@ class KeyEvent(NamedTuple):
 _Item = Union[KeyEvent, str]
 
 
-def _split_subparams(part: str) -> List[int]:
-    "Split '97:65' into [97, 65]. Empty parts yield []."
-    return [int(x) for x in part.split(":") if x]
+def _split_slots(part: str) -> List[Optional[int]]:
+    """
+    Split one parameter into its subparameters, keeping the empty ones.
+
+    "97:65" gives [97, 65] and "97::99" gives [97, None, 99]. An empty
+    slot means the default of that slot, and the position carries the
+    meaning, so it may not collapse.
+    """
+    return [int(x) if x else None for x in part.split(":")]
+
+
+def _first(slots: Sequence[Optional[int]], default: int) -> int:
+    "The first slot of a parameter, or the default when it is empty."
+    if slots and slots[0] is not None:
+        return slots[0]
+    return default
+
+
+def _trimmed(slots: Sequence[Optional[int]]) -> Tuple[Optional[int], ...]:
+    "The slots without the empty ones at the end. They mean nothing."
+    kept = list(slots)
+    while kept and kept[-1] is None:
+        kept.pop()
+    return tuple(kept)
 
 
 def _control_or_text_event(char: str) -> KeyEvent:
@@ -84,9 +130,14 @@ def _control_or_text_event(char: str) -> KeyEvent:
         return KeyEvent(64, _CTRL, "u")
     if 28 <= code <= 31:  # ctrl+\ ^ _
         return KeyEvent(code + 64, _CTRL, "u")
+    # A printable character is the text of its own key event. A pane
+    # that asks for the text of a key gets it that way, also from a
+    # terminal that speaks the legacy encoding only.
     lower = char.lower()
     if char.isupper() and lower != char and len(lower) == 1:
-        return KeyEvent(ord(lower), _SHIFT, "u")
+        return KeyEvent(ord(lower), _SHIFT, "u", char)
+    if char.isprintable():
+        return KeyEvent(code, 0, "u", char)
     return KeyEvent(code, 0, "u")
 
 
@@ -112,25 +163,26 @@ def _parse_csi(data: str, start: int) -> Tuple[_Item, int]:
     if params[:1] in ("<", "=", ">", "?"):
         return raw, i + 1 - start
 
-    rows = [_split_subparams(part) for part in params.split(";")] if params else []
-    mods = (rows[1][0] - 1) if len(rows) > 1 and rows[1] else 0
+    # The full form of a key event is
+    # "CSI code:shifted:base ; mods:event ; text final".
+    rows = [_split_slots(part) for part in params.split(";")] if params else []
+    keys = rows[0] if rows else []
+    modifiers = rows[1] if len(rows) > 1 else []
+    mods = max(0, _first(modifiers, 1) - 1)
+    event = modifiers[1] if len(modifiers) > 1 and modifiers[1] else _PRESS
+    alternates = _trimmed(keys[1:])
 
-    if final == "u":
-        # Kitty key event: "CSI key[:alt] ; mods[:event] [; text] u".
-        # Release events are dropped.
-        if len(rows) > 1 and len(rows[1]) > 1 and rows[1][1] == 3:
-            return "", i + 1 - start
-        code = rows[0][0] if rows and rows[0] else 0
-        text = "".join(chr(n) for n in rows[2]) if len(rows) > 2 else ""
-        return KeyEvent(code, max(0, mods), "u", text), i + 1 - start
-
-    if final == "~":
-        code = rows[0][0] if rows and rows[0] else 0
-        return KeyEvent(code, max(0, mods), "~"), i + 1 - start
-
-    if final in _LETTER_FINALS:
-        code = rows[0][0] if rows and rows[0] else 1
-        return KeyEvent(code, max(0, mods), final), i + 1 - start
+    if final in ("u", "~") or final in _LETTER_FINALS:
+        # A key of the letter form carries no code of its own: the
+        # first parameter is the one of the sequence, and it is one.
+        code = _first(keys, 1 if final in _LETTER_FINALS else 0)
+        text = (
+            "".join(chr(n) for n in rows[2] if n) if len(rows) > 2 else ""
+        )
+        return (
+            KeyEvent(code, mods, final, text, alternates, event),
+            i + 1 - start,
+        )
 
     # Any other CSI sequence: not a key event.
     return raw, i + 1 - start
@@ -177,19 +229,80 @@ def _parse_key_data(data: str) -> List[_Item]:
     return items
 
 
+def _serialize(
+    code: int,
+    mods_value: int,
+    final: str,
+    alternates: Tuple[Optional[int], ...] = (),
+    event: int = _PRESS,
+    text: str = "",
+) -> str:
+    """
+    Write one key event in the escape code form of the protocol.
+
+    The form is "CSI code:shifted:base ; mods:event ; text final". A
+    field that holds its default stays empty, and a field at the end
+    that holds its default is left out. This follows the encoder of
+    kitty, so that a pane sees what a real kitty gives it.
+    """
+    second = mods_value != 1 or event != _PRESS
+    third = bool(text)
+
+    out = "\x1b["
+    if code != 1 or alternates or second or third:
+        out += str(code)
+    if alternates:
+        out += ":" + ":".join(
+            "" if slot is None else str(slot) for slot in alternates
+        )
+    if second or third:
+        out += ";"
+        if mods_value != 1:
+            out += str(mods_value)
+        if event != _PRESS:
+            out += ":%d" % event
+    if third:
+        out += ";" + ":".join(str(ord(char)) for char in text)
+    return out + final
+
+
+#: Keys that the legacy encoding writes as one control character. A
+#: release of one of them has no legacy form, and kitty reports it only
+#: when the pane asks for all keys as escape codes.
+_CONTROL_CODES = (13, 9, 127)
+
+
 def _encode_event(event: KeyEvent, flags: int, application_mode: bool) -> str:
     "Encode a key event for a pane with the given protocol flags."
-    code, mods, final, text = event
+    code, mods, final, text, alternates, kind = event
     mods_value = mods + 1
+
+    # Only a pane that asked for the event types can read a release. A
+    # repeat without that flag is a press: that is what the key did.
+    if kind == _RELEASE and not flags & _REPORT_EVENT_TYPES:
+        return ""
+    if not flags & _REPORT_EVENT_TYPES:
+        kind = _PRESS
+    if kind == _RELEASE and mods == 0 and code in _CONTROL_CODES:
+        if not flags & _REPORT_ALL_KEYS:
+            return ""
+    if not flags & _REPORT_ALTERNATE_KEYS or final != "u":
+        # kitty sends the other codes of a key for the "u" form only.
+        alternates = ()
+    embedded = text if flags & _REPORT_ASSOCIATED_TEXT else ""
 
     if final == "u":
         ambiguous = bool(mods & (_CTRL | _ALT)) or code == 27
-        if flags & _REPORT_ALL_KEYS or (flags & _DISAMBIGUATE and ambiguous):
-            # CSI u form. (The modifier parameter is omitted when no
-            # modifiers are held.)
-            if mods_value == 1:
-                return "\x1b[%du" % code
-            return "\x1b[%d;%du" % (code, mods_value)
+        if (
+            flags & _REPORT_ALL_KEYS
+            or (flags & _DISAMBIGUATE and ambiguous)
+            or kind != _PRESS
+            or alternates
+            or embedded
+        ):
+            return _serialize(
+                code, mods_value, "u", alternates, kind, embedded
+            )
 
         # Legacy form.
         if text and not mods & (_CTRL | _ALT):
@@ -223,23 +336,20 @@ def _encode_event(event: KeyEvent, flags: int, application_mode: bool) -> str:
         char = chr(code)
         if mods & _SHIFT and char.isalpha():
             char = char.upper()
-        return {13: "\r", 9: "\t", 27: "\x1b", 127: "\x7f"}.get(char, char)
+        return char
 
     if final == "~":
-        if mods == 0:
-            return "\x1b[%d~" % code
-        return "\x1b[%d;%d~" % (code, mods_value)
+        return _serialize(code, mods_value, "~", (), kind, embedded)
 
     # Functional keys with a letter final byte.
-    if mods == 0 and not flags & _REPORT_ALL_KEYS:
-        if application_mode and final in "ABCD":
-            return "\x1bO" + final
-        if final in "PQRS":
-            return "\x1bO" + final
+    if mods == 0 and kind == _PRESS and not embedded:
+        if not flags & _REPORT_ALL_KEYS:
+            if application_mode and final in "ABCD":
+                return "\x1bO" + final
+            if final in "PQRS":
+                return "\x1bO" + final
         return "\x1b[" + final
-    if mods == 0:
-        return "\x1b[1%s" % final
-    return "\x1b[1;%d%s" % (mods_value, final)
+    return _serialize(code, mods_value, final, (), kind, embedded)
 
 
 def translate_key_data(
