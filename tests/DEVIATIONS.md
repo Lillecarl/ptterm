@@ -116,19 +116,27 @@ of them without asking a person.
   puts it on the next line: four judges to nothing, and only a
   document behind ptterm. The tab is the one cursor move that does not
   end the wait.
+- A combining mark hung on a cell that an erase had blanked, but only
+  when a background was set. An erase with no background drops the
+  cell, so the mark had nothing to reach and went away; an erase with
+  a background wrote a space, and the mark hung on that. One program
+  gave two answers. A cell that an erase leaves now holds no
+  character, whatever its background, so the mark goes away in both.
+  kitty and WezTerm draw the same line.
 
 ## The deviations that stand
 
-**The user has decided seven of these eight, and ptterm keeps what it
-does in each.** Do not reopen one of those without a new reason. The
-tally is what the decision rested on, so it stands beside each entry.
-Number 5 is the open one: ptterm is alone there, and nobody has ruled
-on it yet.
+**The user has decided every one of these, and ptterm keeps what it
+does in each.** Do not reopen one without a new reason. The tally is
+what the decision rested on, so it stands beside each entry.
 
-Four split the panel two against two. In three more, kitty stands alone
-against the other three judges and against xterm. In the last one every
-judge differs from ptterm, and they do not agree well enough with each
-other to call it a bug.
+Four split the panel two against two. In the other three, kitty stands
+alone against the other three judges and against xterm.
+
+**The standing rule, when a tally is three to one:** follow the three.
+If ptterm is the only one that deviates, that settles it, and no one
+has to be asked. A tally where ptterm sits with one of the judges is
+not that case, and it goes to the user.
 
 | # | What | With ptterm | Against ptterm |
 | --- | --- | --- | --- |
@@ -136,10 +144,9 @@ other to call it a bug.
 | 2 | `?1047l` clears the alternate screen | libvterm, WezTerm | Alacritty, kitty |
 | 3 | A sequence with too many parameters | Alacritty, libvterm | kitty, WezTerm |
 | 4 | DECALN homes the cursor and clears the margins | kitty, WezTerm | Alacritty, libvterm |
-| 5 | A combining mark on a cell an erase left | nobody | all four |
-| 6 | A backspace in the first column | Alacritty, libvterm, WezTerm | kitty |
-| 7 | A count of zero for SU or SD | Alacritty, libvterm, WezTerm | kitty |
-| 8 | The background of the line a scroll brings in | Alacritty, libvterm, WezTerm | kitty |
+| 5 | A backspace in the first column | Alacritty, libvterm, WezTerm | kitty |
+| 6 | A count of zero for SU or SD | Alacritty, libvterm, WezTerm | kitty |
+| 7 | The background of the line a scroll brings in | Alacritty, libvterm, WezTerm | kitty |
 
 ### 1. A tab in the last column of the last row
 
@@ -203,27 +210,7 @@ The DEC manuals say all three, and kitty and WezTerm do all three.
 **As a setting:** no. DECALN is an alignment test for a real tube.
 Nothing in daily use sends it.
 
-### 5. A combining mark on a cell that an erase left
-
-`0\x1b[40m\x1b[1K\u0301` on 3 lines and 6 columns.
-
-The erase takes the "0" away. A combining mark then arrives with no
-character to hang on.
-
-ptterm hangs it on the space that the erase left, so the cell holds a
-stray accent. kitty, WezTerm and Alacritty all drop the mark. libvterm
-puts the "0" back and hangs the mark on that.
-
-**ptterm is alone here, and three judges of four say "drop it".** The
-verdict is "split" and not "ptterm-wrong" only because libvterm gives
-a fourth answer, and a verdict needs every judge to agree before it
-calls ptterm wrong. Read the tally, not the verdict: this is the same
-shape as the tab at the right margin, which the panel won.
-
-**As a setting:** no. This one is open, not settled. It waits on a
-decision, and the majority points at dropping the mark.
-
-### 6. A backspace in the first column
+### 5. A backspace in the first column
 
 `\n\x080` on 4 lines and 8 columns.
 
@@ -238,7 +225,7 @@ ptterm does not read mode 45 today. The honest way to make it
 configurable is to implement that mode, so a program turns it on the
 way it does in xterm.
 
-### 7. A count of zero for SU or SD
+### 6. A count of zero for SU or SD
 
 `a\r\nb\x1b[0S` on 4 lines and 8 columns.
 
@@ -250,7 +237,7 @@ Every other sequence that counts reads a zero as one, on both sides.
 **As a setting:** no. It would make SU and SD the only sequences that
 count differently from the rest.
 
-### 8. The background of the line a scroll brings in
+### 7. The background of the line a scroll brings in
 
 `\x1b[42m\x1b[1S` on 4 lines and 6 columns.
 
@@ -272,12 +259,25 @@ scrolling region. Every case around it draws two cells on both sides.
 The oracle takes the second character out of the cell, because a reader
 sees two cells either way, and `test_known_deviations` holds the case.
 
-## Where libvterm cannot answer
+## Where a judge cannot answer
+
+A judge that cannot hold something says nothing about it. A comparison
+that asks for more reads a limit of the reference as a difference, so
+`panel.py` runs each answer through a projection that drops what the
+judge misses.
+
+**Read the judge before you trust a tally.** The reader in
+`tests/judges/src/main.rs` took the character of an Alacritty cell and
+stopped there. Alacritty keeps a mark of no width beside the cell and
+not in it, so every combining mark went missing, and Alacritty voted
+"no mark" on every case that had one. That made one deviation look
+like four judges to nothing when it was two against two. The reader
+now takes the marks as well.
+
+### libvterm
 
 libvterm is the second opinion, not a second authority. It holds less
-than kitty does, and a comparison that asks for more reads a limit of
-the reference as a difference. `test_against_vterm.py` writes each of
-these down.
+than kitty does. `test_against_vterm.py` writes each of these down.
 
 - It reads "?1047" and "?1049" and not "?47", so it draws the
   alternate screen of the oldest name on the first screen.

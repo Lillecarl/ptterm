@@ -97,17 +97,19 @@ def test_a_sequence_with_too_many_parameters_does_not_raise():
     assert rows[1][0].char == "o"
 
 
-@pytest.mark.xfail(
-    reason="a combining mark belongs to the character before it. An erased "
-    "cell holds a space in ptterm and nothing in kitty, so kitty drops a "
-    "mark that lands on one and ptterm hangs it on the space. This is a gap "
-    "in ptterm, not a choice between xterm and kitty.",
-    strict=True,
-)
-def test_a_mark_on_an_erased_cell():
-    # "CSI 1 K" erases the cell before the cursor and paints it with the
-    # background. The mark then finds a space where kitty finds nothing.
+def test_a_mark_on_an_erased_cell_agrees():
+    # This was a deviation, and it is fixed. "CSI 1 K" erases the cell
+    # before the cursor and paints it with the background. The cell
+    # that the erase leaves holds no character, so the mark that lands
+    # on it goes away, the same way it does in kitty.
     assert not differences("0\x1b[40m\x1b[1K\u0301", lines=3, columns=6)
+
+
+def test_a_mark_on_an_erased_cell_agrees_without_a_background():
+    # The same program without a background. ptterm gave two answers
+    # for these two before: with no background the erase drops the
+    # cell, and with one it wrote a space that the mark hung on.
+    assert not differences("0\x1b[1K\u0301", lines=3, columns=6)
 
 
 def test_a_mark_on_a_space_that_a_program_wrote():

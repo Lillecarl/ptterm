@@ -204,6 +204,24 @@ class _UnicodeInternDict(Dict[str, str]):
 _unicode_intern_dict = _UnicodeInternDict()
 
 
+class ErasedChar(Char):
+    """
+    The blank that an erase leaves behind.
+
+    It draws as a space, and it holds no character. The difference
+    matters for one thing: a combining mark that arrives next has
+    nothing to hang on, so the mark goes away. A space that a program
+    draws is a character, and a mark does hang on that.
+
+    kitty and WezTerm both draw the line in that place. ptterm gave two
+    answers for the same program before this. An erase with no
+    background drops the cell, so the mark went away. An erase with a
+    background wrote a space, so the mark stayed.
+    """
+
+    __slots__ = ()
+
+
 class TerminalChar(Char):
     """
     One cell of a pane, holding what the program wrote.
@@ -966,7 +984,14 @@ class BetterScreen:
                 if cell is not None and cell.char == "":
                     previous -= 1
                     cell = row.get(previous)
-                if previous >= 0 and cell is not None:
+                # A cell that an erase left holds no character, so a
+                # mark has nothing to hang on and goes away. kitty and
+                # WezTerm both drop it there.
+                if (
+                    previous >= 0
+                    and cell is not None
+                    and not isinstance(cell, ErasedChar)
+                ):
                     row[previous] = char_cache[
                         cell.char + pt_char.char, cell.style
                     ]
@@ -1300,7 +1325,7 @@ class BetterScreen:
             return
 
         line: DefaultDict[int, Char] = defaultdict(lambda: Char(" "))
-        erased = Char(" ", style)
+        erased = ErasedChar(" ", style)
         for column in range(self.columns):
             line[column] = erased
         data_buffer[row] = line
@@ -1400,7 +1425,7 @@ class BetterScreen:
 
         style = self.erase_style()
         if style:
-            blank = Char(" ", style)
+            blank = ErasedChar(" ", style)
             for column in range(cursor_x, min(cursor_x + count, columns)):
                 line[column] = blank
 
@@ -1427,7 +1452,7 @@ class BetterScreen:
 
         style = self.erase_style()
         if style:
-            blank = Char(" ", style)
+            blank = ErasedChar(" ", style)
             for column in range(max(cursor_x, columns - count), columns):
                 line[column] = blank
 
@@ -1631,7 +1656,7 @@ class BetterScreen:
 
         end = min(cursor_position.x + count, self.columns)
         for column in range(cursor_position.x, end):
-            row[column] = Char(" ", style)
+            row[column] = ErasedChar(" ", style)
 
         self.repair_wide_char(row, cursor_position.x)
         self.repair_wide_char(row, end)
@@ -1675,7 +1700,7 @@ class BetterScreen:
 
         # A background is set, so the erased cells take it.
         line = data_buffer[pt_cursor_position.y]
-        erased = Char(" ", style)
+        erased = ErasedChar(" ", style)
         for column in columns:
             line[column] = erased
         self._repair_erased_line(line, columns)
@@ -1750,7 +1775,7 @@ class BetterScreen:
                 data_buffer[line] = defaultdict(lambda: Char(" "))
                 if style:
                     # A background is set, so the erased cells take it.
-                    erased = Char(" ", style)
+                    erased = ErasedChar(" ", style)
                     row = data_buffer[line]
                     for column in range(self.columns):
                         row[column] = erased

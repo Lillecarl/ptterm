@@ -109,23 +109,23 @@ def test_decaln_sends_the_cursor_home_for_half_the_panel():
     assert with_us == ["kitty", "wezterm"]
 
 
-def test_a_mark_on_an_erased_cell_leaves_ptterm_alone():
+def test_a_mark_on_an_erased_cell_follows_kitty_and_wezterm():
     """
-    ptterm is on its own, and the panel still does not settle it.
-
     The erase takes the "0" away, and a combining mark arrives with no
-    character to hang on. ptterm hangs it on the space that the erase
-    left. kitty, WezTerm and Alacritty all drop the mark. libvterm
-    puts the "0" back and hangs the mark on that.
+    character to hang on.
 
-    Three judges of the four agree, so the majority says "drop it".
-    The verdict is still "split": it calls ptterm wrong only when
-    every judge agrees, and libvterm gives a fourth answer.
+    ptterm drops the mark, and kitty and WezTerm drop it too. Alacritty
+    keeps it on the blank. libvterm puts the "0" back and hangs the
+    mark on that, which is a third answer.
+
+    ptterm hung the mark on the blank before, but only when a
+    background was set: an erase with no background drops the cell
+    whole, so the mark had nothing to reach. One program gave two
+    answers, and that was the bug.
     """
     against, with_us = sides("0\x1b[40m\x1b[1Ḱ", lines=3, columns=6)
-    assert against == ["alacritty", "kitty", "libvterm", "wezterm"]
-    assert with_us == []
-    assert verdict("0\x1b[40m\x1b[1Ḱ", lines=3, columns=6) == "split"
+    assert against == ["alacritty", "libvterm"]
+    assert with_us == ["kitty", "wezterm"]
 
 
 # ----------------------------------------------------------------------
