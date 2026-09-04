@@ -9,6 +9,7 @@ Changes compared to the original `Screen` class:
 """
 import base64
 from collections import defaultdict, namedtuple
+from enum import IntEnum, IntFlag
 from typing import Callable, DefaultDict, Dict, List, Optional, Tuple
 
 from prompt_toolkit.cache import FastDictCache
@@ -261,9 +262,56 @@ class TerminalChar(Char):
             super().__init__(char, style)
 
 
+class Protection(IntFlag):
+    """
+    The marks that hold an erase away from a cell.
+
+    A cell can carry both, because the two commands that set them are
+    not the same command and neither one takes the other away.
+    """
+
+    NONE = 0
+
+    #: SPA ("ESC V") sets it. ED, EL and ECH read it.
+    ISO = 1
+
+    #: DECSCA ("CSI 1 " q") sets it. The selective erases, DECSED and
+    #: DECSEL, read it.
+    DEC = 2
+
+
+class ProtectedChar(TerminalChar):
+    """
+    One cell that an erase may have to leave alone.
+
+    Two commands mark a cell, and each one holds a different erase
+    away from it. `protection` carries both marks, because a cell can
+    hold either or both.
+    """
+
+    __slots__ = ("protection",)
+
+    def __init__(
+        self, char: str = " ", style: str = "", protection: int = 0
+    ) -> None:
+        super().__init__(char, style)
+        self.protection = protection
+
+
+def protection_of(cell: Char) -> int:
+    "The marks that a cell carries. A plain cell carries none."
+    return getattr(cell, "protection", 0)
+
+
 # Cache for Char objects.
 _CHAR_CACHE: FastDictCache[Tuple[str, str], Char] = FastDictCache(
     TerminalChar, size=1000 * 1000
+)
+
+#: The same for the cells that carry a mark. Nearly no program marks
+#: one, so this one stays small.
+_PROTECTED_CHAR_CACHE: FastDictCache[Tuple[str, str, int], Char] = FastDictCache(
+    ProtectedChar, size=10 * 1000
 )
 
 
@@ -471,6 +519,10 @@ class BetterScreen:
         # it back to the shape that the terminal starts with.
         self.cursor_style = DEFAULT_CURSOR_STYLE
 
+        # The marks that SPA and DECSCA put on the cells that a
+        # program draws next. Nothing is marked to start with.
+        self.protection = 0
+
         # Reset modes.
         self.mode = {
             mo.DECAWM,  # Autowrap mode. (default: disabled).
@@ -489,6 +541,11 @@ class BetterScreen:
         # no pane draws one, and the repair that a broken pair needs
         # costs a lookup for every character. The flag skips it.
         self._wide_chars = False
+
+        # Has a cell that an erase has to leave alone ever reached the
+        # screen? Nearly no program marks one, and the flag keeps the
+        # erasing of a whole screen from looking at every cell.
+        self._protected_chars = False
 
         # G1 holds ASCII as well until a program names something
         # else. pyte starts it on the line drawing set, and a stray
@@ -549,7 +606,55 @@ class BetterScreen:
         self.g0_charset = cs.LAT1_MAP
         self.g1_charset = cs.LAT1_MAP
 
+        # A soft reset takes the mark off what a program draws next.
+        # The cells that carry one already keep it.
+        self.protection = 0
+
         self._reset_rendition()
+
+    def start_protected_area(self) -> None:
+        """
+        SPA ("ESC V"): mark the cells that a program draws next.
+
+        ED, EL and ECH leave a marked cell alone. The mark comes from
+        ISO 6429, and it is not the mark that DECSCA sets: the
+        selective erases read both, and these three read only this
+        one.
+        """
+        self.protection |= Protection.ISO
+
+    def end_protected_area(self) -> None:
+        "EPA (\"ESC W\"): stop marking the cells that a program draws."
+        self.protection &= ~Protection.ISO
+
+    def set_character_protection(self, *params: int, **kwargs) -> None:
+        """
+        DECSCA ("CSI Ps " q"): mark the cells that a program draws next.
+
+        One marks them, and zero and two take the mark away. DECSED and
+        DECSEL leave a marked cell alone, and ED, EL and ECH do not:
+        that is the whole difference between the two pairs.
+        """
+        if (params[0] if params else 0) == 1:
+            self.protection |= Protection.DEC
+        else:
+            self.protection &= ~Protection.DEC
+
+    def _erase_holds(self, cell: Char, selective: bool) -> bool:
+        """
+        True when an erase has to leave this cell alone.
+
+        A selective erase reads both marks. xterm reads the mark of
+        ISO 6429 there as well, for the programs that came before
+        DECSCA, and this follows xterm.
+        """
+        if not self._protected_chars:
+            return False
+
+        marks = protection_of(cell)
+        if not marks:
+            return False
+        return True if selective else bool(marks & Protection.ISO)
 
     def _reset_rendition(self) -> None:
         """
@@ -1055,6 +1160,17 @@ class BetterScreen:
         wide_chars = self._wide_chars
         _left, right_margin = self.left_right
 
+        # The marks that SPA and DECSCA put on what comes next. Nearly
+        # no program sets one, so the cells stay in the cache that
+        # holds no mark and cost nothing.
+        protection = self.protection
+        if protection:
+            char_cache = _PROTECTED_CHAR_CACHE
+            key_tail = (self._style_str, protection)
+            self._protected_chars = True
+        else:
+            key_tail = (self._style_str,)
+
         # Translating a given character.
         if self.charset:
             chars = chars.translate(self.g1_charset)
@@ -1065,7 +1181,7 @@ class BetterScreen:
 
         for char in chars:
             # Create 'Char' instance.
-            pt_char = char_cache[char, style]
+            pt_char = char_cache[(char,) + key_tail]
             char_width = pt_char.width
 
             # A character that does not fit in what is left of the line
@@ -1132,7 +1248,7 @@ class BetterScreen:
                 # causes the render engine to clear this character, when
                 # overwritten.
                 row[cursor_position_x] = pt_char
-                row[cursor_position_x + 1] = char_cache["", style]
+                row[cursor_position_x + 1] = char_cache[("",) + key_tail]
                 self.repair_wide_char(row, cursor_position_x)
                 self.repair_wide_char(row, cursor_position_x + 2)
                 if not wide_chars:
@@ -1157,9 +1273,18 @@ class BetterScreen:
                     and cell is not None
                     and not isinstance(cell, ErasedChar)
                 ):
-                    row[previous] = char_cache[
-                        cell.char + pt_char.char, cell.style
-                    ]
+                    # The mark belongs to the cell that is there, so it
+                    # keeps the marks of that cell and not the ones
+                    # that are set now.
+                    marks = protection_of(cell)
+                    if marks:
+                        row[previous] = _PROTECTED_CHAR_CACHE[
+                            cell.char + pt_char.char, cell.style, marks
+                        ]
+                    else:
+                        row[previous] = _CHAR_CACHE[
+                            cell.char + pt_char.char, cell.style
+                        ]
             else:  # char_width < 0
                 # (Should not happen.)
                 char_width = 0
@@ -1921,10 +2046,15 @@ class BetterScreen:
         cursor_position = self.pt_cursor_position
         row = self.data_buffer[cursor_position.y]
         style = self.erase_style()
+        erased = ErasedChar(" ", style)
 
         end = min(cursor_position.x + count, self.columns)
         for column in range(cursor_position.x, end):
-            row[column] = ErasedChar(" ", style)
+            # ECH leaves a cell that SPA marked alone.
+            cell = row.get(column)
+            if cell is not None and self._erase_holds(cell, False):
+                continue
+            row[column] = erased
 
         self.repair_wide_char(row, cursor_position.x)
         self.repair_wide_char(row, end)
@@ -2062,8 +2192,9 @@ class BetterScreen:
             * ``1`` -- Erases from beginning of line to cursor,
               including cursor position.
             * ``2`` -- Erases complete line.
-        :param bool private: when ``True`` character attributes aren left
-                             unchanged **not implemented**.
+        :param bool private: ``True`` for DECSEL ("CSI ? Ps K"), the
+                             selective erase. It leaves a cell that
+                             DECSCA marked alone; EL does not.
         """
         data_buffer = self.data_buffer
         pt_cursor_position = self.pt_cursor_position
@@ -2076,17 +2207,23 @@ class BetterScreen:
         else:
             columns = range(0, self.columns)
 
-        if not style:
-            if type_of == 2:
-                # The whole line goes away, which keeps the screen sparse.
-                data_buffer.pop(pt_cursor_position.y, None)
-                return
+        line = data_buffer[pt_cursor_position.y]
+        holds = self._erase_holds
+        erased = ErasedChar(" ", style) if style else None
 
-            line = data_buffer[pt_cursor_position.y]
-            for column in list(line.keys()):
-                if column in columns:
-                    line.pop(column, None)
-            self._repair_erased_line(line, columns)
+        for column in columns:
+            cell = line.get(column)
+            if cell is not None and holds(cell, private is True):
+                continue
+            if erased is None:
+                line.pop(column, None)
+            else:
+                line[column] = erased
+
+        if erased is None and not line:
+            # The line holds nothing, so it can go away and keep the
+            # screen sparse.
+            data_buffer.pop(pt_cursor_position.y, None)
             return
 
         self._repair_erased_line(line, columns)
@@ -2154,18 +2291,47 @@ class BetterScreen:
                 return
 
             data_buffer = self.data_buffer
+            erased = ErasedChar(" ", style) if style else None
+
+            # "CSI 2 J" takes the whole screen, marks and all. Only
+            # the two that erase a part of it read the marks, and the
+            # selective erase reads them whatever its parameter is.
+            # xterm draws it that way, and its own conformance suite
+            # clears the screen with "CSI 2 J" between tests.
+            reads_the_marks = self._protected_chars and (
+                private is True or type_of != 2
+            )
+
             for line in interval:
+                if reads_the_marks:
+                    # A cell that carries a mark stays, so the row
+                    # cannot go away whole.
+                    self._erase_row_in_place(
+                        data_buffer[line], erased, private is True
+                    )
+                    continue
+
                 data_buffer[line] = defaultdict(lambda: Char(" "))
-                if style:
+                if erased is not None:
                     # A background is set, so the erased cells take it.
-                    erased = ErasedChar(" ", style)
                     row = data_buffer[line]
                     for column in range(self.columns):
                         row[column] = erased
 
             # In case of 0 or 1 we have to erase the line with the cursor.
             if type_of in [0, 1]:
-                self.erase_in_line(type_of)
+                self.erase_in_line(type_of, private=private)
+
+    def _erase_row_in_place(self, row, erased, selective: bool) -> None:
+        "Erase every cell of a row that carries no mark."
+        for column in range(self.columns):
+            cell = row.get(column)
+            if cell is not None and self._erase_holds(cell, selective):
+                continue
+            if erased is None:
+                row.pop(column, None)
+            else:
+                row[column] = erased
 
     def set_tab_stop(self) -> None:
         "Set a horizontal tab stop at cursor position."
@@ -2721,6 +2887,10 @@ class BetterScreen:
         elif name == "s":
             left, right = self.left_right
             value = "%i;%i" % (left + 1, right + 1)
+        elif name == '"q':
+            # DECSCA: does a selective erase leave the cells that come
+            # next alone?
+            value = "1" if self.protection & Protection.DEC else "0"
         else:
             self.write_process_input("\x1bP0$r\x1b\\")
             return

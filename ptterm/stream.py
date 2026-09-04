@@ -25,6 +25,10 @@ class BetterStream(Stream):
             # stands on a margin. pyte has neither.
             "6": "back_index",
             "9": "forward_index",
+            # SPA ("ESC V") and EPA ("ESC W"): mark the cells that a
+            # program draws next, so that an erase leaves them alone.
+            "V": "start_protected_area",
+            "W": "end_protected_area",
         }
     )
 
@@ -43,6 +47,10 @@ class BetterStream(Stream):
             # DECRQM ("CSI ? Ps $ p"): is this mode set? (The "$" is an
             # intermediate byte, and needs the matching pyte patch.)
             "$p": "report_mode",
+            # DECSCA ("CSI Ps " q"): mark the cells that a program
+            # draws next, so that a selective erase leaves them alone.
+            # ("\"" is an intermediate byte.)
+            '"q': "set_character_protection",
             # DECSTR ("CSI ! p"): a soft reset. It keeps the screen and
             # puts the settings back. ("!" is an intermediate byte.)
             "!p": "soft_reset",
