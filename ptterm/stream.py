@@ -93,6 +93,22 @@ class Csi(StrEnum):
     #: the cells that DECSCA marked alone.
     DECSERA = "${"
 
+    #: Select attribute change extent: what DECCARA and DECRARA reach.
+    DECSACE = "*x"
+
+    #: Select active status display: send the output to the status
+    #: line, or to the screen.
+    DECSASD = "$}"
+
+    #: Set conformance level: which DEC terminal this one answers as.
+    DECSCL = '"p'
+
+    #: Set number of lines per screen.
+    DECSNLS = "*|"
+
+    #: Select status display type: what the status line holds.
+    DECSSDT = "$~"
+
     #: Set left and right margin. It answers only while private mode
     #: 69 is set, because the same final byte names SCOSC otherwise.
     DECSLRM = "s"
@@ -161,8 +177,13 @@ class BetterStream(Stream):
             Csi.DECRQCRA: "report_checksum",
             Csi.DECRQM: "report_mode",
             Csi.DECSCA: "set_character_protection",
+            Csi.DECSACE: "set_attribute_extent",
+            Csi.DECSASD: "set_active_display",
+            Csi.DECSCL: "set_conformance_level",
             Csi.DECSCUSR: "set_cursor_style",
             Csi.DECSERA: "selective_erase_rectangle",
+            Csi.DECSNLS: "set_lines_per_screen",
+            Csi.DECSSDT: "set_status_line_type",
             Csi.DECSLRM: "set_left_right_margins",
             Csi.DECSTR: "soft_reset",
             Csi.HPA: "cursor_to_absolute_column",

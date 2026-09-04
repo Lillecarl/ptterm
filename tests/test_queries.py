@@ -351,3 +351,58 @@ def test_the_two_ansi_modes_that_are_kept_report_one_or_two():
         "\x1b[12;1$y",
         "\x1b[12;2$y",
     ]
+
+
+# ----------------------------------------------------------------------
+# The settings that ptterm keeps and does not act on.
+
+
+@pytest.mark.parametrize(
+    "sequence, name, answer",
+    [
+        # DECSACE: what DECCARA and DECRARA reach.
+        ("\x1b[2*x", "*x", "2"),
+        # DECSASD: send the output to the status line.
+        ("\x1b[1$}", "$}", "1"),
+        # DECSSDT: what the status line holds.
+        ("\x1b[2$~", "$~", "2"),
+        # DECSCL: the level this terminal answers at.
+        ('\x1b[62;1"p', '"p', "62;1"),
+        # DECSNLS: how many lines the screen shows.
+        ("\x1b[20*|", "*|", "20"),
+    ],
+)
+def test_a_setting_comes_back_the_way_it_was_written(sequence, name, answer):
+    _screen, stream, answers = make_screen()
+    stream.feed(sequence)
+    request_setting(stream, name)
+    assert answers == ["\x1bP1$r%s%s\x1b\\" % (answer, name)]
+
+
+def test_the_settings_start_at_the_values_of_a_vt500():
+    _screen, stream, answers = make_screen(lines=24)
+    for name in ("*x", "$}", "$~", '"p', "*|"):
+        request_setting(stream, name)
+    assert answers == [
+        "\x1bP1$r1*x\x1b\\",
+        "\x1bP1$r0$}\x1b\\",
+        "\x1bP1$r0$~\x1b\\",
+        '\x1bP1$r65;1"p\x1b\\',
+        "\x1bP1$r24*|\x1b\\",
+    ]
+
+
+def test_the_lines_of_the_page_are_the_lines_of_the_pane():
+    "DECSLPP names the page, and a pane is its own page."
+    _screen, stream, answers = make_screen(lines=27)
+    request_setting(stream, "t")
+    assert answers == ["\x1bP1$r27t\x1b\\"]
+
+
+def test_a_value_that_no_setting_takes_is_left_alone():
+    _screen, stream, answers = make_screen()
+    stream.feed("\x1b[9*x")  # No such extent.
+    stream.feed('\x1b[99"p')  # No such level.
+    request_setting(stream, "*x")
+    request_setting(stream, '"p')
+    assert answers == ["\x1bP1$r1*x\x1b\\", '\x1bP1$r65;1"p\x1b\\']

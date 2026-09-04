@@ -180,6 +180,60 @@ class PrivateMode(IntEnum):
         return self.value << 5
 
 
+class AttributeExtent(IntEnum):
+    """
+    What DECCARA and DECRARA reach, as DECSACE ("CSI Ps * x") sets it.
+
+    A stream runs from the first corner to the second, the way a
+    program reads a page. A rectangle takes the columns between them
+    on every row.
+    """
+
+    STREAM = 1
+    RECTANGLE = 2
+
+
+class StatusDisplay(IntEnum):
+    "Where the output goes, as DECSASD (\"CSI Ps $ }\") sets it."
+
+    MAIN = 0
+    STATUS_LINE = 1
+
+
+class StatusLineType(IntEnum):
+    """
+    What the status line holds, as DECSSDT ("CSI Ps $ ~") sets it.
+
+    A terminal draws the indicator itself. A host status line holds
+    what the program writes to it, after DECSASD sends the output
+    there.
+    """
+
+    NONE = 0
+    INDICATOR = 1
+    HOST_WRITABLE = 2
+
+
+class ConformanceLevel(IntEnum):
+    """
+    The level DECSCL ("CSI Ps ; Ps " p") names.
+
+    Each one is the level of one DEC terminal, and a higher level takes
+    every sequence of the levels below it.
+    """
+
+    VT100 = 61
+    VT200 = 62
+    VT300 = 63
+    VT400 = 64
+    VT500 = 65
+
+
+#: The level ptterm reports until a program names another one. It
+#: answers the sequences of a VT500, so it says so.
+DEFAULT_CONFORMANCE_LEVEL = ConformanceLevel.VT500
+
+
 class AnsiMode(IntEnum):
     """
     A mode that "CSI Ps h" carries, with no private marker.
@@ -735,6 +789,16 @@ class BetterScreen:
         # The marks that SPA and DECSCA put on the cells that a
         # program draws next. Nothing is marked to start with.
         self.protection = 0
+
+        # The settings that a program writes and reads back with
+        # DECRQSS. ptterm keeps each one and acts on none of them; the
+        # docstring of each handler says what it would do.
+        self.attribute_extent = AttributeExtent.STREAM
+        self.active_display = StatusDisplay.MAIN
+        self.status_line = StatusLineType.NONE
+        self.conformance_level = DEFAULT_CONFORMANCE_LEVEL
+        self.seven_bit_controls = 1
+        self.lines_per_screen = self.lines
 
         # Reset modes.
         self.mode = {
@@ -2782,6 +2846,70 @@ class BetterScreen:
             self.repair_wide_char(line, target_left)
             self.repair_wide_char(line, target_left + width)
 
+    def set_attribute_extent(self, *params: int, **kwargs) -> None:
+        """
+        DECSACE ("CSI Ps * x"): what DECCARA and DECRARA reach.
+
+        ptterm has neither of those two yet, so the setting is kept and
+        nothing acts on it. A program writes it and reads it back with
+        DECRQSS, and an answer that says nothing sends it to a guess.
+        """
+        value = (params[0] if params else 0) or AttributeExtent.STREAM
+        if value in tuple(AttributeExtent):
+            self.attribute_extent = AttributeExtent(value)
+
+    def set_active_display(self, *params: int, **kwargs) -> None:
+        """
+        DECSASD ("CSI Ps $ }"): send the output to the status line.
+
+        A pane draws no status line of its own, because pymux draws one
+        for the whole window. So the setting is kept and the output
+        stays on the screen.
+        """
+        value = params[0] if params else 0
+        if value in tuple(StatusDisplay):
+            self.active_display = StatusDisplay(value)
+
+    def set_status_line_type(self, *params: int, **kwargs) -> None:
+        """
+        DECSSDT ("CSI Ps $ ~"): what the status line holds.
+
+        Kept, for the same reason as DECSASD.
+        """
+        value = params[0] if params else 0
+        if value in tuple(StatusLineType):
+            self.status_line = StatusLineType(value)
+
+    def set_conformance_level(self, *params: int, **kwargs) -> None:
+        """
+        DECSCL ("CSI Ps ; Ps " p"): the level this terminal answers at.
+
+        A real DEC terminal drops the sequences above the level it is
+        set to, and a hard reset comes with the change. ptterm answers
+        every sequence it knows whatever the level says, so it keeps
+        the number and changes nothing.
+
+        The second parameter says whether the answers carry seven bit
+        controls. ptterm always writes seven bit controls, so that one
+        is kept as well.
+        """
+        level = params[0] if params else 0
+        if level in tuple(ConformanceLevel):
+            self.conformance_level = ConformanceLevel(level)
+        if len(params) > 1:
+            self.seven_bit_controls = 1 if params[1] in (0, 1) else 1
+
+    def set_lines_per_screen(self, *params: int, **kwargs) -> None:
+        """
+        DECSNLS ("CSI Ps * |"): how many lines the screen shows.
+
+        On a VT420 the page can be longer than the screen, and this
+        names the part that a reader sees. A pane is its own page, and
+        pymux owns how big it is, so ptterm keeps the number and does
+        not resize anything.
+        """
+        self.lines_per_screen = (params[0] if params else 0) or self.lines
+
     def set_tab_stop(self) -> None:
         "Set a horizontal tab stop at cursor position."
         self.tabstops.add(self.pt_cursor_position.x)
@@ -3435,6 +3563,20 @@ class BetterScreen:
             # DECSCA: does a selective erase leave the cells that come
             # next alone?
             value = "1" if self.protection & Protection.DEC else "0"
+        elif name == "*x":
+            value = "%i" % self.attribute_extent
+        elif name == "$}":
+            value = "%i" % self.active_display
+        elif name == "$~":
+            value = "%i" % self.status_line
+        elif name == '"p':
+            value = "%i;%i" % (self.conformance_level, self.seven_bit_controls)
+        elif name == "*|":
+            value = "%i" % self.lines_per_screen
+        elif name == "t":
+            # DECSLPP: the lines of the page. A pane is its own page,
+            # so the answer is how tall the pane is.
+            value = "%i" % self.lines
         else:
             self.write_process_input("\x1bP0$r\x1b\\")
             return
