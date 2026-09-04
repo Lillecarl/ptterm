@@ -2089,11 +2089,6 @@ class BetterScreen:
             self._repair_erased_line(line, columns)
             return
 
-        # A background is set, so the erased cells take it.
-        line = data_buffer[pt_cursor_position.y]
-        erased = ErasedChar(" ", style)
-        for column in columns:
-            line[column] = erased
         self._repair_erased_line(line, columns)
 
     def _repair_erased_line(self, line, columns: range) -> None:
@@ -2132,13 +2127,10 @@ class BetterScreen:
             max_line = line_offset - 1
 
         if type_of == 3:
-            # Clear data buffer.
-            for y in list(self.data_buffer):
-                self.data_buffer.pop(y, None)
-
-            # Reset line_offset.
-            pt_cursor_position.y = 0
-            self.max_y = 0
+            # "CSI 3 J" takes the history away and leaves the screen
+            # as it is. xterm draws it that way, and a program that
+            # wants the screen cleared as well sends "CSI 2 J" first.
+            self.clear_history()
         else:
             style = self.erase_style()
 

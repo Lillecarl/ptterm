@@ -102,3 +102,29 @@ def test_an_underline_reaches_the_erased_cells():
     for column in range(2, 20):
         assert row[column].char == " "
         assert "underline" in row[column].style
+
+
+# ----------------------------------------------------------------------
+# "CSI 3 J" takes the history, and leaves the screen as it is.
+
+
+def _line(screen, y):
+    row = screen.data_buffer[y + screen.line_offset]
+    return "".join(
+        (row[column].char or " ") if column in row else " "
+        for column in range(screen.columns)
+    ).rstrip()
+
+
+def test_erasing_the_history_leaves_the_screen():
+    screen, stream = _screen(lines=3)
+    stream.feed("one\r\ntwo\r\nthree\r\nfour")
+    stream.feed("\x1b[3J")
+    assert [_line(screen, row) for row in range(3)] == ["two", "three", "four"]
+
+
+def test_erasing_the_history_takes_the_lines_above_the_screen():
+    screen, stream = _screen(lines=3)
+    stream.feed("one\r\ntwo\r\nthree\r\nfour")
+    stream.feed("\x1b[3J")
+    assert min(screen.data_buffer) >= screen.line_offset
