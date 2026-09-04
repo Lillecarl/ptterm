@@ -1,25 +1,37 @@
-# Deviations from kitty
+# Deviations from the panel
 
-`tests/kitty_oracle.py` feeds the same bytes to ptterm and to the
-emulator that kitty carries as a python extension, and compares the two
-screens cell by cell. `tests/vterm_oracle.py` does the same with
-libvterm, the emulator that Vim and Neovim carry.
+Four emulators judge ptterm, and ptterm is not one of them. Each is
+written by other people, and each comes from a different line:
 
-**Two emulators make a vote, and a vote says more than a comparison.**
-Where kitty and libvterm agree and ptterm differs, ptterm is wrong and
-nobody has to decide anything. Where the two disagree, the difference
-is a real choice. `three_way` answers "agree", "ptterm-wrong" or
-"split", and the hunt asserts that "ptterm-wrong" never happens.
+- kitty, in C, through the python extension that kitty ships.
+- WezTerm and Alacritty, in Rust, through `tests/judges`.
+- libvterm, in C, the one that Vim and Neovim carry.
 
-- `test_against_kitty.py` holds sequences by hand.
-- `test_corpus_against_kitty.py` replays what real programs wrote.
-- `fuzz_against_kitty.py` builds random programs with hypothesis. It is
-  a tool for hunting, not a gate: `nix-build -A checks.fuzz` in the
-  pymux repository runs it, and `PYMUX_FUZZ` says how many examples.
-- `test_against_vterm.py` compares against libvterm and holds the vote
-  on every difference that stands.
-- `test_known_deviations.py` holds every difference that stands, as a
-  strict `xfail`. One that starts to pass means the difference is gone.
+**A tally says more than a comparison.** Where every judge differs from
+ptterm and the judges agree with each other, ptterm is wrong and nobody
+has to decide anything. Where the judges disagree, the difference is a
+choice. `verdict()` in `tests/panel.py` answers "agree", "ptterm-wrong"
+or "split".
+
+**Nothing here is meant to live in anyone's head.** Every deviation
+below names the program that shows it, the side each judge takes, the
+reason ptterm does what it does, and whether it could become a setting.
+A reader who has never seen this code should be able to reopen any one
+of them without asking a person.
+
+- `tests/test_the_panel.py` holds the tally of every deviation that
+  stands, and the programs the whole panel agrees on.
+- `tests/test_known_deviations.py` holds each deviation as a strict
+  `xfail` against kitty. One that starts to pass means it is gone.
+- `tests/test_against_kitty.py` and `tests/test_against_vterm.py` hold
+  sequences by hand.
+- `tests/test_corpus_against_kitty.py` and
+  `tests/test_corpus_against_the_panel.py` replay what real programs
+  wrote.
+- `tests/fuzz_against_kitty.py` builds random programs with hypothesis.
+  `nix-build -A checks.ptterm-fuzz` runs it from the pyterm checkout
+  and `nix-build -A checks.fuzz` from this one. `PTTERM_FUZZ` says how
+  many examples.
 
 ## Fixed by the comparison
 
@@ -105,41 +117,152 @@ is a real choice. `three_way` answers "agree", "ptterm-wrong" or
   document behind ptterm. The tab is the one cursor move that does not
   end the wait.
 
-## Where ptterm follows xterm and kitty does something else
+## The deviations that stand
 
-These six are in `test_known_deviations.py` and in `test_against_vterm.py`. ptterm follows xterm in
-each; a program is written against xterm, not against kitty.
+**The user has decided seven of these eight, and ptterm keeps what it
+does in each.** Do not reopen one of those without a new reason. The
+tally is what the decision rested on, so it stands beside each entry.
+Number 5 is the open one: ptterm is alone there, and nobody has ruled
+on it yet.
 
-**libvterm draws what ptterm draws in every one of these.** That was a
-reading of the documentation before; it is now a second
-implementation, and the vote calls these a split and not a bug.
+Four split the panel two against two. In three more, kitty stands alone
+against the other three judges and against xterm. In the last one every
+judge differs from ptterm, and they do not agree well enough with each
+other to call it a bug.
 
-**The tab was the exception, and the panel closed it.** A tab that
-fills the last column and ends the program leaves the same screen
-everywhere. One character after it told the three apart: kitty and
-libvterm put it on the next line, and ptterm cleared the wait to wrap,
-so the character landed over the one that is there. The vote called
-that "ptterm-wrong", and ptterm now leaves the wait alone. What is
-left of the tab is the row below the last one, and that one is a
-split.
+| # | What | With ptterm | Against ptterm |
+| --- | --- | --- | --- |
+| 1 | A tab in the last column of the last row | libvterm, WezTerm | Alacritty, kitty |
+| 2 | `?1047l` clears the alternate screen | libvterm, WezTerm | Alacritty, kitty |
+| 3 | A sequence with too many parameters | Alacritty, libvterm | kitty, WezTerm |
+| 4 | DECALN homes the cursor and clears the margins | kitty, WezTerm | Alacritty, libvterm |
+| 5 | A combining mark on a cell an erase left | nobody | all four |
+| 6 | A backspace in the first column | Alacritty, libvterm, WezTerm | kitty |
+| 7 | A count of zero for SU or SD | Alacritty, libvterm, WezTerm | kitty |
+| 8 | The background of the line a scroll brings in | Alacritty, libvterm, WezTerm | kitty |
 
-1. A tab in the last column of the last row scrolls the screen in
-   kitty. ptterm keeps the cursor where it is, and libvterm and
-   WezTerm keep it there too.
-2. A backspace in the first column steps back to the end of the row
-   above in kitty. xterm does that only with mode 45 set.
-3. A count of zero for SU or SD means no scroll in kitty. Every other
-   sequence that counts reads a zero as one, on both sides.
-4. The line that a scroll brings in keeps the default style in kitty.
-   xterm paints it with the background that is set.
-5. A sequence that carries more parameters than its command takes is
-   dropped whole by kitty. xterm reads the ones it needs and ignores
-   the rest.
-6. "?1047l" clears the alternate screen before it switches back. xterm
-   documents that and libvterm does it; kitty keeps the content. (The
-   three do not line up here: libvterm clears whenever it leaves,
-   whatever the mode, and ptterm and kitty keep the screen that
-   "?1049l" and "?47l" leave.)
+### 1. A tab in the last column of the last row
+
+`\x1b[8;20H12345\t` on 8 lines and 24 columns.
+
+ptterm keeps the cursor where it is. kitty and Alacritty scroll the
+screen up.
+
+A tab draws nothing. A character in the last column leaves the cursor
+waiting to wrap, and a tab leaves that wait alone, so no character has
+arrived to need a new line. The right margin case, one column earlier,
+is not a deviation any more: the whole panel puts the character after
+the tab on the next line, and ptterm does too.
+
+**As a setting:** a branch in `tab()`, for a cursor that waits to wrap
+on the last row. Cheap to add if a program ever needs it.
+
+### 2. "?1047l" clears the alternate screen
+
+`\x1b[?1047h X \x1b[?1047l \x1b[?47h` on 3 lines and 6 columns.
+
+ptterm clears the alternate screen before it gives it back. kitty and
+Alacritty keep the content.
+
+xterm documents the clear for this mode. `?1049l` and `?47l` do not
+clear, and ptterm keeps the screen for both of those, so a program that
+wants its content back sends one of them. libvterm clears whenever it
+leaves, whatever the mode.
+
+**As a setting:** it cannot answer one way for one client and another
+way for another. A pane holds one screen, and every attached client
+draws the cells of that screen. The keyboard can translate per client
+because it is a negotiation between a pane and a terminal; the content
+of a screen is one buffer. So a setting belongs to the server or the
+pane, and it decides once, where the program writes the mode.
+
+### 3. A sequence with more parameters than its command takes
+
+`\x1b[3;9;9GX` on 4 lines and 8 columns.
+
+ptterm reads the parameters the command takes and ignores the rest.
+kitty and WezTerm drop the sequence whole.
+
+xterm reads the ones it needs. Dropping the sequence loses a move that
+the program meant. pyte raised a TypeError here and took the whole
+stream with it, so the forgiving side is also the safe one.
+
+**As a setting:** possible, at the one place that counts the
+parameters. Little value: no program sends these on purpose.
+
+### 4. DECALN homes the cursor and clears the margins
+
+`ab\x1b#8X` on 4 lines and 6 columns.
+
+ptterm draws the pattern, puts the margins back to the whole screen and
+sends the cursor home. Alacritty and libvterm draw the pattern and
+leave the cursor where it was.
+
+The DEC manuals say all three, and kitty and WezTerm do all three.
+
+**As a setting:** no. DECALN is an alignment test for a real tube.
+Nothing in daily use sends it.
+
+### 5. A combining mark on a cell that an erase left
+
+`0\x1b[40m\x1b[1K\u0301` on 3 lines and 6 columns.
+
+The erase takes the "0" away. A combining mark then arrives with no
+character to hang on.
+
+ptterm hangs it on the space that the erase left, so the cell holds a
+stray accent. kitty, WezTerm and Alacritty all drop the mark. libvterm
+puts the "0" back and hangs the mark on that.
+
+**ptterm is alone here, and three judges of four say "drop it".** The
+verdict is "split" and not "ptterm-wrong" only because libvterm gives
+a fourth answer, and a verdict needs every judge to agree before it
+calls ptterm wrong. Read the tally, not the verdict: this is the same
+shape as the tab at the right margin, which the panel won.
+
+**As a setting:** no. This one is open, not settled. It waits on a
+decision, and the majority points at dropping the mark.
+
+### 6. A backspace in the first column
+
+`\n\x080` on 4 lines and 8 columns.
+
+ptterm keeps the cursor in the first column. kitty steps back to the
+end of the row above.
+
+xterm does that only with reverse wraparound, `DECSET 45`, and that
+mode is off by default.
+
+**As a setting:** this one already has a name, and it is not ours.
+ptterm does not read mode 45 today. The honest way to make it
+configurable is to implement that mode, so a program turns it on the
+way it does in xterm.
+
+### 7. A count of zero for SU or SD
+
+`a\r\nb\x1b[0S` on 4 lines and 8 columns.
+
+ptterm reads a count of zero as one. kitty reads it as no scroll.
+
+Every other sequence that counts reads a zero as one, on both sides.
+`test_known_deviations.py` checks twelve of them.
+
+**As a setting:** no. It would make SU and SD the only sequences that
+count differently from the rest.
+
+### 8. The background of the line a scroll brings in
+
+`\x1b[42m\x1b[1S` on 4 lines and 6 columns.
+
+ptterm paints the new line with the background that is set. kitty gives
+it the default.
+
+xterm paints it, and the terminfo entry of ptterm claims `bce`. A
+capability that is claimed has to hold.
+
+**As a setting:** no, not on its own. It would have to move with the
+`bce` claim in the terminfo entry, because a program reads that and
+draws what it says.
 
 ## Where kitty looks wrong
 

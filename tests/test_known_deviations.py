@@ -4,6 +4,10 @@ Places where ptterm and kitty draw a different screen on purpose.
 Each of these is written down so that the comparison against kitty can
 stay green, and so that nobody has to work out again whether it is a
 bug. An `xfail` here that starts to pass means the deviation is gone.
+
+This file compares against kitty alone. `test_the_panel.py` holds the
+tally of all four judges for each one, and `DEVIATIONS.md` holds the
+reason and whether it could become a setting.
 """
 import pytest
 
