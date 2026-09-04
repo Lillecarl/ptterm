@@ -177,5 +177,5 @@ class BetterStream(Stream):
             for name in d.values():
                 assert hasattr(self.listener, name), "Screen is missing %r" % name
 
-        for d in ("define_charset", "set_icon_name", "set_title", "draw", "debug"):
+        for name in ("define_charset", "set_icon_name", "set_title", "draw", "debug"):
             assert hasattr(self.listener, name), "Screen is missing %r" % name
