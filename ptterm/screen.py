@@ -2054,8 +2054,6 @@ class BetterScreen:
             if self._reverse_wrap_mode() is not None:
                 return
 
-        if self._backspace_wraps():
-            return
         self.cursor_back()
 
     def _reverse_wrap_mode(self) -> PrivateMode | None:
@@ -2505,13 +2503,50 @@ class BetterScreen:
         starts at or right of it. Left of the margin the first column
         stops it, because the margin would move the cursor right, and
         a move left never does that.
+
+        With a reverse wrap mode on, the first column does not stop it
+        either: the cursor carries on at the end of the line above,
+        one column at a time. `backspace` says what the two modes do.
         """
+        count = count or 1
+        if self._reverse_wrap_mode() is not None:
+            self._walk_back(count)
+            return
+
         cursor_position = self.pt_cursor_position
         left, _right = self.left_right
         if cursor_position.x < left:
             left = 0
 
-        cursor_position.x = max(left, cursor_position.x - (count or 1))
+        cursor_position.x = max(left, cursor_position.x - count)
+        self.ensure_bounds()
+
+    def _walk_back(self, count: int) -> None:
+        """
+        Move `count` columns left, over the end of a line where a
+        reverse wrap mode allows it.
+
+        This walks a column at a time, because each step may leave the
+        line. A program may ask for more steps than the screen holds,
+        so the count is cut down first: the wider mode brings the
+        cursor round to the same place every full turn of the region,
+        and the narrower one has stopped long before.
+        """
+        top, bottom = self.margins or Margins(0, self.lines - 1)
+        left, right = self.left_right
+        turn = (bottom - top + 1) * (right - left + 1)
+        if count > 2 * turn:
+            count = turn + count % turn
+
+        cursor_position = self.pt_cursor_position
+        for _step in range(count):
+            # Left of the margin the first column is the limit, the
+            # way it is for a move that does not wrap.
+            limit = left if cursor_position.x >= left else 0
+            if cursor_position.x > limit:
+                cursor_position.x -= 1
+            elif not self._backspace_wraps():
+                break
         self.ensure_bounds()
 
     def cursor_forward(self, count: int | None = None) -> None:
