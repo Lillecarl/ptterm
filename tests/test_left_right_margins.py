@@ -356,3 +356,30 @@ def test_insert_mode_truncates_at_the_right_margin():
     stream.feed("abcdef")
     stream.feed("\x1b[?69h\x1b[2;5s\x1b[1;3H\x1b[4hX")
     assert _line(screen, 0) == "abXcdf    "
+
+
+# ----------------------------------------------------------------------
+# The column after the right margin holds two different cursors.
+
+
+def test_a_cursor_right_of_the_margin_reports_where_it_stands():
+    """
+    The column after the right margin is where a wait to wrap sits, and
+    it is also a place a program can put the cursor.
+
+    A report folded the two together and named the margin for both. So
+    a program that placed the cursor one column right of the margin
+    read back the margin instead.
+    """
+    screen, stream, answers = _screen(lines=8, columns=10)
+    stream.feed("\x1b[?69h\x1b[2;5s")
+    stream.feed("\x1b[5;6H\x1b[6n")
+    assert answers == ["\x1b[5;6R"]
+
+
+def test_a_cursor_waiting_to_wrap_reports_the_margin():
+    "A character in the last column of the region leaves the wait."
+    screen, stream, answers = _screen(lines=8, columns=10)
+    stream.feed("\x1b[?69h\x1b[2;5s")
+    stream.feed("\x1b[5;5Hx\x1b[6n")
+    assert answers == ["\x1b[5;5R"]

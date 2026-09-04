@@ -642,6 +642,8 @@ class BetterScreen:
         "pointer_shapes",
         "data_buffer",
         "pt_cursor_position",
+        # The wait to wrap belongs to the cursor, so it travels with it.
+        "pending_wrap",
         "max_y",
         # The kitty keyboard protocol keeps separate flag stacks for the
         # main and the alternate screen. (Immutable tuple: safe to swap.)
@@ -810,6 +812,16 @@ class BetterScreen:
         # The marks that SPA and DECSCA put on the cells that a
         # program draws next. Nothing is marked to start with.
         self.protection = 0
+
+        # Does the cursor wait to wrap? A character in the last column
+        # of the line leaves the cursor one column further, and the
+        # next character starts the line below.
+        #
+        # The place alone does not say so. With a right margin the wait
+        # sits one column after the margin, and a program can put the
+        # cursor there itself. The two look the same and behave
+        # differently, so the wait is a flag and not a place.
+        self.pending_wrap = False
 
         # The settings that a program writes and reads back with
         # DECRQSS. ptterm keeps each one and acts on none of them; the
@@ -1131,10 +1143,14 @@ class BetterScreen:
         further, where it waits to wrap. The cursor still stands on the
         last column, and that is the column that a report names. With a
         right margin the wait sits one column after the margin instead.
+
+        A program can put the cursor on that column itself, and then it
+        really stands there. Only the wait folds back, so the flag
+        decides and not the place.
         """
         column = self.pt_cursor_position.x
         _left, right = self.left_right
-        if column == right + 1:
+        if self.pending_wrap and column == right + 1:
             return right
         return min(column, self.columns - 1)
 
@@ -1289,6 +1305,7 @@ class BetterScreen:
                 # that is cleared does.
                 self.pt_cursor_position.y = self.line_offset
                 self.pt_cursor_position.x = 0
+                self.pending_wrap = False
                 # A screen carries no rendition and no link of its own:
                 # its cells hold the ones they were drawn with.
                 self._reset_rendition()
@@ -1493,6 +1510,14 @@ class BetterScreen:
 
         style = self._style_str
 
+        # The column after the last one a character may take. The loop
+        # works it out for each character it draws.
+        edge = columns
+
+        # Only the first character of a run can find the cursor waiting
+        # to wrap. After that the loop has placed the cursor itself.
+        waiting_to_wrap = self.pending_wrap
+
         for char in chars:
             # Create 'Char' instance.
             pt_char = char_cache[(char,) + key_tail]
@@ -1509,8 +1534,11 @@ class BetterScreen:
             # because a program that draws there draws outside the
             # region.
             # The column after the margin is where the wait to wrap
-            # sits, so it counts as inside.
-            if cursor_position_x <= right_margin + 1:
+            # sits, so a cursor that waits there counts as inside. A
+            # cursor that a program put on that column does not.
+            if cursor_position_x <= right_margin or (
+                waiting_to_wrap and cursor_position_x == right_margin + 1
+            ):
                 edge = right_margin + 1
             else:
                 edge = columns
@@ -1607,12 +1635,19 @@ class BetterScreen:
             #           way, we'll never know when to linefeed.
             cursor_position_x += char_width
 
+            # This character filled the edge column, so the next one
+            # starts the line below.
+            waiting_to_wrap = cursor_position_x >= edge
+
         # Update max_y. (Don't use 'max()' for comparing only two values, that
         # is less efficient.)
         if cursor_position_y > self.max_y:
             self.max_y = cursor_position_y
 
         cursor_position.x = cursor_position_x
+        # A run that draws nothing leaves the wait as it was.
+        if chars:
+            self.pending_wrap = waiting_to_wrap
 
     def _leave_the_pending_wrap(self) -> None:
         """
@@ -1622,10 +1657,14 @@ class BetterScreen:
         column further, which is what makes the next character wrap.
         A move of the cursor ends that wait, so the cursor lands on the
         last column and not past it.
+
+        With a right margin the wait sits one column after the margin,
+        which is a column of the screen like any other. So the flag
+        says where the cursor came from, and the place does not.
         """
-        cursor_position = self.pt_cursor_position
-        if cursor_position.x >= self.columns:
-            cursor_position.x = self.columns - 1
+        if self.pending_wrap:
+            self.pt_cursor_position.x -= 1
+            self.pending_wrap = False
 
     def carriage_return(self) -> None:
         """
@@ -1639,6 +1678,8 @@ class BetterScreen:
         if self.pt_cursor_position.x < left:
             left = 0
         self.pt_cursor_position.x = left
+        # A move of the cursor ends the wait to wrap.
+        self.pending_wrap = False
 
     def index(self) -> None:
         """Move the cursor down one line in the same column. If the
@@ -1844,7 +1885,7 @@ class BetterScreen:
         does not. kitty, WezTerm, Alacritty and libvterm all agree.
         """
         cursor_position = self.pt_cursor_position
-        if cursor_position.x >= self.columns:
+        if self.pending_wrap:
             return
 
         # With a right margin the tab stops there, and not at the last
@@ -2479,13 +2520,18 @@ class BetterScreen:
         """
         cursor_position = self.pt_cursor_position
         _left, right = self.left_right
-        column = min(cursor_position.x, self.columns - 1)
+        # A cursor that waits to wrap stands on the column before it.
+        if self.pending_wrap:
+            column = cursor_position.x - 1
+        else:
+            column = min(cursor_position.x, self.columns - 1)
 
         if column == right:
             top, bottom = self.margins or Margins(0, self.lines - 1)
             self._move_columns(top, bottom, *self.left_right, -1)
         elif column < self.columns - 1:
             cursor_position.x = column + 1
+        self.pending_wrap = False
 
     def back_index(self) -> None:
         """
@@ -2503,6 +2549,7 @@ class BetterScreen:
             self._move_columns(top, bottom, *self.left_right, 1)
         elif cursor_position.x > 0:
             cursor_position.x -= 1
+        self.pending_wrap = False
 
     def erase_in_line(self, type_of: int = 0, private: bool = False) -> None:
         """Erases a line in a specific way.
@@ -2970,6 +3017,12 @@ class BetterScreen:
         cursor_position.y = min(
             max(top + line_offset, cursor_position.y), bottom + line_offset
         )
+
+        # A move of the cursor ends the wait to wrap. Every command
+        # that places the cursor comes through here, so this is the one
+        # place that has to say it. A tab is the exception, and it
+        # never reaches this.
+        self.pending_wrap = False
 
     def alignment_display(self) -> None:
         """
