@@ -29,7 +29,6 @@ def _screen(lines=4, columns=8):
     answers = []
     screen = BetterScreen(lines, columns, write_process_input=answers.append)
     stream = BetterStream(screen)
-    stream.attach(screen)
     return screen, stream, answers
 
 
@@ -233,7 +232,6 @@ def _forwarded(steps):
         osc_func=lambda code, param: forwarded.append((code, param)),
     )
     stream = BetterStream(screen)
-    stream.attach(screen)
     for payload in steps:
         stream.feed("\x1b]22;%s\x1b\\" % payload)
     return forwarded

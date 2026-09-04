@@ -17,7 +17,6 @@ def _screen(lines=4, columns=10):
     answers = []
     screen = BetterScreen(lines, columns, write_process_input=answers.append)
     stream = BetterStream(screen)
-    stream.attach(screen)
     return screen, stream, answers
 
 

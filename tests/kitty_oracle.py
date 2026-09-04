@@ -152,7 +152,6 @@ def ptterm_cells_in_pieces(
     """
     screen = BetterScreen(lines, columns, write_process_input=lambda answer: None)
     stream = BetterStream(screen)
-    stream.attach(screen)
     for piece in pieces:
         stream.feed(piece)
 

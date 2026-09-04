@@ -13,7 +13,6 @@ from ptterm.stream import BetterStream
 def _screen(lines=5, columns=10):
     screen = BetterScreen(lines, columns, write_process_input=lambda data: None)
     stream = BetterStream(screen)
-    stream.attach(screen)
     return screen, stream
 
 

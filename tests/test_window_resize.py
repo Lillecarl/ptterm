@@ -24,7 +24,6 @@ def _screen(lines=24, columns=80):
         resize_func=lambda rows, cols: asks.append((rows, cols)),
     )
     stream = BetterStream(screen)
-    stream.attach(screen)
     return screen, stream, asks
 
 
@@ -82,7 +81,6 @@ def test_a_resize_in_pixels_keeps_at_least_one_cell():
 def test_a_pane_with_no_embedder_changes_nothing():
     screen = BetterScreen(24, 80, write_process_input=lambda data: None)
     stream = BetterStream(screen)
-    stream.attach(screen)
     stream.feed("\x1b[27t\x1b[8;30;100t")
     assert (screen.lines, screen.columns) == (24, 80)
 

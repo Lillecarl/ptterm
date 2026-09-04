@@ -32,7 +32,6 @@ def pane():
     responses = []
     screen = BetterScreen(24, 80, write_process_input=responses.append)
     stream = BetterStream(screen)
-    stream.attach(screen)
     return screen, stream, responses
 
 

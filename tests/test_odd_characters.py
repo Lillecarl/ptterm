@@ -25,7 +25,6 @@ def test_a_no_break_space_carries_no_style_of_its_own():
     "The class of the widget would underline it in yellow."
     screen = BetterScreen(2, 6, write_process_input=lambda answer: None)
     stream = BetterStream(screen)
-    stream.attach(screen)
     stream.feed("\x1b[31m" + NBSP)
     cell = screen.pt_screen.data_buffer[screen.line_offset][0]
     assert cell.char == NBSP

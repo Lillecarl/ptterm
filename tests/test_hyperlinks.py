@@ -19,7 +19,6 @@ LINK = "https://example.com/a"
 def _screen(lines=3, columns=12):
     screen = BetterScreen(lines, columns, write_process_input=lambda data: None)
     stream = BetterStream(screen)
-    stream.attach(screen)
     return screen, stream
 
 

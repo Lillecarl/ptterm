@@ -22,7 +22,6 @@ def make_screen():
         osc_func=lambda code, param: forwarded.append((code, param)),
     )
     stream = BetterStream(screen)
-    stream.attach(screen)
     return stream, forwarded, answers
 
 
@@ -108,7 +107,6 @@ def test_a_screen_without_a_function_consumes_the_sequence():
     answers = []
     screen = BetterScreen(24, 80, write_process_input=answers.append)
     stream = BetterStream(screen)
-    stream.attach(screen)
     stream.feed("\x1b]52;c;aGVsbG8=\x1b\\")
     stream.feed("\x1b]99;i=1;done\x1b\\")
     assert answers == []

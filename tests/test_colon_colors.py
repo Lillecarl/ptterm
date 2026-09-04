@@ -14,7 +14,6 @@ def style_of(data, column=0):
     "The style of one cell, after `data`."
     screen = BetterScreen(2, 8, write_process_input=lambda answer: None)
     stream = BetterStream(screen)
-    stream.attach(screen)
     stream.feed(data)
     return screen.pt_screen.data_buffer[screen.line_offset][column].style
 

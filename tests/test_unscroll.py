@@ -14,7 +14,6 @@ LINES = 5
 def make_screen(lines=LINES, columns=20):
     screen = BetterScreen(lines, columns, write_process_input=lambda d: None)
     stream = BetterStream(screen)
-    stream.attach(screen)
     return screen, stream
 
 

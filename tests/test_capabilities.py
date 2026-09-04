@@ -22,7 +22,6 @@ def ask(names):
     answers = []
     screen = BetterScreen(2, 10, write_process_input=answers.append)
     stream = BetterStream(screen)
-    stream.attach(screen)
     query = ";".join(name.encode("ascii").hex() for name in names)
     stream.feed("\x1bP+q" + query + "\x1b\\")
     return answers
@@ -75,7 +74,6 @@ def test_a_name_that_is_not_hexadecimal():
     answers = []
     screen = BetterScreen(2, 10, write_process_input=answers.append)
     stream = BetterStream(screen)
-    stream.attach(screen)
     stream.feed("\x1bP+qzzzz\x1b\\")
     assert answers == ["\x1bP0+rzzzz\x1b\\"]
 

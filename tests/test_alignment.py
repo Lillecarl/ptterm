@@ -16,7 +16,6 @@ from kitty_oracle import differences, kitty_is_available
 def _screen(lines=4, columns=6):
     screen = BetterScreen(lines, columns, write_process_input=lambda data: None)
     stream = BetterStream(screen)
-    stream.attach(screen)
     return screen, stream
 
 

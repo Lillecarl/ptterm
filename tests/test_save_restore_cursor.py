@@ -30,7 +30,6 @@ PAIRS = [
 def _screen(lines=6, columns=20):
     screen = BetterScreen(lines, columns, write_process_input=lambda data: None)
     stream = BetterStream(screen)
-    stream.attach(screen)
     return screen, stream
 
 

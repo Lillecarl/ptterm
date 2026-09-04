@@ -197,8 +197,10 @@ class BetterStream(Stream):
     )
 
     def __init__(self, screen) -> None:
-        super().__init__()
-        self.listener = screen
+        # `attach` is what builds the parser, so the screen goes to it
+        # and not to `self.listener`. Setting the listener by hand
+        # leaves a stream that raises on the first byte it reads.
+        super().__init__(screen)
         self._validate_screen()
 
     def _validate_screen(self) -> None:

@@ -17,7 +17,6 @@ def screen_of(data, lines=2, columns=20):
     "A screen that has read `data`."
     screen = BetterScreen(lines, columns, write_process_input=lambda answer: None)
     stream = BetterStream(screen)
-    stream.attach(screen)
     stream.feed(data)
     return screen
 
@@ -96,7 +95,6 @@ def test_the_screen_reports_the_shape_and_the_colour():
     answers = []
     screen = BetterScreen(2, 10, write_process_input=answers.append)
     stream = BetterStream(screen)
-    stream.attach(screen)
     stream.feed("\x1b[4:3;58:2::1:2:3m\x1bP$qm\x1b\\")
     assert answers == ["\x1bP1$r0;4:3;58:2::1:2:3m\x1b\\"]
 
