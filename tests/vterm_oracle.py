@@ -116,6 +116,7 @@ def libvterm_is_available() -> bool:
     library.vterm_obtain_screen.restype = ctypes.c_void_p
     library.vterm_obtain_screen.argtypes = [ctypes.c_void_p]
     library.vterm_screen_reset.argtypes = [ctypes.c_void_p, ctypes.c_int]
+    library.vterm_screen_enable_altscreen.argtypes = [ctypes.c_void_p, ctypes.c_int]
     library.vterm_input_write.argtypes = [
         ctypes.c_void_p,
         ctypes.c_char_p,
@@ -163,6 +164,10 @@ def vterm_cells(data: str, lines: int, columns: int) -> List[List[Cell]]:
     try:
         library.vterm_set_utf8(term, 1)
         screen = library.vterm_obtain_screen(term)
+        # libvterm keeps the alternate screen off until it is asked
+        # for. Without this it draws everything on one screen and says
+        # nothing useful about "?1049" and its two older names.
+        library.vterm_screen_enable_altscreen(screen, 1)
         library.vterm_screen_reset(screen, 1)
         raw = data.encode("utf-8")
         library.vterm_input_write(term, raw, len(raw))

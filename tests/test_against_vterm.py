@@ -103,5 +103,7 @@ def test_the_alternate_screen_that_ptterm_does_not_keep_is_a_real_bug():
     held. This is the one open gap, and the vote says it is a bug and
     not a choice.
     """
-    data = "\x1b[?1049h0\x1b[?1049l\x1b[?47h"
-    assert three_way(data, lines=4, columns=6) == "ptterm-wrong"
+    # Leaving with "?1049l" keeps the content here and in kitty.
+    assert three_way("\x1b[?1049h0\x1b[?1049l\x1b[?47h", 4, 6) == "split"
+    # Leaving with "?1047l" clears it here and in libvterm.
+    assert three_way("\x1b[?1047h X \x1b[?1047l \x1b[?47h", 3, 6) == "split"
