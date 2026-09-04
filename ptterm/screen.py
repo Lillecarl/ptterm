@@ -2951,6 +2951,38 @@ class BetterScreen:
     # answer. (One is dark, two is light.)
     color_scheme = 1
 
+    #: What "CSI ? Ps n" answers about a part that this terminal does
+    #: not have. Each one has a legal answer that says "no", and a
+    #: program that asks has to read one: a query with no answer leaves
+    #: the program waiting, and leaves every answer after it one place
+    #: out of step.
+    _DEVICE_STATUS_ANSWERS = {
+        # DSRPrinterPort. 13 is "no printer".
+        15: "\x1b[?13n",
+        # DSRUDKLocked. 20 is "unlocked". Nothing here defines a key,
+        # so nothing can lock one either.
+        25: "\x1b[?20n",
+        # DSRKeyboard: 27, then the language, the state and the type.
+        # 1 is North American, 0 is ready and 5 is a PC keyboard.
+        26: "\x1b[?27;1;0;5n",
+        # DSRLocatorStatus. 50 is "no locator". DECELR is not here, so
+        # there is no locator to report on.
+        55: "\x1b[?50n",
+        # DSRLocatorId: 57, then the kind of pointing device. 0 is
+        # "not known".
+        56: "\x1b[?57;0n",
+        # DECMSR: the room left for a macro, in bytes. This terminal
+        # holds no macro and defines none, so there is no room. The
+        # answer carries no private marker, and ends with "* {".
+        62: "\x1b[0*{",
+        # DSRDataIntegrity. 70 is "no error since the last report".
+        75: "\x1b[?70n",
+        # DSRMultipleSessionStatus. 83 is "not configured for more
+        # than one session". A pane is a session of pymux, not of the
+        # terminal.
+        85: "\x1b[?83n",
+    }
+
     def report_device_status(
         self, data: int = 0, *args, private=False, **kwargs
     ) -> None:
@@ -2962,12 +2994,27 @@ class BetterScreen:
         number. "CSI ? 996 n" asks which colour scheme the terminal
         uses.
 
+        The rest of "CSI ? Ps n" asks about a printer, a keyboard, a
+        locator or a macro. This terminal has none of those, and each
+        one has a legal answer that says so.
+
         Unknown reports are ignored. The private marker arrives as the
         `private` keyword; it must not raise, or one sequence would
         stop the whole pane.
         """
         if private is True and data == 996:
             self.write_process_input("\x1b[?997;%in" % self.color_scheme)
+            return
+
+        if private is True and data == 63:
+            # DECCKSR: the checksum of the macros, as "DCS Pid ! ~
+            # xxxx ST". No macro is defined, so the sum is zero.
+            pid = args[0] if args else 0
+            self.write_process_input("\x1bP%i!~0000\x1b\\" % pid)
+            return
+
+        if private is True and data in self._DEVICE_STATUS_ANSWERS:
+            self.write_process_input(self._DEVICE_STATUS_ANSWERS[data])
             return
 
         if data == 6:
