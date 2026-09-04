@@ -15,6 +15,8 @@ the code itself ("OSC 10" is the foreground, "OSC 11" the background,
 from string import hexdigits
 from typing import Dict, List, NamedTuple
 
+from .xcms import intensity_to_value
+
 __all__ = [
     "Color",
     "DEFAULT_COLORS",
@@ -217,16 +219,45 @@ def _parse_parts(parts: List[str], scale: bool) -> Color | None:
     return Color(*values)
 
 
+def _parse_intensities(spec: str) -> Color | None:
+    """
+    A colour in the "rgbi:" form, which names light and not values.
+
+    Each component is how much light that channel gives, from none to
+    all of it. A display does not answer a request for light in a
+    straight line, so the value that gives it comes out of the tables
+    of Xcms. `xcms.py` says why they are there.
+    """
+    parts = spec.split("/")
+    if len(parts) != _COMPONENTS:
+        return None
+    values = []
+    for channel, text in enumerate(parts):
+        try:
+            intensity = float(text)
+        except ValueError:
+            return None
+        # A component names a part of the whole, so it cannot leave
+        # the range. `float` also reads "nan" and "inf", and both fail
+        # this test.
+        if not 0.0 <= intensity <= 1.0:
+            return None
+        value = intensity_to_value(channel, intensity)
+        values.append(value >> (_SPEC_BITS - _KEPT_BITS))
+    return Color(*values)
+
+
 def parse_color(spec: str) -> Color | None:
     """
     The colour that a spec names, or `None` for one that X11 does not
     read.
 
     This is the syntax of `XParseColor`, which is what a program writing
-    "OSC 4" uses. Two forms are read here:
+    "OSC 4" uses. Three forms are read here:
 
     - "#rgb", "#rrggbb", "#rrrgggbbb" and "#rrrrggggbbbb".
     - "rgb:r/g/b", with one to four hexadecimal digits per component.
+    - "rgbi:r/g/b", with the light that each channel gives.
 
     A pane keeps eight bits per component, which is what it reports.
     """
@@ -235,7 +266,9 @@ def parse_color(spec: str) -> Color | None:
     if spec.startswith("#"):
         return _parse_hash(spec[1:])
     if spec.startswith("rgb:"):
-        return _parse_parts(spec[4:].split("/"), scale=True)
+        return _parse_parts(spec[len("rgb:"):].split("/"), scale=True)
+    if spec.startswith("rgbi:"):
+        return _parse_intensities(spec[len("rgbi:"):])
     return None
 
 

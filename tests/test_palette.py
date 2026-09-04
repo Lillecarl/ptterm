@@ -60,6 +60,32 @@ def test_a_spec_reads_as_the_colour_it_names(spec, color):
     assert parse_color(spec) == color
 
 
+@pytest.mark.parametrize("spec, color", [
+    # "rgbi:" names light and not values, and a display does not
+    # answer a request for light in a straight line. The three
+    # channels of the built-in Xcms display do not even agree with
+    # each other, so a grey request gives an answer that is not grey.
+    ("rgbi:1/1/1", Color(0xFF, 0xFF, 0xFF)),
+    ("rgbi:0/0/0", Color(0x00, 0x00, 0x00)),
+    ("rgbi:0.5/0.5/0.5", Color(0xC1, 0xBB, 0xBB)),
+    ("rgbi:1.0/0.0/0.0", Color(0xFF, 0x00, 0x00)),
+])
+def test_an_intensity_spec_reads_through_the_xcms_tables(spec, color):
+    assert parse_color(spec) == color
+
+
+@pytest.mark.parametrize("spec", [
+    "rgbi:2/0/0",     # Past all the light there is.
+    "rgbi:-0.5/0/0",  # Less than none.
+    "rgbi:nan/0/0",   # `float` reads it; a colour is not it.
+    "rgbi:inf/0/0",
+    "rgbi:x/0/0",
+    "rgbi:1/1",
+])
+def test_an_intensity_outside_the_range_is_no_colour(spec):
+    assert parse_color(spec) is None
+
+
 @pytest.mark.parametrize("spec", [
     "",
     "red",            # A name needs a colour database, which a pane has not.
