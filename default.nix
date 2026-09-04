@@ -163,6 +163,16 @@ let
     export PTTERM_XTERM=${xtermJudgeRunner}/bin/xterm-judge
   '';
 
+  # What pytest runs, for instance
+  # `PTTERM_TESTS=tests/test_left_right_margins.py nix build --file . checks.ptterm`.
+  # It reaches the evaluation through the environment, so it works with
+  # impure evaluation, which a build from a file uses.
+  selection =
+    let
+      value = builtins.getEnv "PTTERM_TESTS";
+    in
+    if value == "" then "tests" else value;
+
   checks = {
     tests = runCommand "ptterm-tests" {
       # ncurses for the check that the terminfo entry compiles.
@@ -170,6 +180,7 @@ let
         pythonWithTests
         ncurses
       ];
+      inherit selection;
     } ''
       cp -r ${testSources}/tests .
       chmod -R +w .
@@ -186,7 +197,7 @@ let
       echo '{"data":"x","lines":1,"columns":1}' | "$PTTERM_GHOSTTY" > /dev/null
       echo '{"data":"x","lines":1,"columns":1}' | "$PTTERM_XTERM" > /dev/null
 
-      python -m pytest tests -q -p no:cacheprovider
+      python -m pytest $selection -q -p no:cacheprovider
       touch "$out"
     '';
 
