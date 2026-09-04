@@ -384,6 +384,34 @@ ptterm answers each of the two.
 **As a setting:** no, for the same reason as the margins. A program
 that sends "$ v" means the copy.
 
+### 13. DECSLPP asks for a page length, and does not get one
+
+`\x1b[27t` then `\x1bP$qt\x1b\\` on a pane of any height.
+
+"CSI Ps t" with a Ps of 24 or more is DECSLPP. It asks for a page of
+that many lines, and xterm resizes its window to match. DECRQSS "t"
+then reports the new number.
+
+ptterm reports how tall the pane really is, and never the number a
+program asked for. Nothing resizes.
+
+**Why.** pymux owns how tall a pane is. A pane sits in a layout beside
+other panes, and making one taller makes another shorter. A sequence
+from a program inside one pane must not move a pane the person put
+somewhere on purpose. That is the same rule that holds DECCOLM back
+from resizing a pane to 132 columns.
+
+So the answer is the truth about this pane. A program that reads it
+learns how much room it has, which is what it wanted to know. A
+program that reads back the number it wrote learns nothing.
+
+The panel says nothing here: DECRQSS reports through a channel the
+judges do not carry. `DECRQSSTests.test_DECRQSS_DECSLPP` of esctest2
+fails on purpose, and the failure list records it.
+
+**As a setting:** yes, if a person wants a pane that a program can
+resize. It would need a rule for where the room comes from.
+
 ## Where kitty looks wrong
 
 kitty puts the second character after a wrap into the cell of the

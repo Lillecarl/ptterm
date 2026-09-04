@@ -187,8 +187,12 @@ class AttributeExtent(IntEnum):
     A stream runs from the first corner to the second, the way a
     program reads a page. A rectangle takes the columns between them
     on every row.
+
+    Zero and one both name the stream. A terminal reports back the one
+    it was given, so the two are kept apart here.
     """
 
+    DEFAULT = 0
     STREAM = 1
     RECTANGLE = 2
 
@@ -2854,7 +2858,7 @@ class BetterScreen:
         nothing acts on it. A program writes it and reads it back with
         DECRQSS, and an answer that says nothing sends it to a guess.
         """
-        value = (params[0] if params else 0) or AttributeExtent.STREAM
+        value = params[0] if params else 0
         if value in tuple(AttributeExtent):
             self.attribute_extent = AttributeExtent(value)
 
@@ -3576,6 +3580,13 @@ class BetterScreen:
         elif name == "t":
             # DECSLPP: the lines of the page. A pane is its own page,
             # so the answer is how tall the pane is.
+            #
+            # "CSI Ps t" with Ps of 24 or more asks for a page of that
+            # many lines, and xterm resizes its window. ptterm does not
+            # take it: pymux owns how tall a pane is, and one pane
+            # cannot move another one. So the answer is the truth about
+            # this pane and not the number a program asked for.
+            # `tests/DEVIATIONS.md` carries it.
             value = "%i" % self.lines
         else:
             self.write_process_input("\x1bP0$r\x1b\\")

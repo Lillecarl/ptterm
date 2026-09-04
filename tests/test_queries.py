@@ -360,8 +360,11 @@ def test_the_two_ansi_modes_that_are_kept_report_one_or_two():
 @pytest.mark.parametrize(
     "sequence, name, answer",
     [
-        # DECSACE: what DECCARA and DECRARA reach.
+        # DECSACE: what DECCARA and DECRARA reach. Zero and one both
+        # name the stream, and the answer gives back the one it was
+        # given.
         ("\x1b[2*x", "*x", "2"),
+        ("\x1b[0*x", "*x", "0"),
         # DECSASD: send the output to the status line.
         ("\x1b[1$}", "$}", "1"),
         # DECSSDT: what the status line holds.
