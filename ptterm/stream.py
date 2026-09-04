@@ -38,6 +38,9 @@ class BetterStream(Stream):
             # DECRQM ("CSI ? Ps $ p"): is this mode set? (The "$" is an
             # intermediate byte, and needs the matching pyte patch.)
             "$p": "report_mode",
+            # DECSTR ("CSI ! p"): a soft reset. It keeps the screen and
+            # puts the settings back. ("!" is an intermediate byte.)
+            "!p": "soft_reset",
             # DECRQCRA ("CSI Pid ; Pp ; Pt ; Pl ; Pb ; Pr * y"): the
             # checksum of a rectangle. A conformance suite reads the
             # screen back with it, so it is the instrument that judges

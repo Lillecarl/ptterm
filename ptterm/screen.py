@@ -512,6 +512,41 @@ class BetterScreen:
         self._alternate_screen: Optional[Screen] = None
         self._alternate_screen_vars: dict = {}
 
+    def soft_reset(self, *params: int, **kwargs) -> None:
+        """
+        DECSTR ("CSI ! p"): put the settings back, and keep the screen.
+
+        A soft reset leaves the text and the cursor where they are. It
+        takes away what a program changed about the terminal, so that
+        the next program starts from one that it knows. A program that
+        ends sends this, and a program that starts sends it as well.
+
+        The scrolling region goes back to the whole screen, in the rows
+        and in the columns, and the cursor that a save remembers goes
+        home. Autowrap stays on: the DEC manuals turn it off, and xterm
+        keeps it on because programs came to count on it.
+
+        The alternate screen is not a setting of this kind. A soft
+        reset on it leaves it in front, the way xterm does.
+        """
+        self.margins = None
+        self.horizontal_margins = None
+
+        alternate = self.mode.intersection(self._ALTERNATE_SCREEN_MODES)
+        self.mode = {mo.DECAWM, mo.DECTCEM}
+        self.mode.update(alternate)
+        self.pt_screen.show_cursor = True
+
+        # A list of its own, because a save writes into the list that
+        # is there rather than making a new one.
+        self.savepoints = []
+
+        self.charset = 0
+        self.g0_charset = cs.LAT1_MAP
+        self.g1_charset = cs.LAT1_MAP
+
+        self._reset_rendition()
+
     def _reset_rendition(self) -> None:
         """
         Draw what comes next plainly, and under no hyperlink.
