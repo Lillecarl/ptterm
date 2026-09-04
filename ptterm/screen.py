@@ -90,6 +90,7 @@ FORWARDED_OSC = frozenset([
 #: is what the program in it talks to.
 TERMINAL_VERSION = "ptterm(0.2)"
 
+
 class CursorShape(IntEnum):
     """
     The shape of the cursor, as DECSCUSR ("CSI Ps SP q") names it.
@@ -110,6 +111,22 @@ class CursorShape(IntEnum):
 
 #: The shape that a terminal starts with.
 DEFAULT_CURSOR_STYLE = CursorShape.BLINKING_BLOCK
+
+
+#: How far pyte shifts a private mode, to tell it from a mode that
+#: carries no marker. `self.mode` holds the shifted value.
+PRIVATE_MODE_SHIFT = 5
+
+
+def flag_of(number: int) -> int:
+    """
+    The value that `self.mode` holds for a private mode number.
+
+    `PrivateMode` names the modes a pane acts on, and this works on a
+    bare number as well: a program may save and read back a mode that
+    no terminal carries.
+    """
+    return number << PRIVATE_MODE_SHIFT
 
 
 class PrivateMode(IntEnum):
@@ -227,7 +244,7 @@ class PrivateMode(IntEnum):
     @property
     def flag(self) -> int:
         "The value that `self.mode` holds while this mode is set."
-        return self.value << 5
+        return flag_of(self.value)
 
 
 class AttributeExtent(IntEnum):
@@ -870,6 +887,12 @@ class BetterScreen:
         # repeat now draws nothing.
         self.last_character = ""
 
+        # The private modes that XTSAVE put away, by the number that
+        # the sequence carries. XTRESTORE reads them. A mode that was
+        # never saved is not here, and a restore of it changes
+        # nothing.
+        self.saved_modes: Dict[int, bool] = {}
+
         # The colours that a program set with "OSC 4", "OSC 5" and
         # "OSC 10". A pane starts with neither table filled and
         # answers a query from the defaults. A set puts an entry here,
@@ -1154,16 +1177,26 @@ class BetterScreen:
         #       the first index should be 0.
         return max(0, self.max_y - self.lines + 1)
 
-    def set_margins(
-        self, top: int | None = None, bottom: int | None = None
-    ) -> None:
+    def set_margins(self, *params: int, **kwargs) -> None:
         """Selects top and bottom margins for the scrolling region.
         Margins determine which screen lines move during scrolling
         (see :meth:`index` and :meth:`reverse_index`). Characters added
         outside the scrolling region do not cause the screen to scroll.
         :param int top: the smallest line number that is scrolled.
         :param int bottom: the biggest line number that is scrolled.
+
+        With the private marker the same final byte is XTRESTORE, which
+        brings back the modes that XTSAVE put away. One byte, two
+        commands, and the marker says which; xterm does the same.
         """
+        if kwargs.get("private") is True:
+            self.restore_modes(*params)
+            return
+
+        # No parameter at all puts the region back to the whole
+        # screen, so a zero is not the same as nothing here.
+        top = params[0] if len(params) > 0 else None
+        bottom = params[1] if len(params) > 1 else None
         if top is None and bottom is None:
             return
 
@@ -1248,6 +1281,12 @@ class BetterScreen:
         the whole width is no region at all. The cursor goes home
         afterwards, which is what DECSTBM does as well.
         """
+        if kwargs.get("private") is True:
+            # XTSAVE. The private marker makes the same final byte put
+            # modes away instead of naming a region.
+            self.save_modes(*params)
+            return
+
         if PrivateMode.LEFT_RIGHT_MARGIN.flag not in self.mode:
             # SCOSC. It saves what DECSC saves, and SCORC ("CSI u")
             # brings it back.
@@ -4128,6 +4167,34 @@ class BetterScreen:
                 total += ord(char[0]) if char else ord(" ")
 
         self.write_process_input("\x1bP%i!~%04X\x1b\\" % (pid, -total & 0xFFFF))
+
+    def save_modes(self, *params: int) -> None:
+        """
+        XTSAVE ("CSI ? Pm s"): put private modes away.
+
+        A program that wants to change a mode and give it back the way
+        it found it saves it here first. It is the pair of XTRESTORE.
+        A mode that a pane does not know is remembered as off, which is
+        what a query of it answers.
+        """
+        for number in params:
+            mode = flag_of(number)
+            self.saved_modes[number] = mode in self.mode
+
+    def restore_modes(self, *params: int) -> None:
+        """
+        XTRESTORE ("CSI ? Pm r"): bring back what XTSAVE put away.
+
+        A mode that was never saved is left as it is. xterm does the
+        same: a restore of nothing changes nothing.
+        """
+        for number in params:
+            if number not in self.saved_modes:
+                continue
+            if self.saved_modes[number]:
+                self.set_mode(number, private=True)
+            else:
+                self.reset_mode(number, private=True)
 
     def report_device_attributes(self, *args, **kwargs) -> None:
         response = "\x1b[>84;0;0c"
