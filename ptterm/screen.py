@@ -412,6 +412,9 @@ _Savepoint = namedtuple(
         "wrap",
         "attrs",
         "style_str",
+        # The marks that SPA and DECSCA set. They belong to the cursor,
+        # the way the rendition does, so a save remembers them.
+        "protection",
     ],
 )
 
@@ -1689,6 +1692,7 @@ class BetterScreen:
                 # The rendition alone. A hyperlink is not part of the
                 # cursor that "ESC 7" remembers.
                 self._rendition_str,
+                self.protection,
             )
         ]
 
@@ -1707,6 +1711,7 @@ class BetterScreen:
             self.charset = savepoint.charset
             self._attrs = savepoint.attrs
             self._rendition_str = savepoint.style_str
+            self.protection = savepoint.protection
             self._rebuild_style()
 
             if savepoint.origin:

@@ -161,3 +161,16 @@ def test_the_mark_is_reported():
     stream.feed('\x1b[1"q')
     stream.feed('\x1bP$q"q\x1b\\')
     assert answers == ['\x1bP1$r0"q\x1b\\', '\x1bP1$r1"q\x1b\\']
+
+
+def test_a_save_and_a_restore_carry_the_mark():
+    """
+    DECSC remembers the marks, and DECRC brings them back.
+
+    The marks belong to the cursor, the way the rendition does.
+    """
+    screen, stream, _answers = _screen()
+    stream.feed('\x1b[1"q\x1b7\x1b[0"q\x1b8')
+    assert screen.protection == 2
+    stream.feed("a\x1b[1;1;1;1${")
+    assert _line(screen) == "a"
