@@ -164,6 +164,11 @@ class PrivateMode(IntEnum):
     #: DECNRCM: the national replacement character sets.
     NATIONAL_CHARSETS = 42
 
+    #: A backspace in the first column goes back to the line above,
+    #: but only when that line was reached by wrapping. It undoes what
+    #: the typing did, and no more.
+    REVERSE_WRAP = 45
+
     #: The alternate screen, on its own. A program that predates
     #: "?1049" sends this one.
     ALTERNATE_SCREEN = 47
@@ -191,6 +196,12 @@ class PrivateMode(IntEnum):
 
     #: Report the mouse the way urxvt writes it.
     URXVT_MOUSE = 1015
+
+    #: A backspace in the first column goes back to the line above,
+    #: whether that line was wrapped or not, and from the first line
+    #: to the last. This is what "?45" did before xterm 383 split the
+    #: two apart.
+    REVERSE_WRAP_ANYWHERE = 1045
 
     #: The alternate screen. The same screen as "?47", under the
     #: number that came later.
@@ -1983,10 +1994,92 @@ class BetterScreen:
             self.pt_cursor_position.x = column
 
     def backspace(self) -> None:
-        """Move cursor to the left one or keep it in it's position if
-        it's at the beginning of the line already.
         """
+        Move the cursor one column left.
+
+        In the first column it normally stays where it is. Two private
+        modes send it to the end of the line above instead, which lets
+        a program rub out a line it wrapped:
+
+        - "?45" goes back only when the line was reached by wrapping.
+          A backspace then undoes what the typing did, and stops where
+          the typing began.
+        - "?1045" goes back from any line, and from the first line of
+          the region to the last. xterm did this under "?45" until it
+          split the two apart in 2023.
+
+        Both need DECAWM. A terminal that does not wrap forward has
+        nothing to unwrap.
+        """
+        # A cursor that waits to wrap sits one column past the last one
+        # it wrote, so leaving the wait is itself a move left. With a
+        # reverse wrap mode on, that move is the whole backspace and
+        # the cursor stays on the character it wrote. Without one the
+        # backspace goes on to the character before it.
+        #
+        # xterm asks for both: `test_BS_CursorStartsInDoWrapPosition`
+        # writes "ab", backspaces and writes "X" for "Xb", and
+        # `test_BS_ReverseWrapStartingInDoWrapPosition` does the same
+        # with the mode on for "aX".
+        if self.pending_wrap:
+            self._leave_the_pending_wrap()
+            if self._reverse_wrap_mode() is not None:
+                return
+
+        if self._backspace_wraps():
+            return
         self.cursor_back()
+
+    def _reverse_wrap_mode(self) -> PrivateMode | None:
+        """
+        The reverse wrap mode that is on, or `None` when neither is.
+
+        Both need DECAWM: a terminal that does not wrap forward has
+        nothing to unwrap. The wider mode wins when both are set.
+        """
+        if mo.DECAWM not in self.mode:
+            return None
+        if PrivateMode.REVERSE_WRAP_ANYWHERE.flag in self.mode:
+            return PrivateMode.REVERSE_WRAP_ANYWHERE
+        if PrivateMode.REVERSE_WRAP.flag in self.mode:
+            return PrivateMode.REVERSE_WRAP
+        return None
+
+    def _backspace_wraps(self) -> bool:
+        """
+        Send the cursor to the end of the line above, and say whether
+        it went.
+
+        The line above ends at the right margin, because that is where
+        the wrap that put the cursor here came from.
+        """
+        mode = self._reverse_wrap_mode()
+        if mode is None:
+            return False
+        anywhere = mode is PrivateMode.REVERSE_WRAP_ANYWHERE
+
+        cursor_position = self.pt_cursor_position
+        left, right = self.left_right
+        # The left edge counts as well as the margin. A cursor placed
+        # left of the margin has nowhere to go but the line above.
+        if cursor_position.x > left and cursor_position.x != 0:
+            return False
+
+        top, bottom = self.margins or Margins(0, self.lines - 1)
+        row = cursor_position.y - self.line_offset
+        if row > top:
+            if not anywhere and cursor_position.y not in self.wrapped_lines:
+                return False  # The typing did not reach this line by wrapping.
+            cursor_position.y -= 1
+        elif anywhere:
+            # From the top of the region back to the bottom of it.
+            cursor_position.y = bottom + self.line_offset
+        else:
+            return False
+
+        cursor_position.x = right
+        self.pending_wrap = False
+        return True
 
     def save_cursor(self) -> None:
         """
