@@ -68,7 +68,7 @@ class _TerminalControl(UIControl):
         done_callback: Optional[Callable[[], None]] = None,
         bell_func: Optional[Callable[[], None]] = None,
         osc_func: Optional[Callable[[str, str], None]] = None,
-        resize_func: "Optional[Callable[[Optional[int], Optional[int]], None]]" = None,
+        resize_func: Callable[[int | None, int | None], None] | None = None,
     ) -> None:
         def has_priority() -> bool:
             # Give priority to the processing of this terminal output, if this
@@ -315,7 +315,7 @@ class Terminal:
         height: Optional[int] = None,
         done_callback: Optional[Callable[[], None]] = None,
         osc_func: Optional[Callable[[str, str], None]] = None,
-        resize_func: "Optional[Callable[[Optional[int], Optional[int]], None]]" = None,
+        resize_func: Callable[[int | None, int | None], None] | None = None,
     ) -> None:
         if backend is None:
             backend = create_backend(command, before_exec_func)

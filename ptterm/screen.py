@@ -660,7 +660,7 @@ class BetterScreen:
         bell_func: Optional[Callable[[], None]] = None,
         get_history_limit: Optional[Callable[[], int]] = None,
         osc_func: Optional[Callable[[str, str], None]] = None,
-        resize_func: "Optional[Callable[[Optional[int], Optional[int]], None]]" = None,
+        resize_func: Callable[[int | None, int | None], None] | None = None,
     ) -> None:
         bell_func = bell_func or (lambda: None)
         get_history_limit = get_history_limit or (lambda: 2000)
@@ -3761,8 +3761,8 @@ class BetterScreen:
 
     @staticmethod
     def _wanted(
-        params: Tuple[int, ...], index: int, whole: Optional[int]
-    ) -> Optional[int]:
+        params: Tuple[int, ...], index: int, whole: int | None
+    ) -> int | None:
         """
         One number of a resize: how many, all of them, or leave it.
 

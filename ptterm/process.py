@@ -54,7 +54,7 @@ class Process:
         done_callback: Optional[Callable[[], None]] = None,
         has_priority: Optional[Callable[[], bool]] = None,
         osc_func: Optional[Callable[[str, str], None]] = None,
-        resize_func: "Optional[Callable[[Optional[int], Optional[int]], None]]" = None,
+        resize_func: Callable[[int | None, int | None], None] | None = None,
     ) -> None:
         self.loop = get_event_loop()
         self.invalidate = invalidate
