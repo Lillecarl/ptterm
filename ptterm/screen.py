@@ -374,6 +374,18 @@ def protection_of(cell: Char) -> int:
     return getattr(cell, "protection", 0)
 
 
+def _four(params: Tuple[int, ...], first: int) -> Tuple[int, int, int, int]:
+    """
+    Four parameters, counting from `first`, with zero for a missing one.
+
+    A sender drops the parameters it leaves at the default, so a
+    command that names four corners can arrive with fewer. Zero is what
+    an empty parameter gives, so the two read the same way.
+    """
+    read = params[first : first + 4]
+    return tuple(read) + (0,) * (4 - len(read))  # type: ignore[return-value]
+
+
 # Cache for Char objects.
 _CHAR_CACHE: FastDictCache[Tuple[str, str], Char] = FastDictCache(
     TerminalChar, size=1000 * 1000
@@ -2403,6 +2415,90 @@ class BetterScreen:
                 row.pop(column, None)
             else:
                 row[column] = erased
+
+    def _rectangle(
+        self, top: int, left: int, bottom: int, right: int
+    ) -> Optional[Tuple[int, int, int, int]]:
+        """
+        Read the four corners that a rectangle command names.
+
+        The numbers count from one. Origin mode counts them from the
+        margins, so the corners move with the region and a missing
+        corner is a margin. A margin does not hold the rectangle in:
+        DECFRA, DECERA, DECSERA and DECCRA all reach the whole screen.
+
+        A corner past the screen stops at the edge. A rectangle that
+        ends before it starts is no rectangle, and the answer is None.
+        """
+        lines, columns = self.lines, self.columns
+        in_origin_mode = mo.DECOM in self.mode
+
+        vertical = self.margins
+        if in_origin_mode and vertical is not None:
+            first_row, last_row = vertical.top, vertical.bottom
+        else:
+            first_row, last_row = 0, lines - 1
+
+        horizontal = self.horizontal_margins
+        if in_origin_mode and horizontal is not None:
+            first_column, last_column = horizontal
+        else:
+            first_column, last_column = 0, columns - 1
+
+        top = first_row + (top or 1) - 1
+        left = first_column + (left or 1) - 1
+        bottom = first_row + bottom - 1 if bottom else last_row
+        right = first_column + right - 1 if right else last_column
+
+        # The order is read before the edge of the screen cuts the
+        # rectangle down. A rectangle that starts past the screen would
+        # otherwise fold onto the last row and fill it.
+        if bottom < top or right < left:
+            return None
+        if top >= lines or left >= columns:
+            return None
+
+        return top, left, min(bottom, lines - 1), min(right, columns - 1)
+
+    #: The characters that DECFRA writes. They are the two ranges of a
+    #: Latin-1 terminal, and xterm drops a code outside them.
+    FILL_RANGES = ((32, 126), (160, 255))
+
+    def fill_rectangle(self, *params: int, **kwargs) -> None:
+        """
+        DECFRA ("CSI Pch ; Pt ; Pl ; Pb ; Pr $ x"): fill a rectangle
+        with one character.
+
+        Pch is the code of the character. Each cell takes the rendition
+        that is set now, the way a drawn cell does, so a fill under
+        DECSCA carries the mark of DECSCA.
+
+        The cursor does not move.
+        """
+        code = params[0] if params else 0
+        if not any(low <= code <= high for low, high in self.FILL_RANGES):
+            return
+
+        corners = self._rectangle(*_four(params, 1))
+        if corners is None:
+            return
+        top, left, bottom, right = corners
+
+        protection = self.protection
+        if protection:
+            cell = _PROTECTED_CHAR_CACHE[(chr(code), self._style_str, protection)]
+            self._protected_chars = True
+        else:
+            cell = _CHAR_CACHE[(chr(code), self._style_str)]
+
+        data_buffer = self.data_buffer
+        line_offset = self.line_offset
+        for row in range(top, bottom + 1):
+            line = data_buffer[row + line_offset]
+            for column in range(left, right + 1):
+                line[column] = cell
+            self.repair_wide_char(line, left)
+            self.repair_wide_char(line, right + 1)
 
     def set_tab_stop(self) -> None:
         "Set a horizontal tab stop at cursor position."

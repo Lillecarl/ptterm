@@ -79,6 +79,10 @@ class BetterStream(Stream):
             # intermediate byte.)
             "'}": "insert_columns",
             "'~": "delete_columns",
+            # DECFRA ("CSI Pch ; Pt ; Pl ; Pb ; Pr $ x"): fill a
+            # rectangle with one character. ("$" is an intermediate
+            # byte.)
+            "$x": "fill_rectangle",
             # SU and SD: move the lines of the scrolling region, without
             # moving the cursor. pyte has neither.
             "S": "scroll_up",
