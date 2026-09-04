@@ -106,9 +106,44 @@ def test_set_replaces_top_of_stack():
 
 def test_query_reports_current_flags():
     screen, stream, responses = make_screen()
+    screen.keyboard_source_flags = 0b11111
     stream.feed("\x1b[>5u")
     stream.feed("\x1b[?u")
     assert responses == ["\x1b[?5u"]
+
+
+def test_query_drops_a_flag_that_the_keyboard_cannot_serve():
+    """
+    A pane asks the terminal what it does, and the answer has to hold.
+    The event type of a key and the other codes of a key need a
+    terminal that speaks the protocol, so a legacy keyboard gets
+    neither claimed for it.
+    """
+    screen, stream, responses = make_screen()
+    assert screen.keyboard_source_flags == 0
+    stream.feed("\x1b[>31u")
+    stream.feed("\x1b[?u")
+    # 31 without the event types (2) and the other codes (4).
+    assert responses == ["\x1b[?25u"]
+    assert screen.kitty_keyboard_flags == 31
+
+
+def test_query_keeps_a_flag_that_the_keyboard_serves():
+    screen, stream, responses = make_screen()
+    screen.keyboard_source_flags = 0b10
+    stream.feed("\x1b[>31u")
+    stream.feed("\x1b[?u")
+    # The event types stay; the other codes of a key still go.
+    assert responses == ["\x1b[?27u"]
+
+
+def test_the_keyboard_of_the_host_survives_a_reset():
+    "It says what the terminal of the user does, and a pane cannot."
+    screen, stream, responses = make_screen()
+    screen.keyboard_source_flags = 0b110
+    stream.feed("\x1bc")
+    assert screen.keyboard_source_flags == 0b110
+    assert screen.kitty_keyboard_flags == 0
 
 
 def test_reset_clears_stack():

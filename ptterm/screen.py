@@ -314,6 +314,12 @@ class BetterScreen:
         # "CSI < number u" pops. See `report_kitty_keyboard`.)
         self.kitty_flags_stack: Tuple[int, ...] = ()
 
+        # What the terminal that feeds this pane its keys can report,
+        # in the same flags. The host sets it; zero means a terminal
+        # that speaks the legacy encoding only. It belongs to the host
+        # and not to the screen, so a reset leaves it alone.
+        self.keyboard_source_flags: int = 0
+
         # The shapes of the pointer that "OSC 22" pushed. The last one
         # is the shape now. Each screen keeps its own, the way kitty
         # does.
@@ -360,6 +366,26 @@ class BetterScreen:
         the flag stack, or zero when the stack is empty.)
         """
         return self.kitty_flags_stack[-1] if self.kitty_flags_stack else 0
+
+    #: The kitty keyboard protocol flags that need a terminal that
+    #: speaks the protocol. The event type of a key needs a key
+    #: release, and the other codes of a key need the layout of the
+    #: user. The legacy encoding carries neither, and a guess is a
+    #: wrong answer. The other three flags are a form to write a key
+    #: in, so any terminal can serve them.
+    kitty_flags_that_need_a_source = 0b110
+
+    @property
+    def deliverable_kitty_keyboard_flags(self) -> int:
+        """
+        The flags that this pane really gets, of the ones it asked for.
+
+        A pane asks the terminal what it does, and the answer has to
+        hold. So the answer drops a flag that the terminal feeding the
+        keys cannot serve.
+        """
+        missing = self.kitty_flags_that_need_a_source & ~self.keyboard_source_flags
+        return self.kitty_keyboard_flags & ~missing
 
     @property
     def has_reverse_video(self) -> bool:
@@ -2300,9 +2326,11 @@ class BetterScreen:
         an unpatched ``pyte``, the sequences don't reach this method.
         """
         if private is True:
-            # Query: reply with the currently effective flags.
+            # Query: reply with the flags that this pane really gets.
+            # (Not the ones it asked for: see
+            # `deliverable_kitty_keyboard_flags`.)
             self.write_process_input(
-                "\x1b[?%iu" % self.kitty_keyboard_flags
+                "\x1b[?%iu" % self.deliverable_kitty_keyboard_flags
             )
 
         elif private == ">":

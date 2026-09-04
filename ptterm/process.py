@@ -132,11 +132,15 @@ class Process:
         Write raw key data, encoding it for this pane's keyboard mode.
         (The pane can request the kitty keyboard protocol; see
         `BetterScreen.kitty_keyboard_flags`.)
+
+        The flags of the encoding are the ones that this pane really
+        gets, not the ones it asked for. One value answers the query of
+        the pane and drives the encoding, so the answer holds.
         """
         self.write_input(
             translate_key_data(
                 data,
-                flags=self.screen.kitty_keyboard_flags,
+                flags=self.screen.deliverable_kitty_keyboard_flags,
                 application_mode=self.screen.in_application_mode,
             )
         )
