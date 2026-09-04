@@ -189,10 +189,19 @@ fn alacritty_screen(data: &str, lines: usize, columns: usize) -> Value {
             row.push(json!([
                 // The second half of a double width character holds no
                 // character of its own.
+                //
+                // Alacritty keeps a mark of no width beside the cell
+                // and not in it. Reading `c` alone drops every
+                // combining mark, and the judge then says a screen
+                // holds no mark when it holds one.
                 if cell.flags.contains(Flags::WIDE_CHAR_SPACER) {
                     " ".to_string()
                 } else {
-                    cell.c.to_string()
+                    let mut text = cell.c.to_string();
+                    if let Some(marks) = cell.zerowidth() {
+                        text.extend(marks.iter());
+                    }
+                    text
                 },
                 alacritty_color(cell.fg),
                 alacritty_color(cell.bg),
