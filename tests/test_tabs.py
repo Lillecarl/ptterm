@@ -37,3 +37,44 @@ def test_a_stop_that_a_program_sets():
 
 def test_a_stop_that_a_program_clears():
     assert not differences("\x1b[3g\x1b[1G\tx", lines=3, columns=12)
+
+
+# ----------------------------------------------------------------------
+# CHT and CBT ("CSI Ps I" and "CSI Ps Z") move over the stops without
+# drawing anything. pyte has neither, so ptterm dropped them both: the
+# vote called that a bug, because kitty and libvterm agree.
+
+
+def test_forward_over_one_stop():
+    assert not differences("\x1b[Ix", lines=3, columns=24)
+
+
+def test_forward_over_several_stops():
+    assert not differences("\x1b[2Ix", lines=3, columns=24)
+
+
+def test_forward_past_the_last_stop():
+    assert not differences("\x1b[9Ix", lines=3, columns=24)
+
+
+def test_back_over_one_stop():
+    assert not differences("\x1b[1;12Hab\x1b[Zx", lines=3, columns=24)
+
+
+def test_back_over_several_stops():
+    assert not differences("\x1b[1;20H\x1b[2Zx", lines=3, columns=24)
+
+
+def test_back_from_the_first_column():
+    "There is no stop before the first column, so the cursor stays."
+    assert not differences("\x1b[Zx", lines=3, columns=24)
+
+
+def test_a_count_of_zero_moves_over_one_stop():
+    assert not differences("\x1b[0Ix", lines=3, columns=24)
+    assert not differences("\x1b[1;20H\x1b[0Zx", lines=3, columns=24)
+
+
+def test_they_follow_the_stops_that_a_program_sets():
+    assert not differences("\x1b[3g\x1b[1;3H\x1bH\x1b[1;1H\x1b[Ix", lines=3, columns=24)
+    assert not differences("\x1b[3g\x1b[1;3H\x1bH\x1b[1;20H\x1b[Zx", lines=3, columns=24)

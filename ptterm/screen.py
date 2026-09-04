@@ -1066,6 +1066,32 @@ class BetterScreen:
 
         self.pt_cursor_position.x = column
 
+    def cursor_to_next_tab(self, count: Optional[int] = None) -> None:
+        """
+        CHT ("CSI Ps I"): move forward over `count` tab stops.
+
+        pyte has no handler for it. ncurses uses it to reach a column
+        without drawing the blanks in between.
+        """
+        for _ in range(count or 1):
+            self.tab()
+
+    def cursor_to_previous_tab(self, count: Optional[int] = None) -> None:
+        """
+        CBT ("CSI Ps Z"): move back over `count` tab stops.
+
+        The first column stops the cursor, the way the last column
+        stops a tab.
+        """
+        for _ in range(count or 1):
+            for stop in sorted(self.tabstops, reverse=True):
+                if stop < self.pt_cursor_position.x:
+                    column = stop
+                    break
+            else:
+                column = 0
+            self.pt_cursor_position.x = column
+
     def backspace(self) -> None:
         """Move cursor to the left one or keep it in it's position if
         it's at the beginning of the line already.

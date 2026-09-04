@@ -41,6 +41,10 @@ class BetterStream(Stream):
             # DECSCUSR ("CSI Ps SP q"): the shape of the cursor. It is
             # remembered, so that DECRQSS can report it back.
             " q": "set_cursor_style",
+            # CHT and CBT: move over tab stops, forward and back. pyte
+            # has neither.
+            "I": "cursor_to_next_tab",
+            "Z": "cursor_to_previous_tab",
             # SU and SD: move the lines of the scrolling region, without
             # moving the cursor. pyte has neither.
             "S": "scroll_up",
