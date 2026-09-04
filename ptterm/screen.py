@@ -54,6 +54,12 @@ TERMINAL_VERSION = "ptterm(0.2)"
 #: names it: a block that blinks.
 DEFAULT_CURSOR_STYLE = 1
 
+#: Private mode 12 (att610): does the cursor blink? DECSCUSR names the
+#: shape and the blinking in one number, and this mode names only the
+#: blinking, so both write `cursor_style`. The blinking shapes are the
+#: odd numbers, and the steady one of a pair is the number after it.
+CURSOR_BLINK = 12
+
 #: Private mode 2048: report a resize in the input of the program,
 #: instead of only through SIGWINCH.
 INBAND_RESIZE = 2048
@@ -683,6 +689,9 @@ class BetterScreen:
 
         self.mode.update(modes)
 
+        if (CURSOR_BLINK << 5) in modes:
+            self.set_cursor_blink(True)
+
         # The program asked to be told the size in band. Tell it now,
         # so that it need not ask separately. (kitty answers a repeated
         # set the same way.)
@@ -775,6 +784,9 @@ class BetterScreen:
             modes = [mode << 5 for mode in modes]
 
         self.mode.difference_update(modes)
+
+        if (CURSOR_BLINK << 5) in modes:
+            self.set_cursor_blink(False)
 
         # Lines below follow the logic in :meth:`set_mode`.
         if mo.DECCOLM in modes:
@@ -2190,6 +2202,7 @@ class BetterScreen:
         [
             1,  # DECCKM: application cursor keys.
             3,  # DECCOLM: 132 columns.
+            CURSOR_BLINK,  # att610: the cursor blinks.
             5,  # DECSCNM: reverse video.
             6,  # DECOM: origin mode.
             7,  # DECAWM: autowrap.
@@ -2222,7 +2235,14 @@ class BetterScreen:
 
         if is_private:
             known = number in self._known_private_modes
-            enabled = (number << 5) in self.mode
+            if number == CURSOR_BLINK:
+                # DECSCUSR writes this one as well, and the alternate
+                # screen carries a `mode` of its own. So the answer
+                # comes from the shape, which is the one value that
+                # both sequences write.
+                enabled = self.cursor_blinks
+            else:
+                enabled = (number << 5) in self.mode
         else:
             known = number in self._known_ansi_modes
             enabled = number in self.mode
@@ -2240,14 +2260,34 @@ class BetterScreen:
         """
         DECSCUSR ("CSI Ps SP q"): the shape of the cursor.
 
-        prompt_toolkit draws one cursor for the whole application, so
-        the shape does not reach the screen. It is remembered, because
-        a program that sets a shape also asks for it back, and it wants
-        to read what it wrote.
+        The shape belongs to the pane. What draws the pane reads
+        `cursor_style` and puts the shape on the terminal of the user,
+        so a pane that asks for a bar gets one. A program that sets a
+        shape also asks for it back, and it reads what it wrote.
         """
         style = params[0] if params else 0
         if 0 <= style <= 6:
             self.cursor_style = style or DEFAULT_CURSOR_STYLE
+
+    def set_cursor_blink(self, blinking: bool) -> None:
+        """
+        Turn the blinking of the cursor on or off, and keep its shape.
+
+        Mode 12 says only whether the cursor blinks. DECSCUSR says the
+        shape and the blinking together, so this writes the same value:
+        the blinking shape of a pair is the odd number, and the steady
+        one is the number after it.
+        """
+        style = self.cursor_style
+        if blinking and style % 2 == 0:
+            self.cursor_style = style - 1
+        elif not blinking and style % 2 == 1:
+            self.cursor_style = style + 1
+
+    @property
+    def cursor_blinks(self) -> bool:
+        "True when the cursor of this screen blinks."
+        return self.cursor_style % 2 == 1
 
     def report_setting(self, name: str) -> None:
         """
