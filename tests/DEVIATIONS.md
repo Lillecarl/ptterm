@@ -2,13 +2,22 @@
 
 `tests/kitty_oracle.py` feeds the same bytes to ptterm and to the
 emulator that kitty carries as a python extension, and compares the two
-screens cell by cell.
+screens cell by cell. `tests/vterm_oracle.py` does the same with
+libvterm, the emulator that Vim and Neovim carry.
+
+**Two emulators make a vote, and a vote says more than a comparison.**
+Where kitty and libvterm agree and ptterm differs, ptterm is wrong and
+nobody has to decide anything. Where the two disagree, the difference
+is a real choice. `three_way` answers "agree", "ptterm-wrong" or
+"split", and the hunt asserts that "ptterm-wrong" never happens.
 
 - `test_against_kitty.py` holds sequences by hand.
 - `test_corpus_against_kitty.py` replays what real programs wrote.
 - `fuzz_against_kitty.py` builds random programs with hypothesis. It is
   a tool for hunting, not a gate: `nix-build -A checks.fuzz` in the
   pymux repository runs it, and `PYMUX_FUZZ` says how many examples.
+- `test_against_vterm.py` compares against libvterm and holds the vote
+  on every difference that stands.
 - `test_known_deviations.py` holds every difference that stands, as a
   strict `xfail`. One that starts to pass means the difference is gone.
 
@@ -79,6 +88,10 @@ screens cell by cell.
 These five are in `test_known_deviations.py`. ptterm follows xterm in
 each; a program is written against xterm, not against kitty.
 
+**libvterm draws what ptterm draws in all five.** That was a reading of
+the documentation before; it is now a second implementation, and the
+vote calls each of these a split and not a bug.
+
 1. A tab in the last column moves to the next line in kitty.
 2. A backspace in the first column steps back to the end of the row
    above in kitty. xterm does that only with mode 45 set.
@@ -110,13 +123,16 @@ sees two cells either way, and `test_known_deviations` holds the case.
 ## Open, found by the hunt and not fixed
 
 - A terminal keeps one alternate screen and hands it back with what it
-  held. ptterm makes a new one on every switch. "?1049h" clears the
+  held. ptterm makes a new one on every switch. **The vote calls this a
+  bug**: kitty and libvterm both keep the content. "?1049h" clears the
   screen it takes, so the difference only shows with "?47" and "?1047",
   which do not. `test_known_deviations` holds it as a strict xfail, and
   the hunt leaves those two modes out.
 - An erased cell holds a space in ptterm and nothing in kitty, so a
   combining mark that lands on one hangs on the space here and goes
-  away there. The hunt leaves the marks out; `test_combining_marks`
+  away there. libvterm gives a third answer: it hangs the mark on the
+  character that the erase was meant to take away. Three emulators,
+  three answers, so there is nothing to follow. The hunt leaves the marks out; `test_combining_marks`
   covers them by hand.
 
 Run it again to find more. Each one needs a decision about whether to
