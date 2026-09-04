@@ -17,10 +17,14 @@ from typing import Dict, List, Optional, Tuple
 __all__ = [
     "DEFAULT_COLORS",
     "MAX_HYPERLINK_LENGTH",
+    "MAX_POINTER_SHAPES",
     "PALETTE",
+    "POINTER_SHAPES",
+    "POINTER_SHAPE_ALIASES",
     "format_color",
     "parse_hyperlink",
     "parse_kitty_color_query",
+    "pointer_shape_name",
 ]
 
 # The colours that a pane reports. pymux renders a dark background, so
@@ -138,3 +142,83 @@ def parse_hyperlink(param: str) -> Optional[str]:
     if any(character < " " or character == "\x7f" for character in target):
         return None
     return target
+
+
+#: The stack of pointer shapes that a terminal keeps. kitty asks for a
+#: minimum of sixteen, and uses sixteen itself.
+MAX_POINTER_SHAPES = 16
+
+#: The shapes that a terminal must know, named after the cursor
+#: property of CSS.
+POINTER_SHAPES = frozenset([
+    "alias", "cell", "copy", "crosshair", "default", "e-resize",
+    "ew-resize", "grab", "grabbing", "help", "move", "n-resize",
+    "ne-resize", "nesw-resize", "no-drop", "not-allowed", "ns-resize",
+    "nw-resize", "nwse-resize", "pointer", "progress", "s-resize",
+    "se-resize", "sw-resize", "text", "vertical-text", "w-resize", "wait",
+    "zoom-in", "zoom-out",
+])
+
+#: The names that xterm used, which kitty takes as well. A set takes
+#: them; kitty leaves "arrow" and "beam" out of the set that its own
+#: "OSC 22" reads, so those are not here either.
+POINTER_SHAPE_ALIASES = {
+    "bottom_left_corner": "sw-resize",
+    "bottom_right_corner": "se-resize",
+    "bottom_side": "s-resize",
+    "clock": "wait",
+    "closedhand": "grabbing",
+    "cross": "cell",
+    "crossed_circle": "not-allowed",
+    "dnd-copy": "copy",
+    "dnd-link": "alias",
+    "dnd-no-drop": "no-drop",
+    "dnd-none": "grabbing",
+    "fleur": "move",
+    "forbidden": "not-allowed",
+    "half-busy": "progress",
+    "hand": "pointer",
+    "hand1": "grab",
+    "hand2": "pointer",
+    "ibeam": "text",
+    "left_ptr": "default",
+    "left_ptr_watch": "progress",
+    "left_side": "w-resize",
+    "openhand": "grab",
+    "plus": "cell",
+    "pointer-move": "move",
+    "pointing_hand": "pointer",
+    "question_arrow": "help",
+    "right_side": "e-resize",
+    "sb_h_double_arrow": "ew-resize",
+    "sb_v_double_arrow": "ns-resize",
+    "size-bdiag": "nesw-resize",
+    "size-fdiag": "nwse-resize",
+    "size_bdiag": "nesw-resize",
+    "size_fdiag": "nwse-resize",
+    "split_h": "ew-resize",
+    "split_v": "ns-resize",
+    "tcross": "crosshair",
+    "top_left_corner": "nw-resize",
+    "top_right_corner": "ne-resize",
+    "top_side": "n-resize",
+    "watch": "wait",
+    "whats_this": "help",
+    "xterm": "text",
+    "zoom_in": "zoom-in",
+    "zoom_out": "zoom-out",
+}
+
+
+def pointer_shape_name(name: str) -> Optional[str]:
+    """
+    The shape that a name stands for, or `None` for a name that no
+    terminal knows.
+
+    An empty name is the shape of nobody: it takes the shape away.
+    """
+    if not name:
+        return ""
+    if name in POINTER_SHAPES:
+        return name
+    return POINTER_SHAPE_ALIASES.get(name)

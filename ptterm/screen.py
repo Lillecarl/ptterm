@@ -27,10 +27,12 @@ from .graphics import (
 )
 from .osc import (
     DEFAULT_COLORS,
+    MAX_POINTER_SHAPES,
     PALETTE,
     format_color,
     parse_hyperlink,
     parse_kitty_color_query,
+    pointer_shape_name,
 )
 from .placeholders import PlaceholderRun, merge_runs, runs_in_line
 from .sixel import decode_sixel
@@ -174,6 +176,7 @@ class BetterScreen:
         "g0_charset",
         "g1_charset",
         "tabstops",
+        "pointer_shapes",
         "data_buffer",
         "pt_cursor_position",
         "max_y",
@@ -212,6 +215,11 @@ class BetterScreen:
         # Stack of kitty keyboard protocol flags. ("CSI > flags u" pushes,
         # "CSI < number u" pops. See `report_kitty_keyboard`.)
         self.kitty_flags_stack: Tuple[int, ...] = ()
+
+        # The shapes of the pointer that "OSC 22" pushed. The last one
+        # is the shape now. Each screen keeps its own, the way kitty
+        # does.
+        self.pointer_shapes: List[str] = []
 
         # Kitty graphics protocol state: transmitted images and their
         # placements. (Reset and alternate screen switching replace the
@@ -365,6 +373,10 @@ class BetterScreen:
         self._hyperlink_str = ""
 
         self.margins = None
+
+        # A list of its own, because the stack is changed in place and
+        # the screen this one replaces still holds the old list.
+        self.pointer_shapes = []
 
         self.max_y = 0  # Max 'y' position to which is written.
 
@@ -2083,6 +2095,9 @@ class BetterScreen:
             target = parse_hyperlink(param)
             if target is not None:
                 self.set_hyperlink(target)
+        elif code == "22":
+            if self._set_pointer_shape(param):
+                self._forward_osc(code, param)
         elif code == "4":
             self._report_palette_colors(param)
         elif code in self._osc_colors:
@@ -2091,6 +2106,87 @@ class BetterScreen:
             self._report_kitty_colors(param)
         elif code in FORWARDED_OSC:
             self._forward_osc(code, param)
+
+    @property
+    def pointer_shape(self) -> str:
+        """
+        The shape of the pointer over this screen.
+
+        An empty string means that the program asked for no shape, and
+        that whoever draws the pointer picks one.
+        """
+        return self.pointer_shapes[-1] if self.pointer_shapes else ""
+
+    def _set_pointer_shape(self, param: str) -> bool:
+        """
+        "OSC 22": the shape of the pointer over the pane.
+
+        A terminal keeps a stack of shapes. A bare name or "=name"
+        replaces the shape now, ">a,b" pushes, "<" pops one, and an
+        empty payload takes the shape away. "?names" asks a question,
+        which the screen answers itself: a pane has no pointer of its
+        own, but a program that asks needs an answer.
+
+        Returns True when the embedder has to look again.
+        """
+        operation = "="
+        if param and param[0] in "><=?":
+            operation, param = param[0], param[1:]
+
+        if operation == "?":
+            self._report_pointer_shapes(param)
+            return False
+
+        if operation == "<":
+            if self.pointer_shapes:
+                self.pointer_shapes.pop()
+                return True
+            return False
+
+        changed = False
+        for name in param.split(","):
+            if not name and operation != "=":
+                continue  # A push of nothing pushes nothing.
+            shape = pointer_shape_name(name)
+            if shape is None:
+                continue  # Not a shape that a terminal knows.
+            if operation == "=":
+                if self.pointer_shapes:
+                    self.pointer_shapes[-1] = shape
+                else:
+                    self.pointer_shapes.append(shape)
+            else:
+                if len(self.pointer_shapes) >= MAX_POINTER_SHAPES:
+                    del self.pointer_shapes[0]  # The oldest goes.
+                self.pointer_shapes.append(shape)
+            changed = True
+        return changed
+
+    def _report_pointer_shapes(self, param: str) -> None:
+        """
+        Answer "OSC 22 ; ? names".
+
+        A name that the screen takes answers one, a name that nobody
+        knows answers zero, and "__current__" answers the shape now, or
+        zero when there is none. A pane has no pointer of its own, so
+        the default and the grabbed shape are both the plain default.
+
+        kitty answers for the table of CSS names, and takes a few more
+        names than it calls valid. This answers for the names it really
+        takes, which is what a program asking the question wants to
+        know.
+        """
+        answers = []
+        for query in param.split(","):
+            if query and pointer_shape_name(query) is not None:
+                answers.append("1")
+            elif query == "__current__":
+                answers.append(self.pointer_shape or "0")
+            elif query in ("__default__", "__grabbed__"):
+                answers.append("default")
+            else:
+                answers.append("0")
+        self.write_process_input("\x1b]22;%s\x1b\\" % ",".join(answers))
 
     def _forward_osc(self, code: str, param: str) -> None:
         """
