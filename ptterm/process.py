@@ -36,6 +36,10 @@ class Process:
     :param osc_func: Called with the code and the payload of an OSC
         sequence that only the terminal of the user can serve. (The
         clipboard, a notification, the shape of the pointer.)
+    :param resize_func: Called with the lines and the columns that the
+        program asks for, when it sends DECSLPP or a window resize.
+        Either one is None when the program leaves that side alone. A
+        pane cannot resize itself, so the embedder decides.
     :param done_callback: Called when the process terminates.
     :param has_priority: Callable that returns True when this Process should
         get priority in the event loop. (When this pane has the focus.)
@@ -50,6 +54,7 @@ class Process:
         done_callback: Optional[Callable[[], None]] = None,
         has_priority: Optional[Callable[[], bool]] = None,
         osc_func: Optional[Callable[[str, str], None]] = None,
+        resize_func: "Optional[Callable[[Optional[int], Optional[int]], None]]" = None,
     ) -> None:
         self.loop = get_event_loop()
         self.invalidate = invalidate
@@ -76,6 +81,7 @@ class Process:
             write_process_input=self.write_input,
             bell_func=bell_func,
             osc_func=osc_func,
+            resize_func=resize_func,
         )
 
         self.stream = BetterStream(self.screen)

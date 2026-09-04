@@ -319,6 +319,17 @@ class WindowOp(IntEnum):
     PUSH_TITLE = 22
     POP_TITLE = 23
 
+    #: "CSI 4 ; Ph ; Pw t": as many cells as fit the given pixels.
+    RESIZE_PIXELS = 4
+
+    #: "CSI 8 ; Ph ; Pw t": that many rows and columns.
+    RESIZE_CHARS = 8
+
+
+#: "CSI Ps t" with a Ps of this or more is DECSLPP, and asks for a page
+#: of Ps lines. Below it, Ps names one of the `WindowOp` operations.
+FIRST_PAGE_LENGTH = 24
+
 
 class TitlePart(IntEnum):
     "Which title a push or a pop of \"CSI 22 t\" and \"CSI 23 t\" names."
@@ -649,10 +660,15 @@ class BetterScreen:
         bell_func: Optional[Callable[[], None]] = None,
         get_history_limit: Optional[Callable[[], int]] = None,
         osc_func: Optional[Callable[[str, str], None]] = None,
+        resize_func: "Optional[Callable[[Optional[int], Optional[int]], None]]" = None,
     ) -> None:
         bell_func = bell_func or (lambda: None)
         get_history_limit = get_history_limit or (lambda: 2000)
         osc_func = osc_func or (lambda code, param: None)
+        # A pane cannot resize itself: it sits in a layout that somebody
+        # else owns. So the ask goes out, and the embedder decides. With
+        # no embedder the ask goes nowhere, which is the old answer.
+        resize_func = resize_func or (lambda lines, columns: None)
 
         self._history_cleanup_counter = 0
 
@@ -663,6 +679,7 @@ class BetterScreen:
         self.bell_func = bell_func
         self.get_history_limit = get_history_limit
         self.osc_func = osc_func
+        self.resize_func = resize_func
 
         # Stack of kitty keyboard protocol flags. ("CSI > flags u" pushes,
         # "CSI < number u" pops. See `report_kitty_keyboard`.)
@@ -3665,8 +3682,14 @@ class BetterScreen:
         Window manipulation ("CSI Ps t").
 
         The sizes and the titles are answered. A pane has no window of
-        its own, so it cannot move, iconify, maximize or resize one,
-        and it ignores every operation that asks for that.
+        its own, so it cannot move, iconify or maximize one, and it
+        ignores every operation that asks for that.
+
+        Three of them ask for a size: DECSLPP ("CSI Ps t" with a Ps of
+        24 or more), and the two forms of a resize, in cells and in
+        pixels. Those go to `resize_func`, and the embedder decides.
+        pymux asks the person first, because a pane sits in a layout
+        and making one taller makes another shorter.
 
         A pane that draws images asks for the cell size (16) to work out
         how many cells an image covers. The answer is the size that
@@ -3675,7 +3698,14 @@ class BetterScreen:
         what = params[0] if params else 0
         which = params[1] if len(params) > 1 else 0
 
-        if what == WindowOp.REPORT_ICON_LABEL:
+        if what >= FIRST_PAGE_LENGTH:
+            # DECSLPP: a page of `what` lines, and the columns stay.
+            self.resize_func(what, None)
+        elif what == WindowOp.RESIZE_CHARS:
+            self._resize_in_cells(params)
+        elif what == WindowOp.RESIZE_PIXELS:
+            self._resize_in_pixels(params)
+        elif what == WindowOp.REPORT_ICON_LABEL:
             self.write_process_input("\x1b]L%s\x1b\\" % self.icon_name)
         elif what == WindowOp.REPORT_WINDOW_TITLE:
             self.write_process_input("\x1b]l%s\x1b\\" % self.title)
@@ -3697,6 +3727,58 @@ class BetterScreen:
                 "\x1b[4;%i;%it"
                 % (self.lines * ASSUMED_CELL_HEIGHT, self.columns * ASSUMED_CELL_WIDTH)
             )
+
+    def _resize_in_cells(self, params: Tuple[int, ...]) -> None:
+        """
+        "CSI 8 ; Ph ; Pw t": ask for Ph rows and Pw columns.
+
+        A zero means "as much as there is", and a missing number means
+        "leave this one alone". xterm reads them that way, and a
+        program sends "CSI 8 ; 0 ; 80 t" to keep its height.
+        """
+        self.resize_func(
+            self._wanted(params, 1, self.MAX_LINES),
+            self._wanted(params, 2, self.MAX_COLUMNS),
+        )
+
+    def _resize_in_pixels(self, params: Tuple[int, ...]) -> None:
+        """
+        "CSI 4 ; Ph ; Pw t": as many cells as fit in Ph by Pw pixels.
+
+        A pane holds no pixels, so it counts them in the cell size that
+        `ptterm.graphics` assumes. That is the same size the pane
+        reports for a cell, so a program that divides gets back what it
+        asked for.
+        """
+        lines = self._wanted(params, 1, None)
+        columns = self._wanted(params, 2, None)
+        self.resize_func(
+            self.MAX_LINES if lines == 0 else
+            None if lines is None else max(1, lines // ASSUMED_CELL_HEIGHT),
+            self.MAX_COLUMNS if columns == 0 else
+            None if columns is None else max(1, columns // ASSUMED_CELL_WIDTH),
+        )
+
+    @staticmethod
+    def _wanted(
+        params: Tuple[int, ...], index: int, whole: Optional[int]
+    ) -> Optional[int]:
+        """
+        One number of a resize: how many, all of them, or leave it.
+
+        A missing number leaves that side as it is, and None says so. A
+        zero asks for the whole screen, and `whole` is what that means.
+        """
+        if len(params) <= index:
+            return None
+        value = params[index]
+        return whole if value == 0 else value
+
+    #: What "as much as there is" means. Nothing here knows how big the
+    #: screen of the person is, so the embedder cuts these down to what
+    #: it really has.
+    MAX_LINES = 10000
+    MAX_COLUMNS = 10000
 
     #: How many titles "CSI 22 t" remembers. xterm keeps ten, and a
     #: program that pushes and never pops must not grow the pane.
