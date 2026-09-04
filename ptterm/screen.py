@@ -1650,6 +1650,48 @@ class BetterScreen:
         else:
             _256_colors[1024 + i] = f"#{r:02x}{g:02x}{b:02x}"
 
+    @staticmethod
+    def _color_parameters(parameters: List[int]) -> int:
+        """
+        How many parameters a colour of "38", "48" or "58" takes.
+
+        Two parameters name a colour of the palette and five name one
+        of its own. The count is one more, for the "38" itself.
+        """
+        if len(parameters) < 2:
+            return 3
+        if parameters[1] == 5:
+            return 3
+        if parameters[1] == 2:
+            return 5
+        return len(parameters)
+
+    def _color_of_parameters(self, parameters: List[int]) -> Optional[str]:
+        """
+        The colour that "38", "48" or "58" names.
+
+        The parameters arrive with semicolons between them or with
+        colons; both forms end up here. The form with colons may name
+        the colour space first, which nobody uses, so an extra number
+        goes away.
+        """
+        if len(parameters) < 3:
+            return None
+        kind = parameters[1]
+        values = parameters[2:]
+
+        if kind == 5:
+            return self._256_colors.get(1024 + values[0])
+
+        if kind == 2:
+            if len(values) > 3:
+                values = values[1:]
+            if len(values) < 3:
+                return None
+            return "#{:02x}{:02x}{:02x}".format(*values[:3])
+
+        return None
+
     def select_graphic_rendition(self, *attrs_tuple: int, private: bool = False) -> None:
         """Support 256 colours"""
         replace: Dict[str, object] = {}
@@ -1661,6 +1703,15 @@ class BetterScreen:
 
         while attrs:
             attr = attrs.pop()
+
+            # A parameter with colons in it arrives as a tuple, and
+            # holds everything the colour needs.
+            if isinstance(attr, tuple):
+                if attr[0] in (38, 48):
+                    color = self._color_of_parameters(list(attr))
+                    if color is not None:
+                        replace["color" if attr[0] == 38 else "bgcolor"] = color
+                continue
 
             if attr in self._fg_colors:
                 replace["color"] = self._fg_colors[attr]
@@ -1709,32 +1760,13 @@ class BetterScreen:
                 )
 
             elif attr in (38, 48):
-                n = attrs.pop()
-
-                # 256 colors.
-                if n == 5:
-                    if attr == 38:
-                        m = attrs.pop()
-                        replace["color"] = self._256_colors.get(1024 + m)
-                    elif attr == 48:
-                        m = attrs.pop()
-                        replace["bgcolor"] = self._256_colors.get(1024 + m)
-
-                # True colors.
-                if n == 2:
-                    try:
-                        color_str = "#{:02x}{:02x}{:02x}".format(
-                            attrs.pop(),
-                            attrs.pop(),
-                            attrs.pop(),
-                        )
-                    except IndexError:
-                        pass
-                    else:
-                        if attr == 38:
-                            replace["color"] = color_str
-                        elif attr == 48:
-                            replace["bgcolor"] = color_str
+                # The colour follows in the parameters that come next.
+                parameters = [attr]
+                while attrs and len(parameters) < self._color_parameters(parameters):
+                    parameters.append(attrs.pop())
+                color = self._color_of_parameters(parameters)
+                if color is not None:
+                    replace["color" if attr == 38 else "bgcolor"] = color
 
         attrs_obj = self._attrs._replace(**replace)  # type:ignore
 
