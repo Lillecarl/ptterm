@@ -27,4 +27,7 @@ setup(
     long_description=long_description,
     packages=find_packages("."),
     install_requires=requirements,
+    # pyte needs 3.10, so ptterm has needed 3.10 for a while. Nothing
+    # said so.
+    python_requires=">=3.10",
 )
