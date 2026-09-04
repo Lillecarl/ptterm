@@ -202,3 +202,62 @@ def test_one_judge_stands_apart(name, data):
     against, with_us = sides(data, lines=8, columns=24, blank_style=False)
     assert against == [name]
     assert len(with_us) == len(WANTED) - 1
+
+
+# ----------------------------------------------------------------------
+# Left and right margins. Three of the six carry them, and the tally
+# below says which. A judge without the feature drops DECSLRM and
+# draws the whole width, so it differs from ptterm on every one of
+# these. That is a missing feature and not a decision, so ptterm keeps
+# what xterm does. `DEVIATIONS.md` carries the reasoning.
+
+#: The judges that carry DECSLRM, and the ones that do not.
+WITH_MARGINS = ["ghostty", "libvterm", "wezterm"]
+WITHOUT_MARGINS = ["alacritty", "kitty", "xterm"]
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        # SU and SD carry the columns of the region.
+        "a\r\nb\r\nc\r\nd\x1b[?69h\x1b[2;4s\x1b[2S",
+        "a\r\nb\r\nc\r\nd\x1b[?69h\x1b[2;4s\x1b[2T",
+        # IL and DL do the same, from inside the region.
+        "abcd\r\nefgh\r\nijkl\x1b[?69h\x1b[2;4s\x1b[2;3H\x1b[L",
+        "abcd\r\nefgh\r\nijkl\x1b[?69h\x1b[2;4s\x1b[2;3H\x1b[M",
+        # ICH and DCH stop at the right margin.
+        "abcdefg\x1b[?69h\x1b[2;5s\x1b[1;3H\x1b[@",
+        "abcdefg\x1b[?69h\x1b[2;5s\x1b[1;3H\x1b[P",
+        # A line feed at the bottom margin scrolls the region only.
+        "a\r\nb\r\nc\r\nd\x1b[?69h\x1b[2;4s\x1b[2;4r\x1b[4;3H\n",
+    ],
+)
+def test_the_judges_that_carry_margins_agree(data):
+    against, with_us = sides(data)
+    assert against == WITHOUT_MARGINS
+    assert with_us == WITH_MARGINS
+
+
+def test_a_soft_reset_takes_the_margins_away_for_everybody():
+    "DECSTR is the one piece of this that all six carry."
+    assert verdict("\x1b[?69h\x1b[3;7s\x1b[!p\x1b[1;5Hab", 8, 24) == "agree"
+
+
+@pytest.mark.parametrize(
+    "data, against",
+    [
+        # DECIC and DECDC insert and delete columns. Only libvterm and
+        # xterm.js carry them.
+        ("abcdefg\r\nABCDEFG\x1b[1;2H\x1b['}", ["alacritty", "ghostty", "kitty",
+                                               "wezterm"]),
+        ("abcdefg\r\nABCDEFG\x1b[1;2H\x1b['~", ["alacritty", "ghostty", "kitty",
+                                               "wezterm"]),
+        # DECBI and DECFI move the region when the cursor stands on a
+        # margin. No judge carries them, and xterm does.
+        ("x\x1b[1;1H\x1b6", sorted(WANTED)),
+        ("\x1b[1;24Hx\x1b[1;24H\x1b9", sorted(WANTED)),
+    ],
+)
+def test_the_columns_of_a_region_stand_apart(data, against):
+    found, _with_us = sides(data, lines=4, columns=24)
+    assert found == against

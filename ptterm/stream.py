@@ -20,6 +20,11 @@ class BetterStream(Stream):
             # margin if we receive this, unlike \n, which goes one row down.
             # (Except when LNM has been set.)
             NEL: "next_line",
+            # DECBI ("ESC 6") and DECFI ("ESC 9"): move the cursor one
+            # column, and move the scrolling region when the cursor
+            # stands on a margin. pyte has neither.
+            "6": "back_index",
+            "9": "forward_index",
         }
     )
 
@@ -61,6 +66,11 @@ class BetterStream(Stream):
             # region. It answers only while private mode 69 is set;
             # the same final byte names SCOSC otherwise.
             "s": "set_left_right_margins",
+            # DECIC ("CSI Pn ' }") and DECDC ("CSI Pn ' ~"): insert and
+            # delete columns of the scrolling region. ("'" is an
+            # intermediate byte.)
+            "'}": "insert_columns",
+            "'~": "delete_columns",
             # SU and SD: move the lines of the scrolling region, without
             # moving the cursor. pyte has neither.
             "S": "scroll_up",

@@ -1925,6 +1925,129 @@ class BetterScreen:
         self.repair_wide_char(row, cursor_position.x)
         self.repair_wide_char(row, end)
 
+    def _move_columns(
+        self, top: int, bottom: int, left: int, right: int, amount: int
+    ) -> None:
+        """
+        Move the cells between `left` and `right` by `amount` columns.
+
+        Every row from `top` to `bottom` moves, so this carries a
+        rectangle. A positive amount moves the cells right, which is
+        what DECIC asks for. The cells that come in are empty, and the
+        ones that go past a margin are dropped.
+        """
+        steps = min(abs(amount), right - left + 1)
+        if steps == 0:
+            return
+
+        if amount > 0:
+            columns = range(right, left - 1, -1)
+            source = -steps
+        else:
+            columns = range(left, right + 1)
+            source = steps
+
+        line_offset = self.line_offset
+        data_buffer = self.data_buffer
+        style = self.erase_style()
+        blank = ErasedChar(" ", style) if style else None
+
+        for row in range(top, bottom + 1):
+            line = data_buffer[row + line_offset]
+            for column in columns:
+                origin = column + source
+                cell = line.get(origin) if left <= origin <= right else None
+                if cell is not None:
+                    line[column] = cell
+                elif blank is None:
+                    line.pop(column, None)
+                else:
+                    line[column] = blank
+
+            # Both edges are where a double width character can lose
+            # half of itself.
+            self.repair_wide_char(line, left)
+            self.repair_wide_char(line, right + 1)
+
+    def _region_holds_the_cursor(self) -> bool:
+        "True when the cursor stands inside the scrolling region."
+        top, bottom = self.margins or Margins(0, self.lines - 1)
+        row = self.pt_cursor_position.y - self.line_offset
+        if not top <= row <= bottom:
+            return False
+        return self._cursor_is_between_the_left_and_right_margins()
+
+    def insert_columns(self, count: Optional[int] = None) -> None:
+        """
+        DECIC ("CSI Pn ' }"): insert columns at the cursor.
+
+        Every row of the scrolling region moves, and not the row of the
+        cursor alone. The cells that go past the right margin are lost.
+        From outside the region DECIC does nothing.
+        """
+        if not self._region_holds_the_cursor():
+            return
+
+        top, bottom = self.margins or Margins(0, self.lines - 1)
+        _left, right = self.left_right
+        self._move_columns(
+            top, bottom, self.pt_cursor_position.x, right, count or 1
+        )
+
+    def delete_columns(self, count: Optional[int] = None) -> None:
+        """
+        DECDC ("CSI Pn ' ~"): delete columns at the cursor.
+
+        Every row of the scrolling region moves, the way DECIC moves
+        them. From outside the region DECDC does nothing.
+        """
+        if not self._region_holds_the_cursor():
+            return
+
+        top, bottom = self.margins or Margins(0, self.lines - 1)
+        _left, right = self.left_right
+        self._move_columns(
+            top, bottom, self.pt_cursor_position.x, right, -(count or 1)
+        )
+
+    def forward_index(self) -> None:
+        """
+        DECFI ("ESC 9"): move the cursor one column to the right.
+
+        At the right margin the cursor stays, and the region moves one
+        column to the left instead. Right of the margin the cursor
+        moves on its own until the edge of the screen stops it.
+
+        A cursor that waits to wrap past the last column stands on the
+        last column, so it moves the region as well.
+        """
+        cursor_position = self.pt_cursor_position
+        _left, right = self.left_right
+        column = min(cursor_position.x, self.columns - 1)
+
+        if column == right:
+            top, bottom = self.margins or Margins(0, self.lines - 1)
+            self._move_columns(top, bottom, *self.left_right, -1)
+        elif column < self.columns - 1:
+            cursor_position.x = column + 1
+
+    def back_index(self) -> None:
+        """
+        DECBI ("ESC 6"): move the cursor one column to the left.
+
+        At the left margin the cursor stays, and the region moves one
+        column to the right instead. Left of the margin the cursor
+        moves on its own until the first column stops it.
+        """
+        cursor_position = self.pt_cursor_position
+        left, _right = self.left_right
+
+        if cursor_position.x == left:
+            top, bottom = self.margins or Margins(0, self.lines - 1)
+            self._move_columns(top, bottom, *self.left_right, 1)
+        elif cursor_position.x > 0:
+            cursor_position.x -= 1
+
     def erase_in_line(self, type_of: int = 0, private: bool = False) -> None:
         """Erases a line in a specific way.
 

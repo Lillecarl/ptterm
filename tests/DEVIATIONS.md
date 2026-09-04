@@ -307,6 +307,49 @@ that stands. Nobody has ruled on it.
 ncurses uses CHT to reach a column without drawing the blanks in
 between, so a program does depend on this.
 
+### 10. Left and right margins
+
+`a\r\nb\r\nc\r\nd\x1b[?69h\x1b[2;4s\x1b[2S` on 8 lines and 24 columns,
+and six more programs in `test_the_judges_that_carry_margins_agree`.
+
+DECSLRM ("CSI Pl ; Pr s") names a left and a right margin, and private
+mode 69 (DECLRMM) says whether it may. Ghostty, libvterm and WezTerm
+carry them. Alacritty, kitty and xterm.js drop DECSLRM and draw the
+whole width, so they differ from ptterm on every program that sets a
+margin.
+
+**This is a missing feature and not a decision.** The three that carry
+margins draw what ptterm draws, cell for cell, on scrolling, on
+inserting and deleting lines and characters, and on a line feed at the
+bottom margin. xterm carries them as well, and esctest2 tests them
+heavily: 73 of its tests set a margin.
+
+**As a setting:** no. A program asks for the margins, and a program
+that does not ask never sees them.
+
+### 11. DECIC, DECDC, DECBI and DECFI
+
+`abcdefg\r\nABCDEFG\x1b[1;2H\x1b['}` and `x\x1b[1;1H\x1b6` on 4 lines
+and 24 columns.
+
+DECIC ("CSI Pn ' }") and DECDC ("CSI Pn ' ~") insert and delete columns
+of the scrolling region. DECBI ("ESC 6") and DECFI ("ESC 9") move the
+cursor one column, and move the region when the cursor stands on a
+margin.
+
+Only libvterm and xterm.js carry DECIC and DECDC. **No judge carries
+DECBI or DECFI.** xterm carries all four, and esctest2 holds twenty
+tests for them, which ptterm passes.
+
+**This is the widest gap between ptterm and the panel.** ptterm stands
+alone on DECBI and DECFI, six to nothing. It stands there because the
+side it is on is xterm and DEC STD 070, and because every judge that
+differs differs by doing nothing at all. A program that sends "ESC 6"
+means the column move, and a terminal that drops it draws the wrong
+screen quietly.
+
+**As a setting:** no, for the same reason as the margins.
+
 ## Where kitty looks wrong
 
 kitty puts the second character after a wrap into the cell of the
