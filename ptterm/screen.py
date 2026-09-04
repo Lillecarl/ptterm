@@ -1900,7 +1900,19 @@ class BetterScreen:
         return None
 
     def select_graphic_rendition(self, *attrs_tuple: int, private: bool = False) -> None:
-        """Support 256 colours"""
+        """
+        SGR ("CSI Ps m"): the style of the cells that come next.
+
+        A private marker makes another sequence, and none of them is
+        SGR. "CSI > Ps m" is XTMODKEYS, which says how xterm encodes a
+        key with a modifier; a program sends "CSI > 4 m" to put
+        modifyOtherKeys back to where it started. Reading that as SGR
+        turns the underline on, and everything the program draws after
+        it carries a line it never asked for.
+        """
+        if private:
+            return
+
         replace: Dict[str, object] = {}
 
         if not attrs_tuple:

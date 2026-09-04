@@ -103,3 +103,20 @@ def test_the_screen_reports_the_shape_and_the_colour():
 
 def test_a_shape_that_nobody_knows_is_left_alone():
     assert styles("\x1b[4:9mA", 1) == [""]
+
+
+def test_a_private_marker_makes_another_sequence():
+    """
+    "CSI > 4 m" is XTMODKEYS, not SGR 4.
+
+    A program sends it to put modifyOtherKeys back where it started.
+    Claude Code sends it on startup. Read as SGR it turns the underline
+    on, and every character the program draws after it carries a line
+    that nobody asked for.
+    """
+    assert styles("\x1b[>4m> hello", 3) == ["", "", ""]
+    # The same for the other markers, and for a plain SGR after one of
+    # them: the marker belongs to that one sequence alone.
+    assert styles("\x1b[?4mA", 1) == [""]
+    assert styles("\x1b[<4mA", 1) == [""]
+    assert styles("\x1b[>4m\x1b[4mA", 1) == ["underline "]
