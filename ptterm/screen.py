@@ -91,6 +91,70 @@ FORWARDED_OSC = frozenset([
 TERMINAL_VERSION = "ptterm(0.2)"
 
 
+class DeviceExtension(IntEnum):
+    """
+    An extension that DA ("CSI c") names, by the number it carries.
+
+    Nothing goes in `DEVICE_EXTENSIONS` that a pane does not really do.
+    A program reads this to decide what it may send, and a claim that
+    is not served leaves it drawing what the pane cannot draw.
+    """
+
+    #: DECCOLM, and the 132 column page it asks for.
+    COLUMNS_132 = 1
+    #: A printer port. There is no printer.
+    PRINTER = 2
+    #: Sixel graphics.
+    SIXEL = 4
+    #: DECSED, DECSEL and DECSERA: an erase that reads the marks.
+    SELECTIVE_ERASE = 6
+    #: The national replacement character sets.
+    NATIONAL_CHARSETS = 9
+    #: The technical character set.
+    TECHNICAL_CHARACTERS = 15
+    #: A locator, which ReGIS reads. There is none.
+    LOCATOR_PORT = 16
+    #: DECRQSS, DECRQM and the device status reports.
+    TERMINAL_STATE_REPORTS = 17
+    #: User windows. A pane is not a window and cannot make one.
+    USER_WINDOWS = 18
+    #: Left and right margins, which a horizontal scroll moves.
+    HORIZONTAL_SCROLLING = 21
+    #: Colour.
+    COLOR = 22
+    #: DECFRA, DECERA, DECSERA and DECCRA.
+    RECTANGULAR_EDITING = 28
+    #: The text locator of ANSI. There is none.
+    ANSI_TEXT_LOCATOR = 29
+
+
+#: What DA answers after the conformance level: the extensions that a
+#: pane really has. The four that xterm names and this leaves out are
+#: PRINTER, LOCATOR_PORT, USER_WINDOWS and ANSI_TEXT_LOCATOR, and a
+#: pane has none of them. `DEVIATIONS.md` says what that costs.
+DEVICE_EXTENSIONS = (
+    DeviceExtension.COLUMNS_132,
+    DeviceExtension.SIXEL,
+    DeviceExtension.SELECTIVE_ERASE,
+    DeviceExtension.NATIONAL_CHARSETS,
+    DeviceExtension.TECHNICAL_CHARACTERS,
+    DeviceExtension.TERMINAL_STATE_REPORTS,
+    DeviceExtension.HORIZONTAL_SCROLLING,
+    DeviceExtension.COLOR,
+    DeviceExtension.RECTANGULAR_EDITING,
+)
+
+#: The terminal that DA2 names. 64 is the VT520 family, which is the
+#: level that DA answers with.
+XTERM_TYPE = 64
+
+#: The firmware that DA2 names. A program reads it as the patch level
+#: of xterm, and decides from it what it may send. 383 is the release
+#: that split reverse wraparound into "?45" and "?1045"; ptterm follows
+#: the split, and `drive_with_esctest.py` tells the suite the same
+#: number.
+XTERM_PATCH_LEVEL = 383
+
 class CursorShape(IntEnum):
     """
     The shape of the cursor, as DECSCUSR ("CSI Ps SP q") names it.
@@ -4196,9 +4260,36 @@ class BetterScreen:
             else:
                 self.reset_mode(number, private=True)
 
-    def report_device_attributes(self, *args, **kwargs) -> None:
-        response = "\x1b[>84;0;0c"
-        self.write_process_input(response)
+    def report_device_attributes(self, *params: int, **kwargs) -> None:
+        """
+        Answer DA ("CSI c") and DA2 ("CSI > c").
+
+        The two are different questions and they take different
+        answers. DA asks what the terminal can do, and answers with a
+        level and the list of extensions. DA2 asks what the terminal
+        is, and answers with a type, a firmware version and a keyboard.
+
+        A program reads the prefix to tell one answer from the other,
+        so the two may not be confused. ptterm answered the DA2 shape
+        to both, and a program asking DA read it as a DA2 reply.
+        """
+        private = kwargs.get("private")
+        if private == ">":
+            # The type, the firmware and the keyboard. The firmware is
+            # the patch level of xterm that a pane follows, which is
+            # how a program reads it: the number says which behaviours
+            # it may count on.
+            self.write_process_input(
+                "\x1b[>%i;%i;0c" % (XTERM_TYPE, XTERM_PATCH_LEVEL)
+            )
+        elif not private and not (params and params[0]):
+            self.write_process_input(
+                "\x1b[?%s;%sc"
+                % (
+                    self.conformance_level,
+                    ";".join(str(one) for one in DEVICE_EXTENSIONS),
+                )
+            )
 
     # The kitty keyboard protocol spec says terminals should limit the size
     # of the flag stack to prevent denial-of-service. When the stack is
