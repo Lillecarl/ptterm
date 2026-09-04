@@ -2350,6 +2350,49 @@ class BetterScreen:
                 % (self.lines * ASSUMED_CELL_HEIGHT, self.columns * ASSUMED_CELL_WIDTH)
             )
 
+    def report_checksum(self, *params: int, **kwargs) -> None:
+        """
+        DECRQCRA ("CSI Pid ; Pp ; Pt ; Pl ; Pb ; Pr * y"): the checksum
+        of a rectangle of the screen.
+
+        The answer is "DCS Pid ! ~ xxxx ST", four hex digits. The value
+        is the negated sum of the characters in the rectangle. DEC's own
+        terminals answer that, and a conformance suite reads the screen
+        back this way, one cell at a time.
+
+        Only the character of a cell counts. A DEC terminal adds bits
+        for the attributes of the cell as well, and xterm does again
+        since its patch 336, but the two disagree on which bits. Nothing
+        reads them here, so the simpler rule stands until something
+        does.
+
+        A cell that holds nothing counts as a space. So the sum of one
+        cell is never zero, and the answer is never "0000", which a
+        caller cannot tell apart from an answer that never came.
+        """
+        pid = params[0] if params else 0
+        top = (params[2] if len(params) > 2 else 0) or 1
+        left = (params[3] if len(params) > 3 else 0) or 1
+        bottom = (params[4] if len(params) > 4 else 0) or self.lines
+        right = (params[5] if len(params) > 5 else 0) or self.columns
+
+        top, bottom = sorted(
+            (max(1, min(top, self.lines)), max(1, min(bottom, self.lines)))
+        )
+        left, right = sorted(
+            (max(1, min(left, self.columns)), max(1, min(right, self.columns)))
+        )
+
+        line_offset = self.line_offset
+        total = 0
+        for y in range(top - 1, bottom):
+            row = self.data_buffer[y + line_offset]
+            for x in range(left - 1, right):
+                char = row[x].char
+                total += ord(char[0]) if char else ord(" ")
+
+        self.write_process_input("\x1bP%i!~%04X\x1b\\" % (pid, -total & 0xFFFF))
+
     def report_device_attributes(self, *args, **kwargs) -> None:
         response = "\x1b[>84;0;0c"
         self.write_process_input(response)

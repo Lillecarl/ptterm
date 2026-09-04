@@ -38,6 +38,11 @@ class BetterStream(Stream):
             # DECRQM ("CSI ? Ps $ p"): is this mode set? (The "$" is an
             # intermediate byte, and needs the matching pyte patch.)
             "$p": "report_mode",
+            # DECRQCRA ("CSI Pid ; Pp ; Pt ; Pl ; Pb ; Pr * y"): the
+            # checksum of a rectangle. A conformance suite reads the
+            # screen back with it, so it is the instrument that judges
+            # the rest.
+            "*y": "report_checksum",
             # DECSCUSR ("CSI Ps SP q"): the shape of the cursor. It is
             # remembered, so that DECRQSS can report it back.
             " q": "set_cursor_style",
