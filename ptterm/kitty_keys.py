@@ -357,7 +357,13 @@ def _encode_event(event: KeyEvent, flags: int, application_mode: bool) -> str:
 
     # Functional keys with a letter final byte.
     if mods == 0 and kind == _PRESS and not embedded:
-        if not flags & _REPORT_ALL_KEYS:
+        # The SS3 form belongs to a pane that pushed no flag at all.
+        # kitty calls that the legacy mode, and reads it off the same
+        # three flags.
+        legacy = not flags & (
+            _DISAMBIGUATE | _REPORT_EVENT_TYPES | _REPORT_ALL_KEYS
+        )
+        if legacy:
             if application_mode and final in "ABCD":
                 return "\x1bO" + final
             if final in "PQRS":

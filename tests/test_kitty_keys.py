@@ -318,3 +318,21 @@ def test_a_key_with_no_shifted_key_of_its_own_reports_none():
 def test_the_shifted_key_waits_for_a_pane_that_asked():
     assert translate_key_data("A", flags=REPORT_ALL) == "\x1b[97;2u"
     assert translate_key_data("A", flags=0) == "A"
+
+
+def test_the_ss3_form_belongs_to_a_pane_that_pushed_no_flag():
+    """
+    kitty sends the SS3 form of an arrow or of F1 only in what it calls
+    the legacy mode: no disambiguate, no event types, no report of all
+    keys. A pane that pushed one of those reads the CSI form.
+    """
+    assert (
+        translate_key_data("\x1bOD", flags=0, application_mode=True) == "\x1bOD"
+    )
+    assert translate_key_data("\x1bOP", flags=0) == "\x1bOP"
+    for flags in (DISAMBIGUATE, EVENT_TYPES, REPORT_ALL):
+        assert (
+            translate_key_data("\x1bOD", flags=flags, application_mode=True)[:3]
+            == "\x1b[D"[:3]
+        )
+        assert translate_key_data("\x1bOP", flags=flags)[:3] == "\x1b[P"
