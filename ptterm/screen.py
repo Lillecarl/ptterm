@@ -1688,10 +1688,19 @@ class BetterScreen:
         )
 
     def alignment_display(self) -> None:
+        """
+        DECALN ("ESC # 8"): fill the screen with "E".
+
+        The margins go back to the whole screen and the cursor goes
+        home afterwards. The DEC manuals say so and kitty does both;
+        libvterm does neither.
+        """
         for y in range(0, self.lines):
             line = self.data_buffer[y + self.line_offset]
             for x in range(0, self.columns):
                 line[x] = Char("E")
+        self.margins = None
+        self.cursor_position()
 
     # Mapping of the ANSI color codes to their names.
     _fg_colors = {v: "#" + k for k, v in FG_ANSI_COLORS.items()}
