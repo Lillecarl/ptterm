@@ -85,20 +85,90 @@ class PrivateMode(IntEnum):
     ones it does not carry.
     """
 
+    #: DECCKM: the cursor keys send application codes.
+    APPLICATION_CURSOR_KEYS = 1
+
+    #: DECCOLM: 132 columns instead of 80.
+    COLUMNS_132 = 3
+
+    #: DECSCLM: scroll slowly. A pane draws as fast as it can, so this
+    #: one is kept and not acted on.
+    SLOW_SCROLL = 4
+
+    #: DECSCNM: reverse video over the whole screen.
+    REVERSE_VIDEO = 5
+
+    #: DECOM: the cursor is placed from the margins, not the screen.
+    ORIGIN = 6
+
+    #: DECAWM: a character past the last column wraps to the next line.
+    AUTOWRAP = 7
+
     #: att610: does the cursor blink? DECSCUSR names the shape and the
     #: blinking in one number, and this mode names only the blinking,
     #: so both of them write `cursor_style`.
     CURSOR_BLINK = 12
+
+    #: DECPFF: send a form feed after a print. There is no printer.
+    PRINT_FORM_FEED = 18
+
+    #: DECPEX: a print takes the page, not the scrolling region. There
+    #: is no printer.
+    PRINT_EXTENT = 19
+
+    #: DECTCEM: is the cursor drawn?
+    SHOW_CURSOR = 25
+
+    #: DECHEBM: the Hebrew keyboard.
+    HEBREW_KEYBOARD = 35
+
+    #: DECNRCM: the national replacement character sets.
+    NATIONAL_CHARSETS = 42
+
+    #: The alternate screen, on its own. A program that predates
+    #: "?1049" sends this one.
+    ALTERNATE_SCREEN = 47
+
+    #: DECHCCM: the cursor is coupled to the horizontal scroll. No
+    #: terminal that anybody uses carries it.
+    HORIZONTAL_CURSOR_COUPLING = 60
+
+    #: DECNKM: the keypad sends application codes.
+    APPLICATION_KEYPAD = 66
+
+    #: DECBKM: the backarrow key sends a backspace, not a delete.
+    BACKARROW_IS_BACKSPACE = 67
 
     #: DECLRMM: may DECSLRM set a left and a right margin? The mode
     #: alone changes nothing. It says whether "CSI Pl ; Pr s" names the
     #: margins, and resetting it takes the margins away.
     LEFT_RIGHT_MARGIN = 69
 
+    #: Report the position of the mouse.
+    MOUSE_REPORTING = 1000
+
+    #: Report the mouse the way SGR writes it.
+    SGR_MOUSE = 1006
+
+    #: Report the mouse the way urxvt writes it.
+    URXVT_MOUSE = 1015
+
+    #: The alternate screen. The same screen as "?47", under the
+    #: number that came later.
+    ALTERNATE_SCREEN_AGAIN = 1047
+
     #: Save the cursor on a set, and bring it back on a reset. It is
     #: the pair of "ESC 7" and "ESC 8" written as one mode. "?1049"
     #: holds this mode and the alternate screen together.
     SAVE_CURSOR = 1048
+
+    #: The alternate screen, with the cursor and a clear. This is the
+    #: one a program sends today.
+    ALTERNATE_SCREEN_WITH_CURSOR = 1049
+
+    #: Wrap a paste in "ESC [ 200 ~" and "ESC [ 201 ~", so that a
+    #: program can tell a paste from typing.
+    BRACKETED_PASTE = 2004
 
     #: Report a resize in the input of the program, instead of only
     #: through SIGWINCH.
@@ -108,6 +178,59 @@ class PrivateMode(IntEnum):
     def flag(self) -> int:
         "The value that `self.mode` holds while this mode is set."
         return self.value << 5
+
+
+class AnsiMode(IntEnum):
+    """
+    A mode that "CSI Ps h" carries, with no private marker.
+
+    These come from the ANSI standard. `pyte.modes` names the two that
+    pyte acts on, IRM and LNM, and holds them unshifted; these are the
+    rest. Nearly all of them come from a time of block mode terminals,
+    and no terminal that anybody uses today acts on one.
+    """
+
+    #: GATM: transfer the guarded areas as well.
+    GUARDED_AREA_TRANSFER = 1
+
+    #: KAM: lock the keyboard.
+    KEYBOARD_LOCKED = 2
+
+    #: SRTM: report a status change on its own.
+    STATUS_REPORT_TRANSFER = 5
+
+    #: VEM: an insert moves the lines up, not down.
+    VERTICAL_EDITING = 7
+
+    #: HEM: an insert moves the characters left, not right.
+    HORIZONTAL_EDITING = 10
+
+    #: PUM: the unit of a position is a millimetre, not a cell.
+    POSITIONING_UNIT = 11
+
+    #: SRM: echo what the keyboard sends.
+    LOCAL_ECHO = 12
+
+    #: FEAM: a format effector acts on the store, not the screen.
+    FORMAT_EFFECTOR_ACTION = 13
+
+    #: FETM: transfer the format effectors as well.
+    FORMAT_EFFECTOR_TRANSFER = 14
+
+    #: MATM: transfer every selected area, not only one.
+    MULTIPLE_AREA_TRANSFER = 15
+
+    #: TTM: a transfer stops at the end of the selected area.
+    TRANSFER_TERMINATION = 16
+
+    #: SATM: transfer the whole screen, not the selected area.
+    SELECTED_AREA_TRANSFER = 17
+
+    #: TSM: a tab stop belongs to one line, not to the screen.
+    TABULATION_STOP = 18
+
+    #: EBM: an edit stops at the end of the screen, not the area.
+    EDITING_BOUNDARY = 19
 
 
 class ModeReport(IntEnum):
@@ -518,25 +641,25 @@ class BetterScreen:
         expecting some other key sequences as input. (Like for the arrows.)
         """
         # Not in cursor mode.
-        return (1 << 5) in self.mode
+        return PrivateMode.APPLICATION_CURSOR_KEYS.flag in self.mode
 
     @property
     def mouse_support_enabled(self) -> bool:
         "True when mouse support has been enabled by the application."
-        return (1000 << 5) in self.mode
+        return PrivateMode.MOUSE_REPORTING.flag in self.mode
 
     @property
     def urxvt_mouse_support_enabled(self) -> bool:
-        return (1015 << 5) in self.mode
+        return PrivateMode.URXVT_MOUSE.flag in self.mode
 
     @property
     def sgr_mouse_support_enabled(self) -> bool:
         "Xterm Sgr mouse support."
-        return (1006 << 5) in self.mode
+        return PrivateMode.SGR_MOUSE.flag in self.mode
 
     @property
     def bracketed_paste_enabled(self) -> bool:
-        return (2004 << 5) in self.mode
+        return PrivateMode.BRACKETED_PASTE.flag in self.mode
 
     @property
     def kitty_keyboard_flags(self) -> int:
@@ -1050,7 +1173,7 @@ class BetterScreen:
             # way "ESC 7" does: the place, the rendition and the
             # character sets all come back with it. The two older modes
             # save nothing.
-            if (1049 << 5) in taken_by:
+            if PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR.flag in taken_by:
                 self.save_cursor()
 
             self._original_screen = self.pt_screen
@@ -1066,7 +1189,8 @@ class BetterScreen:
             # "?1049" clears the screen it takes. The two older modes
             # do not, so they find what the last visit left.
             keeps_the_content = (
-                (1049 << 5) not in taken_by and self._alternate_screen is not None
+                PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR.flag not in taken_by
+                and self._alternate_screen is not None
             )
             if keeps_the_content:
                 self.pt_screen = self._alternate_screen
@@ -1143,7 +1267,9 @@ class BetterScreen:
         # "?1047" give the screen back as well.
         given_back = self._alternate_screen_modes(modes)
         if self._original_screen and given_back:
-            restores_the_cursor = (1049 << 5) in given_back
+            restores_the_cursor = (
+                PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR.flag in given_back
+            )
             row = self.pt_cursor_position.y - self.line_offset
             column = self.pt_cursor_position.x
 
@@ -1152,7 +1278,7 @@ class BetterScreen:
             # and hands it back with what it held. "?1047" is the
             # exception. xterm clears the alternate screen before it
             # switches back, and libvterm does the same; kitty keeps it.
-            if (1047 << 5) in given_back:
+            if PrivateMode.ALTERNATE_SCREEN_AGAIN.flag in given_back:
                 self._alternate_screen = None
                 self._alternate_screen_vars = {}
             else:
@@ -1187,7 +1313,11 @@ class BetterScreen:
 
     #: The private modes that name the alternate screen. "?1049" also
     #: saves the cursor; the two older ones do not.
-    _ALTERNATE_SCREEN_MODES = (1049 << 5, 1047 << 5, 47 << 5)
+    _ALTERNATE_SCREEN_MODES = (
+        PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR.flag,
+        PrivateMode.ALTERNATE_SCREEN_AGAIN.flag,
+        PrivateMode.ALTERNATE_SCREEN.flag,
+    )
 
     @classmethod
     def _alternate_screen_modes(cls, modes) -> "List[int]":
@@ -3104,21 +3234,22 @@ class BetterScreen:
     #: program falls back instead of trusting an answer we invent.
     _known_private_modes = frozenset(
         [
-            1,  # DECCKM: application cursor keys.
-            3,  # DECCOLM: 132 columns.
+            PrivateMode.APPLICATION_CURSOR_KEYS,
+            PrivateMode.COLUMNS_132,
             PrivateMode.CURSOR_BLINK,
-            5,  # DECSCNM: reverse video.
-            6,  # DECOM: origin mode.
-            7,  # DECAWM: autowrap.
-            25,  # DECTCEM: cursor visible.
-            47,  # The alternate screen.
+            PrivateMode.REVERSE_VIDEO,
+            PrivateMode.ORIGIN,
+            PrivateMode.AUTOWRAP,
+            PrivateMode.SHOW_CURSOR,
+            PrivateMode.ALTERNATE_SCREEN,
             PrivateMode.LEFT_RIGHT_MARGIN,
-            1000,  # Mouse reporting.
-            1006,  # SGR mouse encoding.
-            1015,  # urxvt mouse encoding.
-            1047,  # The alternate screen.
-            1049,  # The alternate screen, with the cursor.
-            2004,  # Bracketed paste.
+            PrivateMode.MOUSE_REPORTING,
+            PrivateMode.SGR_MOUSE,
+            PrivateMode.URXVT_MOUSE,
+            PrivateMode.ALTERNATE_SCREEN_AGAIN,
+            PrivateMode.SAVE_CURSOR,
+            PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR,
+            PrivateMode.BRACKETED_PASTE,
             PrivateMode.INBAND_RESIZE,
         ]
     )
@@ -3139,25 +3270,25 @@ class BetterScreen:
     #: every one.
     _permanently_reset_ansi_modes = frozenset(
         [
-            1,  # GATM: guarded area transfer.
-            5,  # SRTM: status report transfer.
-            7,  # VEM: vertical editing.
-            10,  # HEM: horizontal editing.
-            11,  # PUM: positioning unit.
-            13,  # FEAM: format effector action.
-            14,  # FETM: format effector transfer.
-            15,  # MATM: multiple area transfer.
-            16,  # TTM: transfer termination.
-            17,  # SATM: selected area transfer.
-            18,  # TSM: tabulation stop.
-            19,  # EBM: editing boundary.
+            AnsiMode.GUARDED_AREA_TRANSFER,
+            AnsiMode.STATUS_REPORT_TRANSFER,
+            AnsiMode.VERTICAL_EDITING,
+            AnsiMode.HORIZONTAL_EDITING,
+            AnsiMode.POSITIONING_UNIT,
+            AnsiMode.FORMAT_EFFECTOR_ACTION,
+            AnsiMode.FORMAT_EFFECTOR_TRANSFER,
+            AnsiMode.MULTIPLE_AREA_TRANSFER,
+            AnsiMode.TRANSFER_TERMINATION,
+            AnsiMode.SELECTED_AREA_TRANSFER,
+            AnsiMode.TABULATION_STOP,
+            AnsiMode.EDITING_BOUNDARY,
         ]
     )
 
     #: The same for the modes with a private marker.
     _permanently_reset_private_modes = frozenset(
         [
-            60,  # DECHCCM: horizontal cursor coupling.
+            PrivateMode.HORIZONTAL_CURSOR_COUPLING,
         ]
     )
 
