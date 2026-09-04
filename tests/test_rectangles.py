@@ -1,13 +1,14 @@
 """
-The commands that take a rectangle of the screen.
+The four commands that take a rectangle of the screen.
 
 DECFRA ("CSI Pch ; Pt ; Pl ; Pb ; Pr $ x") fills one with a character.
 DECERA ("CSI Pt ; Pl ; Pb ; Pr $ z") erases one. DECSERA ("$ {") erases
-one and leaves a cell that DECSCA marked alone.
+one and leaves a cell that DECSCA marked alone. DECCRA ("$ v") copies
+one to another place.
 
-They all read the corners the same way. The numbers count from one,
+All four read the corners the same way. The numbers count from one,
 origin mode counts them from the margins, and a margin does not hold
-the rectangle in. None of them moves the cursor.
+the rectangle in. None of the four moves the cursor.
 """
 from ptterm.screen import BetterScreen
 from ptterm.stream import BetterStream
@@ -261,4 +262,123 @@ def test_a_selective_erase_does_not_move_the_cursor():
     screen, stream = _screen()
     _prepare(stream)
     stream.feed("\x1b[4;3H\x1b[2;2;4;4${")
+    assert (screen.pt_cursor_position.x, screen.pt_cursor_position.y) == (2, 3)
+
+
+# ----------------------------------------------------------------------
+# DECCRA.
+
+
+def test_a_copy_writes_the_rectangle_somewhere_else():
+    screen, stream = _screen()
+    _prepare(stream)
+    stream.feed("\x1b[2;2;4;4;1;5;5;1$v")
+    assert _lines(screen) == [
+        "abcdefgh",
+        "ijklmnop",
+        "qrstuvwx",
+        "yz012345",
+        "ABCDjklH",
+        "IJKLrstP",
+        "QRSTz01X",
+        "YZ6789!@",
+    ]
+
+
+def test_a_copy_reads_every_cell_before_it_writes_one():
+    screen, stream = _screen()
+    _prepare(stream)
+    stream.feed("\x1b[2;2;4;4;1;3;3;1$v")
+    assert _lines(screen) == [
+        "abcdefgh",
+        "ijklmnop",
+        "qrjklvwx",
+        "yzrst345",
+        "ABz01FGH",
+        "IJKLMNOP",
+        "QRSTUVWX",
+        "YZ6789!@",
+    ]
+
+
+def test_a_copy_that_hangs_over_the_edge_keeps_what_fits():
+    screen, stream = _screen()
+    _prepare(stream)
+    stream.feed("\x1b[2;2;4;4;1;7;7;1$v")
+    assert _lines(screen)[6:] == [
+        "QRSTUVjk",
+        "YZ6789rs",
+    ]
+
+
+def test_a_copy_takes_the_first_corner_for_a_source_it_has_no_number_for():
+    screen, stream = _screen()
+    _prepare(stream)
+    stream.feed("\x1b[;;2;2;;5;5;1$v")
+    assert _lines(screen)[4:6] == [
+        "ABCDabGH",
+        "IJKLijOP",
+    ]
+
+
+def test_a_copy_takes_the_first_corner_for_a_target_it_has_no_number_for():
+    screen, stream = _screen()
+    _prepare(stream)
+    stream.feed("\x1b[2;2;4;4;1$v")
+    assert _lines(screen)[:3] == [
+        "jkldefgh",
+        "rstlmnop",
+        "z01tuvwx",
+    ]
+
+
+def test_a_copy_of_a_rectangle_that_ends_before_it_starts_does_nothing():
+    screen, stream = _screen()
+    _prepare(stream)
+    stream.feed("\x1b[2;2;1;1;1;5;5;1$v")
+    assert _lines(screen) == DATA
+
+
+def test_a_copy_counts_the_corners_from_the_margins_in_origin_mode():
+    screen, stream = _screen()
+    _prepare(stream)
+    stream.feed("\x1b[?69h\x1b[2;9s\x1b[2;9r\x1b[?6h")
+    stream.feed("\x1b[1;1;3;3;1;4;4;1$v")
+    stream.feed("\x1b[?69l\x1b[r\x1b[?6l")
+    assert _lines(screen) == [
+        "abcdefgh",
+        "ijklmnop",
+        "qrstuvwx",
+        "yz012345",
+        "ABCDjklH",
+        "IJKLrstP",
+        "QRSTz01X",
+        "YZ6789!@",
+    ]
+
+
+def test_a_copy_reaches_past_a_margin():
+    screen, stream = _screen()
+    _prepare(stream)
+    stream.feed("\x1b[?69h\x1b[3;6s\x1b[3;6r")
+    stream.feed("\x1b[2;2;4;4;1;5;5;1$v")
+    stream.feed("\x1b[?69l\x1b[r")
+    assert _lines(screen)[4:7] == [
+        "ABCDjklH",
+        "IJKLrstP",
+        "QRSTz01X",
+    ]
+
+
+def test_a_copy_of_a_cell_that_holds_nothing_clears_the_cell_it_lands_on():
+    screen, stream = _screen()
+    stream.feed("\x1b[5;1Hxyz")
+    stream.feed("\x1b[1;1;1;3;1;5;1;1$v")
+    assert _line(screen, 4).rstrip() == ""
+
+
+def test_a_copy_does_not_move_the_cursor():
+    screen, stream = _screen()
+    _prepare(stream)
+    stream.feed("\x1b[4;3H\x1b[2;2;4;4;1;5;5;1$v")
     assert (screen.pt_cursor_position.x, screen.pt_cursor_position.y) == (2, 3)

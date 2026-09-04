@@ -2574,6 +2574,60 @@ class BetterScreen:
             self.repair_wide_char(line, left)
             self.repair_wide_char(line, right + 1)
 
+    def copy_rectangle(self, *params: int, **kwargs) -> None:
+        """
+        DECCRA ("CSI Pts ; Pls ; Pbs ; Prs ; Pps ; Ptd ; Pld ; Ppd $ v"):
+        copy a rectangle to another place on the screen.
+
+        The first four parameters name the rectangle to read. The sixth
+        and the seventh name the top left corner to write it to, and
+        the rectangle that lands there keeps the size of the one that
+        was read. Both page numbers are ignored, because ptterm holds
+        one page.
+
+        The two rectangles may overlap, so every cell is read before
+        any cell is written. A cell that holds nothing clears the cell
+        it lands on.
+
+        The cursor does not move.
+        """
+        corners = self._rectangle(*_four(params, 0))
+        if corners is None:
+            return
+        top, left, bottom, right = corners
+
+        target_top, target_left = self._corner(
+            params[5] if len(params) > 5 else 0,
+            params[6] if len(params) > 6 else 0,
+        )
+        if target_top >= self.lines or target_left >= self.columns:
+            return
+
+        # A rectangle that would hang over the edge is cut down to what
+        # fits, and the rest of it is dropped.
+        height = min(bottom - top + 1, self.lines - target_top)
+        width = min(right - left + 1, self.columns - target_left)
+
+        data_buffer = self.data_buffer
+        line_offset = self.line_offset
+        read = [
+            [
+                data_buffer[top + row + line_offset].get(left + column)
+                for column in range(width)
+            ]
+            for row in range(height)
+        ]
+
+        for row in range(height):
+            line = data_buffer[target_top + row + line_offset]
+            for column, cell in enumerate(read[row]):
+                if cell is None:
+                    line.pop(target_left + column, None)
+                else:
+                    line[target_left + column] = cell
+            self.repair_wide_char(line, target_left)
+            self.repair_wide_char(line, target_left + width)
+
     def set_tab_stop(self) -> None:
         "Set a horizontal tab stop at cursor position."
         self.tabstops.add(self.pt_cursor_position.x)

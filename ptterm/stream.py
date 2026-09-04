@@ -58,6 +58,9 @@ class Csi(StrEnum):
     #: Cursor horizontal forward tabulation.
     CHT = "I"
 
+    #: Copy rectangular area: copy a rectangle to another place.
+    DECCRA = "$v"
+
     #: Delete column: take columns out of the scrolling region.
     DECDC = "'~"
 
@@ -150,6 +153,7 @@ class BetterStream(Stream):
         {
             Csi.CBT: "cursor_to_previous_tab",
             Csi.CHT: "cursor_to_next_tab",
+            Csi.DECCRA: "copy_rectangle",
             Csi.DECDC: "delete_columns",
             Csi.DECERA: "erase_rectangle",
             Csi.DECFRA: "fill_rectangle",
