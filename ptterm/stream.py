@@ -46,10 +46,18 @@ class BetterStream(Stream):
             # DECSCUSR ("CSI Ps SP q"): the shape of the cursor. It is
             # remembered, so that DECRQSS can report it back.
             " q": "set_cursor_style",
+            # HPA ("CSI Ps `"): the column of the screen. pyte gives it
+            # to the handler of CHA, and the two differ: CHA counts
+            # from the left margin in origin mode, and HPA does not.
+            "`": "cursor_to_absolute_column",
             # CHT and CBT: move over tab stops, forward and back. pyte
             # has neither.
             "I": "cursor_to_next_tab",
             "Z": "cursor_to_previous_tab",
+            # DECSLRM ("CSI Pl ; Pr s"): the columns of the scrolling
+            # region. It answers only while private mode 69 is set;
+            # the same final byte names SCOSC otherwise.
+            "s": "set_left_right_margins",
             # SU and SD: move the lines of the scrolling region, without
             # moving the cursor. pyte has neither.
             "S": "scroll_up",

@@ -60,6 +60,11 @@ DEFAULT_CURSOR_STYLE = 1
 #: odd numbers, and the steady one of a pair is the number after it.
 CURSOR_BLINK = 12
 
+#: Private mode 69 (DECLRMM): may DECSLRM set a left and a right
+#: margin? The mode alone changes nothing. It says whether "CSI Pl ;
+#: Pr s" names the margins, and resetting it takes the margins away.
+LEFT_RIGHT_MARGIN_MODE = 69
+
 #: Private mode 2048: report a resize in the input of the program,
 #: instead of only through SIGWINCH.
 INBAND_RESIZE = 2048
@@ -183,6 +188,12 @@ def _reads_the_clipboard(param: str) -> bool:
     """
     _selection, _semicolon, data = param.partition(";")
     return data.strip() == "?"
+
+
+#: The first and the last column of the scrolling region, counted from
+#: zero. DECSLRM ("CSI Pl ; Pr s") names them. `pyte.screens.Margins`
+#: names the first and the last row, and this is the other pair.
+HorizontalMargins = namedtuple("HorizontalMargins", "left right")
 
 
 class CursorPosition:
@@ -550,6 +561,7 @@ class BetterScreen:
         self._reset_rendition()
 
         self.margins = None
+        self.horizontal_margins: Optional[HorizontalMargins] = None
 
         # A list of its own, because the stack is changed in place and
         # the screen this one replaces still holds the old list.
@@ -654,12 +666,87 @@ class BetterScreen:
             # bottom margins of the scrolling region (DECSTBM) changes.
             self.cursor_position()
 
+    @property
+    def left_right(self) -> Tuple[int, int]:
+        """
+        The first and the last column of the scrolling region.
+
+        Without margins the region is the whole width, so the answer is
+        the first and the last column of the screen. Every caller then
+        reads one pair and needs no test of its own.
+        """
+        margins = self.horizontal_margins
+        if margins is None:
+            return 0, self.columns - 1
+        return margins
+
+    @property
+    def reported_column(self) -> int:
+        """
+        The column that the cursor stands on, counted from zero.
+
+        A character in the last column leaves the cursor one column
+        further, where it waits to wrap. The cursor still stands on the
+        last column, and that is the column that a report names. With a
+        right margin the wait sits one column after the margin instead.
+        """
+        column = self.pt_cursor_position.x
+        _left, right = self.left_right
+        if column == right + 1:
+            return right
+        return min(column, self.columns - 1)
+
+    def _cursor_is_between_the_left_and_right_margins(self) -> bool:
+        """
+        True when the cursor stands in the columns of the region.
+
+        A line feed scrolls the region only from inside it, and the
+        commands that insert or delete do nothing from outside it.
+        Without margins the answer is always true.
+        """
+        if self.horizontal_margins is None:
+            return True
+        left, right = self.horizontal_margins
+        return left <= self.pt_cursor_position.x <= right
+
+    def set_left_right_margins(self, *params: int, **kwargs) -> None:
+        """
+        DECSLRM ("CSI Pl ; Pr s"): the columns of the scrolling region.
+
+        The sequence works only while private mode 69 (DECLRMM) is set.
+        Without the mode the same final byte names SCOSC, which saves
+        the cursor, so a terminal that acts on the parameters here
+        would move text that a program means to leave alone.
+
+        A region needs two columns, the way the rows of DECSTBM do, and
+        the whole width is no region at all. The cursor goes home
+        afterwards, which is what DECSTBM does as well.
+        """
+        if (LEFT_RIGHT_MARGIN_MODE << 5) not in self.mode:
+            return
+
+        left = (params[0] if len(params) > 0 else 0) or 1
+        right = (params[1] if len(params) > 1 else 0) or self.columns
+
+        left = max(1, min(left, self.columns))
+        right = max(1, min(right, self.columns))
+        if right - left < 1:
+            return
+
+        if left == 1 and right == self.columns:
+            self.horizontal_margins = None
+        else:
+            self.horizontal_margins = HorizontalMargins(left - 1, right - 1)
+
+        self.cursor_position()
+
     def _reset_offset_and_margins(self) -> None:
         """
         Recalculate offset and move cursor (make sure that the bottom is
         visible.)
         """
         self.margins = None
+        self.horizontal_margins = None
 
     def define_charset(self, code: str, mode: str = "(") -> None:
         """Define the ``G0`` or the ``G1`` charset.
@@ -734,6 +821,7 @@ class BetterScreen:
             # one of its screens, so it survives the switch. xterm and
             # kitty both keep it.
             margins = self.margins
+            horizontal_margins = self.horizontal_margins
 
             # "?1049" clears the screen it takes. The two older modes
             # do not, so they find what the last visit left.
@@ -769,6 +857,7 @@ class BetterScreen:
                 self.graphics = GraphicsState()
 
             self.margins = margins
+            self.horizontal_margins = horizontal_margins
 
     def reset_mode(self, *modes_args, **kwargs) -> None:
         """Resets (disables) a given list of modes.
@@ -787,6 +876,12 @@ class BetterScreen:
 
         if (CURSOR_BLINK << 5) in modes:
             self.set_cursor_blink(False)
+
+        # DECLRMM off takes the columns of the region away. The region
+        # is the whole width again, and a later DECSLRM does nothing
+        # until a program sets the mode again.
+        if (LEFT_RIGHT_MARGIN_MODE << 5) in modes:
+            self.horizontal_margins = None
 
         # Lines below follow the logic in :meth:`set_mode`.
         if mo.DECCOLM in modes:
@@ -919,6 +1014,7 @@ class BetterScreen:
         char_cache = _CHAR_CACHE
         columns = self.columns
         wide_chars = self._wide_chars
+        _left, right_margin = self.left_right
 
         # Translating a given character.
         if self.charset:
@@ -938,8 +1034,25 @@ class BetterScreen:
             # the place at the right edge when it is off. A double width
             # character needs two columns, so it moves one column
             # earlier than a narrow one.
-            if char_width > 0 and cursor_position_x + char_width > columns:
+            #
+            # A right margin is the edge of the line. A cursor that
+            # stands right of the margin keeps the edge of the screen,
+            # because a program that draws there draws outside the
+            # region.
+            # The column after the margin is where the wait to wrap
+            # sits, so it counts as inside.
+            if cursor_position_x <= right_margin + 1:
+                edge = right_margin + 1
+            else:
+                edge = columns
+
+            if char_width > 0 and cursor_position_x + char_width > edge:
                 if mo.DECAWM in self.mode:
+                    # The moves below read the cursor from the screen,
+                    # and this loop keeps it in a local. Write it back
+                    # first, so that a carriage return finds the column
+                    # that the last character left.
+                    cursor_position.x = cursor_position_x
                     self.carriage_return()
                     self.linefeed()
                     cursor_position = self.pt_cursor_position
@@ -948,12 +1061,13 @@ class BetterScreen:
 
                     self.wrapped_lines.append(cursor_position_y)
                 else:
-                    cursor_position_x = columns - char_width
+                    cursor_position_x = edge - char_width
 
             # If Insert mode is set, new characters move old characters to
             # the right, otherwise terminal is in Replace mode and new
             # characters replace old characters at cursor position.
             if in_irm:
+                cursor_position.x = cursor_position_x
                 self.insert_characters(max(0, char_width))
 
             row = data_buffer[cursor_position_y]
@@ -1036,8 +1150,17 @@ class BetterScreen:
             cursor_position.x = self.columns - 1
 
     def carriage_return(self) -> None:
-        "Move the cursor to the beginning of the current line."
-        self.pt_cursor_position.x = 0
+        """
+        Move the cursor to the beginning of the current line.
+
+        With a left margin the beginning is the margin. A cursor that
+        stands left of the margin goes to the first column instead, so
+        a program that draws outside the region keeps that column.
+        """
+        left, _right = self.left_right
+        if self.pt_cursor_position.x < left:
+            left = 0
+        self.pt_cursor_position.x = left
 
     def index(self) -> None:
         """Move the cursor down one line in the same column. If the
@@ -1052,7 +1175,9 @@ class BetterScreen:
         margins = self.margins
 
         # When scrolling over the full screen height -> keep history.
-        if margins is None:
+        # A left or a right margin makes the region narrower than the
+        # screen, and a rectangle carries no history.
+        if margins is None and self.horizontal_margins is None:
             # Simply move the cursor one position down.
             cursor_position = self.pt_cursor_position
             cursor_position.y += 1
@@ -1065,24 +1190,14 @@ class BetterScreen:
                 self._history_cleanup_counter = 0
         else:
             # Move cursor down, but scroll in the scrolling region.
-            top, bottom = self.margins
-            line_offset = self.line_offset
+            top, bottom = margins or Margins(0, self.lines - 1)
 
-            if self.pt_cursor_position.y - line_offset == bottom:
-                data_buffer = self.data_buffer
-
-                for line in range(top, bottom):
-                    data_buffer[line + line_offset] = data_buffer[
-                        line + line_offset + 1
-                    ]
-                    data_buffer.pop(line + line_offset + 1, None)
-
-                # Graphics placements scroll with the text.
-                self.graphics.scroll(
-                    top + line_offset, bottom + line_offset, 1
-                )
-            else:
+            if self.pt_cursor_position.y - self.line_offset != bottom:
                 self.cursor_down()
+            elif self._cursor_is_between_the_left_and_right_margins():
+                self._move_rows(top, bottom, 1)
+            # Outside the columns of the region the cursor stays where
+            # it is, and nothing scrolls.
 
     def scroll_up(self, count: Optional[int] = None) -> None:
         """
@@ -1110,13 +1225,23 @@ class BetterScreen:
         dropped, so this keeps no history.
         """
         top, bottom = self.margins or Margins(0, self.lines - 1)
-        height = bottom - top + 1
-        steps = min(abs(amount), height)
+        self._move_rows(top, bottom, amount)
+
+    def _move_rows(self, top: int, bottom: int, amount: int) -> None:
+        """
+        Move the rows from `top` to `bottom` by `amount` rows.
+
+        A positive amount moves them up. The rows that come in are
+        empty, and the ones that go out are dropped, so this keeps no
+        history. The rows are counted from the top of the screen.
+
+        Left and right margins hold the move to the columns between
+        them. The cells outside them stay where they are, so the move
+        carries a rectangle and not whole lines.
+        """
+        steps = min(abs(amount), bottom - top + 1)
         if steps == 0:
             return
-
-        line_offset = self.line_offset
-        data_buffer = self.data_buffer
 
         if amount > 0:
             rows = range(top, bottom + 1)
@@ -1125,15 +1250,62 @@ class BetterScreen:
             rows = range(bottom, top - 1, -1)
             source = -steps
 
+        line_offset = self.line_offset
+        data_buffer = self.data_buffer
+        horizontal = self.horizontal_margins
+
         for row in rows:
             origin = row + source
-            if top <= origin <= bottom:
-                data_buffer[row + line_offset] = data_buffer[origin + line_offset]
-            else:
-                self._erase_row(row + line_offset)
+            inside = top <= origin <= bottom
 
-        # Graphics placements scroll with the text.
-        self.graphics.scroll(top + line_offset, bottom + line_offset, amount)
+            if horizontal is None:
+                if inside:
+                    data_buffer[row + line_offset] = data_buffer[
+                        origin + line_offset
+                    ]
+                else:
+                    self._erase_row(row + line_offset)
+            elif inside:
+                self._copy_columns(
+                    data_buffer[origin + line_offset],
+                    data_buffer[row + line_offset],
+                    horizontal,
+                )
+            else:
+                self._erase_columns(data_buffer[row + line_offset], horizontal)
+
+        if horizontal is None:
+            # Graphics placements scroll with the text. An image sits on
+            # whole lines, so it moves only when whole lines move.
+            self.graphics.scroll(top + line_offset, bottom + line_offset, amount)
+
+    def _copy_columns(self, source, target, horizontal: HorizontalMargins) -> None:
+        "Copy the cells between the margins from one row to another."
+        left, right = horizontal
+        for column in range(left, right + 1):
+            cell = source.get(column)
+            if cell is None:
+                target.pop(column, None)
+            else:
+                target[column] = cell
+
+    def _erase_columns(self, row, horizontal: HorizontalMargins) -> None:
+        """
+        Make the cells between the margins empty.
+
+        They take the background that is set now, the same way an
+        erased cell does.
+        """
+        left, right = horizontal
+        style = self.erase_style()
+
+        if style:
+            blank = ErasedChar(" ", style)
+            for column in range(left, right + 1):
+                row[column] = blank
+        else:
+            for column in range(left, right + 1):
+                row.pop(column, None)
 
     def _remove_old_lines_from_history(self) -> None:
         """
@@ -1155,22 +1327,14 @@ class BetterScreen:
                 self.data_buffer.pop(line, None)
 
     def reverse_index(self) -> None:
-        margins = self.margins or Margins(0, self.lines - 1)
-        top, bottom = margins
-        line_offset = self.line_offset
+        top, bottom = self.margins or Margins(0, self.lines - 1)
 
-        # When scrolling over the full screen -> keep history.
-        if self.pt_cursor_position.y - line_offset == top:
-            for i in range(bottom - 1, top - 1, -1):
-                self.data_buffer[i + line_offset + 1] = self.data_buffer[
-                    i + line_offset
-                ]
-                self.data_buffer.pop(i + line_offset, None)
-
-            # Graphics placements scroll with the text.
-            self.graphics.scroll(top + line_offset, bottom + line_offset, -1)
-        else:
+        if self.pt_cursor_position.y - self.line_offset != top:
             self.cursor_up()
+        elif self._cursor_is_between_the_left_and_right_margins():
+            self._move_rows(top, bottom, -1)
+        # Outside the columns of the region the cursor stays where it
+        # is, and nothing scrolls.
 
     def linefeed(self) -> None:
         """Performs an index and, if :data:`~pyte.modes.LNM` is set, a
@@ -1205,7 +1369,12 @@ class BetterScreen:
         if cursor_position.x >= self.columns:
             return
 
-        last = self.columns - 1
+        # With a right margin the tab stops there, and not at the last
+        # column. That holds even for a cursor that starts left of the
+        # left margin: the DEC terminals stop a tab at the margin, and
+        # xterm does the same.
+        _left, right = self.left_right
+        last = right if cursor_position.x <= right else self.columns - 1
         for stop in sorted(self.tabstops):
             if cursor_position.x < stop:
                 column = min(stop, last)
@@ -1351,29 +1520,17 @@ class BetterScreen:
         """
         count = count or 1
         top, bottom = self.margins or Margins(0, self.lines - 1)
+        first = self.pt_cursor_position.y - self.line_offset
 
-        data_buffer = self.data_buffer
-        line_offset = self.line_offset
-        pt_cursor_position = self.pt_cursor_position
-        first = pt_cursor_position.y - line_offset
+        # The cursor has to stand inside the region, in both the rows
+        # and the columns of it. Outside it, IL does nothing.
+        if not top <= first <= bottom:
+            return
+        if not self._cursor_is_between_the_left_and_right_margins():
+            return
 
-        # If cursor is outside scrolling margins it -- do nothing.
-        if top <= first <= bottom:
-            for line in range(bottom, first - 1, -1):
-                # A line above the cursor stays where it is, so the new
-                # empty lines are the ones that would come from there.
-                if line - count < first:
-                    self._erase_row(line + line_offset)
-                else:
-                    data_buffer[line + line_offset] = data_buffer[
-                        line + line_offset - count
-                    ]
-                    data_buffer.pop(line + line_offset - count, None)
-
-            self.graphics.scroll(
-                pt_cursor_position.y, bottom + line_offset, -count
-            )
-            self.carriage_return()
+        self._move_rows(first, bottom, -count)
+        self.carriage_return()
 
     def delete_lines(self, count: Optional[int] = None) -> None:
         """Deletes the indicated # of lines, starting at line with
@@ -1385,31 +1542,19 @@ class BetterScreen:
         """
         count = count or 1
         top, bottom = self.margins or Margins(0, self.lines - 1)
-        line_offset = self.line_offset
-        pt_cursor_position = self.pt_cursor_position
+        first = self.pt_cursor_position.y - self.line_offset
 
-        # If cursor is outside scrolling margins it -- do nothin'.
-        if top <= pt_cursor_position.y - line_offset <= bottom:
-            data_buffer = self.data_buffer
+        # The cursor has to stand inside the region, in both the rows
+        # and the columns of it. Outside it, DL does nothing.
+        if not top <= first <= bottom:
+            return
+        if not self._cursor_is_between_the_left_and_right_margins():
+            return
 
-            # Iterate from the cursor Y position until the end of the visible input.
-            for line in range(pt_cursor_position.y - line_offset, bottom + 1):
-                # When 'x' lines further are out of the margins, replace by an empty line,
-                # Otherwise copy the line from there.
-                if line + count > bottom:
-                    self._erase_row(line + line_offset)
-                else:
-                    data_buffer[line + line_offset] = self.data_buffer[
-                        line + count + line_offset
-                    ]
+        self._move_rows(first, bottom, count)
 
-            self.graphics.scroll(
-                pt_cursor_position.y, bottom + line_offset, count
-            )
-
-            # DL moves the cursor to the first column, the same way IL
-            # does.
-            self.carriage_return()
+        # DL moves the cursor to the first column, the same way IL does.
+        self.carriage_return()
 
     def insert_characters(self, count: Optional[int] = None) -> None:
         """Inserts the indicated # of blank characters at the cursor
@@ -1418,44 +1563,61 @@ class BetterScreen:
         forward.
 
         :param int count: number of characters to insert.
+
+        A right margin is the edge of the line, and the cells after it
+        stay where they are. From outside the margins ICH does nothing.
         """
         count = count or 1
         cursor_x = self.pt_cursor_position.x
-        columns = self.columns
+        left, right = self.left_right
+        if not left <= cursor_x <= right:
+            return
+
+        edge = right + 1
         line = self.data_buffer[self.pt_cursor_position.y]
 
         # Move what sits at and after the cursor to the right. What
         # falls off the right edge is lost.
         moved = {}
         for column in list(line.keys()):
-            if column < cursor_x:
+            if column < cursor_x or column > right:
                 continue
             cell = line.pop(column)
-            if column + count < columns:
+            if column + count < edge:
                 moved[column + count] = cell
         line.update(moved)
 
         style = self.erase_style()
         if style:
             blank = ErasedChar(" ", style)
-            for column in range(cursor_x, min(cursor_x + count, columns)):
+            for column in range(cursor_x, min(cursor_x + count, edge)):
                 line[column] = blank
 
         # The cursor and the right edge are where a double width
         # character can lose half of itself.
         self.repair_wide_char(line, cursor_x)
-        self.repair_wide_char(line, columns)
+        self.repair_wide_char(line, edge)
 
     def delete_characters(self, count: Optional[int] = None) -> None:
+        """
+        DCH ("CSI Ps P"): delete characters at the cursor.
+
+        A right margin is the edge of the line, and the cells after it
+        stay where they are. From outside the margins DCH does nothing.
+        """
         count = count or 1
         cursor_x = self.pt_cursor_position.x
-        columns = self.columns
+        left, right = self.left_right
+        if not left <= cursor_x <= right:
+            return
+
+        edge = right + 1
         line = self.data_buffer[self.pt_cursor_position.y]
 
         # Move what sits after the deleted characters to the left.
         moved = {}
         for column in list(line.keys()):
-            if column < cursor_x:
+            if column < cursor_x or column > right:
                 continue
             cell = line.pop(column)
             if column - count >= cursor_x:
@@ -1465,11 +1627,11 @@ class BetterScreen:
         style = self.erase_style()
         if style:
             blank = ErasedChar(" ", style)
-            for column in range(max(cursor_x, columns - count), columns):
+            for column in range(max(cursor_x, edge - count), edge):
                 line[column] = blank
 
         self.repair_wide_char(line, cursor_x)
-        self.repair_wide_char(line, max(cursor_x, columns - count))
+        self.repair_wide_char(line, max(cursor_x, edge - count))
 
     def cursor_position(
         self, line: Optional[int] = None, column: Optional[int] = None
@@ -1497,12 +1659,48 @@ class BetterScreen:
             if not (margins.top <= line <= margins.bottom):
                 return
 
+        column = self._column_in_origin_mode(column)
+
         self.pt_cursor_position.x = column
         self.pt_cursor_position.y = line + self.line_offset
         self.ensure_bounds()
 
+    def _column_in_origin_mode(self, column: int) -> int:
+        """
+        Read a column that a program counted from the left margin.
+
+        In origin mode the region is the whole page that a program
+        sees, so column one is the left margin and the right margin
+        holds the cursor. Without the mode, or without margins, the
+        column is the column of the screen.
+        """
+        margins = self.horizontal_margins
+        if margins is None or mo.DECOM not in self.mode:
+            return column
+        return min(column + margins.left, margins.right)
+
     def cursor_to_column(self, column: Optional[int] = None) -> None:
-        """Moves cursor to a specific column in the current line.
+        """
+        CHA ("CSI Ps G"): move to a column of the current line.
+
+        The column is counted from the left margin in origin mode.
+        HPA names the column of the screen instead, and
+        `cursor_to_absolute_column` serves it.
+
+        :param int column: column number to move the cursor to.
+        """
+        self.pt_cursor_position.x = self._column_in_origin_mode(
+            (column or 1) - 1
+        )
+        self.ensure_bounds()
+
+    def cursor_to_absolute_column(self, column: Optional[int] = None) -> None:
+        """
+        HPA ("CSI Ps `"): move to a column of the screen.
+
+        Origin mode does not change this one. CHA reads the same
+        parameter from the left margin, and HPA reads it from the edge
+        of the screen. xterm draws the line that way.
 
         :param int column: column number to move the cursor to.
         """
@@ -1601,8 +1799,18 @@ class BetterScreen:
         at left margin.
 
         :param int count: number of columns to skip.
+
+        The left margin stops the cursor, but only when the cursor
+        starts at or right of it. Left of the margin the first column
+        stops it, because the margin would move the cursor right, and
+        a move left never does that.
         """
-        self.pt_cursor_position.x = max(0, self.pt_cursor_position.x - (count or 1))
+        cursor_position = self.pt_cursor_position
+        left, _right = self.left_right
+        if cursor_position.x < left:
+            left = 0
+
+        cursor_position.x = max(left, cursor_position.x - (count or 1))
         self.ensure_bounds()
 
     def cursor_forward(self, count: Optional[int] = None) -> None:
@@ -1610,8 +1818,17 @@ class BetterScreen:
         at right margin.
 
         :param int count: number of columns to skip.
+
+        The right margin stops the cursor, but only when the cursor
+        starts at or left of it. Right of the margin the last column
+        stops it.
         """
-        self.pt_cursor_position.x += count or 1
+        cursor_position = self.pt_cursor_position
+        _left, right = self.left_right
+        if cursor_position.x > right:
+            right = self.columns - 1
+
+        cursor_position.x = min(right, cursor_position.x + (count or 1))
         self.ensure_bounds()
 
     def erase_style(self) -> str:
@@ -1849,6 +2066,7 @@ class BetterScreen:
             for x in range(0, self.columns):
                 line[x] = Char("E")
         self.margins = None
+        self.horizontal_margins = None
         self.cursor_position()
 
     # Mapping of the ANSI color codes to their names.
@@ -2115,7 +2333,7 @@ class BetterScreen:
 
         if data == 6:
             y = self.pt_cursor_position.y - self.line_offset + 1
-            x = self.pt_cursor_position.x + 1
+            x = self.reported_column + 1
             if private is True:
                 # DECXCPR: the page number comes after the position.
                 self.write_process_input("\x1b[?%i;%i;1R" % (y, x))
@@ -2208,6 +2426,7 @@ class BetterScreen:
             7,  # DECAWM: autowrap.
             25,  # DECTCEM: cursor visible.
             47,  # The alternate screen.
+            LEFT_RIGHT_MARGIN_MODE,  # DECLRMM: DECSLRM sets the columns.
             1000,  # Mouse reporting.
             1006,  # SGR mouse encoding.
             1015,  # urxvt mouse encoding.
@@ -2345,6 +2564,9 @@ class BetterScreen:
         elif name == "r":
             margins = self.margins or Margins(0, self.lines - 1)
             value = "%i;%i" % (margins.top + 1, margins.bottom + 1)
+        elif name == "s":
+            left, right = self.left_right
+            value = "%i;%i" % (left + 1, right + 1)
         else:
             self.write_process_input("\x1bP0$r\x1b\\")
             return
