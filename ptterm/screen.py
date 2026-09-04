@@ -80,6 +80,49 @@ PALETTE_NAMES = [
 ]
 
 
+#: The name of the terminfo entry that describes a pane. A program
+#: reads it with the "TN" capability.
+TERMINAL_NAME = "pymux"
+
+#: What a pane can do, in the form that XTGETTCAP answers.
+#:
+#: A program asks over the wire instead of reading a database, which is
+#: the only way it can learn what a pane can do: `TERM` names an entry
+#: that may not be installed where the program runs, and over ssh it
+#: is the only way at all.
+#:
+#: `True` is a capability that a terminal either has or does not. A
+#: string is a value, and one that holds "%" travels as the source
+#: text, the way terminfo writes it.
+#:
+#: Nothing goes in here that a pane does not really do. A capability
+#: that is claimed and not served is worse than one that is missing:
+#: the program stops asking and draws what it cannot draw.
+CAPABILITIES: Dict[str, object] = {
+    # The name of the entry.
+    "TN": TERMINAL_NAME,
+    "name": TERMINAL_NAME,
+    # Automatic margins, and the wrap that waits in the last column.
+    "am": True,
+    "xenl": True,
+    # An erased cell takes the background that is set.
+    "bce": True,
+    # 24 bit colour, under both names that a program looks for.
+    "RGB": True,
+    "Tc": True,
+    # The shape and the colour of an underline.
+    "Su": True,
+    "Smulx": r"\E[4:%p1%dm",
+    "Setulc": r"\E[58:2:%p1%{65536}%/%d:%p1%{256}%/%{255}%&%d:%p1%{255}%&%d%;m",
+    # The keyboard protocol of kitty.
+    "fullkbd": True,
+    # The clipboard, which a pane may write.
+    "Ms": r"\E]52;%p1%s;%p2%s\E\\",
+    "colors": "256",
+    "Co": "256",
+    "pairs": "32767",
+}
+
 #: The shape of the line that each sub-parameter of "SGR 4" draws.
 #: Zero draws none. An empty name is the single line that a plain
 #: "SGR 4" draws, and prompt_toolkit reads it as such.
@@ -2142,6 +2185,36 @@ class BetterScreen:
 
         self.write_process_input("\x1bP1$r%s%s\x1b\\" % (value, name))
 
+    def report_capabilities(self, query: str) -> None:
+        """
+        XTGETTCAP ("DCS + q <names> ST"): what this terminal can do.
+
+        The names arrive as hexadecimal, separated by semicolons, and
+        each one is answered on its own. "1 + r" carries a capability
+        that this terminal has and "0 + r" one that it does not.
+
+        This is what a program asks when the database of the machine
+        it runs on says nothing useful, which is every time it runs
+        over ssh.
+        """
+        for encoded in query.split(";"):
+            try:
+                name = bytes.fromhex(encoded).decode("ascii")
+            except ValueError:
+                self.write_process_input("\x1bP0+r%s\x1b\\" % encoded)
+                continue
+
+            value = CAPABILITIES.get(name)
+            if value is None:
+                self.write_process_input("\x1bP0+r%s\x1b\\" % encoded)
+            elif value is True:
+                self.write_process_input("\x1bP1+r%s\x1b\\" % encoded)
+            else:
+                self.write_process_input(
+                    "\x1bP1+r%s=%s\x1b\\"
+                    % (encoded, str(value).encode("utf-8").hex())
+                )
+
     def _current_rendition(self) -> str:
         """
         The graphic rendition of this screen, as SGR parameters.
@@ -2498,6 +2571,10 @@ class BetterScreen:
         """
         if data.startswith("$q"):
             self.report_setting(data[2:])
+            return
+
+        if data.startswith("+q"):
+            self.report_capabilities(data[2:])
             return
 
         image = decode_sixel(data)
