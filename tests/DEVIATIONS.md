@@ -413,6 +413,32 @@ off, and the failure list records it.
 
 **As a setting:** it is one. `set-option allow-program-resize on`.
 
+### 14. A reset of a dynamic colour gives white text, not black
+
+`\x1b]10;#aabbcc\x1b\\` then `\x1b]110\x1b\\` then `\x1b]10;?\x1b\\`.
+
+"OSC 110" puts the foreground back to the colour the terminal starts
+with. xterm starts with black text on a white background, so it
+answers black. ptterm answers white, because a pane draws on a dark
+background.
+
+**Why.** This is not a difference in the command. Both terminals put
+the colour back to the one they began with; the two simply begin with
+different colours. A pane reports what a program will really draw on,
+and pymux paints a dark pane.
+
+esctest2 makes the difference visible by accident. Before each test it
+writes `OSC 10 ; #000` and `OSC 11 ; #ffffff`, to work around a bug
+where "OSC 104" leaves the dynamic colours alone. Those two values are
+the defaults of xterm, so on xterm the reset lands back on the value
+the harness wrote and the test passes.
+`ResetSpecialColorTests.test_ResetSpecialColor_Dynamic` therefore
+fails here, and the failure list records it. The other four tests of
+that class pass.
+
+The panel says nothing here: a colour query travels through a channel
+the judges do not carry.
+
 ## Where kitty looks wrong
 
 kitty puts the second character after a wrap into the cell of the

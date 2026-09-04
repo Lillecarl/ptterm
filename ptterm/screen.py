@@ -9,7 +9,7 @@ Changes compared to the original `Screen` class:
 """
 import base64
 from collections import defaultdict, namedtuple
-from enum import IntEnum, IntFlag
+from enum import IntEnum, IntFlag, StrEnum
 from typing import Callable, DefaultDict, Dict, List, Tuple
 
 from prompt_toolkit.cache import FastDictCache
@@ -28,9 +28,14 @@ from .graphics import (
 )
 from .osc import (
     DEFAULT_COLORS,
+    DYNAMIC_COLOR_CODES,
+    DYNAMIC_COLOR_RESET_OFFSET,
+    FIRST_SPECIAL_COLOR,
     MAX_POINTER_SHAPES,
     PALETTE,
-    format_color,
+    SPECIAL_COLOR_NAMES,
+    Color,
+    parse_color,
     parse_hyperlink,
     parse_kitty_color_query,
     pointer_shape_name,
@@ -45,7 +50,41 @@ __all__ = ("BetterScreen",)
 #: terminal of the user for the clipboard (52), a desktop notification
 #: (99) or the shape of the pointer (22). `BetterScreen.osc_func`
 #: receives them; a ptterm without such a function consumes them.
-FORWARDED_OSC = frozenset(["22", "52", "99"])
+class Osc(StrEnum):
+    """
+    The OSC codes that a pane reads.
+
+    An OSC names its code in text, not in a parameter, so the code is
+    a string here as well.
+    """
+
+    #: "OSC 8": the hyperlink that the cells after it carry.
+    HYPERLINK = "8"
+    #: "OSC 4": one entry of the palette, by index.
+    PALETTE_COLOR = "4"
+    #: "OSC 5": one colour that a rendition asks for by name.
+    SPECIAL_COLOR = "5"
+    #: "OSC 21": the colours, in the form that kitty reads.
+    KITTY_COLORS = "21"
+    #: "OSC 22": the shape of the pointer over the pane.
+    POINTER_SHAPE = "22"
+    #: "OSC 52": the clipboard of the user.
+    CLIPBOARD = "52"
+    #: "OSC 99": a desktop notification.
+    NOTIFICATION = "99"
+    #: "OSC 104": put palette entries back to their defaults.
+    RESET_PALETTE_COLOR = "104"
+    #: "OSC 105": put special colours back to their defaults.
+    RESET_SPECIAL_COLOR = "105"
+
+
+#: OSC sequences that a pane cannot answer by itself. `FORWARDED_OSC`
+#: above says what each one asks for.
+FORWARDED_OSC = frozenset([
+    Osc.POINTER_SHAPE,
+    Osc.CLIPBOARD,
+    Osc.NOTIFICATION,
+])
 
 #: What XTVERSION ("CSI > q") answers. ptterm draws the pane, so ptterm
 #: is what the program in it talks to.
@@ -400,8 +439,11 @@ CAPABILITIES: Dict[str, object] = {
     "Ms": r"\E]52;%p1%s;%p2%s\E\\",
     # A number is a number here, so that one table can answer a
     # query and describe an entry of terminfo.
-    "colors": 256,
-    "Co": 256,
+    # The size of the palette, under both names. A program reads this
+    # to learn where the special colours start, so it must be the size
+    # of the table that answers "OSC 4".
+    "colors": len(PALETTE),
+    "Co": len(PALETTE),
     "pairs": 32767,
 }
 
@@ -812,6 +854,17 @@ class BetterScreen:
         # The marks that SPA and DECSCA put on the cells that a
         # program draws next. Nothing is marked to start with.
         self.protection = 0
+
+        # The colours that a program set with "OSC 4", "OSC 5" and
+        # "OSC 10". A pane starts with neither table filled and
+        # answers a query from the defaults. A set puts an entry here,
+        # and "OSC 104", "OSC 105" or "OSC 110" takes it away again.
+        #
+        # The first table is keyed by the index that "OSC 4" writes,
+        # which counts the palette first and the special colours after
+        # it. The second is keyed by the code of the sequence itself.
+        self.palette_colors: Dict[int, Tuple[int, int, int]] = {}
+        self.dynamic_colors: Dict[str, Tuple[int, int, int]] = {}
 
         # Does the cursor wait to wrap? A character in the last column
         # of the line leaves the cursor one column further, and the
@@ -3987,23 +4040,15 @@ class BetterScreen:
             # the SCO console, and xterm reads it that way.
             self.restore_cursor()
 
-    # Codes of the xterm colour queries: the code names the colour.
-    _osc_colors = {
-        "10": "foreground",
-        "11": "background",
-        "12": "cursor",
-        "17": "selection_background",
-        "19": "selection_foreground",
-    }
-
     def osc(self, code: str, param: str) -> None:
         """
         An OSC sequence other than the title and the icon name.
 
-        The colour queries are answered. A pane has no palette of its
-        own, so the answer is the colour that the embedder renders
-        with; a program that asks needs an answer, not the right to
-        change it.
+        A pane keeps its own colours. A program sets one and reads it
+        back, and the answer is what the program set; the defaults
+        answer until it sets anything. What the embedder draws with is
+        a separate question, and the answer to it is that a pane does
+        not paint the terminal of the user.
 
         A hyperlink ("OSC 8") belongs to the cells that follow it, so
         the screen keeps it and every cell carries it.
@@ -4016,21 +4061,41 @@ class BetterScreen:
         Everything else is consumed. It must not raise: one sequence
         may not stop the pane.
         """
-        if code == "8":
+        if code == Osc.HYPERLINK:
             target = parse_hyperlink(param)
             if target is not None:
                 self.set_hyperlink(target)
-        elif code == "22":
+        elif code == Osc.POINTER_SHAPE:
             if self._set_pointer_shape(param):
                 self._forward_osc(code, param)
-        elif code == "4":
-            self._report_palette_colors(param)
-        elif code in self._osc_colors:
-            self._report_named_color(code, param)
-        elif code == "21":
+        elif code == Osc.PALETTE_COLOR:
+            self._palette_colors(code, param, 0)
+        elif code == Osc.SPECIAL_COLOR:
+            self._palette_colors(code, param, FIRST_SPECIAL_COLOR)
+        elif code == Osc.RESET_PALETTE_COLOR:
+            self._reset_palette_colors(param, 0, len(PALETTE))
+        elif code == Osc.RESET_SPECIAL_COLOR:
+            self._reset_palette_colors(
+                param, FIRST_SPECIAL_COLOR, len(SPECIAL_COLOR_NAMES)
+            )
+        elif code in DYNAMIC_COLOR_CODES:
+            self._dynamic_colors(code, param)
+        elif self._reset_code_of(code) in DYNAMIC_COLOR_CODES:
+            self.dynamic_colors.pop(self._reset_code_of(code), None)
+        elif code == Osc.KITTY_COLORS:
             self._report_kitty_colors(param)
         elif code in FORWARDED_OSC:
             self._forward_osc(code, param)
+
+    @staticmethod
+    def _reset_code_of(code: str) -> str:
+        """
+        The code that sets what `code` puts back, or the code itself
+        when it sets nothing. "OSC 110" gives "10".
+        """
+        if not code.isdigit():
+            return code
+        return str(int(code) - DYNAMIC_COLOR_RESET_OFFSET)
 
     @property
     def pointer_shape(self) -> str:
@@ -4125,34 +4190,124 @@ class BetterScreen:
             return
         self.osc_func(code, param)
 
-    def _report_named_color(self, code: str, param: str) -> None:
-        "Answer an xterm colour query, e.g. 'OSC 11 ; ?'."
-        if param.strip() != "?":
-            return  # A pane cannot change the colours of the terminal.
-        color = DEFAULT_COLORS[self._osc_colors[code]]
-        self.write_process_input(
-            "\x1b]%s;%s\x1b\\" % (code, format_color(color))
-        )
+    #: The value that asks for a colour instead of setting one.
+    QUERY = "?"
 
-    def _report_palette_colors(self, param: str) -> None:
+    def color_of(self, index: int) -> Color | None:
         """
-        Answer a palette query, e.g. "OSC 4 ; 1 ; ?". The payload holds
-        index and value pairs; only the queries are answered.
+        The colour that "OSC 4" reports for an index.
+
+        The palette comes first and the special colours follow it. The
+        answer is what a program set, or the default when it set
+        nothing. `None` is an index that this pane does not hold.
+        """
+        held = self.palette_colors.get(index)
+        if held is not None:
+            return held
+        if index < len(PALETTE):
+            return PALETTE[index]
+        # A special colour that nobody set draws in the colour of the
+        # text. xterm leaves such a colour unset and paints the text
+        # colour, so that is the honest answer.
+        if index - FIRST_SPECIAL_COLOR < len(SPECIAL_COLOR_NAMES):
+            return DEFAULT_COLORS["foreground"]
+        return None
+
+    def _palette_colors(self, code: str, param: str, offset: int) -> None:
+        """
+        Read "OSC 4" or "OSC 5": the palette and the special colours.
+
+        The payload holds index and value pairs. A value of "?" asks
+        for the colour and the others set it. `offset` is what the
+        written index needs to reach the table, because "OSC 5"
+        numbers the special colours from zero and "OSC 4" numbers them
+        after the palette.
+
+        Each query is answered on its own. A program reads one answer
+        for each question it asked, so two questions may not come back
+        as one.
         """
         parts = param.split(";")
-        answers = []
         for index in range(0, len(parts) - 1, 2):
             number, value = parts[index], parts[index + 1]
-            if value.strip() != "?" or not number.isdigit():
+            if not number.isdigit():
                 continue
-            entry = int(number)
-            if entry < len(PALETTE):
-                answers.append("%i;%s" % (entry, format_color(PALETTE[entry])))
-        if answers:
-            self.write_process_input("\x1b]4;%s\x1b\\" % ";".join(answers))
+            entry = int(number) + offset
+            if value.strip() == self.QUERY:
+                color = self.color_of(entry)
+                if color is not None:
+                    self.write_process_input(
+                        "\x1b]%s;%s;%s\x1b\\" % (code, number, color.spec)
+                    )
+            else:
+                color = parse_color(value)
+                if color is not None and self.color_of(entry) is not None:
+                    self.palette_colors[entry] = color
+
+    def _reset_palette_colors(
+        self, param: str, offset: int, count: int
+    ) -> None:
+        """
+        Read "OSC 104" or "OSC 105": put colours back to the defaults.
+
+        The payload names the indexes to put back. An empty payload
+        puts back every colour that the sequence covers, which is the
+        palette for one code and the special colours for the other.
+        """
+        if not param.strip():
+            for entry in range(offset, offset + count):
+                self.palette_colors.pop(entry, None)
+            return
+        for number in param.split(";"):
+            if number.isdigit():
+                self.palette_colors.pop(int(number) + offset, None)
+
+    def _dynamic_colors(self, code: str, param: str) -> None:
+        """
+        Read "OSC 10" and the codes after it: the colours that a
+        terminal names rather than numbers.
+
+        One payload may carry several values, and each one moves on to
+        the next code. "OSC 10 ; spec1 ; spec2" sets the foreground and
+        then the background. A code that a pane does not hold is
+        counted and skipped, so the ones after it still land right.
+        """
+        for step, value in enumerate(param.split(";")):
+            number = str(int(code) + step)
+            if number not in DYNAMIC_COLOR_CODES:
+                continue
+            if value.strip() == self.QUERY:
+                color = self.dynamic_colors.get(
+                    number, DEFAULT_COLORS[DYNAMIC_COLOR_CODES[number]]
+                )
+                self.write_process_input(
+                    "\x1b]%s;%s\x1b\\" % (number, color.spec)
+                )
+            else:
+                color = parse_color(value)
+                if color is not None:
+                    self.dynamic_colors[number] = color
+
+    def _named_color(self, name: str) -> Color:
+        """
+        The colour that a name stands for, as this pane holds it now.
+
+        A dynamic colour that a program set wins over the default. Both
+        "OSC 10" and the kitty query read the same colour, so both read
+        this.
+        """
+        for code, named in DYNAMIC_COLOR_CODES.items():
+            if named == name and code in self.dynamic_colors:
+                return self.dynamic_colors[code]
+        return DEFAULT_COLORS[name]
 
     def _report_kitty_colors(self, param: str) -> None:
-        "Answer a kitty colour query, e.g. 'OSC 21 ; background=?'."
+        """
+        Answer a kitty colour query, e.g. "OSC 21 ; background=?".
+
+        kitty joins its answers into one sequence, which is what its
+        own protocol says. The xterm queries answer one at a time.
+        """
         keys = parse_kitty_color_query(param)
         if keys is None:
             return
@@ -4162,9 +4317,10 @@ class BetterScreen:
             if not is_query:
                 continue
             if key.isdigit() and int(key) < len(PALETTE):
-                answers.append("%s=%s" % (key, format_color(PALETTE[int(key)])))
+                color = self.color_of(int(key))
+                answers.append("%s=%s" % (key, color.spec))
             elif key in DEFAULT_COLORS:
-                answers.append("%s=%s" % (key, format_color(DEFAULT_COLORS[key])))
+                answers.append("%s=%s" % (key, self._named_color(key).spec))
             else:
                 answers.append("%s=" % key)  # Not a colour that we hold.
         if answers:

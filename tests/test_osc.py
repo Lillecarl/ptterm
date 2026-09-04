@@ -4,7 +4,7 @@ Tests for the OSC sequences that a pane sends.
 A pane has no palette of its own, but a program that asks for one needs
 an answer: without it, it waits forever.
 """
-from ptterm.osc import DEFAULT_COLORS, PALETTE, format_color, parse_kitty_color_query
+from ptterm.osc import DEFAULT_COLORS, PALETTE, Color, parse_kitty_color_query
 from ptterm.screen import BetterScreen
 from ptterm.stream import BetterStream
 
@@ -25,9 +25,9 @@ def make_screen():
 
 
 def test_a_colour_is_written_with_doubled_components():
-    assert format_color((0x12, 0x34, 0x56)) == "rgb:1212/3434/5656"
-    assert format_color((0, 0, 0)) == BLACK
-    assert format_color((255, 255, 255)) == WHITE
+    assert Color(0x12, 0x34, 0x56).spec == "rgb:1212/3434/5656"
+    assert Color(0, 0, 0).spec == BLACK
+    assert Color(255, 255, 255).spec == WHITE
 
 
 def test_the_palette_has_the_full_256_colours():
@@ -81,16 +81,19 @@ def test_the_selection_colour_queries():
     stream.feed("\x1b]17;?\x07")
     stream.feed("\x1b]19;?\x07")
     assert responses == [
-        "\x1b]17;%s\x1b\\" % format_color(DEFAULT_COLORS["selection_background"]),
-        "\x1b]19;%s\x1b\\" % format_color(DEFAULT_COLORS["selection_foreground"]),
+        "\x1b]17;%s\x1b\\" % DEFAULT_COLORS["selection_background"].spec,
+        "\x1b]19;%s\x1b\\" % DEFAULT_COLORS["selection_foreground"].spec,
     ]
 
 
-def test_setting_a_colour_is_ignored():
-    # A pane may not change the colours of the terminal.
+def test_setting_a_colour_answers_nothing_and_holds_it():
+    # A set is not a query, so it gets no answer. The pane keeps the
+    # colour, and the next query reads it back.
     _screen, stream, responses = make_screen()
     stream.feed("\x1b]11;rgb:ff/00/00\x07")
     assert responses == []
+    stream.feed("\x1b]11;?\x07")
+    assert responses == ["\x1b]11;rgb:ffff/0000/0000\x1b\\"]
 
 
 # ----------------------------------------------------------------------
@@ -104,10 +107,15 @@ def test_a_palette_query():
 
 
 def test_several_palette_entries_at_once():
+    # One answer for each question. xterm sends them apart, and a
+    # program reads them apart: it reads up to the terminator once for
+    # each query it sent. Joining them leaves it reading the second
+    # answer as part of the first.
     _screen, stream, responses = make_screen()
     stream.feed("\x1b]4;0;?;15;?\x07")
     assert responses == [
-        "\x1b]4;0;%s;15;%s\x1b\\" % (BLACK, WHITE)
+        "\x1b]4;0;%s\x1b\\" % BLACK,
+        "\x1b]4;15;%s\x1b\\" % WHITE,
     ]
 
 
