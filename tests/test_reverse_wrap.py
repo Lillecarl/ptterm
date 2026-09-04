@@ -106,6 +106,19 @@ def test_the_inline_mode_goes_back_over_a_line_that_wrapped(pane):
     assert at(screen) == (COLUMNS - 1, 0)
 
 
+def test_erasing_the_screen_forgets_that_a_line_wrapped(pane):
+    # The note that a line was reached by wrapping belongs to the text
+    # on it. Erase the text and the note has to go, or a backspace
+    # walks back over a line the typing never reached.
+    screen, stream = pane
+    stream.feed(AUTOWRAP + INLINE + "\x1b[1;1H" + "a" * (COLUMNS * 2))
+    assert screen.wrapped_lines
+    stream.feed("\x1b[2J")
+    assert screen.wrapped_lines == []
+    stream.feed("\x1b[3;3H" + BACKSPACE * 4)
+    assert at(screen) == (0, 2)
+
+
 def test_the_inline_mode_stops_where_the_typing_began(pane):
     # Two wrapped rows, then more backspaces than there are columns.
     # The cursor walks back to where the typing started and stops.

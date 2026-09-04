@@ -2880,6 +2880,17 @@ class BetterScreen:
                 private is True or type_of != 2
             )
 
+            # A row that is erased is no longer the tail of a line that
+            # wrapped: the text that wrapped onto it is gone. The note
+            # has to go with the text, or it outlives what it
+            # describes. A reflow then joins two lines that were never
+            # one, and a reverse wrap walks back over a line the
+            # typing never reached.
+            erased_rows = set(interval)
+            self.wrapped_lines = [
+                row for row in self.wrapped_lines if row not in erased_rows
+            ]
+
             for line in interval:
                 if reads_the_marks:
                     # A cell that carries a mark stays, so the row
