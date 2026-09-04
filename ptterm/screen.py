@@ -3292,24 +3292,66 @@ class BetterScreen:
         ]
     )
 
+    #: The modes that this screen keeps and does not act on.
+    #:
+    #: A mode here is remembered: a set makes DECRQM answer 1, and a
+    #: reset makes it answer 2. Nothing else happens. That is a third
+    #: thing, beside a mode this screen acts on and a mode that can
+    #: never be on, and the three need three answers.
+    #:
+    #: The reason to keep one is that a program writes a mode and reads
+    #: it back to learn whether the terminal took it. An answer of 0
+    #: sends that program to a guess. Every mode here is one that xterm
+    #: keeps as well.
+    #:
+    #: The comment on each line says what the mode would do. Four of
+    #: them name real behaviour that ptterm does not have yet, and
+    #: `tests/DEVIATIONS.md` carries them.
+    _remembered_ansi_modes = frozenset(
+        [
+            AnsiMode.KEYBOARD_LOCKED,  # :todo: drop the input.
+            AnsiMode.LOCAL_ECHO,  # :todo: echo it.
+        ]
+    )
+
+    #: The same for the modes with a private marker.
+    _remembered_private_modes = frozenset(
+        [
+            # A pane draws as fast as it can, and holds no printer.
+            PrivateMode.SLOW_SCROLL,
+            PrivateMode.PRINT_FORM_FEED,
+            PrivateMode.PRINT_EXTENT,
+            # These three name real behaviour. :todo: act on them.
+            PrivateMode.HEBREW_KEYBOARD,
+            PrivateMode.NATIONAL_CHARSETS,
+            PrivateMode.APPLICATION_KEYPAD,
+            PrivateMode.BACKARROW_IS_BACKSPACE,
+        ]
+    )
+
     def report_mode(self, *params: int, private: object = False, **kwargs) -> None:
         """
         DECRQM ("CSI ? Ps $ p" and "CSI Ps $ p"): is this mode set?
 
         The answer is "CSI ? Ps ; Pm $ y". Pm is 1 for set, 2 for reset,
         4 for a mode that exists and can never be on, and 0 for a mode
-        that this screen does not act on.
+        that this screen never heard of.
 
-        A program that reads 0 falls back to what it knows, which is
-        safer than an answer that we invent. So a mode gets 1 or 2 only
-        when this screen really acts on it.
+        A mode gets 1 or 2 when this screen keeps it, whether it acts
+        on the mode or not. A program writes a mode and reads it back
+        to learn whether the terminal took it, and a 0 sends that
+        program to a guess. `_remembered_ansi_modes` names the ones
+        that are kept and not acted on.
         """
         number = params[0] if params else 0
         is_private = private is True
 
         if is_private:
             permanent = number in self._permanently_reset_private_modes
-            known = number in self._known_private_modes
+            known = (
+                number in self._known_private_modes
+                or number in self._remembered_private_modes
+            )
             if number == PrivateMode.CURSOR_BLINK:
                 # DECSCUSR writes this one as well, and the alternate
                 # screen carries a `mode` of its own. So the answer
@@ -3320,7 +3362,10 @@ class BetterScreen:
                 enabled = (number << 5) in self.mode
         else:
             permanent = number in self._permanently_reset_ansi_modes
-            known = number in self._known_ansi_modes
+            known = (
+                number in self._known_ansi_modes
+                or number in self._remembered_ansi_modes
+            )
             enabled = number in self.mode
 
         if permanent:

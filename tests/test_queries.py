@@ -108,8 +108,10 @@ def test_a_mode_without_a_private_marker_is_answered_without_one():
     stream.feed("\x1b[4h")  # IRM: insert mode.
     query_mode(stream, 4, private=False)
     query_mode(stream, 20, private=False)  # LNM: never set.
-    query_mode(stream, 4, private=True)  # Not the same mode.
-    assert answers == ["\x1b[4;1$y", "\x1b[20;2$y", "\x1b[?4;0$y"]
+    # Private mode 4 is DECSCLM, the slow scroll. It is a different
+    # mode from IRM, and the marker is the only thing that says so.
+    query_mode(stream, 4, private=True)
+    assert answers == ["\x1b[4;1$y", "\x1b[20;2$y", "\x1b[?4;2$y"]
 
 
 def test_a_mode_that_can_never_be_on_reports_four():
@@ -308,3 +310,44 @@ def test_the_pixel_size_agrees_with_the_window_report():
     report = answers[0]
     _rows, _cols, height, width = report[len("\x1b[48;") : -1].split(";")
     assert answers[1] == "\x1b[4;%s;%st" % (height, width)
+
+
+def test_a_mode_that_is_kept_and_not_acted_on_reports_one_or_two():
+    """
+    A mode this screen keeps, and does nothing about.
+
+    DECSCLM asks for a slow scroll, and a pane draws as fast as it can.
+    DECPFF and DECPEX are about a printer that is not there. A program
+    still writes one and reads it back, to learn whether the terminal
+    took it, and an answer of zero sends that program to a guess.
+
+    So the answer follows the mode: one after a set, two after a reset.
+    xterm keeps every one of these the same way.
+    """
+    _screen, stream, answers = make_screen()
+    for mode in (4, 18, 19, 35, 42, 66, 67):
+        stream.feed("\x1b[?%ih" % mode)
+        query_mode(stream, mode)
+        stream.feed("\x1b[?%il" % mode)
+        query_mode(stream, mode)
+
+    expected = []
+    for mode in (4, 18, 19, 35, 42, 66, 67):
+        expected += ["\x1b[?%i;1$y" % mode, "\x1b[?%i;2$y" % mode]
+    assert answers == expected
+
+
+def test_the_two_ansi_modes_that_are_kept_report_one_or_two():
+    "KAM locks the keyboard and SRM echoes it. Neither is acted on yet."
+    _screen, stream, answers = make_screen()
+    for mode in (2, 12):
+        stream.feed("\x1b[%ih" % mode)
+        query_mode(stream, mode, private=False)
+        stream.feed("\x1b[%il" % mode)
+        query_mode(stream, mode, private=False)
+    assert answers == [
+        "\x1b[2;1$y",
+        "\x1b[2;2$y",
+        "\x1b[12;1$y",
+        "\x1b[12;2$y",
+    ]
