@@ -458,6 +458,10 @@ class BetterScreen:
         self.title = ""
         self.icon_name = ""
 
+        # The titles that "CSI 22 t" remembered. A reset empties it,
+        # the way it empties everything else that a program set.
+        self.title_stack: List[Tuple[str, str]] = []
+
         # Reset the kitty keyboard protocol flag stack as well. (RIS is a
         # full terminal reset. It also clears all graphics.)
         self.kitty_flags_stack = ()
@@ -2799,17 +2803,30 @@ class BetterScreen:
 
     def report_window(self, *params: int, **kwargs) -> None:
         """
-        Window manipulation ("CSI Ps t"). Only the size reports are
-        answered; the rest is ignored, because a pane cannot move or
-        resize its window.
+        Window manipulation ("CSI Ps t").
+
+        The sizes and the titles are answered. A pane has no window of
+        its own, so it cannot move, iconify, maximize or resize one,
+        and it ignores every operation that asks for that.
 
         A pane that draws images asks for the cell size (16) to work out
         how many cells an image covers. The answer is the size that
         `ptterm.graphics` assumes, so both sides count alike.
         """
         what = params[0] if params else 0
+        which = params[1] if len(params) > 1 else 0
 
-        if what == 16:
+        if what == 20:
+            # The icon label.
+            self.write_process_input("\x1b]L%s\x1b\\" % self.icon_name)
+        elif what == 21:
+            # The window title.
+            self.write_process_input("\x1b]l%s\x1b\\" % self.title)
+        elif what == 22:
+            self._push_title()
+        elif what == 23:
+            self._pop_title(which)
+        elif what == 16:
             # Cell size in pixels: height first, then width.
             self.write_process_input(
                 "\x1b[6;%i;%it" % (ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH)
@@ -2823,6 +2840,39 @@ class BetterScreen:
                 "\x1b[4;%i;%it"
                 % (self.lines * ASSUMED_CELL_HEIGHT, self.columns * ASSUMED_CELL_WIDTH)
             )
+
+    #: How many titles "CSI 22 t" remembers. xterm keeps ten, and a
+    #: program that pushes and never pops must not grow the pane.
+    TITLE_STACK_LIMIT = 10
+
+    def _push_title(self) -> None:
+        """
+        "CSI 22 ; Ps t": remember the titles that are set now.
+
+        One stack holds both of them, whichever title the parameter
+        names. A pop then takes one entry off and writes back the
+        title that its own parameter names, so a push of the icon
+        label and a pop of the window title read the same entry.
+        xterm answers this way, and the conformance suite reads it.
+        """
+        self.title_stack.append((self.icon_name, self.title))
+        del self.title_stack[: -self.TITLE_STACK_LIMIT]
+
+    def _pop_title(self, which: int) -> None:
+        """
+        "CSI 23 ; Ps t": bring back the titles that a push remembered.
+
+        Zero brings back both, one the icon label and two the window
+        title. An empty stack leaves both of them alone.
+        """
+        if not self.title_stack:
+            return
+
+        icon_name, title = self.title_stack.pop()
+        if which in (0, 1):
+            self.icon_name = icon_name
+        if which in (0, 2):
+            self.title = title
 
     def report_checksum(self, *params: int, **kwargs) -> None:
         """
