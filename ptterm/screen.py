@@ -1158,16 +1158,25 @@ class BetterScreen:
         The tab stops do not know how wide the screen is, so a stop can
         sit past the last column. The last column stops the cursor: a
         tab never moves it off the line.
+
+        A cursor that already sits past the last column waits to wrap.
+        A tab leaves that wait alone, so the next character starts the
+        line below. Every other cursor move ends the wait. This one
+        does not. kitty, WezTerm, Alacritty and libvterm all agree.
         """
+        cursor_position = self.pt_cursor_position
+        if cursor_position.x >= self.columns:
+            return
+
         last = self.columns - 1
         for stop in sorted(self.tabstops):
-            if self.pt_cursor_position.x < stop:
+            if cursor_position.x < stop:
                 column = min(stop, last)
                 break
         else:
             column = last
 
-        self.pt_cursor_position.x = column
+        cursor_position.x = column
 
     def cursor_to_next_tab(self, count: Optional[int] = None) -> None:
         """

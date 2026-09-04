@@ -15,13 +15,15 @@ pytestmark = pytest.mark.skipif(
 
 
 @pytest.mark.xfail(
-    reason="kitty moves to the next line on a tab at the right margin, which "
-    "xterm and the DEC manuals do not. ptterm follows xterm.",
+    reason="kitty scrolls the screen on a tab in the last column of the last "
+    "row. libvterm and WezTerm do not, and neither does ptterm.",
     strict=True,
 )
 def test_a_tab_at_the_right_margin_of_the_last_row():
-    # kitty scrolls the screen up here, because it treats the tab as a
-    # move to the next line. ptterm keeps the cursor where it is.
+    # A tab leaves a cursor that waits to wrap alone, which is what the
+    # whole panel does. kitty goes further on the last row and scrolls
+    # the screen up. Two judges scroll and two do not, so the panel
+    # decides nothing here.
     assert not differences("\x1b[8;20H12345\t", lines=8, columns=24)
 
 

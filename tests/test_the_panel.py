@@ -38,24 +38,26 @@ def test_a_plain_program_finds_no_difference():
     assert verdict("hello\r\nworld\x1b[1;31m!\x1b[0m", 8, 24) == "agree"
 
 
+def test_a_tab_at_the_right_margin_follows_the_panel():
+    """
+    A tab does not end the wait to wrap.
+
+    A character in the last column leaves the cursor waiting to wrap.
+    ptterm cleared that wait on a tab, so the character after the tab
+    landed over the one that is there. Every judge put it on the next
+    line instead, four to nothing, and only a document stood behind
+    ptterm: xterm says a cursor move clears the wait, and a tab is a
+    cursor move.
+
+    The panel won. `tab()` now leaves a cursor that sits past the last
+    column alone.
+    """
+    assert verdict("\x1b[1;20H12345\tX", 8, 24) == "agree"
+
+
 # ----------------------------------------------------------------------
 # The differences that stand. The user decides each one; this records
 # what the panel says about it.
-
-
-def test_a_tab_at_the_right_margin_loses_the_vote():
-    """
-    Every judge puts the character that follows on the next line, and
-    ptterm keeps the cursor in the last column, so the character lands
-    over the one that is there.
-
-    Only xterm stands behind ptterm: a cursor move clears the flag
-    that a character in the last column sets, and a tab is a cursor
-    move. Four to one, and the one is a document.
-    """
-    against, with_us = sides("\x1b[1;20H12345\tX")
-    assert against == ["alacritty", "kitty", "libvterm", "wezterm"]
-    assert with_us == []
 
 
 def test_a_tab_on_the_last_row_splits_the_panel():

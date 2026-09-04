@@ -75,7 +75,7 @@ def test_the_three_agree(data):
 # the choice is not one implementation against the world.
 
 FOLLOWS_PTTERM = [
-    ("a tab in the last column", "\x1b[8;20H12345\t", 8, 24),
+    ("a tab in the last column of the last row", "\x1b[8;20H12345\t", 8, 24),
     ("a backspace in the first column", "\n\x080", 4, 8),
     ("a count of zero for SU", "a\r\nb\x1b[0S", 4, 8),
     ("the line that a scroll brings in", "\x1b[42m\x1b[1S", 4, 6),
@@ -92,24 +92,23 @@ def test_libvterm_takes_the_side_of_ptterm(name, data, lines, columns):
     assert three_way(data, lines=lines, columns=columns) == "split"
 
 
-def test_a_character_after_the_tab_turns_the_vote_around():
+def test_a_character_after_the_tab_shows_what_the_tab_did():
     """
-    The tab is not the split that it looks like.
+    The tab at the right margin used to be the one real bug here.
 
     A tab that fills the last column and ends the program looks like
-    agreement: all three leave the same screen. Write one character
-    after the tab and the three come apart. kitty and libvterm put it
-    on the next line; ptterm keeps the cursor in the last column, so
-    the character lands over the one that is already there.
+    agreement: all three leave the same screen. One character after
+    the tab told them apart. kitty and libvterm put it on the next
+    line; ptterm cleared the wait to wrap, so the character landed
+    over the one that is already there. The vote called that
+    "ptterm-wrong".
 
-    The vote therefore calls the tab at the right margin
-    "ptterm-wrong". xterm stands behind ptterm: a cursor move clears
-    the flag that a character in the last column sets, and a tab is a
-    cursor move. It is still a choice, and it is the user who makes
-    it.
+    ptterm now leaves the wait alone, and the three agree either way.
+    The character after the tab stays here as the probe that finds a
+    regression.
     """
     assert three_way("\x1b[1;20H12345\t", lines=4, columns=24) == "agree"
-    assert three_way("\x1b[1;20H12345\tX", lines=4, columns=24) == "ptterm-wrong"
+    assert three_way("\x1b[1;20H12345\tX", lines=4, columns=24) == "agree"
 
 
 def test_the_two_emulators_disagree_about_a_mark_on_an_erased_cell():

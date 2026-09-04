@@ -98,26 +98,34 @@ is a real choice. `three_way` answers "agree", "ptterm-wrong" or
   bug with nothing to decide.
 - DL left the cursor where it was. It moves to the first column, the
   same way IL does.
+- A tab ended the wait to wrap. A character in the last column leaves
+  the cursor waiting, and a tab cleared that wait, so the character
+  after the tab landed over the one that is there. The whole panel
+  puts it on the next line: four judges to nothing, and only a
+  document behind ptterm. The tab is the one cursor move that does not
+  end the wait.
 
 ## Where ptterm follows xterm and kitty does something else
 
 These six are in `test_known_deviations.py` and in `test_against_vterm.py`. ptterm follows xterm in
 each; a program is written against xterm, not against kitty.
 
-**libvterm draws what ptterm draws in five of the six.** That was a
+**libvterm draws what ptterm draws in every one of these.** That was a
 reading of the documentation before; it is now a second
-implementation, and the vote calls those a split and not a bug.
+implementation, and the vote calls these a split and not a bug.
 
-**The tab is the exception.** A tab that fills the last column and
-ends the program leaves the same screen everywhere. Write one
-character after it and the three come apart: kitty and libvterm put it
-on the next line, and ptterm keeps the cursor in the last column, so
-the character lands over the one that is there. The vote calls that
-"ptterm-wrong". xterm stands behind ptterm, because a cursor move
-clears the flag that a character in the last column sets and a tab is
-a cursor move. It is still a choice, and it is the user who makes it.
+**The tab was the exception, and the panel closed it.** A tab that
+fills the last column and ends the program leaves the same screen
+everywhere. One character after it told the three apart: kitty and
+libvterm put it on the next line, and ptterm cleared the wait to wrap,
+so the character landed over the one that is there. The vote called
+that "ptterm-wrong", and ptterm now leaves the wait alone. What is
+left of the tab is the row below the last one, and that one is a
+split.
 
-1. A tab in the last column moves to the next line in kitty.
+1. A tab in the last column of the last row scrolls the screen in
+   kitty. ptterm keeps the cursor where it is, and libvterm and
+   WezTerm keep it there too.
 2. A backspace in the first column steps back to the end of the row
    above in kitty. xterm does that only with mode 45 set.
 3. A count of zero for SU or SD means no scroll in kitty. Every other
