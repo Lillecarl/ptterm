@@ -350,6 +350,40 @@ screen quietly.
 
 **As a setting:** no, for the same reason as the margins.
 
+### 12. DECFRA, DECERA, DECSERA and DECCRA
+
+`abcdefg\r\nABCDEFG\r\nhijklmn\r\nHIJKLMN\r\nopqrstu\x1b[37;2;2;4;4$x`
+and the three commands beside it, on 6 lines and 8 columns.
+
+The four commands take a rectangle of the screen. DECFRA
+("CSI Pch ; Pt ; Pl ; Pb ; Pr $ x") fills one with a character. DECERA
+("$ z") erases one. DECSERA ("$ {") erases one and leaves a cell that
+DECSCA marked alone. DECCRA ("$ v") copies one to another place.
+
+**No judge carries any of the four.** All six leave the screen exactly
+as it was, in every one of fifteen probes. So the panel gives no tally
+here, and it cannot give one: a judge that does nothing reads the same
+way as a judge that disagrees, and six abstentions are not six votes.
+
+xterm is the anchor instead. esctest2 is xterm's own suite, and its
+`DECFRATests`, `DECERATests`, `DECSERATests` and `DECCRATests` hold
+thirty-two tests between them, of which twenty-four failed before this
+work. The other eight ask a command to do nothing, which a terminal
+without the command does very well. `test_rectangles.py` follows the
+suite, and
+`test_the_panel.py` writes down the abstention so that a judge which
+grows the feature makes a test fail.
+
+One rule inside the four is worth naming, because it looks like an
+inconsistency and is not. **DECSERA reads only the mark of DECSCA.**
+The mark of ISO 6429 does not hold it away from a cell, and DECSEL
+("CSI ? Ps K") reads both marks. esctest2 asks for each of the two, in
+`test_DECSERA_doesNotRespectISOProtect` and in the DECSEL tests, so
+ptterm answers each of the two.
+
+**As a setting:** no, for the same reason as the margins. A program
+that sends "$ v" means the copy.
+
 ## Where kitty looks wrong
 
 kitty puts the second character after a wrap into the cell of the

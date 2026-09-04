@@ -261,3 +261,41 @@ def test_a_soft_reset_takes_the_margins_away_for_everybody():
 def test_the_columns_of_a_region_stand_apart(data, against):
     found, _with_us = sides(data, lines=4, columns=24)
     assert found == against
+
+
+# ----------------------------------------------------------------------
+# The rectangle commands. No judge carries one.
+
+#: The four sequences that take a rectangle, each on the screen that
+#: `DECCRATests` draws in the conformance suite.
+RECTANGLE_COMMANDS = [
+    # DECFRA fills one with a character.
+    "\x1b[37;2;2;4;4$x",
+    # DECERA erases one.
+    "\x1b[2;2;4;4$z",
+    # DECSERA erases one and leaves a cell that DECSCA marked alone.
+    "\x1b[2;2;4;4${",
+    # DECCRA copies one to another place.
+    "\x1b[2;2;4;4;1;5;5;1$v",
+]
+
+
+@pytest.mark.parametrize("command", RECTANGLE_COMMANDS)
+def test_no_judge_carries_a_rectangle_command(command):
+    """
+    Every one of the six leaves the screen as it is.
+
+    A judge without the feature does nothing at all, which reads the
+    same way as a judge that disagrees. So the panel says nothing here,
+    and it cannot: the tally is six abstentions and not six votes.
+
+    xterm is the anchor instead. esctest2 is xterm's own suite, and its
+    `DECFRATests`, `DECERATests`, `DECSERATests` and `DECCRATests` are
+    what `test_rectangles.py` follows. `DEVIATIONS.md` says so.
+
+    This test guards the claim. A judge that grows the feature makes it
+    fail, and then the panel has something to say.
+    """
+    data = "abcdefg\r\nABCDEFG\r\nhijklmn\r\nHIJKLMN\r\nopqrstu" + command
+    against, _with_us = sides(data, lines=6, columns=8)
+    assert against == sorted(WANTED)
