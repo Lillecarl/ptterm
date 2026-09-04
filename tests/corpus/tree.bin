@@ -1,0 +1,40 @@
+[01;34mptterm[0m
+├── [01;34mbackends[0m
+│   ├── [00masyncssh.py[0m
+│   ├── [00mbase.py[0m
+│   ├── [00mdarwin.py[0m
+│   ├── [00m__init__.py[0m
+│   ├── [00mposix.py[0m
+│   ├── [00mposix_utils.py[0m
+│   ├── [01;34m__pycache__[0m
+│   ├── [00mwin32_pipes.py[0m
+│   └── [00mwin32.py[0m
+├── [00mgraphics.py[0m
+├── [00m__init__.py[0m
+├── [00mkey_mappings.py[0m
+├── [00mkitty_keys.py[0m
+├── [00mosc.py[0m
+├── [00mplaceholders.py[0m
+├── [00mpng.py[0m
+├── [00mprocess.py[0m
+├── [01;34m__pycache__[0m
+│   ├── [00mgraphics.cpython-314.pyc[0m
+│   ├── [00m__init__.cpython-314.pyc[0m
+│   ├── [00mkey_mappings.cpython-314.pyc[0m
+│   ├── [00mkitty_keys.cpython-314.pyc[0m
+│   ├── [00mosc.cpython-314.pyc[0m
+│   ├── [00mplaceholders.cpython-314.pyc[0m
+│   ├── [00mpng.cpython-314.pyc[0m
+│   ├── [00mprocess.cpython-314.pyc[0m
+│   ├── [00mscreen.cpython-314.pyc[0m
+│   ├── [00msixel.cpython-314.pyc[0m
+│   ├── [00mstream.cpython-314.pyc[0m
+│   └── [00mterminal.cpython-314.pyc[0m
+├── [00mpy.typed[0m
+├── [00mscreen.py[0m
+├── [00msixel.py[0m
+├── [00mstream.py[0m
+├── [00mterminal.py[0m
+└── [00mutils.py[0m
+
+4 directories, 34 files
