@@ -288,3 +288,33 @@ def test_a_pane_that_asked_for_no_event_type_reads_no_release():
     assert translate_key_data("a", flags=0) == "a"
     assert translate_key_data("a", flags=DISAMBIGUATE) == "a"
     assert translate_key_data("a", flags=REPORT_ALL) == "\x1b[97u"
+
+
+def test_the_shifted_key_of_a_letter_is_the_letter():
+    """
+    A pane that asks for the other codes of a key gets that one from a
+    legacy keyboard as well. The key of the base layout stays out: it
+    is the key itself on every Latin layout, and kitty leaves it out
+    there too.
+    """
+    assert translate_key_data("A", flags=ALTERNATE_KEYS | REPORT_ALL) == (
+        "\x1b[97:65;2u"
+    )
+    assert translate_key_data("Ä", flags=ALTERNATE_KEYS | REPORT_ALL) == (
+        "\x1b[228:196;2u"
+    )
+
+
+def test_a_key_with_no_shifted_key_of_its_own_reports_none():
+    "Which key gives an exclamation mark is a question of the layout."
+    assert translate_key_data("!", flags=ALTERNATE_KEYS | REPORT_ALL) == (
+        "\x1b[33u"
+    )
+    assert translate_key_data("a", flags=ALTERNATE_KEYS | REPORT_ALL) == (
+        "\x1b[97u"
+    )
+
+
+def test_the_shifted_key_waits_for_a_pane_that_asked():
+    assert translate_key_data("A", flags=REPORT_ALL) == "\x1b[97;2u"
+    assert translate_key_data("A", flags=0) == "A"

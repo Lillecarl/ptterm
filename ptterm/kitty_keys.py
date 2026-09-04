@@ -22,7 +22,7 @@ the event type (press, repeat or release), the other codes of the key
 the key writes. What such a terminal sends passes through to a pane
 that asked for it, and goes away for a pane that did not.
 
-Two of the three are served for a legacy terminal as well:
+All three are served for a legacy terminal as well, as far as it can:
 
 - The text of a printable key needs nothing. The character that the
   terminal sends is that text.
@@ -31,6 +31,10 @@ Two of the three are served for a legacy terminal as well:
   release at once. The pane reads every key going down and coming up;
   only the time between the two is lost. `translate_key_data` takes
   `synthesize=False` to leave that off.
+- The shifted key of a letter is the letter. Which key gives an
+  exclamation mark depends on the layout of the user, and that the
+  legacy encoding does not carry, so such a key reports no other code.
+  kitty reports none either for a key that has none.
 
 The forms follow the encoder of kitty (`kitty/key_encoding.c`), so a
 pane sees what a real kitty gives it.
@@ -141,7 +145,11 @@ def _control_or_text_event(char: str) -> KeyEvent:
     # terminal that speaks the legacy encoding only.
     lower = char.lower()
     if char.isupper() and lower != char and len(lower) == 1:
-        return KeyEvent(ord(lower), _SHIFT, "u", char)
+        # The shifted key of a letter is the letter, so a pane that
+        # asks for the other codes of a key gets that one. The key of
+        # the base layout stays empty: kitty leaves it out for a
+        # layout where it is the key itself, which is every Latin one.
+        return KeyEvent(ord(lower), _SHIFT, "u", char, (code,))
     if char.isprintable():
         return KeyEvent(code, 0, "u", char)
     return KeyEvent(code, 0, "u")
