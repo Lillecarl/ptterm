@@ -39,7 +39,7 @@ All three are served for a legacy terminal as well, as far as it can:
 The forms follow the encoder of kitty (`kitty/key_encoding.c`), so a
 pane sees what a real kitty gives it.
 """
-from typing import List, NamedTuple, Optional, Sequence, Tuple, Union
+from typing import List, NamedTuple, Sequence, Tuple
 
 __all__ = ["translate_key_data"]
 
@@ -77,17 +77,17 @@ class KeyEvent(NamedTuple):
     #: them, and it leaves a slot empty when it has nothing for it, so
     #: a slot holds None. Nothing reconstructs these from legacy data:
     #: which key gives a character depends on the layout of the user.
-    alternates: Tuple[Optional[int], ...] = ()
+    alternates: Tuple[int | None, ...] = ()
     #: Press, repeat or release. Legacy data holds presses only.
     event: int = _PRESS
 
 
 # Parse result items: KeyEvent, or a str to pass through verbatim
 # (opaque sequences like device attribute replies).
-_Item = Union[KeyEvent, str]
+_Item = KeyEvent | str
 
 
-def _split_slots(part: str) -> List[Optional[int]]:
+def _split_slots(part: str) -> List[int | None]:
     """
     Split one parameter into its subparameters, keeping the empty ones.
 
@@ -98,14 +98,14 @@ def _split_slots(part: str) -> List[Optional[int]]:
     return [int(x) if x else None for x in part.split(":")]
 
 
-def _first(slots: Sequence[Optional[int]], default: int) -> int:
+def _first(slots: Sequence[int | None], default: int) -> int:
     "The first slot of a parameter, or the default when it is empty."
     if slots and slots[0] is not None:
         return slots[0]
     return default
 
 
-def _trimmed(slots: Sequence[Optional[int]]) -> Tuple[Optional[int], ...]:
+def _trimmed(slots: Sequence[int | None]) -> Tuple[int | None, ...]:
     "The slots without the empty ones at the end. They mean nothing."
     kept = list(slots)
     while kept and kept[-1] is None:
@@ -247,7 +247,7 @@ def _serialize(
     code: int,
     mods_value: int,
     final: str,
-    alternates: Tuple[Optional[int], ...] = (),
+    alternates: Tuple[int | None, ...] = (),
     event: int = _PRESS,
     text: str = "",
 ) -> str:

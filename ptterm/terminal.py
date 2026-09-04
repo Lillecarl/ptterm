@@ -1,7 +1,7 @@
 """
 The layout engine. This builds the prompt_toolkit layout.
 """
-from typing import Callable, Iterable, List, Optional
+from typing import Callable, Iterable, List
 
 from prompt_toolkit.application.current import get_app, get_app_or_none
 from prompt_toolkit.buffer import Buffer
@@ -65,9 +65,9 @@ class _TerminalControl(UIControl):
     def __init__(
         self,
         backend: Backend,
-        done_callback: Optional[Callable[[], None]] = None,
-        bell_func: Optional[Callable[[], None]] = None,
-        osc_func: Optional[Callable[[str, str], None]] = None,
+        done_callback: Callable[[], None] | None = None,
+        bell_func: Callable[[], None] | None = None,
+        osc_func: Callable[[str, str], None] | None = None,
         resize_func: Callable[[int | None, int | None], None] | None = None,
     ) -> None:
         def has_priority() -> bool:
@@ -274,7 +274,7 @@ class _Window(Window):
 
 
 def create_backend(
-    command: List[str], before_exec_func: Optional[Callable[[], None]]
+    command: List[str], before_exec_func: Callable[[], None] | None
 ) -> Backend:
     if is_windows():
         from .backends.win32 import Win32Backend
@@ -308,13 +308,13 @@ class Terminal:
         self,
         command=["/bin/bash"],
         before_exec_func=None,
-        backend: Optional[Backend] = None,
-        bell_func: Optional[Callable[[], None]] = None,
+        backend: Backend | None = None,
+        bell_func: Callable[[], None] | None = None,
         style: str = "",
-        width: Optional[int] = None,
-        height: Optional[int] = None,
-        done_callback: Optional[Callable[[], None]] = None,
-        osc_func: Optional[Callable[[str, str], None]] = None,
+        width: int | None = None,
+        height: int | None = None,
+        done_callback: Callable[[], None] | None = None,
+        osc_func: Callable[[str, str], None] | None = None,
         resize_func: Callable[[int | None, int | None], None] | None = None,
     ) -> None:
         if backend is None:

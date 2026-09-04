@@ -1,5 +1,5 @@
 from asyncio import Future, get_event_loop
-from typing import Callable, List, Optional
+from typing import Callable, List
 
 from asyncssh import SSHClientChannel, SSHClientConnection, SSHClientSession
 
@@ -16,13 +16,13 @@ class AsyncSSHBackend(Backend):
     def __init__(
         self,
         ssh_client_connection: "SSHClientConnection",
-        command: Optional[str] = None,
+        command: str | None = None,
     ) -> None:
         self.ssh_client_connection = ssh_client_connection
         self.command = command
 
-        self._channel: Optional[SSHClientChannel] = None
-        self._session: Optional[SSHClientSession] = None
+        self._channel: SSHClientChannel | None = None
+        self._session: SSHClientSession | None = None
 
         self._reader_connected = False
         self._input_ready_callbacks: List[Callable[[], None]] = []
@@ -126,7 +126,7 @@ class AsyncSSHBackend(Backend):
             return f"asyncssh: {command}"
         return ""
 
-    def get_cwd(self) -> Optional[str]:
+    def get_cwd(self) -> str | None:
         if self._channel:
             return self._channel.getcwd()
         return None

@@ -4,7 +4,7 @@ The child process.
 import logging
 import time
 from asyncio import get_event_loop
-from typing import Callable, Optional
+from typing import Callable
 
 from prompt_toolkit.eventloop import call_soon_threadsafe
 
@@ -50,10 +50,10 @@ class Process:
         self,
         invalidate: Callable[[], None],
         backend: Backend,
-        bell_func: Optional[Callable[[], None]] = None,
-        done_callback: Optional[Callable[[], None]] = None,
-        has_priority: Optional[Callable[[], bool]] = None,
-        osc_func: Optional[Callable[[str, str], None]] = None,
+        bell_func: Callable[[], None] | None = None,
+        done_callback: Callable[[], None] | None = None,
+        has_priority: Callable[[], bool] | None = None,
+        osc_func: Callable[[str, str], None] | None = None,
         resize_func: Callable[[int | None, int | None], None] | None = None,
     ) -> None:
         self.loop = get_event_loop()

@@ -17,7 +17,7 @@ import colorsys
 import re
 import sys
 from array import array
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 __all__ = [
     "DEFAULT_PALETTE",
@@ -150,7 +150,7 @@ class _Canvas:
         palette: List[Tuple[int, int, int]],
         width: int,
         height: int,
-        background: Optional[Tuple[int, int, int]],
+        background: Tuple[int, int, int] | None,
     ) -> bytes:
         """
         The RGBA bytes of the canvas, in a `width` x `height` box.
@@ -177,7 +177,7 @@ class _Canvas:
         return out.tobytes()
 
 
-def decode_sixel(payload: str) -> Optional[Tuple[int, int, bytes]]:
+def decode_sixel(payload: str) -> Tuple[int, int, bytes] | None:
     """
     Decode the payload of a sixel DCS sequence.
 

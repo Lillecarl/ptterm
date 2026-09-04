@@ -156,11 +156,11 @@ class GraphicsState:
         self.placements: List[GraphicsPlacement] = []
         self.next_image_id = 1
         # An in-flight chunked transmission: (keys, payload-so-far).
-        self._pending: Optional[Tuple[Dict[str, str], str]] = None
+        self._pending: Tuple[Dict[str, str], str] | None = None
 
     # ------------------------------------------------------------------
 
-    def handle(self, data: str, screen) -> Optional[Tuple[str, bool]]:
+    def handle(self, data: str, screen) -> Tuple[str, bool] | None:
         """
         Handle a graphics command (the payload of the APC sequence,
         without the leading "G"). Returns the response body (including
@@ -237,7 +237,7 @@ class GraphicsState:
 
     def _assemble(
         self, keys: Dict[str, str], payload: str
-    ) -> Optional[Tuple[Dict[str, str], str]]:
+    ) -> Tuple[Dict[str, str], str] | None:
         """
         Join the chunks of a chunked transmission ("m=1" on every
         message but the last). Returns the keys and the whole payload
@@ -275,7 +275,7 @@ class GraphicsState:
 
     def _transmit(
         self, keys: Dict[str, str], payload: str, store: bool
-    ) -> Optional[Tuple[str, bool, Optional[int]]]:
+    ) -> Tuple[str, bool, int | None] | None:
         """
         Handle the 't' and 'q' actions. Returns the response, whether
         it is a success, and the id of the stored image (None for the
@@ -290,7 +290,7 @@ class GraphicsState:
                 "EINVAL", "unsupported transmission medium: %r" % medium
             )
 
-        image_id: Optional[int] = None
+        image_id: int | None = None
         try:
             try:
                 data = base64.b64decode(payload, validate=True)
@@ -382,7 +382,7 @@ class GraphicsState:
 
     def _transmit_and_display(
         self, keys: Dict[str, str], payload: str, screen
-    ) -> Optional[Tuple[str, bool]]:
+    ) -> Tuple[str, bool] | None:
         "Handle the 'T' action: transmit, then place at the cursor."
         result = self._transmit(keys, payload, store=True)
         if result is None:
@@ -425,7 +425,7 @@ class GraphicsState:
         return ",".join(parts) + ";"
 
     def _put(
-        self, keys: Dict[str, str], screen, image_id: Optional[int] = None
+        self, keys: Dict[str, str], screen, image_id: int | None = None
     ) -> Tuple[str, bool]:
         if image_id is None:
             image_id, _image = self._lookup_image(keys)
@@ -489,7 +489,7 @@ class GraphicsState:
 
     def _delete(
         self, keys: Dict[str, str], screen
-    ) -> Optional[Tuple[str, bool]]:
+    ) -> Tuple[str, bool] | None:
         specifier = keys.get("d", "a")
         lower = specifier.lower()
         free_data = specifier.isupper()
@@ -597,7 +597,7 @@ class GraphicsState:
 
     def add_sixel(
         self, width: int, height: int, data: bytes, screen
-    ) -> Optional[int]:
+    ) -> int | None:
         """
         Store a decoded sixel image and place it at the cursor.
 

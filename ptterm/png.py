@@ -13,7 +13,7 @@ the five filters. Interlaced images (Adam7) are refused.
 """
 import struct
 import zlib
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 __all__ = [
     "decode_png",
@@ -122,7 +122,7 @@ def _samples(line: bytes, width: int, depth: int, channels: int) -> List[int]:
     return values
 
 
-def decode_png(data: bytes) -> Optional[Tuple[int, int, bytes]]:
+def decode_png(data: bytes) -> Tuple[int, int, bytes] | None:
     """
     Decode a PNG image. Returns (width, height, RGBA bytes), or None
     when the data is not a PNG that this decoder handles.

@@ -10,7 +10,7 @@ Changes compared to the original `Screen` class:
 import base64
 from collections import defaultdict, namedtuple
 from enum import IntEnum, IntFlag
-from typing import Callable, DefaultDict, Dict, List, Optional, Tuple
+from typing import Callable, DefaultDict, Dict, List, Tuple
 
 from prompt_toolkit.cache import FastDictCache
 from prompt_toolkit.layout.screen import Char, Screen
@@ -436,7 +436,7 @@ UNDERLINE_PARAMETERS = {
 }
 
 
-def _rgb_components(color: Optional[str]) -> Optional[Tuple[int, int, int]]:
+def _rgb_components(color: str | None) -> Tuple[int, int, int] | None:
     "The three components of a '#rrggbb' colour, or None for anything else."
     if not color:
         return None
@@ -657,9 +657,9 @@ class BetterScreen:
         lines: int,
         columns: int,
         write_process_input: Callable[[str], None],
-        bell_func: Optional[Callable[[], None]] = None,
-        get_history_limit: Optional[Callable[[], int]] = None,
-        osc_func: Optional[Callable[[str, str], None]] = None,
+        bell_func: Callable[[], None] | None = None,
+        get_history_limit: Callable[[], int] | None = None,
+        osc_func: Callable[[str, str], None] | None = None,
         resize_func: Callable[[int | None, int | None], None] | None = None,
     ) -> None:
         bell_func = bell_func or (lambda: None)
@@ -863,12 +863,12 @@ class BetterScreen:
         self.tabstops = set(range(8, 1000, 8))
 
         # The original Screen instance, when going to the alternate screen.
-        self._original_screen: Optional[Screen] = None
+        self._original_screen: Screen | None = None
         # The alternate screen, while the first one is in front. A
         # terminal keeps one alternate screen for its whole life and
         # hands it back with what it held, so this outlives a visit.
         # `None` means that nothing was ever drawn on it.
-        self._alternate_screen: Optional[Screen] = None
+        self._alternate_screen: Screen | None = None
         self._alternate_screen_vars: dict = {}
 
     def soft_reset(self, *params: int, **kwargs) -> None:
@@ -1003,7 +1003,7 @@ class BetterScreen:
         self._reset_rendition()
 
         self.margins = None
-        self.horizontal_margins: Optional[HorizontalMargins] = None
+        self.horizontal_margins: HorizontalMargins | None = None
 
         # A list of its own, because the stack is changed in place and
         # the screen this one replaces still holds the old list.
@@ -1012,7 +1012,7 @@ class BetterScreen:
         self.max_y = 0  # Max 'y' position to which is written.
 
     def resize(
-        self, lines: Optional[int] = None, columns: Optional[int] = None
+        self, lines: int | None = None, columns: int | None = None
     ) -> None:
         # Save the dimensions.
         lines = lines if lines is not None else self.lines
@@ -1075,7 +1075,7 @@ class BetterScreen:
         return max(0, self.max_y - self.lines + 1)
 
     def set_margins(
-        self, top: Optional[int] = None, bottom: Optional[int] = None
+        self, top: int | None = None, bottom: int | None = None
     ) -> None:
         """Selects top and bottom margins for the scrolling region.
         Margins determine which screen lines move during scrolling
@@ -1677,7 +1677,7 @@ class BetterScreen:
             # Outside the columns of the region the cursor stays where
             # it is, and nothing scrolls.
 
-    def scroll_up(self, count: Optional[int] = None) -> None:
+    def scroll_up(self, count: int | None = None) -> None:
         """
         SU ("CSI Ps S"): move the lines of the scrolling region up.
 
@@ -1686,7 +1686,7 @@ class BetterScreen:
         """
         self._scroll_region(count or 1)
 
-    def scroll_down(self, count: Optional[int] = None) -> None:
+    def scroll_down(self, count: int | None = None) -> None:
         """
         SD ("CSI Ps T"): move the lines of the scrolling region down.
 
@@ -1862,7 +1862,7 @@ class BetterScreen:
 
         cursor_position.x = column
 
-    def cursor_to_next_tab(self, count: Optional[int] = None) -> None:
+    def cursor_to_next_tab(self, count: int | None = None) -> None:
         """
         CHT ("CSI Ps I"): move forward over `count` tab stops.
 
@@ -1872,7 +1872,7 @@ class BetterScreen:
         for _ in range(count or 1):
             self.tab()
 
-    def cursor_to_previous_tab(self, count: Optional[int] = None) -> None:
+    def cursor_to_previous_tab(self, count: int | None = None) -> None:
         """
         CBT ("CSI Ps Z"): move back over `count` tab stops.
 
@@ -1997,7 +1997,7 @@ class BetterScreen:
             line[column] = erased
         data_buffer[row] = line
 
-    def insert_lines(self, count: Optional[int] = None) -> None:
+    def insert_lines(self, count: int | None = None) -> None:
         """Inserts the indicated # of lines at line with cursor. Lines
         displayed **at** and below the cursor move down. Lines moved
         past the bottom margin are lost.
@@ -2018,7 +2018,7 @@ class BetterScreen:
         self._move_rows(first, bottom, -count)
         self.carriage_return()
 
-    def delete_lines(self, count: Optional[int] = None) -> None:
+    def delete_lines(self, count: int | None = None) -> None:
         """Deletes the indicated # of lines, starting at line with
         cursor. As lines are deleted, lines displayed below cursor
         move up. Lines added to bottom of screen have spaces with same
@@ -2042,7 +2042,7 @@ class BetterScreen:
         # DL moves the cursor to the first column, the same way IL does.
         self.carriage_return()
 
-    def insert_characters(self, count: Optional[int] = None) -> None:
+    def insert_characters(self, count: int | None = None) -> None:
         """Inserts the indicated # of blank characters at the cursor
         position. The cursor does not move and remains at the beginning
         of the inserted blank characters. Data on the line is shifted
@@ -2084,7 +2084,7 @@ class BetterScreen:
         self.repair_wide_char(line, cursor_x)
         self.repair_wide_char(line, edge)
 
-    def delete_characters(self, count: Optional[int] = None) -> None:
+    def delete_characters(self, count: int | None = None) -> None:
         """
         DCH ("CSI Ps P"): delete characters at the cursor.
 
@@ -2120,7 +2120,7 @@ class BetterScreen:
         self.repair_wide_char(line, max(cursor_x, edge - count))
 
     def cursor_position(
-        self, line: Optional[int] = None, column: Optional[int] = None
+        self, line: int | None = None, column: int | None = None
     ) -> None:
         """Set the cursor to a specific `line` and `column`.
 
@@ -2165,7 +2165,7 @@ class BetterScreen:
             return column
         return min(column + margins.left, margins.right)
 
-    def cursor_to_column(self, column: Optional[int] = None) -> None:
+    def cursor_to_column(self, column: int | None = None) -> None:
         """
         CHA ("CSI Ps G"): move to a column of the current line.
 
@@ -2180,7 +2180,7 @@ class BetterScreen:
         )
         self.ensure_bounds()
 
-    def cursor_to_absolute_column(self, column: Optional[int] = None) -> None:
+    def cursor_to_absolute_column(self, column: int | None = None) -> None:
         """
         HPA ("CSI Ps `"): move to a column of the screen.
 
@@ -2193,7 +2193,7 @@ class BetterScreen:
         self.pt_cursor_position.x = (column or 1) - 1
         self.ensure_bounds()
 
-    def cursor_to_line(self, line: Optional[int] = None) -> None:
+    def cursor_to_line(self, line: int | None = None) -> None:
         """Moves cursor to a specific line in the current column.
 
         :param int line: line number to move the cursor to.
@@ -2216,7 +2216,7 @@ class BetterScreen:
         "Bell"
         self.bell_func()
 
-    def cursor_down(self, count: Optional[int] = None) -> None:
+    def cursor_down(self, count: int | None = None) -> None:
         """Moves cursor down the indicated # of lines in same column.
         Cursor stops at bottom margin.
 
@@ -2245,7 +2245,7 @@ class BetterScreen:
 
         self.max_y = max(self.max_y, cursor_position.y)
 
-    def cursor_down1(self, count: Optional[int] = None) -> None:
+    def cursor_down1(self, count: int | None = None) -> None:
         """Moves cursor down the indicated # of lines to column 1.
         Cursor stops at bottom margin.
 
@@ -2254,7 +2254,7 @@ class BetterScreen:
         self.cursor_down(count)
         self.carriage_return()
 
-    def cursor_up(self, count: Optional[int] = None) -> None:
+    def cursor_up(self, count: int | None = None) -> None:
         """Moves cursor up the indicated # of lines in same column.
         Cursor stops at top margin.
 
@@ -2271,7 +2271,7 @@ class BetterScreen:
         # cursor down, and below it the margin would stop it too early.
         self.ensure_bounds(use_margins=not outside_the_region)
 
-    def cursor_up1(self, count: Optional[int] = None) -> None:
+    def cursor_up1(self, count: int | None = None) -> None:
         """Moves cursor up the indicated # of lines to column 1. Cursor
         stops at bottom margin.
 
@@ -2280,7 +2280,7 @@ class BetterScreen:
         self.cursor_up(count)
         self.carriage_return()
 
-    def cursor_back(self, count: Optional[int] = None) -> None:
+    def cursor_back(self, count: int | None = None) -> None:
         """Moves cursor left the indicated # of columns. Cursor stops
         at left margin.
 
@@ -2299,7 +2299,7 @@ class BetterScreen:
         cursor_position.x = max(left, cursor_position.x - (count or 1))
         self.ensure_bounds()
 
-    def cursor_forward(self, count: Optional[int] = None) -> None:
+    def cursor_forward(self, count: int | None = None) -> None:
         """Moves cursor right the indicated # of columns. Cursor stops
         at right margin.
 
@@ -2350,7 +2350,7 @@ class BetterScreen:
 
         return style
 
-    def erase_characters(self, count: Optional[int] = None) -> None:
+    def erase_characters(self, count: int | None = None) -> None:
         """Erases the indicated # of characters, starting with the
         character at cursor position. Character attributes are set
         cursor attributes. The cursor remains in the same position.
@@ -2433,7 +2433,7 @@ class BetterScreen:
             return False
         return self._cursor_is_between_the_left_and_right_margins()
 
-    def insert_columns(self, count: Optional[int] = None) -> None:
+    def insert_columns(self, count: int | None = None) -> None:
         """
         DECIC ("CSI Pn ' }"): insert columns at the cursor.
 
@@ -2450,7 +2450,7 @@ class BetterScreen:
             top, bottom, self.pt_cursor_position.x, right, count or 1
         )
 
-    def delete_columns(self, count: Optional[int] = None) -> None:
+    def delete_columns(self, count: int | None = None) -> None:
         """
         DECDC ("CSI Pn ' ~"): delete columns at the cursor.
 
@@ -2657,7 +2657,7 @@ class BetterScreen:
 
     def _rectangle(
         self, top: int, left: int, bottom: int, right: int
-    ) -> Optional[Tuple[int, int, int, int]]:
+    ) -> Tuple[int, int, int, int] | None:
         """
         Read the four corners that a rectangle command names.
 
@@ -2786,7 +2786,7 @@ class BetterScreen:
         self._erase_rectangle(self._rectangle(*_four(params, 0)), True)
 
     def _erase_rectangle(
-        self, corners: Optional[Tuple[int, int, int, int]], selective: bool
+        self, corners: Tuple[int, int, int, int] | None, selective: bool
     ) -> None:
         "Erase every cell of a rectangle that no mark holds back."
         if corners is None:
@@ -2935,7 +2935,7 @@ class BetterScreen:
         "Set a horizontal tab stop at cursor position."
         self.tabstops.add(self.pt_cursor_position.x)
 
-    def clear_tab_stop(self, type_of: Optional[int] = None) -> None:
+    def clear_tab_stop(self, type_of: int | None = None) -> None:
         """Clears a horizontal tab stop in a specific way, depending
         on the ``type_of`` value:
         * ``0`` or nothing -- Clears a horizontal tab stop at cursor
@@ -2949,7 +2949,7 @@ class BetterScreen:
         elif type_of == 3:
             self.tabstops = set()  # Clears all horizontal tab stops.
 
-    def ensure_bounds(self, use_margins: Optional[bool] = None) -> None:
+    def ensure_bounds(self, use_margins: bool | None = None) -> None:
         """Ensure that current cursor position is within screen bounds.
 
         :param bool use_margins: when ``True`` or when
@@ -3021,7 +3021,7 @@ class BetterScreen:
             return 5
         return len(parameters)
 
-    def _color_of_parameters(self, parameters: List[int]) -> Optional[str]:
+    def _color_of_parameters(self, parameters: List[int]) -> str | None:
         """
         The colour that "38", "48" or "58" names.
 
@@ -3310,7 +3310,7 @@ class BetterScreen:
             # "The terminal is well."
             self.write_process_input("\x1b[0n")
 
-    def unscroll(self, count: Optional[int] = None, *args, **kwargs) -> None:
+    def unscroll(self, count: int | None = None, *args, **kwargs) -> None:
         """
         Kitty's unscroll ("CSI Ps SP D").
 

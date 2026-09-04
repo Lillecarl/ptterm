@@ -12,7 +12,7 @@ the code itself ("OSC 10" is the foreground, "OSC 11" the background,
 "OSC 4 ; index" a palette entry), and the kitty one names it with a key
 ("OSC 21 ; foreground=?"). Both are answered here.
 """
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 __all__ = [
     "DEFAULT_COLORS",
@@ -92,7 +92,7 @@ def format_color(color: Tuple[int, int, int]) -> str:
     )
 
 
-def parse_kitty_color_query(param: str) -> Optional[List[Tuple[str, bool]]]:
+def parse_kitty_color_query(param: str) -> List[Tuple[str, bool]] | None:
     """
     Split the payload of an "OSC 21" sequence into its keys.
 
@@ -119,7 +119,7 @@ def parse_kitty_color_query(param: str) -> Optional[List[Tuple[str, bool]]]:
 MAX_HYPERLINK_LENGTH = 2083
 
 
-def parse_hyperlink(param: str) -> Optional[str]:
+def parse_hyperlink(param: str) -> str | None:
     """
     The target that an "OSC 8" names, or `None` when there is none.
 
@@ -210,7 +210,7 @@ POINTER_SHAPE_ALIASES = {
 }
 
 
-def pointer_shape_name(name: str) -> Optional[str]:
+def pointer_shape_name(name: str) -> str | None:
     """
     The shape that a name stands for, or `None` for a name that no
     terminal knows.

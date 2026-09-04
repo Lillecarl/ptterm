@@ -19,7 +19,6 @@ pane emulates apart from the capabilities below. `tic` copies the
 parent in, so what comes out stands on its own.
 """
 import sys
-from typing import Dict
 
 from .screen import CAPABILITIES, TERMINAL_NAME
 

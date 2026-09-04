@@ -20,7 +20,7 @@ table is the one in `gen/rowcolumn-diacritics.txt` of its source: 297
 combining characters of class 230, in the order that gives them their
 numbers.
 """
-from typing import Dict, List, NamedTuple, Optional
+from typing import Dict, List, NamedTuple
 
 __all__ = [
     "PLACEHOLDER",
