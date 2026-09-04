@@ -46,3 +46,20 @@ def test_a_reverse_index_at_the_top_does_not_take_the_screen_with_it():
 )
 def test_the_last_line_stays_in_sight():
     assert not differences("\x1b[8d\n0\x1b[2;3r\x1bM", lines=8, columns=6)
+
+
+def test_a_position_past_the_bottom_stays_on_the_screen():
+    """
+    "CSI 9;9H" on a screen of four lines names a line that is not
+    there. The bounds let the cursor sit one row below the last, so
+    the character drew a fifth line and pushed the screen down.
+    """
+    screen, stream = _screen(lines=4, columns=8)
+    stream.feed("\x1b[9;9HX")
+    assert screen.pt_cursor_position.y == 3
+    assert screen.line_offset == 0
+
+
+def test_a_position_past_the_bottom_of_a_full_screen():
+    "The same, with every cell drawn: DECALN is how the hunt found it."
+    assert not differences("\x1b#8\x1b[9;9HX", lines=4, columns=8)

@@ -1658,7 +1658,7 @@ class BetterScreen:
 
         cursor_position.x = min(max(0, cursor_position.x), self.columns - 1)
         cursor_position.y = min(
-            max(top + line_offset, cursor_position.y), bottom + line_offset + 1
+            max(top + line_offset, cursor_position.y), bottom + line_offset
         )
 
     def alignment_display(self) -> None:
