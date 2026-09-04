@@ -92,6 +92,26 @@ def test_libvterm_takes_the_side_of_ptterm(name, data, lines, columns):
     assert three_way(data, lines=lines, columns=columns) == "split"
 
 
+def test_a_character_after_the_tab_turns_the_vote_around():
+    """
+    The tab is not the split that it looks like.
+
+    A tab that fills the last column and ends the program looks like
+    agreement: all three leave the same screen. Write one character
+    after the tab and the three come apart. kitty and libvterm put it
+    on the next line; ptterm keeps the cursor in the last column, so
+    the character lands over the one that is already there.
+
+    The vote therefore calls the tab at the right margin
+    "ptterm-wrong". xterm stands behind ptterm: a cursor move clears
+    the flag that a character in the last column sets, and a tab is a
+    cursor move. It is still a choice, and it is the user who makes
+    it.
+    """
+    assert three_way("\x1b[1;20H12345\t", lines=4, columns=24) == "agree"
+    assert three_way("\x1b[1;20H12345\tX", lines=4, columns=24) == "ptterm-wrong"
+
+
 def test_the_two_emulators_disagree_about_a_mark_on_an_erased_cell():
     """
     Three emulators, three answers.

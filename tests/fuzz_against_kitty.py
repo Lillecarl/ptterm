@@ -164,7 +164,7 @@ pieces = st.one_of(
     st.just("\x1bM"),
     st.sampled_from(["\x1b[?7h", "\x1b[?7l"]),
     st.builds(lambda n, c: "\x1b[%d%s" % (n, c), small,
-              st.sampled_from("ABCDEFGLM@PX")),
+              st.sampled_from("ABCDEFGLM@PXIZ")),
     # SU and SD take their count from one, because kitty reads a zero
     # as no scroll and xterm reads it as one. See
     # `test_known_deviations`.
@@ -182,6 +182,16 @@ pieces = st.one_of(
     # The character sets. "ESC ( 0" is the line drawing set of the DEC
     # terminals, and shift out and shift in pick G1 and G0.
     st.sampled_from(["\x1b(0", "\x1b(B", "\x1b)0", "\x1b)B", "\x0e", "\x0f"]),
+    # DECALN ("ESC # 8"): fill the screen with "E". A terminal test
+    # starts with it.
+    st.just("\x1b#8"),
+    # Origin mode: a position counts from the top margin, not from the
+    # top of the screen.
+    st.sampled_from(["\x1b[?6h", "\x1b[?6l"]),
+    # The tab stops. HTS sets one where the cursor is, "CSI g" clears
+    # that one and "CSI 3 g" clears them all. CHT and CBT above move
+    # over them.
+    st.sampled_from(["\x1bH", "\x1b[g", "\x1b[3g"]),
     # The alternate screen, under each of the three names it has.
     st.sampled_from(
         [

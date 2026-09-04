@@ -85,6 +85,17 @@ is a real choice. `three_way` answers "agree", "ptterm-wrong" or
 - A margin held the cursor wherever it was, so a move up above the top
   margin moved the cursor down. "CSI r" homes the cursor, which puts
   it above the top margin nearly every time.
+- The bounds let the cursor sit one row below the last, so a position
+  past the bottom of the screen drew a line that pushed the screen
+  into the history. DECALN found it: a full screen makes the drift
+  visible where a blank one hides it.
+- DECALN ("ESC # 8") drew the pattern and did nothing else. The DEC
+  manuals also put the margins back to the whole screen and send the
+  cursor home, and kitty does both; libvterm does neither, so the vote
+  calls this a split and the manual breaks the tie.
+- CHT and CBT ("CSI Ps I" and "CSI Ps Z") did nothing at all: pyte has
+  neither. kitty and libvterm agree on both, so the vote called it a
+  bug with nothing to decide.
 - DL left the cursor where it was. It moves to the first column, the
   same way IL does.
 
@@ -93,9 +104,18 @@ is a real choice. `three_way` answers "agree", "ptterm-wrong" or
 These six are in `test_known_deviations.py` and in `test_against_vterm.py`. ptterm follows xterm in
 each; a program is written against xterm, not against kitty.
 
-**libvterm draws what ptterm draws in all five.** That was a reading of
-the documentation before; it is now a second implementation, and the
-vote calls each of these a split and not a bug.
+**libvterm draws what ptterm draws in five of the six.** That was a
+reading of the documentation before; it is now a second
+implementation, and the vote calls those a split and not a bug.
+
+**The tab is the exception.** A tab that fills the last column and
+ends the program leaves the same screen everywhere. Write one
+character after it and the three come apart: kitty and libvterm put it
+on the next line, and ptterm keeps the cursor in the last column, so
+the character lands over the one that is there. The vote calls that
+"ptterm-wrong". xterm stands behind ptterm, because a cursor move
+clears the flag that a character in the last column sets and a tab is
+a cursor move. It is still a choice, and it is the user who makes it.
 
 1. A tab in the last column moves to the next line in kitty.
 2. A backspace in the first column steps back to the end of the row
