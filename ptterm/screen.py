@@ -281,6 +281,11 @@ class PrivateMode(IntEnum):
     #: margins, and resetting it takes the margins away.
     LEFT_RIGHT_MARGIN = 69
 
+    #: DECNCSM: do not clear the screen when the page width changes.
+    #: DECCOLM clears the page it takes, and a VT510 lets a program
+    #: keep what was there.
+    NO_CLEAR_ON_COLUMN_CHANGE = 95
+
     #: Report the position of the mouse.
     MOUSE_REPORTING = 1000
 
@@ -1223,13 +1228,28 @@ class BetterScreen:
         the embedder decides whether it may grow and how far. So the
         pane may end up no wider than it was.
 
-        The screen is cleared and the cursor goes home either way. That
-        is what a DEC terminal does, and a program that sends DECCOLM
-        expects to start from an empty page.
+        The screen is cleared and the cursor goes home. That is what a
+        DEC terminal does, and a program that sends DECCOLM expects to
+        start from an empty page. DECNCSM ("?95") is how a program says
+        it wants to keep what is there.
         """
         self.resize_func(None, columns)
+        if self._keeps_the_page_through_a_width_change():
+            return
         self.erase_in_display(2)
         self.cursor_position()
+
+    def _keeps_the_page_through_a_width_change(self) -> bool:
+        """
+        Does DECNCSM hold the page through a DECCOLM?
+
+        The VT510 brought the mode, so a program that asked for an
+        earlier terminal with DECSCL does not get it. esctest2 asks for
+        both readings, at level 4 and at level 5.
+        """
+        if self.conformance_level < ConformanceLevel.VT500:
+            return False
+        return PrivateMode.NO_CLEAR_ON_COLUMN_CHANGE.flag in self.mode
 
     def resize(
         self, lines: int | None = None, columns: int | None = None
@@ -3378,9 +3398,9 @@ class BetterScreen:
         DECSCL ("CSI Ps ; Ps " p"): the level this terminal answers at.
 
         A real DEC terminal drops the sequences above the level it is
-        set to, and a hard reset comes with the change. ptterm answers
-        every sequence it knows whatever the level says, so it keeps
-        the number and changes nothing.
+        set to, and a hard reset comes with the change. ptterm reads
+        the level for DECNCSM and answers every other sequence it
+        knows whatever the level says.
 
         The second parameter says whether the answers carry seven bit
         controls. ptterm always writes seven bit controls, so that one
@@ -3867,8 +3887,13 @@ class BetterScreen:
             PrivateMode.ORIGIN,
             PrivateMode.AUTOWRAP,
             PrivateMode.SHOW_CURSOR,
+            PrivateMode.ALLOW_80_TO_132,
+            PrivateMode.MORE_FIX,
+            PrivateMode.REVERSE_WRAP,
             PrivateMode.ALTERNATE_SCREEN,
             PrivateMode.LEFT_RIGHT_MARGIN,
+            PrivateMode.NO_CLEAR_ON_COLUMN_CHANGE,
+            PrivateMode.REVERSE_WRAP_ANYWHERE,
             PrivateMode.MOUSE_REPORTING,
             PrivateMode.SGR_MOUSE,
             PrivateMode.URXVT_MOUSE,

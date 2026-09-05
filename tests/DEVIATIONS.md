@@ -510,6 +510,26 @@ before the next draw. That is the whole of what they proved.
 `tests/test_page_width.py` covers the same steps by reading the ask
 rather than the width.
 
+**DECNCSM.** A fourth test fails for the other reason: ptterm carries
+more than xterm here, not less.
+
+DECNCSM ("?95") tells DECCOLM to keep the page instead of clearing it.
+ptterm carries it, from conformance level 5 up, because the VT510
+brought it. xterm keeps it behind the `allowWindowOps` resource, and
+the suite is told that resource is off, so it expects a terminal to
+refuse the mode. `DECRQMTests.test_DECRQM_DEC_DECNCSM` therefore
+fails: ptterm answers that the mode is set, and the suite wanted no
+answer at all.
+
+Turning the resource on in the driver costs more than it gives. Five
+other tests then expect a pass that a pane cannot give, so the list
+grows by four. The one honest entry is cheaper.
+
+A pane has its own version of that resource, `allow-program-resize`,
+and ptterm cannot see it: the screen only holds `resize_func` and
+learns nothing about what the embedder will allow. See
+Lillecarl/pymux#31.
+
 **As a setting:** it already is one. `allow-program-resize` decides,
 and it decides for every sequence that asks for room, not for DECCOLM
 alone.

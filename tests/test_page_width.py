@@ -74,3 +74,37 @@ def test_a_denied_deccolm_leaves_the_screen_alone():
     stream.feed("abc" + WIDE)
     assert screen.data_buffer[0][0].char == "a"
     assert screen.pt_cursor_position.x == 3
+
+
+def test_decncsm_keeps_the_screen_through_a_width_change():
+    "DECNCSM ('?95') is how a program says it wants to keep the page."
+    screen, stream, asks = make_screen()
+    stream.feed("abc" + ALLOW + "\x1b[?95h" + WIDE)
+    assert asks == [(None, 132)]
+    assert screen.data_buffer[0][0].char == "a"
+    assert screen.pt_cursor_position.x == 3
+
+
+def test_the_page_width_modes_answer_decrqm():
+    "A mode this screen acts on has to be one it can report."
+    answers = []
+    screen = BetterScreen(
+        4, 80,
+        write_process_input=answers.append,
+        resize_func=lambda lines, columns: None,
+    )
+    stream = BetterStream(screen)
+    stream.feed(ALLOW + "\x1b[?40$p")
+    assert answers == ["\x1b[?40;1$y"]
+    answers.clear()
+    stream.feed("\x1b[?95$p")
+    assert answers == ["\x1b[?95;2$y"]
+
+
+def test_decncsm_needs_the_level_that_brought_it():
+    "The VT510 brought DECNCSM, so DECSCL 64 takes it away again."
+    screen, stream, asks = make_screen()
+    stream.feed('\x1b[64;1"p')
+    stream.feed("abc" + ALLOW + "\x1b[?95h" + WIDE)
+    assert asks == [(None, 132)]
+    assert screen.data_buffer[0].get(0) is None
