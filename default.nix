@@ -43,7 +43,7 @@ let
     doCheck = false;
     pythonImportsCheck = [ "ptterm" ];
 
-    passthru = { inherit checks judges esctest2 vtermSuite; };
+    passthru = { inherit checks judges esctest2 vtermSuite alacrittySuite; };
 
     meta = {
       description = "Terminal emulator for prompt_toolkit";
@@ -92,6 +92,11 @@ let
   # them. `ptterm-vterm` uses the first with a harness of ours in place of
   # the second. pymux takes both from here and puts itself in the middle.
   vtermSuite = callPackage ./nix/vterm-suite.nix { };
+
+  # The reference tests of Alacritty, and the judge that reads one. pymux
+  # takes both from here and puts itself in the middle, the same way it
+  # does with libvterm's.
+  alacrittySuite = callPackage ./nix/alacritty-suite.nix { };
 
   checks = callPackage ./nix/checks.nix {
     inherit
