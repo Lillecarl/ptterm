@@ -35,6 +35,11 @@ of them without asking a person.
   one that reads libghostty-vt, and `tests/judges-js` the one that
   reads xterm.js. Each is a program that answers one line of JSON with
   another; `tests/line_judge.py` is the side that asks.
+- `tests/drive_with_esctest.py` runs esctest2, the conformance suite of
+  xterm, on a pty that ptterm owns. It judges from the inside, which
+  the panel cannot: it writes sequences and reads the reports that come
+  back. `tests/esctest-failures.txt` holds what fails, and the section
+  at the end of this file says what each one is.
 - `tests/fuzz_against_kitty.py` builds random programs with hypothesis.
   `nix build --file . checks.ptterm-fuzz` runs it from the pyterm checkout
   and `nix build --file . checks.fuzz` from this one. `PTTERM_FUZZ` says how
@@ -534,6 +539,13 @@ Lillecarl/pymux#31.
 and it decides for every sequence that asks for room, not for DECCOLM
 alone.
 
+**A terminal that owns its pty takes the page, and two faults came out
+from behind it.** `checks.ptterm-esctest` gives ptterm a pty of its own
+and answers the ask, so DECCOLM really changes the width there. RIS
+then does not put the width back to 80 (Lillecarl/pymux#42), and
+DECCOLM does not clear the page it takes (Lillecarl/pymux#43). Neither
+was reachable while the width never moved.
+
 ### 17. Where the cursor stands after the alternate screen is taken
 
 `\x1b[2;3H\x1b[?47hX` and the same with `?1047` and `?1049`, on 3 lines
@@ -649,12 +661,49 @@ answers pass through no projection.
 
 ## Every esctest2 failure that stands, and where it is written down
 
-`pymux/tests/esctest-failures.txt` holds the names. Twelve stand, and
-each one is an entry above. None of them is an unfixed fault.
+**The suite runs twice, and the difference is the point.**
+`checks.ptterm-esctest` runs it on a pty that ptterm owns, so what it
+judges is the emulator alone. `checks.pymux-esctest` runs it in a pane,
+so what it judges is the emulator and everything pymux puts around it.
+What fails in both belongs to ptterm; what fails only in a pane is the
+pane.
 
-Eleven of the twelve are the same sentence: **a pane is not a window.**
-It has no printer, no locator, no window to move, and its width and
-height come from the layout and not from the program inside it.
+Three tests run in neither. `NOT_OURS` in each driver holds them:
+`test_XtermWinops_IconifyDeiconfiy`, `test_XtermWinops_MoveToXY` and
+`test_XtermWinops_MoveToXY_Defaults` ask where the window is and
+whether it is iconified. Neither a widget nor a pane has one, and no
+decision follows from the answer, so the question does not apply. A
+pattern there that matches no test fails the check, and so does a name
+that is left out and recorded as a failure as well.
+
+### On a pty of its own: eight
+
+`ptterm/tests/esctest-failures.txt` holds the names.
+
+| Test | Entry or issue |
+| --- | --- |
+| `DATests.test_DA_0` | 18 |
+| `DATests.test_DA_NoParameter` | 18 |
+| `DECSETTests.test_DECSET_DECNCSM` | Lillecarl/pymux#43 |
+| `ManipulateSelectionDataTests.test_ManipulateSelectionData_default` | Lillecarl/pymux#45 |
+| `RISTests.test_RIS_ResetDECCOLM` | Lillecarl/pymux#42 |
+| `ResetSpecialColorTests.test_ResetSpecialColor_Dynamic` | 14 |
+| `SMTitleTests.test_SMTitle_SetHexQueryUTF8` | Lillecarl/pymux#44 |
+| `SMTitleTests.test_SMTitle_SetUTF8QueryHex` | Lillecarl/pymux#44 |
+
+Four of the eight are new, and the host is why. It answers a resize,
+which no pane can, so DECCOLM really changes the width and what RIS and
+DECNCSM do afterwards can be judged at all (#42 and #43). It claims the
+window operations of xterm for the same reason, which lets the suite
+run the title and selection tests it was skipping (#44 and #45).
+
+Two of the eight are deliberate. Entry 18 has the DA answer, and entry
+14 has the reset of a dynamic colour.
+
+### In a pane: nine
+
+`pymux/tests/esctest-failures.txt` holds the names. The eight above
+are not all here, because the pane never reaches four of them.
 
 | Test | Entry |
 | --- | --- |
@@ -667,13 +716,14 @@ height come from the layout and not from the program inside it.
 | `RISTests.test_RIS_ResetDECCOLM` | 16 |
 | `ResetSpecialColorTests.test_ResetSpecialColor_Dynamic` | 14 |
 | `XtermWinopsTests.test_XtermWinops_DECSLPP` | 13 |
-| `XtermWinopsTests.test_XtermWinops_IconifyDeiconfiy` | 15 |
-| `XtermWinopsTests.test_XtermWinops_MoveToXY` | 15 |
-| `XtermWinopsTests.test_XtermWinops_MoveToXY_Defaults` | 15 |
 
-**The resize tests cannot pass in this harness, whatever the option
-says.** Entry 13 names `allow-program-resize`, and turning it on
-changes nothing here: `Pymux.resize_pane_for_program` calls
+Seven of the nine are the same sentence: **a pane is not a window.** It
+has no printer, no locator, no window to move, and its width and height
+come from the layout and not from the program inside it.
+
+**The resize tests cannot pass in a pane, whatever the option says.**
+Entry 13 names `allow-program-resize`, and turning it on changes
+nothing here: `Pymux.resize_pane_for_program` calls
 `Window.change_size_for_pane`, which moves room between panes. The
 suite runs in a window that holds one pane, so there is no sibling to
 take the room from and none to give it. A wider window does not help
