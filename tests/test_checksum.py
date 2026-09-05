@@ -85,3 +85,35 @@ def test_an_unknown_intermediate_does_not_leak_its_final_byte():
     stream.feed("\x1b[2'}hi")
     row = screen.pt_screen.data_buffer[0]
     assert "".join(row[i].char for i in range(2)) == "hi"
+
+
+def test_origin_mode_counts_the_rectangle_from_the_margins():
+    """
+    DECRQCRA reads the corners the way every other rectangle command
+    reads them: from the margins while origin mode is on.
+
+    esctest2 asks for this in `DECSETTests.test_DECSET_DECOM_DECRQCRA`,
+    and DECRQCRA has no test of its own there.
+    """
+    screen, stream, responses = make_screen()
+    stream.feed("\x1b[5;5HX")
+    stream.feed("\x1b[5;7r\x1b[?69h\x1b[5;7s\x1b[?6h")
+    assert checksum(stream, responses, "\x1b[7;0;1;1;1;1*y") == (7, ord("X"))
+
+
+def test_the_rectangle_counts_from_the_screen_without_origin_mode():
+    "With the mode off, the same margins do not move the corners."
+    screen, stream, responses = make_screen()
+    stream.feed("\x1b[5;5HX")
+    stream.feed("\x1b[5;7r\x1b[?69h\x1b[5;7s")
+    assert checksum(stream, responses, "\x1b[7;0;1;1;1;1*y") == (7, ord(" "))
+    assert checksum(stream, responses, "\x1b[7;0;5;5;5;5*y") == (7, ord("X"))
+
+
+def test_a_missing_corner_is_a_margin_in_origin_mode():
+    "The corners that the program leaves out are the edges of the region."
+    screen, stream, responses = make_screen()
+    stream.feed("\x1b[5;7r\x1b[?69h\x1b[5;7s\x1b[?6h")
+    stream.feed("\x1b[1;1HABC\x1b[3;1HDEF")
+    total = sum(ord(one) for one in "ABCDEF") + ord(" ") * 3
+    assert checksum(stream, responses, "\x1b[7*y") == (7, total)

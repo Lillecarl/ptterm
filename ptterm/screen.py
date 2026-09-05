@@ -4279,23 +4279,44 @@ class BetterScreen:
         caller cannot tell apart from an answer that never came.
         """
         pid = params[0] if params else 0
-        top = (params[2] if len(params) > 2 else 0) or 1
-        left = (params[3] if len(params) > 3 else 0) or 1
-        bottom = (params[4] if len(params) > 4 else 0) or self.lines
-        right = (params[5] if len(params) > 5 else 0) or self.columns
 
+        # Origin mode counts the corners from the margins, the same way
+        # every other rectangle command counts them. A corner that is
+        # not named is a margin.
+        first_row, last_row = 0, self.lines - 1
+        first_column, last_column = 0, self.columns - 1
+        if mo.DECOM in self.mode:
+            if self.margins is not None:
+                first_row, last_row = self.margins.top, self.margins.bottom
+            if self.horizontal_margins is not None:
+                first_column, last_column = self.horizontal_margins
+
+        named_bottom = params[4] if len(params) > 4 else 0
+        named_right = params[5] if len(params) > 5 else 0
+        top, left = self._corner(
+            params[2] if len(params) > 2 else 0,
+            params[3] if len(params) > 3 else 0,
+        )
+        bottom = first_row + named_bottom - 1 if named_bottom else last_row
+        right = first_column + named_right - 1 if named_right else last_column
+
+        # A rectangle that ends before it starts is read the other way
+        # round. The suite that drives this reads one cell at a time,
+        # so an answer that never comes costs more than a wrong one.
         top, bottom = sorted(
-            (max(1, min(top, self.lines)), max(1, min(bottom, self.lines)))
+            (max(0, min(top, self.lines - 1)),
+             max(0, min(bottom, self.lines - 1)))
         )
         left, right = sorted(
-            (max(1, min(left, self.columns)), max(1, min(right, self.columns)))
+            (max(0, min(left, self.columns - 1)),
+             max(0, min(right, self.columns - 1)))
         )
 
         line_offset = self.line_offset
         total = 0
-        for y in range(top - 1, bottom):
+        for y in range(top, bottom + 1):
             row = self.data_buffer[y + line_offset]
-            for x in range(left - 1, right):
+            for x in range(left, right + 1):
                 char = row[x].char
                 total += ord(char[0]) if char else ord(" ")
 
