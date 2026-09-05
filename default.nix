@@ -25,6 +25,8 @@
   nodejs,
   fetchurl,
   writeShellScriptBin,
+  libx11,
+  xorg-server,
 }:
 let
   package = buildPythonPackage {
@@ -163,6 +165,25 @@ let
     export PTTERM_XTERM=${xtermJudgeRunner}/bin/xterm-judge
   '';
 
+  # The judge for a colour spec: the real Xlib. `ptterm/xcms.py` is a
+  # port of the colour management of Xlib, and only a comparison against
+  # the original says whether the port is right.
+  #
+  # Xcms needs a display, because it reads the screen description from
+  # the root window. A bare Xvfb carries none, so Xlib uses its built-in
+  # description, which is the one xterm uses on such a screen too.
+  #
+  # `-displayfd` makes the server say which display it took, once it is
+  # ready to answer. Sleeping for a while instead is a race.
+  display = ''
+    export PTTERM_LIBX11=${libx11}/lib/libX11.so
+    Xvfb -displayfd 3 -screen 0 640x480x24 3> display.txt \
+      > xvfb.log 2>&1 &
+    trap 'kill %1' EXIT
+    while [ ! -s display.txt ]; do sleep 0.1; done
+    export DISPLAY=":$(cat display.txt)"
+  '';
+
   # What pytest runs, for instance
   # `PTTERM_TESTS=tests/test_left_right_margins.py nix build --file . checks.ptterm`.
   # It reaches the evaluation through the environment, so it works with
@@ -175,10 +196,12 @@ let
 
   checks = {
     tests = runCommand "ptterm-tests" {
-      # ncurses for the check that the terminfo entry compiles.
+      # ncurses for the check that the terminfo entry compiles, and
+      # xorg-server for the Xvfb that the Xlib colour judge asks.
       nativeBuildInputs = [
         pythonWithTests
         ncurses
+        xorg-server
       ];
       inherit selection;
     } ''
@@ -188,6 +211,7 @@ let
       export LANG=C.UTF-8
       export PYTHONDONTWRITEBYTECODE=1
       ${oracles}
+      ${display}
 
       # A comparison that cannot run proves nothing, so say so loudly
       # instead of skipping.
@@ -196,6 +220,7 @@ let
       echo '{"data":"x","lines":1,"columns":1}' | "$PTTERM_JUDGES" > /dev/null
       echo '{"data":"x","lines":1,"columns":1}' | "$PTTERM_GHOSTTY" > /dev/null
       echo '{"data":"x","lines":1,"columns":1}' | "$PTTERM_XTERM" > /dev/null
+      python -c "import sys; sys.path.insert(0, 'tests'); import xlib_oracle; assert xlib_oracle.xlib_color('rgb:f/f/f') == (255, 255, 255)"
 
       python -m pytest $selection -q -p no:cacheprovider
       touch "$out"
