@@ -641,6 +641,44 @@ Nothing. libghostty-vt holds every part of a cell that ptterm holds,
 the shape of an underline and the colour of the line included, so its
 answers pass through no projection.
 
+## Every esctest2 failure that stands, and where it is written down
+
+`pymux/tests/esctest-failures.txt` holds the names. Twelve stand, and
+each one is an entry above. None of them is an unfixed fault.
+
+Eleven of the twelve are the same sentence: **a pane is not a window.**
+It has no printer, no locator, no window to move, and its width and
+height come from the layout and not from the program inside it.
+
+| Test | Entry |
+| --- | --- |
+| `DATests.test_DA_0` | 18 |
+| `DATests.test_DA_NoParameter` | 18 |
+| `DECRQMTests.test_DECRQM_DEC_DECNCSM` | 16 |
+| `DECRQSSTests.test_DECRQSS_DECSLPP` | 13 |
+| `DECSETTests.test_DECSET_Allow80To132` | 16 |
+| `DECSETTests.test_DECSET_DECCOLM` | 16 |
+| `RISTests.test_RIS_ResetDECCOLM` | 16 |
+| `ResetSpecialColorTests.test_ResetSpecialColor_Dynamic` | 14 |
+| `XtermWinopsTests.test_XtermWinops_DECSLPP` | 13 |
+| `XtermWinopsTests.test_XtermWinops_IconifyDeiconfiy` | 15 |
+| `XtermWinopsTests.test_XtermWinops_MoveToXY` | 15 |
+| `XtermWinopsTests.test_XtermWinops_MoveToXY_Defaults` | 15 |
+
+**The resize tests cannot pass in this harness, whatever the option
+says.** Entry 13 names `allow-program-resize`, and turning it on
+changes nothing here: `Pymux.resize_pane_for_program` calls
+`Window.change_size_for_pane`, which moves room between panes. The
+suite runs in a window that holds one pane, so there is no sibling to
+take the room from and none to give it. A wider window does not help
+either: the suite asks for 80 columns in its own reset, and a lone pane
+cannot be made narrower than the window it fills.
+
+`ResetSpecialColorTests.test_ResetSpecialColor_Dynamic` is the one
+that is not about the window. Entry 14 has it: the suite writes
+xterm's own default foreground before it asks, and a pane starts from
+a different one.
+
 ## Not compared yet
 
 - A hyperlink (OSC 8) belongs to a cell. ptterm carries one now, in
