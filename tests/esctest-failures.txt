@@ -1,0 +1,17 @@
+# The esctest2 tests that failed in this run. Every name here is a
+# real difference between ptterm and xterm.
+#
+# This is what the run saw. To make it what the check expects:
+#     nix build --file . checks.ptterm-esctest.run
+#     cp result/failures.txt ptterm/tests/esctest-failures.txt
+DATests.test_DA_0
+DATests.test_DA_NoParameter
+DECSETTests.test_DECSET_DECNCSM
+ManipulateSelectionDataTests.test_ManipulateSelectionData_default
+RISTests.test_RIS_ResetDECCOLM
+ResetSpecialColorTests.test_ResetSpecialColor_Dynamic
+SMTitleTests.test_SMTitle_SetHexQueryUTF8
+SMTitleTests.test_SMTitle_SetUTF8QueryHex
+XtermWinopsTests.test_XtermWinops_IconifyDeiconfiy
+XtermWinopsTests.test_XtermWinops_MoveToXY
+XtermWinopsTests.test_XtermWinops_MoveToXY_Defaults

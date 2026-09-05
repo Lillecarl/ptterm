@@ -4,10 +4,11 @@
 # carry the six emulators, the X server and the node tarball that only a test
 # needs.
 #
-# `package`, `testSources` and `judges` come from `default.nix`: the first
-# because a suite runs against the installed package, the second because it
-# knows where the repository root is and this file does not, and the third
-# because a judge is a tool and not a suite.
+# `package`, `testSources`, `judges` and `esctest2` come from `default.nix`:
+# the first because a suite runs against the installed package, the second
+# because it knows where the repository root is and this file does not, and
+# the last two because a tool is not a suite and pymux takes them from there
+# as well.
 #
 # `nix/suite.nix` says why a check is two derivations.
 {
@@ -23,6 +24,7 @@
   package,
   testSources,
   judges,
+  esctest2,
 }:
 let
   inherit (callPackage ./suite.nix { }) suite;
@@ -74,6 +76,15 @@ let
       value = builtins.getEnv "PTTERM_TESTS";
     in
     if value == "" then "tests" else value;
+
+  # Which conformance tests run. It is a regular expression that the suite
+  # matches against "Class.method", for instance
+  # `PTTERM_ESCTEST_INCLUDE=BSTests nix build --file . checks.ptterm-esctest`.
+  esctestInclude =
+    let
+      value = builtins.getEnv "PTTERM_ESCTEST_INCLUDE";
+    in
+    if value == "" then ".*" else value;
 
   prepare = ''
     cp -r ${testSources}/tests .
@@ -160,6 +171,30 @@ in
       export PTTERM_GROUP=xcms
     '';
   } runPytest;
+
+  # The conformance suite of xterm, run against ptterm on a pty of its own.
+  #
+  # Every other suite here reads the screen from the outside. This one runs a
+  # program inside ptterm, which writes sequences and reads the reports that
+  # come back, so it judges what a real program sees.
+  #
+  # It is not a pass or fail of its own: each failure names a real difference
+  # from xterm. The run is judged against the list in
+  # `tests/esctest-failures.txt`, and a difference either way is what fails
+  # the check.
+  esctest = suite {
+    name = "ptterm-esctest";
+    inputs = [
+      pythonWithTests
+      esctest2
+    ];
+    env = { inherit esctestInclude; };
+    setup = prepare + ''
+      export PTTERM_ESCTEST=${esctest2}/share/esctest2
+      export PTTERM_ESCTEST_INCLUDE="$esctestInclude"
+      export PTTERM_ESCTEST_OUT="$out"
+    '';
+  } "python tests/drive_with_esctest.py";
 
   # The hunt for deviations between ptterm and kitty. This is not a gate:
   # it finds them faster than they get fixed, and each one needs a
