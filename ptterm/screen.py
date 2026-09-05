@@ -10,7 +10,7 @@ Changes compared to the original `Screen` class:
 import base64
 from collections import defaultdict, namedtuple
 from enum import IntEnum, IntFlag, StrEnum
-from typing import Callable, DefaultDict, Dict, List, Tuple
+from typing import Callable, DefaultDict, Dict, List, Set, Tuple
 
 from prompt_toolkit.cache import FastDictCache
 from prompt_toolkit.layout.screen import Char, Screen
@@ -487,6 +487,49 @@ class WindowOp(IntEnum):
 #: "CSI Ps t" with a Ps of this or more is DECSLPP, and asks for a page
 #: of Ps lines. Below it, Ps names one of the `WindowOp` operations.
 FIRST_PAGE_LENGTH = 24
+
+
+class TitleMode(IntEnum):
+    """
+    A title mode, by the number that "CSI > Ps t" carries.
+
+    xterm keeps four. Two say how a program writes a title, and two say
+    how the terminal reports one back. "CSI > Ps t" sets one and
+    "CSI > Ps T" takes it away.
+    """
+
+    #: A title that a program sets is hexadecimal: two digits a byte.
+    SET_HEX = 0
+
+    #: A title that the terminal reports is hexadecimal.
+    QUERY_HEX = 1
+
+    #: A title that a program sets is UTF-8 and not Latin-1.
+    SET_UTF8 = 2
+
+    #: A title that the terminal reports is UTF-8 and not Latin-1.
+    QUERY_UTF8 = 3
+
+
+def title_from_hex(text: str) -> str | None:
+    """
+    The title that a hexadecimal one carries, or None for one that is
+    not hexadecimal.
+
+    The bytes are UTF-8, because that is what a pane reads everywhere
+    else. An odd number of digits is not a title, and neither is a
+    digit that is not one.
+    """
+    try:
+        raw = bytes.fromhex(text)
+    except ValueError:
+        return None
+    return raw.decode("utf-8", "replace")
+
+
+def title_to_hex(text: str) -> str:
+    "A title as the two digits a byte that a hexadecimal query wants."
+    return text.encode("utf-8").hex()
 
 
 class TitlePart(IntEnum):
@@ -973,6 +1016,10 @@ class BetterScreen:
         # The titles that "CSI 22 t" remembered. A reset empties it,
         # the way it empties everything else that a program set.
         self.title_stack: List[Tuple[str, str]] = []
+
+        # The title modes that "CSI > Ps t" set. A terminal starts with
+        # none of them, so a title is plain text in and plain text out.
+        self.title_modes: Set[int] = set()
 
         # Reset the kitty keyboard protocol flag stack as well. (RIS is a
         # full terminal reset. It also clears all graphics.)
@@ -2054,12 +2101,22 @@ class BetterScreen:
         """
         self._scroll_region(count or 1)
 
-    def scroll_down(self, count: int | None = None) -> None:
+    def scroll_down(
+        self, *params: int, private: object = False, **kwargs
+    ) -> None:
         """
         SD ("CSI Ps T"): move the lines of the scrolling region down.
 
         The cursor does not move.
+
+        With the private marker the same final byte is RM_Title
+        ("CSI > Ps T"), which takes a title mode away. xterm reads the
+        two apart by the marker.
         """
+        if private == ">":
+            self._change_title_modes(params, False)
+            return
+        count = params[0] if params else None
         self._scroll_region(-(count or 1))
 
     def _scroll_region(self, amount: int) -> None:
@@ -4236,9 +4293,16 @@ class BetterScreen:
 
         return ";".join(parts)
 
-    def report_window(self, *params: int, **kwargs) -> None:
+    def report_window(
+        self, *params: int, private: object = False, **kwargs
+    ) -> None:
         """
         Window manipulation ("CSI Ps t").
+
+        With the private marker the same final byte is SM_Title
+        ("CSI > Ps t"), which sets a title mode. xterm reads the two
+        apart by the marker, and so does this: without it, "CSI > 4 t"
+        would ask for a resize in pixels.
 
         The sizes and the titles are answered. A pane has no window of
         its own, so it cannot move, iconify or maximize one, and it
@@ -4254,6 +4318,10 @@ class BetterScreen:
         how many cells an image covers. The answer is the size that
         `ptterm.graphics` assumes, so both sides count alike.
         """
+        if private == ">":
+            self._change_title_modes(params, True)
+            return
+
         what = params[0] if params else 0
         which = params[1] if len(params) > 1 else 0
 
@@ -4265,9 +4333,13 @@ class BetterScreen:
         elif what == WindowOp.RESIZE_PIXELS:
             self._resize_in_pixels(params)
         elif what == WindowOp.REPORT_ICON_LABEL:
-            self.write_process_input("\x1b]L%s\x1b\\" % self.icon_name)
+            self.write_process_input(
+                "\x1b]L%s\x1b\\" % self._title_to_report(self.icon_name)
+            )
         elif what == WindowOp.REPORT_WINDOW_TITLE:
-            self.write_process_input("\x1b]l%s\x1b\\" % self.title)
+            self.write_process_input(
+                "\x1b]l%s\x1b\\" % self._title_to_report(self.title)
+            )
         elif what == WindowOp.PUSH_TITLE:
             self._push_title()
         elif what == WindowOp.POP_TITLE:
@@ -4874,11 +4946,61 @@ class BetterScreen:
         if answers:
             self.write_process_input("\x1b]21;%s\x1b\\" % ";".join(answers))
 
+    def _change_title_modes(self, params: Tuple[int, ...], on: bool) -> None:
+        """
+        SM_Title ("CSI > Ps t") and RM_Title ("CSI > Ps T").
+
+        Each parameter names one mode, so one sequence can change
+        several. A sequence that carries no parameter names mode zero,
+        the way a missing number is a zero everywhere else.
+
+        A number that no mode has is ignored. xterm does the same, and
+        a program that asks for a mode nobody carries should not lose
+        the modes it asked for in the same sequence.
+        """
+        for number in params or (0,):
+            if number not in tuple(TitleMode):
+                continue
+            if on:
+                self.title_modes.add(number)
+            else:
+                self.title_modes.discard(number)
+
+    def _title_a_program_means(self, param: str) -> str:
+        """
+        The title that a program means by `param`.
+
+        "CSI > 0 t" says a program writes a title in hexadecimal. A
+        program that turns the mode on and then sends something that is
+        not hexadecimal gets the string as it stands: a title nobody can
+        read is still better than no title at all.
+        """
+        if TitleMode.SET_HEX not in self.title_modes:
+            return param
+        decoded = title_from_hex(param)
+        return param if decoded is None else decoded
+
+    def _title_to_report(self, title: str) -> str:
+        """
+        The title as "CSI 20 t" and "CSI 21 t" report it.
+
+        "CSI > 1 t" says the terminal reports one in hexadecimal. That
+        is how a title reaches a program that cannot read the bytes of
+        it as text.
+
+        The two UTF-8 modes are recorded and change nothing here. They
+        pick between UTF-8 and Latin-1, and a pane reads and writes
+        UTF-8 everywhere, so there is no second reading to pick.
+        """
+        if TitleMode.QUERY_HEX in self.title_modes:
+            return title_to_hex(title)
+        return title
+
     def set_icon_name(self, param: str) -> None:
-        self.icon_name = param
+        self.icon_name = self._title_a_program_means(param)
 
     def set_title(self, param: str) -> None:
-        self.title = param
+        self.title = self._title_a_program_means(param)
 
     def apc(self, data: str) -> None:
         """
