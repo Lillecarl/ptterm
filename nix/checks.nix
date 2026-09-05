@@ -26,13 +26,11 @@
   testSources,
   judges,
   esctest2,
+  vtermSuite,
 }:
 let
   inherit (callPackage ./suite.nix { }) suite;
 
-  # The test files of libvterm and the runner that drives them, out of the
-  # same source as the library that `ptterm-panel` judges against.
-  vtermSuite = callPackage ./vterm-suite.nix { };
 
   pythonWithTests = python.withPackages (ps: [
     package
@@ -229,7 +227,7 @@ in
     ];
     env = { inherit vtermInclude; };
     setup = prepare + ''
-      export PTTERM_VTERM=${vtermSuite}/share/libvterm-tests
+      export PTTERM_VTERM=${vtermSuite.tests}/share/libvterm-tests
       export PTTERM_VTERM_INCLUDE="$vtermInclude"
       export PTTERM_VTERM_OUT="$out"
     '';

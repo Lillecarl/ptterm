@@ -43,7 +43,7 @@ let
     doCheck = false;
     pythonImportsCheck = [ "ptterm" ];
 
-    passthru = { inherit checks judges esctest2; };
+    passthru = { inherit checks judges esctest2 vtermSuite; };
 
     meta = {
       description = "Terminal emulator for prompt_toolkit";
@@ -88,12 +88,18 @@ let
   # pymux runs the same one in a pane, and takes it from here.
   esctest2 = callPackage ./nix/esctest2.nix { };
 
+  # The test files of libvterm, and libvterm's own program that answers
+  # them. `ptterm-vterm` uses the first with a harness of ours in place of
+  # the second. pymux takes both from here and puts itself in the middle.
+  vtermSuite = callPackage ./nix/vterm-suite.nix { };
+
   checks = callPackage ./nix/checks.nix {
     inherit
       package
       testSources
       judges
       esctest2
+      vtermSuite
       ;
   };
 in
