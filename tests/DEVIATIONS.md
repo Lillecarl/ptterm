@@ -791,12 +791,6 @@ The 16 that run hold 270 assertions, and four of those sit inside a
 `$SEQ` and are asked more than once. 20 answers differ. They are in
 `tests/vterm-failures.txt`, and each one is one of three things.
 
-**ptterm is wrong, and it is filed.**
-
-| Assertions | What | Issue |
-| --- | --- | --- |
-| `69screen_reflow` 74 to 79 | a reflow anchors the top, and libvterm anchors the bottom | Lillecarl/pymux#57 |
-
 **ptterm does not hold it at all, and holding it is a decision.**
 
 | Assertions | What | Issue |
@@ -813,6 +807,39 @@ array in a C struct, and nobody else has one: kitty, Alacritty, WezTerm
 and xterm.js all keep every mark, and so does ptterm. Four to one, with
 Ghostty abstaining because our reader for it drops the marks
 (Lillecarl/pymux#63). `test_the_panel.py` holds that tally.
+
+**The suite runs libvterm without a scrollback, and ptterm always has
+one.**
+
+`69screen_reflow` 74 to 79 make a five row screen hold seven rows of
+text, so two rows scroll away. They then widen it to sixteen columns,
+where the text needs one row less. libvterm expects the text at rows 0
+to 3 and a blank row 4, with the cursor on row 3. ptterm pulls one of
+the two rows back and answers row 4, with the cursor on row 4.
+
+libvterm does what ptterm does when it has a history to read. Its
+`src/screen.c` lays the new screen out from the bottom upwards, and
+lines 676 to 718 then call `sb_popline` for every row still spare at the
+top. Only when that call gives nothing do lines 719 to 732 move the text
+up to row 0 and blank the bottom.
+
+The test file asks for `WANTSCREEN r`, which turns reflow on and leaves
+the scrollback off, and `t/harness.c` line 589 returns 0 from
+`sb_popline` while it is off. So the expected rows are the fallback.
+Give the same harness `WANTSCREEN rb` and the same bytes, and it pops a
+line, backfills row 0, and reports the cursor at `4,2`, which is
+ptterm's answer.
+
+**The panel cannot rule here.** A judge takes bytes and one size, and no
+judge on it can be resized, so a reflow has no vote to read. libvterm's
+own source, run with its scrollback on, is the only oracle
+(Lillecarl/pymux#64). `test_reflow_history.py` holds the case.
+
+One difference is ptterm's to keep. libvterm copies a popped line cell
+for cell (`src/screen.c` line 684) and does not rewrap it, so an
+embedder with a history sees `S HERE` on row 0 and not the whole prompt.
+ptterm unwraps the history and wraps it again at the new width, which is
+what kitty and WezTerm do.
 
 **The suite is describing its own rendering decision, and ptterm keeps
 the parts apart on purpose.**
