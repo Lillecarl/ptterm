@@ -3,7 +3,7 @@ Record what a real program writes to a terminal.
 
     ptterm-record htop -- htop
     ptterm-record vim --lines 24 --columns 80 -- vim README.md
-    python -m ptterm.record claude -- claude
+    ptterm-record claude --idle 3 -- claude
 
 This is a program and not a test. A fault that only a real program
 shows, in a real session, on the machine of the person who hit it, can
@@ -18,7 +18,24 @@ of the picture harness.
 
 The program runs on a pty of its own and everything passes through, so
 the session looks normal. Use it, reproduce the fault, and quit. Three
-files come out:
+files come out.
+
+**A program that does not end needs `--idle`.** Quitting is not always
+possible, and it is often not what you want: a full screen program gives
+the screen back as it dies, and those bytes wipe the very screen the
+recording was made for. So drive the program to the screen you want,
+let it settle, and the recording stops there.
+
+The idle count starts at the first thing the program draws, not at the
+start, so a program that takes a while to come up is not cut off before
+it has drawn anything. `--timeout SECONDS` stops after that long
+whatever is happening, which is what covers a program that draws
+nothing at all. The two work together.
+
+Nothing the program writes after that point is recorded. The recording
+ends at the screen you were looking at.
+
+The three files:
 
 - `<name>.bin`, what the program wrote. This is the corpus that the
   comparisons replay.
@@ -43,6 +60,7 @@ repository.
 import argparse
 import base64
 import fcntl
+import io
 import json
 import os
 import pathlib
@@ -57,8 +75,60 @@ import time
 import tty
 
 
+#: How long to give a program to end after the recording stops, before
+#: insisting. It is being asked to go away, not to save anything.
+GRACE = 5.0
+
+
+def _descriptor_of(stream) -> int | None:
+    """
+    The file descriptor behind a stream, or None when it has none.
+
+    A stream that a test or a pipeline put there is not always a file.
+    Nothing here needs one badly enough to fail over it: without a
+    keyboard the program gets no keys, and without a screen what it
+    draws is recorded and not shown.
+    """
+    try:
+        return stream.fileno()
+    except (AttributeError, ValueError, io.UnsupportedOperation):
+        return None
+
+
 def set_size(fd: int, lines: int, columns: int) -> None:
     fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", lines, columns, 0, 0))
+
+
+def stop_the_program(child: int, master: int) -> None:
+    """
+    End the program, and wait for it.
+
+    Closing the master is what a person closing a terminal window does,
+    and a program on a pty reads it as the end of its input. Most end
+    there. SIGHUP says the same thing to one that does not, and SIGKILL
+    is for one that ignores both.
+    """
+    os.close(master)
+    try:
+        os.kill(child, signal.SIGHUP)
+    except (ProcessLookupError, PermissionError):
+        pass
+
+    deadline = time.monotonic() + GRACE
+    while time.monotonic() < deadline:
+        try:
+            finished, _ = os.waitpid(child, os.WNOHANG)
+        except ChildProcessError:
+            return
+        if finished:
+            return
+        time.sleep(0.05)
+
+    try:
+        os.kill(child, signal.SIGKILL)
+        os.waitpid(child, 0)
+    except (ProcessLookupError, ChildProcessError):
+        pass
 
 
 def record(
@@ -68,6 +138,8 @@ def record(
     columns: int,
     term: str,
     into: pathlib.Path | None = None,
+    timeout: float = 0.0,
+    idle: float = 0.0,
 ) -> None:
     directory = into or pathlib.Path(".")
     directory.mkdir(parents=True, exist_ok=True)
@@ -96,20 +168,55 @@ def record(
     events = []
     started = time.monotonic()
     saved = None
-    keyboard = sys.stdin.fileno()
-    watching = [master, keyboard]
-    if sys.stdin.isatty():
-        saved = termios.tcgetattr(keyboard)
-        tty.setraw(keyboard)
+    # A recorder driven by a script has no keyboard and no screen. The
+    # deadlines are what stop such a run, and it is the shape a test or
+    # an automation uses, so neither may be assumed to be there.
+    keyboard = _descriptor_of(sys.stdin)
+    screen = _descriptor_of(sys.stdout)
+
+    watching = [master]
+    if keyboard is not None:
+        watching.append(keyboard)
+        if sys.stdin.isatty():
+            saved = termios.tcgetattr(keyboard)
+            tty.setraw(keyboard)
+
+    # When to stop, whatever the program is doing. `timeout` counts from
+    # the start.
+    #
+    # `idle` counts from the last thing the program drew, and it does
+    # not start until the program has drawn something. A program takes a
+    # while to come up, and one that is still starting has not settled;
+    # counting from the start would end the recording before the program
+    # ever wrote a byte. `timeout` is what covers a program that draws
+    # nothing at all.
+    ends_at = started + timeout if timeout else None
+    settles_at = None
+    reason = "the program ended"
 
     try:
         while True:
+            now = time.monotonic()
+            deadlines = [when for when in (ends_at, settles_at) if when is not None]
+            if deadlines and now >= min(deadlines):
+                reason = (
+                    "it drew nothing for %gs" % idle
+                    if settles_at is not None and now >= settles_at
+                    else "the %gs were up" % timeout
+                )
+                break
+
+            # A deadline is only reached while nothing happens, so the
+            # wait has to end at the nearest one. Without a deadline the
+            # wait is a plain block.
+            wait = min(when - now for when in deadlines) if deadlines else None
+
             try:
-                readable, _, _ = select.select(watching, [], [])
+                readable, _, _ = select.select(watching, [], [], wait)
             except InterruptedError:
                 continue
 
-            if keyboard in readable:
+            if keyboard is not None and keyboard in readable:
                 keys = os.read(keyboard, 4096)
                 if keys:
                     os.write(master, keys)
@@ -142,15 +249,18 @@ def record(
                         base64.b64encode(data).decode("ascii"),
                     ]
                 )
-                os.write(sys.stdout.fileno(), data)
+                if screen is not None:
+                    os.write(screen, data)
+                if idle:
+                    settles_at = time.monotonic() + idle
     finally:
-        if saved is not None:
+        if saved is not None and keyboard is not None:
             termios.tcsetattr(keyboard, termios.TCSAFLUSH, saved)
-        os.close(master)
-        try:
-            os.waitpid(child, 0)
-        except ChildProcessError:
-            pass
+        # Nothing the program writes on its way out belongs in the
+        # recording. A full screen program gives the screen back as it
+        # dies, and those bytes would wipe the very screen this was
+        # recorded for.
+        stop_the_program(child, master)
 
     output.write_bytes(b"".join(written))
     reads.write_text(json.dumps({"lines": lines, "columns": columns, "sizes": sizes}))
@@ -161,8 +271,8 @@ def record(
     )
     keys = sum(1 for event in events if event[1] == "in")
     print(
-        "\r\n%s: %d bytes in %d reads, %d from the keyboard"
-        % (output, sum(sizes), len(sizes), keys),
+        "\r\n%s: %d bytes in %d reads, %d from the keyboard (%s)"
+        % (output, sum(sizes), len(sizes), keys, reason),
         file=sys.stderr,
     )
 
@@ -192,6 +302,24 @@ def main() -> None:
         metavar="DIR",
         help="where the files go. The current directory by default.",
     )
+    parser.add_argument(
+        "--idle",
+        type=float,
+        default=0.0,
+        metavar="SECONDS",
+        help="stop when the program has drawn nothing for this long. "
+        "This is the one to use for a program that does not end: drive "
+        "it to the screen you want, and the recording stops when it "
+        "settles there. The count starts at the first thing the program "
+        "draws, so a slow start does not end the recording.",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=0.0,
+        metavar="SECONDS",
+        help="stop this long after the start, whatever is happening.",
+    )
     parser.add_argument("command", nargs="+", help="the program to run")
     arguments = parser.parse_args()
 
@@ -203,6 +331,9 @@ def main() -> None:
     if shutil.which(command[0]) is None:
         parser.error("%s is not on the path" % command[0])
 
+    if arguments.idle < 0 or arguments.timeout < 0:
+        parser.error("a time to wait cannot be negative")
+
     record(
         arguments.name,
         command,
@@ -210,6 +341,8 @@ def main() -> None:
         arguments.columns,
         arguments.term,
         arguments.into,
+        arguments.timeout,
+        arguments.idle,
     )
 
 
