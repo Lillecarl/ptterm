@@ -1331,6 +1331,31 @@ class BetterScreen:
             return right
         return min(column, self.columns - 1)
 
+    @property
+    def reported_position(self) -> Tuple[int, int]:
+        """
+        The row and the column that a cursor report names, counted
+        from one.
+
+        Origin mode moves the origin to the corner of the scrolling
+        region. It moves it for a report as well as for a move: a
+        program that places the cursor at the corner and reads the
+        position back has to read the corner. So the margins come off
+        the answer while the mode is on.
+
+        The two have to agree. `cursor_position` adds the margins to a
+        place that a program writes, and this takes them off a place
+        that a program reads.
+        """
+        row = self.pt_cursor_position.y - self.line_offset
+        column = self.reported_column
+        if mo.DECOM in self.mode:
+            top, _bottom = self.margins or Margins(0, self.lines - 1)
+            left, _right = self.left_right
+            row -= top
+            column -= left
+        return row + 1, column + 1
+
     def _cursor_is_between_the_left_and_right_margins(self) -> bool:
         """
         True when the cursor stands in the columns of the region.
@@ -2498,8 +2523,6 @@ class BetterScreen:
         CHA ("CSI Ps G"): move to a column of the current line.
 
         The column is counted from the left margin in origin mode.
-        HPA names the column of the screen instead, and
-        `cursor_to_absolute_column` serves it.
 
         :param int column: column number to move the cursor to.
         """
@@ -2510,16 +2533,20 @@ class BetterScreen:
 
     def cursor_to_absolute_column(self, column: int | None = None) -> None:
         """
-        HPA ("CSI Ps `"): move to a column of the screen.
+        HPA ("CSI Ps `"): move to a column of the line.
 
-        Origin mode does not change this one. CHA reads the same
-        parameter from the left margin, and HPA reads it from the edge
-        of the screen. xterm draws the line that way.
+        DEC gives HPA the column of the screen and CHA the column of
+        the region, so origin mode would move one and not the other.
+        xterm moves both, and a program that asks where the cursor
+        landed is told the same way, so the two have to agree: a
+        report in origin mode counts from the margin, and a move that
+        did not would answer a column the program never asked for.
+
+        `reported_position` is the other half of this.
 
         :param int column: column number to move the cursor to.
         """
-        self.pt_cursor_position.x = (column or 1) - 1
-        self.ensure_bounds()
+        self.cursor_to_column(column)
 
     def cursor_to_line(self, line: int | None = None) -> None:
         """Moves cursor to a specific line in the current column.
@@ -3685,8 +3712,7 @@ class BetterScreen:
             return
 
         if data == 6:
-            y = self.pt_cursor_position.y - self.line_offset + 1
-            x = self.reported_column + 1
+            y, x = self.reported_position
             if private is True:
                 # DECXCPR: the page number comes after the position.
                 self.write_process_input("\x1b[?%i;%i;1R" % (y, x))

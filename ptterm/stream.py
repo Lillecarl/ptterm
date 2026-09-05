@@ -117,9 +117,9 @@ class Csi(StrEnum):
     #: back.
     DECSTR = "!p"
 
-    #: Horizontal position absolute: the column of the screen. pyte
-    #: gives it to the handler of CHA, and the two differ: CHA counts
-    #: from the left margin in origin mode, and HPA does not.
+    #: Horizontal position absolute: the column of the line. pyte gives
+    #: it to the handler of CHA, and xterm moves the two alike, so
+    #: ptterm keeps its own name for it and serves both the same way.
     HPA = "`"
 
     #: Repeat the last character that was drawn. It saves a program

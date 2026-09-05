@@ -209,11 +209,19 @@ def test_the_column_of_a_line_follows_origin_mode():
     assert _column(screen) == 2
 
 
-def test_the_absolute_column_ignores_origin_mode():
-    "HPA counts from the edge of the screen. xterm draws it that way."
+def test_the_absolute_column_counts_from_the_margin_too():
+    """
+    HPA counts from the left margin in origin mode, the way CHA does.
+
+    DEC gives HPA the column of the screen, so this looks wrong. It is
+    what xterm does, and its own suite settles it: a program that moves
+    to the corner in origin mode and reads the position back is told
+    "1", and the character it then draws lands on the margin. Move and
+    report have to agree, so both count from the margin.
+    """
     screen, stream, _answers = _screen()
     stream.feed("\x1b[?69h\x1b[3;7s\x1b[?6h\x1b[2`")
-    assert _column(screen) == 1
+    assert _column(screen) == 3
 
 
 # ----------------------------------------------------------------------
