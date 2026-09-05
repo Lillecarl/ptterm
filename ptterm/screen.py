@@ -882,6 +882,12 @@ class BetterScreen:
         # The wait to wrap belongs to the cursor, so it travels with it.
         "pending_wrap",
         "max_y",
+        # The continuation marks belong to the lines of one screen, so
+        # they travel with the buffer as well. Without this, a visit to
+        # the alternate screen joins two lines of the first screen on
+        # the next resize, because nothing says any more that a wrap
+        # started the second one.
+        "wrapped_lines",
         # The DEC line attributes belong to the lines of one screen, so
         # they travel with the buffer. libvterm holds one `lineinfos`
         # per buffer for the same reason. Without this, a visit to the

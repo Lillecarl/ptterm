@@ -58,3 +58,21 @@ def test_erasing_up_to_the_cursor_leaves_the_wrap():
 def test_an_erase_on_another_line_leaves_the_wrap():
     screen = _screen("a" * 12 + "\x1b[2;3H\x1b[K")
     assert _continues(screen, 1)
+
+
+def test_the_alternate_screen_gives_the_mark_back():
+    """
+    A visit to the other screen leaves the first one as it was.
+
+    The marks belong to the lines of one screen, so they travel with
+    the buffer. Without that, the first screen comes back with no mark
+    on it, and the next resize joins two lines that nothing wrapped
+    between.
+    """
+    screen = _screen("a" * 12 + "\x1b[?1049h\x1b[?1049l")
+    assert _continues(screen, 1)
+
+
+def test_the_alternate_screen_starts_with_no_mark():
+    screen = _screen("a" * 12 + "\x1b[?1049h")
+    assert screen.wrapped_lines == []
