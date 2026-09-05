@@ -618,6 +618,39 @@ that class passes.
 **As a setting:** no. The list has to say what the pane really does,
 and a person cannot make a pane grow a printer.
 
+### 19. A pane writes the clipboard and does not read it
+
+`\x1b]52;;?\x1b\\`, and the answer that never comes.
+
+"OSC 52" carries the clipboard of the user. A program can set it and a
+program can ask for it, and ptterm serves the two differently: a set
+goes out through `osc_func` to whoever embeds the pane, and a query is
+dropped where it arrives. `_forward_osc` in `ptterm/screen.py` is the
+line, and `tests/test_osc_forward.py` holds both halves.
+
+**Why.** The clipboard holds what the person copied somewhere else: a
+password, an address, a paragraph of a document they were reading. A
+program in a pane has no claim on that, and a program that asks is
+asking to read something nobody gave it. Setting the clipboard needs no
+such trust, so it is handed on.
+
+The cost is a program that copies with "OSC 52" and reads back to check
+that it worked. It does not get an answer. That is a small price beside
+the alternative.
+
+**A host that keeps a clipboard does not change this.** The query is
+dropped before `osc_func` sees it, so nothing an embedder does can
+answer one. Lillecarl/pymux#45 asked for such a host and is closed for
+that reason.
+
+`ManipulateSelectionDataTests.test_ManipulateSelectionData_default` of
+esctest2 sets the clipboard and reads it back, so it waits for the
+report timeout and fails. That is the one test it costs.
+
+**As a setting:** it could be. A person who wants a pane to read the
+clipboard could say so, the way `allow-program-resize` lets a program
+take room. Nobody has asked, and the default stays no either way.
+
 ## Where kitty looks wrong
 
 kitty puts the second character after a wrap into the cell of the
@@ -690,33 +723,26 @@ decision follows from the answer, so the question does not apply. A
 pattern there that matches no test fails the check, and so does a name
 that is left out and recorded as a failure as well.
 
-### On a pty of its own: seven
+### On a pty of its own: five
 
-`ptterm/tests/esctest-failures.txt` holds the names.
+`ptterm/tests/esctest-failures.txt` holds the names, and every one of
+them is an entry above. None is an unfixed fault.
 
-| Test | Entry or issue |
+| Test | Entry |
 | --- | --- |
 | `DATests.test_DA_0` | 18 |
 | `DATests.test_DA_NoParameter` | 18 |
 | `DECSETTests.test_DECSET_DECNCSM` | 16 |
-| `ManipulateSelectionDataTests.test_ManipulateSelectionData_default` | Lillecarl/pymux#45 |
+| `ManipulateSelectionDataTests.test_ManipulateSelectionData_default` | 19 |
 | `ResetSpecialColorTests.test_ResetSpecialColor_Dynamic` | 14 |
-| `SMTitleTests.test_SMTitle_SetHexQueryUTF8` | Lillecarl/pymux#44 |
-| `SMTitleTests.test_SMTitle_SetUTF8QueryHex` | Lillecarl/pymux#44 |
 
-Four of the seven follow an entry above. Entry 18 has the two DA
-answers, entry 14 the reset of a dynamic colour, and entry 16 the mode
-that DECCOLM waits for.
-
-The other three are open. Two are the title modes of xterm
-(Lillecarl/pymux#44), and one is a clipboard that the host does not
-keep (Lillecarl/pymux#45).
-
-**All three are visible because the host answers a resize.** No pane
-can, so this host claims the window operations of xterm, and the suite
-runs the title and selection tests it was skipping. The same reach
-found the one fault that is fixed: RIS left the page at 132 columns,
-and `RISTests.test_RIS_ResetDECCOLM` passes now (Lillecarl/pymux#42).
+**The check paid for itself twice on the first run.** It answers a
+resize, which no pane can, so it reached two faults that a pane hid.
+RIS left the page at 132 columns (Lillecarl/pymux#42). And it claims
+the window operations of xterm, so the suite ran the title tests it was
+skipping and found that xterm's four title modes were not there at all
+(Lillecarl/pymux#44). Both are fixed, and `test_page_width.py` and
+`test_title_modes.py` hold them.
 
 ### In a pane: nine
 
