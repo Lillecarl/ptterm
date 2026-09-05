@@ -789,7 +789,7 @@ and which rectangle it redrew, and ptterm has neither.
 
 The 16 that run hold 270 assertions, and four of those sit inside a
 `$SEQ` and are asked more than once. 20 answers differ. They are in
-`tests/vterm-failures.txt`, and each one is one of three things.
+`tests/vterm-failures.txt`, and each one is one of four things.
 
 **ptterm does not hold it at all, and holding it is a decision.**
 
