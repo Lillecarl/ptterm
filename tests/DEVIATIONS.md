@@ -779,6 +779,55 @@ that is not about the window. Entry 14 has it: the suite writes
 xterm's own default foreground before it asks, and a pane starts from
 a different one.
 
+## Every libvterm assertion that stands, and what it is
+
+`checks.ptterm-vterm` runs libvterm's own 43 test files through
+libvterm's own runner, with `tests/vterm_harness.py` as the program it
+drives. `NOT_OURS` in `tests/drive_with_vterm.py` leaves out 27 of the
+files, each with the reason: libvterm reports every glyph it lays down
+and which rectangle it redrew, and ptterm has neither.
+
+The 16 that run ask 274 questions. 249 agree. The 25 that do not are in
+`tests/vterm-failures.txt`, and each one is one of three things.
+
+**ptterm is wrong, and it is filed.**
+
+| Assertions | What | Issue |
+| --- | --- | --- |
+| `11state_movecursor` 178, 194 | HPB and VPB do nothing | Lillecarl/pymux#52 |
+| `32state_flow` 28 | EL leaves the continuation mark on the line below | Lillecarl/pymux#58 |
+| `69screen_reflow` 58, 66 | a reflow drops a trailing space a program wrote | Lillecarl/pymux#56 |
+| `69screen_reflow` 74 to 79 | a reflow anchors the top, and libvterm anchors the bottom | Lillecarl/pymux#57 |
+
+**ptterm does not hold it at all, and holding it is a decision.**
+
+| Assertions | What | Issue |
+| --- | --- | --- |
+| `30state_pen` 68, 70 | SGR 10 to 19, the alternate fonts | Lillecarl/pymux#60 |
+| `30state_pen` 118 to 122 | SGR 73 to 75, superscript and subscript | Lillecarl/pymux#59 |
+| `61screen_unicode` 35, 41 | a cell keeps every combining mark, with no cap | Lillecarl/pymux#54 |
+| `67screen_dbl_wh` 16 to 37 | DECDWL and DECDHL, the double size lines | Lillecarl/pymux#55 |
+
+**The suite is describing its own rendering decision, and ptterm keeps
+the parts apart on purpose.**
+
+`30state_pen` 111 and 114 want `\e[1;37m` to report `idx(15)`, colour
+fifteen. ptterm reports `idx(7)` with bold set, which is what the
+program asked for. libvterm's own harness turns the fold on with
+`vterm_state_set_bold_highbright`, so the number the suite expects is
+what libvterm's embedder chose to draw and not what the program wrote.
+
+ptterm keeps the bold and the colour apart so that the renderer can
+decide, and a terminal that draws bold plus colour seven as bright will
+still do so. Whether the server should carry enough to make that call
+per client is Lillecarl/pymux#53.
+
+**One fault the suite found is already fixed.** DECALN filled the screen
+with a plain `Char`, which reads as a cell nobody wrote, so eight
+assertions in `90vttest_01-movement-1` saw an empty frame where the E's
+should be. ptterm `9e6b697b` builds them out of `_CHAR_CACHE` like every
+other draw.
+
 ## Not compared yet
 
 - A hyperlink (OSC 8) belongs to a cell. ptterm carries one now, in
