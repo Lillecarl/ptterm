@@ -3131,6 +3131,8 @@ class BetterScreen:
             else:
                 line[column] = erased
 
+        self._end_the_wrap_out_of_this_line(columns)
+
         if erased is None and not line:
             # The line holds nothing, so it can go away and keep the
             # screen sparse.
@@ -3138,6 +3140,28 @@ class BetterScreen:
             return
 
         self._repair_erased_line(line, columns)
+
+    def _end_the_wrap_out_of_this_line(self, columns: range) -> None:
+        """
+        An erase that clears the end of a line ends the wrap out of it.
+
+        A line that a wrap started carries a mark saying it continues
+        the line above, and a resize joins the two again. Once the text
+        that wrapped away is erased, nothing wrapped out of this line,
+        so the mark on the line below goes as well.
+
+        An erase that stops before the last column leaves the mark: text
+        is still there to have wrapped.
+
+        libvterm asks for this in `32state_flow.test`, and it is the
+        only thing that can: no judge on the panel reports the mark, and
+        it is visible only through a resize.
+        """
+        if columns.stop < self.columns:
+            return
+        below = self.pt_cursor_position.y + 1
+        if below in self.wrapped_lines:
+            self.wrapped_lines = [row for row in self.wrapped_lines if row != below]
 
     def _repair_erased_line(self, line, columns: range) -> None:
         "Repair the two ends of a range of cells that an erase took away."

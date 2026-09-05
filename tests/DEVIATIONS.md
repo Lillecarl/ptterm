@@ -788,14 +788,13 @@ files, each with the reason: libvterm reports every glyph it lays down
 and which rectangle it redrew, and ptterm has neither.
 
 The 16 that run hold 270 assertions, and four of those sit inside a
-`$SEQ` and are asked more than once. 21 answers differ. They are in
+`$SEQ` and are asked more than once. 20 answers differ. They are in
 `tests/vterm-failures.txt`, and each one is one of three things.
 
 **ptterm is wrong, and it is filed.**
 
 | Assertions | What | Issue |
 | --- | --- | --- |
-| `32state_flow` 28 | EL leaves the continuation mark on the line below | Lillecarl/pymux#58 |
 | `69screen_reflow` 74 to 79 | a reflow anchors the top, and libvterm anchors the bottom | Lillecarl/pymux#57 |
 
 **ptterm does not hold it at all, and holding it is a decision.**
@@ -821,7 +820,7 @@ decide, and a terminal that draws bold plus colour seven as bright will
 still do so. Whether the server should carry enough to make that call
 per client is Lillecarl/pymux#53.
 
-**Three faults the suite found are already fixed.** DECALN filled the
+**Four faults the suite found are already fixed.** DECALN filled the
 screen with a plain `Char`, which reads as a cell nobody wrote, so eight
 assertions in `90vttest_01-movement-1` saw an empty frame where the E's
 should be. ptterm `9e6b697b` builds them out of `_CHAR_CACHE` like every
@@ -840,6 +839,13 @@ character, so it could not tell a space a program wrote from the blank
 an erase leaves. The space after a shell prompt went away on every
 resize. `_reflow` asks whether the cell is a `TerminalChar` now, which
 is the same distinction the alignment screen needed.
+
+An erase that cleared the end of a line left the continuation mark on
+the line below it, so a resize joined two lines that nothing wrapped
+between. `erase_in_line` takes the mark off now.
+`test_continuation.py` holds it, and libvterm is the only oracle there
+is: no judge on the panel reports the mark, and it shows from outside
+only through a resize.
 
 ## Not compared yet
 

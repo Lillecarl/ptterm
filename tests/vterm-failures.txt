@@ -16,7 +16,6 @@
 30state_pen.test:122 pen baseline
 30state_pen.test:68 pen font
 30state_pen.test:70 pen font
-32state_flow.test:28 lineinfo 1
 61screen_unicode.test:35 screen_cell 0,0
 61screen_unicode.test:41 screen_cell 0,0
 67screen_dbl_wh.test:16 screen_cell 0,0
