@@ -8,11 +8,13 @@
 # because a suite runs against the installed package, the second because it
 # knows where the repository root is and this file does not, and the third
 # because a judge is a tool and not a suite.
+#
+# `nix/suite.nix` says why a check is two derivations.
 {
   python,
   pytest,
   hypothesis,
-  runCommand,
+  callPackage,
   kitty,
   libvterm-neovim,
   ncurses,
@@ -23,6 +25,8 @@
   judges,
 }:
 let
+  inherit (callPackage ./suite.nix { }) suite;
+
   pythonWithTests = python.withPackages (ps: [
     package
     pytest
@@ -70,38 +74,41 @@ let
       value = builtins.getEnv "PTTERM_TESTS";
     in
     if value == "" then "tests" else value;
-in
-{
-  tests = runCommand "ptterm-tests" {
-    # ncurses for the check that the terminfo entry compiles, and
-    # xorg-server for the Xvfb that the Xlib colour judge asks.
-    nativeBuildInputs = [
-      pythonWithTests
-      ncurses
-      xorg-server
-    ];
-    inherit selection;
-  } ''
+
+  prepare = ''
     cp -r ${testSources}/tests .
     chmod -R +w .
     export HOME="$TMPDIR"
     export LANG=C.UTF-8
     export PYTHONDONTWRITEBYTECODE=1
-    ${oracles}
-    ${display}
+  '';
 
-    # A comparison that cannot run proves nothing, so say so loudly
-    # instead of skipping.
+  # A comparison that cannot run proves nothing, so say so loudly instead of
+  # skipping. This is setup and not part of the suite: an oracle that will
+  # not load is a broken input, and it should fail the build rather than be
+  # recorded as a suite that failed.
+  everyJudgeAnswers = ''
     python -c "import sys; sys.path.insert(0, sys.argv[1]); import kitty.fast_data_types" "$PTTERM_KITTY"
     python -c "import ctypes, os; ctypes.CDLL(os.environ['PTTERM_LIBVTERM'])"
     echo '{"data":"x","lines":1,"columns":1}' | "$PTTERM_JUDGES" > /dev/null
     echo '{"data":"x","lines":1,"columns":1}' | "$PTTERM_GHOSTTY" > /dev/null
     echo '{"data":"x","lines":1,"columns":1}' | "$PTTERM_XTERM" > /dev/null
     python -c "import sys; sys.path.insert(0, 'tests'); import xlib_oracle; assert xlib_oracle.xlib_color('rgb:f/f/f') == (255, 255, 255)"
-
-    python -m pytest $selection -q -p no:cacheprovider
-    touch "$out"
   '';
+in
+{
+  tests = suite {
+    name = "ptterm-tests";
+    # ncurses for the check that the terminfo entry compiles, and
+    # xorg-server for the Xvfb that the Xlib colour judge asks.
+    inputs = [
+      pythonWithTests
+      ncurses
+      xorg-server
+    ];
+    env = { inherit selection; };
+    setup = prepare + oracles + display + everyJudgeAnswers;
+  } "python -m pytest $selection -q -p no:cacheprovider";
 
   # The hunt for deviations between ptterm and kitty. This is not a gate:
   # it finds them faster than they get fixed, and each one needs a
@@ -115,20 +122,13 @@ in
       value = builtins.getEnv "PTTERM_FUZZ";
       examples = if value == "" then "2000" else value;
     in
-    runCommand "ptterm-fuzz" {
-      nativeBuildInputs = [ pythonWithTests ];
+    suite {
+      name = "ptterm-fuzz";
+      inputs = [ pythonWithTests ];
       # Rerun whenever the count changes.
-      inherit examples;
-    } ''
-      cp -r ${testSources}/tests .
-      chmod -R +w .
-      export HOME="$TMPDIR"
-      export LANG=C.UTF-8
-      export PYTHONDONTWRITEBYTECODE=1
-      ${oracles}
-      export PTTERM_FUZZ="$examples"
-
-      python -m pytest tests/fuzz_against_kitty.py -q -p no:cacheprovider
-      touch "$out"
-    '';
+      env = { inherit examples; };
+      setup = prepare + oracles + ''
+        export PTTERM_FUZZ="$examples"
+      '';
+    } "python -m pytest tests/fuzz_against_kitty.py -q -p no:cacheprovider";
 }
