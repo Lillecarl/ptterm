@@ -5,5 +5,5 @@ build/
 dist/
 .pytest_cache/
 .tox/
-# Symlink that `nix build` leaves behind.
-/result
+# The symlinks that `nix build` leaves behind.
+result*
