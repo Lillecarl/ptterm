@@ -299,3 +299,30 @@ def test_no_judge_carries_a_rectangle_command(command):
     data = "abcdefg\r\nABCDEFG\r\nhijklmn\r\nHIJKLMN\r\nopqrstu" + command
     against, _with_us = sides(data, lines=6, columns=8)
     assert against == sorted(WANTED)
+
+
+def test_where_the_cursor_stands_after_the_older_alternate_modes():
+    """
+    Five of the six leave the cursor where it stands when a program
+    takes the alternate screen with "?47" or "?1047". kitty alone puts
+    it home.
+
+    esctest2 asks for the same thing, so xterm itself is on the side of
+    the five.
+    """
+    against, with_us = sides("\x1b[2;3H\x1b[?47hX", lines=3, columns=6)
+    assert against == ["kitty"]
+    assert with_us == ["alacritty", "ghostty", "libvterm", "wezterm", "xterm"]
+
+
+def test_where_the_cursor_stands_after_the_newest_alternate_mode():
+    """
+    "?1049" splits the panel the other way, and ptterm is with the two.
+
+    ptterm sends the cursor home, because "?1049" saves it first and
+    gives it back on the way out. Four judges leave it. Nothing in
+    esctest2 asks, so the difference stands as a choice.
+    """
+    against, with_us = sides("\x1b[2;3H\x1b[?1049hX", lines=3, columns=6)
+    assert against == ["alacritty", "ghostty", "libvterm", "xterm"]
+    assert with_us == ["kitty", "wezterm"]

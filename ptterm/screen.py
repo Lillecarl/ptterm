@@ -1485,6 +1485,12 @@ class BetterScreen:
             if PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR.flag in taken_by:
                 self.save_cursor()
 
+            # Where the cursor stands, as a row of the screen rather
+            # than a row of the buffer. Taking the other screen moves
+            # the buffer under it.
+            held_column = self.pt_cursor_position.x
+            held_row = self.pt_cursor_position.y - self.line_offset
+
             self._original_screen = self.pt_screen
             self._original_screen_vars = {
                 v: getattr(self, v) for v in self.swap_variables
@@ -1508,11 +1514,8 @@ class BetterScreen:
                 self._alternate_screen = None
                 self._alternate_screen_vars = {}
 
-                # The cursor is not part of what the screen held. Taking
-                # the screen puts it home, the same way taking a screen
-                # that is cleared does.
-                self.pt_cursor_position.y = self.line_offset
-                self.pt_cursor_position.x = 0
+                # The cursor is not part of what the screen held, so
+                # the wait for a wrap on the other screen goes away.
                 self.pending_wrap = False
                 # A screen carries no rendition and no link of its own:
                 # its cells hold the ones they were drawn with.
@@ -1532,6 +1535,15 @@ class BetterScreen:
 
             self.margins = margins
             self.horizontal_margins = horizontal_margins
+
+            # "?47" and "?1047" leave the cursor where it stands.
+            # xterm does, and so do WezTerm, Alacritty, libvterm,
+            # Ghostty and xterm.js; only kitty puts it home. "?1049"
+            # does put it home, which is what xterm and kitty both do.
+            if PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR.flag not in taken_by:
+                self.pt_cursor_position.x = held_column
+                self.pt_cursor_position.y = held_row + self.line_offset
+                self.ensure_bounds()
 
     def reset_mode(self, *modes_args, **kwargs) -> None:
         """Resets (disables) a given list of modes.

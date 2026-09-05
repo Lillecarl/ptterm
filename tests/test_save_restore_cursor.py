@@ -122,3 +122,40 @@ def test_a_restore_leaves_the_wrap_alone(save, restore):
     stream.feed("\x1b[?7h" + save + "\x1b[?7l" + restore)
     stream.feed("\x1b[1;7Habcd")
     assert screen.pt_cursor_position.y == 0
+
+
+#: The private modes that name the alternate screen. Only "?1049"
+#: saves the cursor, and only it puts the cursor home on the way in.
+OLDER_ALTERNATE_MODES = ["47", "1047"]
+
+
+@pytest.mark.parametrize("mode", OLDER_ALTERNATE_MODES)
+def test_the_older_alternate_modes_leave_the_cursor_alone(mode):
+    """
+    Taking the alternate screen with "?47" or "?1047" does not move
+    the cursor.
+
+    xterm leaves it, and so do WezTerm, Alacritty, libvterm, Ghostty
+    and xterm.js. Only kitty puts it home, which
+    `tests/test_known_deviations.py` records.
+    """
+    screen, stream = _screen(lines=4, columns=8)
+    stream.feed("\x1b[2;3H\x1b[?%sh" % mode)
+    assert (screen.pt_cursor_position.y, screen.pt_cursor_position.x) == (1, 2)
+
+
+@pytest.mark.parametrize("mode", OLDER_ALTERNATE_MODES)
+def test_the_cursor_stays_on_a_second_visit(mode):
+    "A screen that comes back a second time does not move the cursor either."
+    screen, stream = _screen(lines=4, columns=8)
+    stream.feed("\x1b[?%sh\x1b[?%sl\x1b[2;3H\x1b[?%sh" % (mode, mode, mode))
+    assert (screen.pt_cursor_position.y, screen.pt_cursor_position.x) == (1, 2)
+
+
+def test_the_mode_that_saves_the_cursor_puts_it_home():
+    '"?1049" saves the cursor first, so it can send it home.'
+    screen, stream = _screen(lines=4, columns=8)
+    stream.feed("\x1b[2;3H\x1b[?1049h")
+    assert (screen.pt_cursor_position.y, screen.pt_cursor_position.x) == (0, 0)
+    stream.feed("\x1b[?1049l")
+    assert (screen.pt_cursor_position.y, screen.pt_cursor_position.x) == (1, 2)

@@ -474,6 +474,26 @@ an answer to them, so a program that sends one already has to cope
 with silence. Where a pane can answer at all, it answers; see
 `DEVIATIONS.md` entry 13 and the device status reports.
 
+### 16. Where the cursor stands after the alternate screen is taken
+
+`\x1b[2;3H\x1b[?47hX` and the same with `?1047` and `?1049`, on 3 lines
+and 6 columns.
+
+For `?47` and `?1047`, ptterm leaves the cursor where it stands, and so
+do Alacritty, Ghostty, libvterm, WezTerm and xterm.js. kitty alone puts
+it home. `DECSETTests.test_DECSET_ALTBUF` and
+`test_DECSET_OPT_ALTBUF` of esctest2 ask for the same thing, so xterm
+is with the five.
+
+For `?1049`, ptterm puts the cursor home, and so do kitty and WezTerm.
+Alacritty, Ghostty, libvterm and xterm.js leave it. Nothing in esctest2
+asks, so this one is a choice and not an answer: `?1049` saves the
+cursor on the way in and gives it back on the way out, so a program
+that used it never has to know where the cursor stood in between.
+
+**As a setting:** the same argument as entry 2. A pane holds one
+cursor, so the choice belongs to the pane and is made once.
+
 ## Where kitty looks wrong
 
 kitty puts the second character after a wrap into the cell of the

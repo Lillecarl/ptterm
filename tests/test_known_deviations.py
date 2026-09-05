@@ -143,3 +143,16 @@ def test_the_line_after_the_cell_that_kitty_holds_wrong():
     "What follows the second character moves along with it."
     data = "\x1b[1;2r\x1b[8;23H000ä0"
     assert not differences(data, lines=8, columns=24)
+
+
+@pytest.mark.parametrize("mode", ["47", "1047"])
+@pytest.mark.xfail(
+    reason="kitty puts the cursor home when a program takes the alternate "
+    "screen with '?47' or '?1047'. The other five judges leave it where it "
+    "stands, and so does xterm. ptterm follows them.",
+    strict=True,
+)
+def test_where_the_cursor_stands_after_the_older_alternate_modes(mode):
+    # kitty draws the "X" in the first column of the first row. ptterm
+    # draws it where the cursor already stood.
+    assert not differences("\x1b[2;3H\x1b[?%shX" % mode, lines=3, columns=6)

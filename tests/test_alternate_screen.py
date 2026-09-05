@@ -17,7 +17,10 @@ pytestmark = pytest.mark.skipif(
 
 @pytest.mark.parametrize("mode", ["47", "1047", "1049"])
 def test_the_alternate_screen_starts_empty(mode):
-    assert not differences("abc\x1b[?%sh xyz" % mode, lines=4, columns=8)
+    # The cursor goes home by hand, because the three modes do not
+    # agree on where it stands after the switch and this test is about
+    # the cells.
+    assert not differences("abc\x1b[?%sh\x1b[H xyz" % mode, lines=4, columns=8)
 
 
 @pytest.mark.parametrize("mode", ["47", "1047", "1049"])
@@ -46,15 +49,8 @@ def test_the_lines_of_the_alternate_screen_go_away():
 )
 def test_any_of_the_three_gives_the_screen_back(taken, given_back):
     "A program can take the screen under one name and give it back under another."
-    data = "0\x1b[?%sh\x1b[?%sl0" % (taken, given_back)
+    data = "0\x1b[?%sh\x1b[H\x1b[?%sl0" % (taken, given_back)
     assert not differences(data, lines=3, columns=8)
-
-
-@pytest.mark.parametrize("mode", ["47", "1047"])
-def test_the_older_modes_leave_the_cursor_where_it_is(mode):
-    "Only '?1049' saves a cursor, so only it brings one back."
-    assert not differences("ab\x1b[?%shZ\x1b[?%slX" % (mode, mode),
-                           lines=3, columns=8)
 
 
 def test_the_cursor_comes_back_with_the_mode_that_saved_it():
@@ -136,9 +132,11 @@ def test_a_screen_that_1049_left_is_still_there_for_an_older_name():
     assert not differences("\x1b[?1049hX\x1b[?1049l\x1b[?47h", lines=3, columns=6)
 
 
-def test_the_cursor_goes_home_on_a_second_visit():
-    "The cells come back; the cursor does not."
-    assert not differences("\x1b[?47habc\x1b[?47l\x1b[?47hZ", lines=3, columns=6)
+def test_the_cells_come_back_on_a_second_visit():
+    # The cursor goes home by hand: where it stands after the switch
+    # is a deviation of its own, in `test_known_deviations.py`.
+    assert not differences("\x1b[?47habc\x1b[?47l\x1b[?47h\x1b[HZ",
+                           lines=3, columns=6)
 
 
 def test_the_first_screen_is_untouched_by_all_of_it():
@@ -148,5 +146,5 @@ def test_the_first_screen_is_untouched_by_all_of_it():
 
 def test_a_rendition_of_the_first_visit_does_not_come_back():
     "The cells keep the colour they were drawn with; the next one is plain."
-    data = "\x1b[?47h\x1b[31mred\x1b[?47l\x1b[?47hplain"
+    data = "\x1b[?47h\x1b[31mred\x1b[?47l\x1b[?47h\x1b[Hplain"
     assert not differences(data, lines=3, columns=6, strict=True)
