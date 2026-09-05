@@ -539,12 +539,26 @@ Lillecarl/pymux#31.
 and it decides for every sequence that asks for room, not for DECCOLM
 alone.
 
-**A terminal that owns its pty takes the page, and two faults came out
+**A terminal that owns its pty takes the page, and a fault came out
 from behind it.** `checks.ptterm-esctest` gives ptterm a pty of its own
 and answers the ask, so DECCOLM really changes the width there. RIS
-then does not put the width back to 80 (Lillecarl/pymux#42), and
-DECCOLM does not clear the page it takes (Lillecarl/pymux#43). Neither
-was reachable while the width never moved.
+then left the page at 132 columns, which nothing could see while the
+width never moved. Fixed; `tests/test_page_width.py` holds it, and
+Lillecarl/pymux#42 says what it was.
+
+**The mode starts off, and one esctest2 test assumes it starts on.**
+`DECSETTests.test_DECSET_DECNCSM` never sets mode 40. So DECCOLM does
+nothing, the page keeps what was written on it, and the test reads a
+character where it wants a blank. xterm passes it because its
+`allowC132` resource turns mode 40 on by default; ptterm follows the
+mode and not the resource. `test_DECSET_Allow80To132`, which sets the
+mode itself, passes here, and so does `test_DECSET_DECCOLM`. So the
+three tests together say the behaviour is consistent and the default
+is the only difference.
+
+**As a setting, again:** a resource that turns mode 40 on at startup
+would make that test pass and change nothing else. Nobody has asked
+for one.
 
 ### 17. Where the cursor stands after the alternate screen is taken
 
@@ -676,7 +690,7 @@ decision follows from the answer, so the question does not apply. A
 pattern there that matches no test fails the check, and so does a name
 that is left out and recorded as a failure as well.
 
-### On a pty of its own: eight
+### On a pty of its own: seven
 
 `ptterm/tests/esctest-failures.txt` holds the names.
 
@@ -684,21 +698,25 @@ that is left out and recorded as a failure as well.
 | --- | --- |
 | `DATests.test_DA_0` | 18 |
 | `DATests.test_DA_NoParameter` | 18 |
-| `DECSETTests.test_DECSET_DECNCSM` | Lillecarl/pymux#43 |
+| `DECSETTests.test_DECSET_DECNCSM` | 16 |
 | `ManipulateSelectionDataTests.test_ManipulateSelectionData_default` | Lillecarl/pymux#45 |
-| `RISTests.test_RIS_ResetDECCOLM` | Lillecarl/pymux#42 |
 | `ResetSpecialColorTests.test_ResetSpecialColor_Dynamic` | 14 |
 | `SMTitleTests.test_SMTitle_SetHexQueryUTF8` | Lillecarl/pymux#44 |
 | `SMTitleTests.test_SMTitle_SetUTF8QueryHex` | Lillecarl/pymux#44 |
 
-Five of the eight are new, and the host is why. It answers a resize,
-which no pane can, so DECCOLM really changes the width and what RIS and
-DECNCSM do afterwards can be judged at all (#42 and #43). It claims the
-window operations of xterm for the same reason, which lets the suite
-run the title and selection tests it was skipping (#44 and #45).
+Four of the seven follow an entry above. Entry 18 has the two DA
+answers, entry 14 the reset of a dynamic colour, and entry 16 the mode
+that DECCOLM waits for.
 
-The other three are deliberate. Entry 18 has the two DA answers, and
-entry 14 has the reset of a dynamic colour.
+The other three are open. Two are the title modes of xterm
+(Lillecarl/pymux#44), and one is a clipboard that the host does not
+keep (Lillecarl/pymux#45).
+
+**All three are visible because the host answers a resize.** No pane
+can, so this host claims the window operations of xterm, and the suite
+runs the title and selection tests it was skipping. The same reach
+found the one fault that is fixed: RIS left the page at 132 columns,
+and `RISTests.test_RIS_ResetDECCOLM` passes now (Lillecarl/pymux#42).
 
 ### In a pane: nine
 
