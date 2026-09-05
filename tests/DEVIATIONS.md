@@ -474,7 +474,47 @@ an answer to them, so a program that sends one already has to cope
 with silence. Where a pane can answer at all, it answers; see
 `DEVIATIONS.md` entry 13 and the device status reports.
 
-### 16. Where the cursor stands after the alternate screen is taken
+### 16. A pane cannot take a 132 column page on its own
+
+`\x1b[?40h\x1b[?3h`, then `\x1b[18t`.
+
+DECCOLM ("?3") picks the 80 or the 132 column page, and private mode 40
+says whether it may. ptterm carries both: the mode is off until a
+program sets it, and DECCOLM then asks for the width through
+`resize_func`, the same route that DECSLPP and the window resizes use.
+
+**Why it asks instead of taking.** A pane is not a window. Its width
+comes from the layout, and pymux answers a program that asks for room
+by moving the weights of the panes around, and only when the person
+allowed it with `set-option allow-program-resize on`.
+
+ptterm used to resize its own screen for DECCOLM. That does not hold:
+`TerminalControl.create_content` calls `set_size` on every draw with
+the width the layout gives, so the 132 lasts until the next frame. A
+program that read 132 and laid its output out for it would then draw
+off the edge of an 80 column pane. A width that is right for one frame
+is worse than a width that never moved.
+
+So a pane reaches 132 columns only when the window has 132 columns to
+give. esctest2 runs in a window of 80, so three of its tests fail and
+the failure list records them:
+
+- `DECSETTests.test_DECSET_Allow80To132`
+- `DECSETTests.test_DECSET_DECCOLM`
+- `RISTests.test_RIS_ResetDECCOLM`
+
+The first two passed while ptterm resized its own screen, because each
+asks for the width straight after setting it and the answer arrives
+before the next draw. That is the whole of what they proved.
+
+`tests/test_page_width.py` covers the same steps by reading the ask
+rather than the width.
+
+**As a setting:** it already is one. `allow-program-resize` decides,
+and it decides for every sequence that asks for room, not for DECCOLM
+alone.
+
+### 17. Where the cursor stands after the alternate screen is taken
 
 `\x1b[2;3H\x1b[?47hX` and the same with `?1047` and `?1049`, on 3 lines
 and 6 columns.

@@ -242,6 +242,12 @@ class PrivateMode(IntEnum):
     #: DECHEBM: the Hebrew keyboard.
     HEBREW_KEYBOARD = 35
 
+    #: Does DECCOLM do anything? xterm keeps the 132 column page
+    #: behind this mode, because a program that sets DECCOLM by
+    #: accident would otherwise resize the terminal and clear it. It
+    #: is off until a program asks.
+    ALLOW_80_TO_132 = 40
+
     #: xterm's fix for a fault in `more`. A cursor that filled the
     #: last column waits to wrap, and a tab leaves that wait alone.
     #: `more` drew to the end of a row and then wrote a tab, and the
@@ -1194,6 +1200,37 @@ class BetterScreen:
 
         self.max_y = 0  # Max 'y' position to which is written.
 
+    #: The two page widths that DECCOLM names.
+    NARROW_PAGE = 80
+    WIDE_PAGE = 132
+
+    def _may_change_the_page_width(self) -> bool:
+        """
+        May DECCOLM take the page between 80 and 132 columns?
+
+        Only while private mode 40 is set. xterm keeps the width behind
+        that mode because DECCOLM clears the screen, and a program that
+        sets it by accident would throw the screen away.
+        """
+        return PrivateMode.ALLOW_80_TO_132.flag in self.mode
+
+    def _ask_for_page_width(self, columns: int) -> None:
+        """
+        DECCOLM: ask for a page of `columns` columns, and clear it.
+
+        The width goes through `resize_func`, the way every other ask
+        for room does. A pane is not a window: it sits in a layout, and
+        the embedder decides whether it may grow and how far. So the
+        pane may end up no wider than it was.
+
+        The screen is cleared and the cursor goes home either way. That
+        is what a DEC terminal does, and a program that sends DECCOLM
+        expects to start from an empty page.
+        """
+        self.resize_func(None, columns)
+        self.erase_in_display(2)
+        self.cursor_position()
+
     def resize(
         self, lines: int | None = None, columns: int | None = None
     ) -> None:
@@ -1463,12 +1500,10 @@ class BetterScreen:
         if PrivateMode.INBAND_RESIZE.flag in modes:
             self.notify_of_resize()
 
-        # When DECOLM mode is set, the screen is erased and the cursor
-        # moves to the home position.
-        if mo.DECCOLM in modes:
-            self.resize(columns=132)
-            self.erase_in_display(2)
-            self.cursor_position()
+        # DECCOLM takes the page to 132 columns, clears it and puts the
+        # cursor home.
+        if mo.DECCOLM in modes and self._may_change_the_page_width():
+            self._ask_for_page_width(self.WIDE_PAGE)
 
         # According to `vttest`, DECOM should also home the cursor, see
         # vttest/main.c:303.
@@ -1579,10 +1614,8 @@ class BetterScreen:
             self.horizontal_margins = None
 
         # Lines below follow the logic in :meth:`set_mode`.
-        if mo.DECCOLM in modes:
-            self.resize(columns=80)
-            self.erase_in_display(2)
-            self.cursor_position()
+        if mo.DECCOLM in modes and self._may_change_the_page_width():
+            self._ask_for_page_width(self.NARROW_PAGE)
 
         if mo.DECOM in modes:
             self.cursor_position()
