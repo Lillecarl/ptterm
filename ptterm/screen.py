@@ -3633,6 +3633,10 @@ class BetterScreen:
                 replace["reverse"] = True
             elif attr == 8:
                 replace["hidden"] = True
+            elif attr == 9:
+                replace["strike"] = True
+            elif attr == 29:
+                replace["strike"] = False
             elif attr == 22:
                 replace["bold"] = False
                 replace["dim"] = False
@@ -3711,6 +3715,8 @@ class BetterScreen:
             style_str += "reverse "
         if attrs_obj.hidden:
             style_str += "hidden "
+        if attrs_obj.strike:
+            style_str += "strike "
 
         self._rendition_str = _unicode_intern_dict[style_str]
         self._attrs = attrs_obj
