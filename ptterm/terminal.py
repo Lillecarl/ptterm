@@ -32,7 +32,7 @@ from prompt_toolkit.layout.processors import (
     Processor,
     Transformation,
 )
-from prompt_toolkit.layout.screen import Point
+from prompt_toolkit.layout.screen import Char, Point
 from prompt_toolkit.mouse_events import MouseEventType
 from prompt_toolkit.utils import Event, is_windows
 from prompt_toolkit.widgets.toolbars import SearchToolbar
@@ -46,6 +46,14 @@ __all__ = ["Terminal"]
 E = KeyPressEvent
 
 
+#: The characters that must not reach the terminal of the user as they
+#: stand. prompt_toolkit lists them because it draws them for a person
+#: who is typing; the reason here is different, and so is the answer.
+#: The non-breaking space is left out: it is a character to draw, not a
+#: control to keep out.
+_NOT_FOR_A_SCREEN = frozenset(Char.display_mappings) - {"\xa0"}
+
+
 def _visible_char(char: str) -> str:
     """
     What to draw for a cell.
@@ -55,8 +63,22 @@ def _visible_char(char: str) -> str:
     screen: a terminal that does not know it paints a box, and the
     combining characters that carry the row and the column pile up on
     top of it. A space keeps the cell, and the image covers it.
+
+    A control character is drawn as a blank. It should never be in a
+    cell at all, because the parser consumes those, and one that is
+    there must not reach the terminal of the user: that terminal would
+    read it as a control of its own and the screen after it is anybody's
+    guess. prompt_toolkit draws "^@" in blue for the same characters,
+    which is a thing to look at rather than a thing to be safe.
+
+    A non-breaking space goes through as it stands. It is a printable
+    character that a program wrote on purpose, and the content of this
+    control says `apply_display_mappings=False`, which is what stops
+    prompt_toolkit from marking it up.
     """
     if char.startswith(PLACEHOLDER):
+        return " "
+    if char in _NOT_FOR_A_SCREEN:
         return " "
     return char
 
@@ -154,6 +176,13 @@ class _TerminalControl(UIControl):
             line_count=line_count,
             show_cursor=pt_screen.show_cursor,
             cursor_position=Point(x=cursor_x, y=cursor_y),
+            # A terminal draws what the program in it drew. Every
+            # character on this screen was chosen by that program, so
+            # none of them is a character to mark up for a reader: a
+            # non-breaking space is one the program wrote on purpose,
+            # and prompt_toolkit would otherwise draw an underlined
+            # yellow space in its place.
+            apply_display_mappings=False,
         )
 
     def get_key_bindings(self) -> KeyBindings:
