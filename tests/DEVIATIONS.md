@@ -554,6 +554,38 @@ that used it never has to know where the cursor stood in between.
 **As a setting:** the same argument as entry 2. A pane holds one
 cursor, so the choice belongs to the pane and is made once.
 
+### 18. A pane names fewer extensions than xterm in its DA answer
+
+`\x1b[c`, and the answer that comes back.
+
+xterm at level 5 names thirteen: `65;1;2;6;9;15;16;17;18;21;22;28;29`.
+A pane names ten: `65;1;4;6;9;15;17;21;22;28`.
+
+Four of xterm's are missing, and a pane has none of them:
+
+- **2**, the printer port. There is no printer, and DECPFF and DECPEX
+  are kept and not acted on.
+- **16**, the locator device port. It reports the mouse the way ReGIS
+  does, and a pane reports the mouse the way xterm does.
+- **18**, user windows. A pane is one window and cannot make another.
+  Entry 15 says the same about moving one.
+- **29**, the ANSI text locator. The other half of 16.
+
+One is there that xterm does not name: **4**, sixel. A pane draws sixel
+images, so it says so.
+
+**Why.** A capability claimed and not served is worse than one that is
+missing. A program reads the list to decide what to send, and a claim
+it acts on and gets nothing for leaves it waiting. The list is the one
+place a program asks before it commits.
+
+`DATests.test_DA_NoParameter` and `test_DA_0` of esctest2 check for all
+thirteen, so they fail, and the failure list records them. The rest of
+that class passes.
+
+**As a setting:** no. The list has to say what the pane really does,
+and a person cannot make a pane grow a printer.
+
 ## Where kitty looks wrong
 
 kitty puts the second character after a wrap into the cell of the
