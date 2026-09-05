@@ -1,11 +1,24 @@
 """
 Record what a real program writes to a terminal.
 
-    python tests/record_a_session.py htop -- htop
-    python tests/record_a_session.py vim --lines 24 --columns 80 -- vim README.md
+    ptterm-record htop -- htop
+    ptterm-record vim --lines 24 --columns 80 -- vim README.md
+    python -m ptterm.record claude -- claude
+
+This is a program and not a test. A fault that only a real program
+shows, in a real session, on the machine of the person who hit it, can
+only get into a test by being recorded there first. So the recorder
+ships with ptterm and runs anywhere, and the files it writes are what a
+check replays later.
+
+`--into DIR` says where the files go, and the current directory is the
+default. `ptterm/tests/corpus` is where the comparisons of ptterm read
+them from, and `pymux/tests/recordings` makes the recording a fixture
+of the picture harness.
 
 The program runs on a pty of its own and everything passes through, so
-the session looks normal. Three files come out:
+the session looks normal. Use it, reproduce the fault, and quit. Three
+files come out:
 
 - `<name>.bin`, what the program wrote. This is the corpus that the
   comparisons replay.
@@ -22,6 +35,10 @@ what the terminal can do and draws what the answers allow, so the
 bytes carry the answers of that terminal with them. `TERM` therefore
 defaults to a plain one. Record under something exotic only when the
 capture is meant to hold that.
+
+**A recording holds whatever was on the screen.** A path, a branch, a
+piece of the work in front of you. Read one before it goes into a
+repository.
 """
 import argparse
 import base64
@@ -39,18 +56,24 @@ import termios
 import time
 import tty
 
-CORPUS = pathlib.Path(__file__).parent / "corpus"
-
 
 def set_size(fd: int, lines: int, columns: int) -> None:
     fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", lines, columns, 0, 0))
 
 
-def record(name: str, command, lines: int, columns: int, term: str) -> None:
-    CORPUS.mkdir(exist_ok=True)
-    output = CORPUS / ("%s.bin" % name)
-    reads = CORPUS / ("%s.reads.json" % name)
-    session = CORPUS / ("%s.session.json" % name)
+def record(
+    name: str,
+    command,
+    lines: int,
+    columns: int,
+    term: str,
+    into: pathlib.Path | None = None,
+) -> None:
+    directory = into or pathlib.Path(".")
+    directory.mkdir(parents=True, exist_ok=True)
+    output = directory / ("%s.bin" % name)
+    reads = directory / ("%s.reads.json" % name)
+    session = directory / ("%s.session.json" % name)
 
     child, master = pty.fork()
     if child == 0:
@@ -145,7 +168,15 @@ def record(name: str, command, lines: int, columns: int, term: str) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
+    # A console script gets no handler from the block at the end of
+    # this file, and a recorder that ignores Ctrl-C is a recorder
+    # nobody can stop.
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
+
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument("name", help="the name of the capture")
     parser.add_argument("--lines", type=int, default=24)
     parser.add_argument("--columns", type=int, default=80)
@@ -153,6 +184,13 @@ def main() -> None:
         "--term",
         default="xterm-256color",
         help="what the program is told the terminal is",
+    )
+    parser.add_argument(
+        "--into",
+        type=pathlib.Path,
+        default=None,
+        metavar="DIR",
+        help="where the files go. The current directory by default.",
     )
     parser.add_argument("command", nargs="+", help="the program to run")
     arguments = parser.parse_args()
@@ -165,9 +203,15 @@ def main() -> None:
     if shutil.which(command[0]) is None:
         parser.error("%s is not on the path" % command[0])
 
-    record(arguments.name, command, arguments.lines, arguments.columns, arguments.term)
+    record(
+        arguments.name,
+        command,
+        arguments.lines,
+        arguments.columns,
+        arguments.term,
+        arguments.into,
+    )
 
 
 if __name__ == "__main__":
-    signal.signal(signal.SIGINT, signal.SIG_DFL)
     main()

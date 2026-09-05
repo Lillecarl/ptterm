@@ -27,6 +27,12 @@ setup(
     long_description=long_description,
     packages=find_packages("."),
     install_requires=requirements,
+    # A recorder, not a test. A fault that only a real program shows, on
+    # the machine of the person who hit it, can only reach a check by
+    # being recorded there first, so the recorder has to run anywhere.
+    entry_points={
+        "console_scripts": ["ptterm-record = ptterm.record:main"],
+    },
     # pyte needs 3.10, so ptterm has needed 3.10 for a while. Nothing
     # said so.
     python_requires=">=3.10",

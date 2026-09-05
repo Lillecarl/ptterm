@@ -10,7 +10,7 @@ Four judges answer here instead of one. A difference from all of them
 is a bug of ptterm; a difference from some of them is a choice, and
 the tally says who is on which side.
 
-`record_a_session.py` makes a capture. A recording belongs to the
+`ptterm-record` makes a capture. A recording belongs to the
 terminal it was made on, because a program asks what the terminal can
 do and draws what the answers allow.
 """
