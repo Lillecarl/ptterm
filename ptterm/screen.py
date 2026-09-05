@@ -242,6 +242,12 @@ class PrivateMode(IntEnum):
     #: DECHEBM: the Hebrew keyboard.
     HEBREW_KEYBOARD = 35
 
+    #: xterm's fix for a fault in `more`. A cursor that filled the
+    #: last column waits to wrap, and a tab leaves that wait alone.
+    #: `more` drew to the end of a row and then wrote a tab, and the
+    #: tab went nowhere. With this mode set the tab wraps first.
+    MORE_FIX = 41
+
     #: DECNRCM: the national replacement character sets.
     NATIONAL_CHARSETS = 42
 
@@ -2108,10 +2114,22 @@ class BetterScreen:
         A tab leaves that wait alone, so the next character starts the
         line below. Every other cursor move ends the wait. This one
         does not. kitty, WezTerm, Alacritty and libvterm all agree.
+
+        Private mode 41 is the one exception. `more` drew to the end of
+        a row and then wrote a tab, and the tab went nowhere; xterm
+        added the mode so that the tab wraps first. It is off unless a
+        program asks for it.
         """
         cursor_position = self.pt_cursor_position
         if self.pending_wrap:
-            return
+            if PrivateMode.MORE_FIX.flag not in self.mode:
+                return
+            self.carriage_return()
+            self.linefeed()
+            cursor_position = self.pt_cursor_position
+            # The line above was full and the cursor moved on because
+            # of it, which is what the wrap flag records.
+            self.wrapped_lines.append(cursor_position.y)
 
         # With a right margin the tab stops there, and not at the last
         # column. That holds even for a cursor that starts left of the
