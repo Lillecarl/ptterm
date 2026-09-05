@@ -33,11 +33,3 @@
 69screen_reflow.test:76 ?screen_row 2
 69screen_reflow.test:78 ?screen_row 3
 69screen_reflow.test:79 cursor
-90vttest_01-movement-1.test:75 ?screen_row 8
-90vttest_01-movement-1.test:76 ?screen_row 9
-90vttest_01-movement-1.test:77 ?screen_row 10
-90vttest_01-movement-1.test:78 ?screen_row 11
-90vttest_01-movement-1.test:79 ?screen_row 12
-90vttest_01-movement-1.test:80 ?screen_row 13
-90vttest_01-movement-1.test:81 ?screen_row 14
-90vttest_01-movement-1.test:82 ?screen_row 15

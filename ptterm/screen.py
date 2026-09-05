@@ -3584,11 +3584,16 @@ class BetterScreen:
         The margins go back to the whole screen and the cursor goes
         home afterwards. The DEC manuals say so and kitty does both;
         libvterm does neither.
+
+        Every cell holds a character that a program asked for, so it
+        comes out of the cache that `draw` uses. A plain `Char` reads as
+        a cell that nobody wrote, which is what an erase leaves, and
+        anything that tells the two apart then reads a blank screen.
         """
         for y in range(0, self.lines):
             line = self.data_buffer[y + self.line_offset]
             for x in range(0, self.columns):
-                line[x] = Char("E")
+                line[x] = _CHAR_CACHE["E", ""]
         self.margins = None
         self.horizontal_margins = None
         self.cursor_position()
