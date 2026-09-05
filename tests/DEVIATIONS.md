@@ -788,7 +788,7 @@ files, each with the reason: libvterm reports every glyph it lays down
 and which rectangle it redrew, and ptterm has neither.
 
 The 16 that run hold 270 assertions, and four of those sit inside a
-`$SEQ` and are asked more than once. 20 answers differ. They are in
+`$SEQ` and are asked more than once. 15 answers differ. They are in
 `tests/vterm-failures.txt`, and each one is one of four things.
 
 **ptterm does not hold it at all, and holding it is a decision.**
@@ -797,7 +797,6 @@ The 16 that run hold 270 assertions, and four of those sit inside a
 | --- | --- | --- |
 | `30state_pen` 68, 70 | SGR 10 to 19, the alternate fonts | Lillecarl/pymux#60 |
 | `30state_pen` 118 to 122 | SGR 73 to 75, superscript and subscript | Lillecarl/pymux#59 |
-| `67screen_dbl_wh` 16 to 37 | DECDWL and DECDHL, the double size lines | Lillecarl/pymux#55 |
 
 **The suite is describing a limit of libvterm, and the panel says so.**
 
@@ -855,11 +854,23 @@ decide, and a terminal that draws bold plus colour seven as bright will
 still do so. Whether the server should carry enough to make that call
 per client is Lillecarl/pymux#53.
 
-**Four faults the suite found are already fixed.** DECALN filled the
-screen with a plain `Char`, which reads as a cell nobody wrote, so eight
-assertions in `90vttest_01-movement-1` saw an empty frame where the E's
-should be. ptterm `9e6b697b` builds them out of `_CHAR_CACHE` like every
-other draw.
+**Five faults the suite found are already fixed.** The DEC line
+attributes reached no handler, so `67screen_dbl_wh` failed five times.
+`screen.py` holds one per line now, in `line_attributes`, next to
+`wrapped_lines` and counted the same way. An erase, a scroll and a
+reflow all carry it, and DECLRMM takes it off, because half a double
+width line is not a thing a terminal can draw.
+
+The line still holds every column it held. libvterm alone halves a
+double width line, and kitty, WezTerm, Alacritty, Ghostty and xterm.js
+all keep it whole. Five to one, and `test_the_panel.py` holds the vote.
+ptterm draws nothing with the attribute: how wide a line looks is the
+renderer's decision. Emitting it is Lillecarl/pymux#65.
+
+DECALN filled the screen with a plain `Char`, which reads as a cell
+nobody wrote, so eight assertions in `90vttest_01-movement-1` saw an
+empty frame where the E's should be. ptterm `9e6b697b` builds them out
+of `_CHAR_CACHE` like every other draw.
 
 HPB and VPB (`CSI Ps j` and `CSI Ps k`) reached no handler, so the
 cursor stayed where it was. `stream.py` names both now and gives them to

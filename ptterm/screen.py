@@ -10,7 +10,7 @@ Changes compared to the original `Screen` class:
 import base64
 from collections import defaultdict, namedtuple
 from enum import IntEnum, IntFlag, StrEnum
-from typing import Callable, DefaultDict, Dict, List, Set, Tuple
+from typing import Callable, DefaultDict, Dict, List, NamedTuple, Set, Tuple
 
 from prompt_toolkit.cache import FastDictCache
 from prompt_toolkit.layout.screen import Char, Screen
@@ -734,6 +734,39 @@ class TerminalChar(Char):
             super().__init__(char, style)
 
 
+class DoubleHeight(IntEnum):
+    "Which half of a double height line a line is."
+
+    NONE = 0
+    TOP = 1
+    BOTTOM = 2
+
+
+class LineAttribute(NamedTuple):
+    """
+    The DEC line attributes of one line.
+
+    A VT100 draws a line at twice the width, at twice the height, or
+    both. The attribute belongs to the line and not to a cell, so it
+    lives next to `wrapped_lines` and not in a `Char`.
+
+    ptterm holds it and draws nothing: how wide a line looks is the
+    renderer's decision, and a pane is not a whole line of the terminal
+    the user runs. The line still holds every column it held, which is
+    what kitty, WezTerm, Alacritty, Ghostty and xterm.js all do.
+    libvterm alone halves the line, and `test_the_panel.py` holds that
+    vote. Lillecarl/pymux#55.
+    """
+
+    double_width: bool
+    double_height: DoubleHeight
+
+
+#: A line that carries no attribute. It is never stored: a row that
+#: holds it is absent from the map.
+PLAIN_LINE = LineAttribute(False, DoubleHeight.NONE)
+
+
 class Protection(IntFlag):
     """
     The marks that hold an erase away from a cell.
@@ -849,6 +882,11 @@ class BetterScreen:
         # The wait to wrap belongs to the cursor, so it travels with it.
         "pending_wrap",
         "max_y",
+        # The DEC line attributes belong to the lines of one screen, so
+        # they travel with the buffer. libvterm holds one `lineinfos`
+        # per buffer for the same reason. Without this, a visit to the
+        # alternate screen leaves the first screen flat.
+        "line_attributes",
         # The kitty keyboard protocol keeps separate flag stacks for the
         # main and the alternate screen. (Immutable tuple: safe to swap.)
         "kitty_flags_stack",
@@ -1270,6 +1308,10 @@ class BetterScreen:
         self.pt_cursor_position = CursorPosition(0, 0)
         self.wrapped_lines: List[int] = []  # List of line indexes that were wrapped.
 
+        # The DEC line attributes, by line index, the same way
+        # `wrapped_lines` counts. A line that carries none is absent.
+        self.line_attributes: Dict[int, LineAttribute] = {}
+
         self._reset_rendition()
 
         self.margins = None
@@ -1616,6 +1658,13 @@ class BetterScreen:
         # set the same way.)
         if PrivateMode.INBAND_RESIZE.flag in modes:
             self.notify_of_resize()
+
+        # DECLRMM takes the DEC line attributes off every line. A left
+        # or a right margin cuts a line in two, and half a double width
+        # line is not a thing a terminal can draw. libvterm clears them
+        # here too, in the DECVSSM branch of its `src/state.c`.
+        if PrivateMode.LEFT_RIGHT_MARGIN.flag in modes:
+            self.line_attributes = {}
 
         # DECCOLM takes the page to 132 columns, clears it and puts the
         # cursor home.
@@ -2188,6 +2237,30 @@ class BetterScreen:
             # Graphics placements scroll with the text. An image sits on
             # whole lines, so it moves only when whole lines move.
             self.graphics.scroll(top + line_offset, bottom + line_offset, amount)
+
+            # A DEC line attribute belongs to the line, so it moves with
+            # the line. A rectangle carries cells and not lines, so a
+            # left or a right margin leaves the attributes alone.
+            self._move_line_attributes(top + line_offset, bottom + line_offset, amount)
+
+    def _move_line_attributes(self, top: int, bottom: int, amount: int) -> None:
+        """
+        Move the DEC line attributes of a region by `amount` rows.
+
+        The rows are counted from the top of the buffer, the way
+        `line_attributes` counts. A row that moves out of the region
+        loses its attribute, and a row that comes in has none.
+        """
+        moved = {
+            row: attribute
+            for row, attribute in self.line_attributes.items()
+            if not top <= row <= bottom
+        }
+        for row in range(top, bottom + 1):
+            origin = row + amount
+            if top <= origin <= bottom and origin in self.line_attributes:
+                moved[row] = self.line_attributes[origin]
+        self.line_attributes = moved
 
     def _copy_columns(self, source, target, horizontal: HorizontalMargins) -> None:
         "Copy the cells between the margins from one row to another."
@@ -3248,6 +3321,14 @@ class BetterScreen:
                 row for row in self.wrapped_lines if row not in erased_rows
             ]
 
+            # A DEC line attribute goes with the line, so an erase that
+            # takes the whole line takes the attribute too. libvterm
+            # clears it over the same rows: `set_lineinfo` with FORCE in
+            # each of the three ED branches of its `src/state.c`. The
+            # row the cursor stands on keeps its attribute, because ED 0
+            # and ED 1 only take a part of that row.
+            self._forget_line_attributes(erased_rows)
+
             for line in interval:
                 if reads_the_marks:
                     # A cell that carries a mark stays, so the row
@@ -3621,6 +3702,48 @@ class BetterScreen:
         self.margins = None
         self.horizontal_margins = None
         self.cursor_position()
+
+    def _set_line_attribute(self, attribute: LineAttribute) -> None:
+        "Give the line the cursor stands on a DEC line attribute."
+        row = self.pt_cursor_position.y
+        if attribute == PLAIN_LINE:
+            self.line_attributes.pop(row, None)
+        else:
+            self.line_attributes[row] = attribute
+
+    def single_width(self) -> None:
+        """
+        DECSWL ("ESC # 5"): draw this line the plain way.
+
+        It takes both attributes off, which is what libvterm does:
+        `set_lineinfo` in its `src/state.c` gets DWL_OFF and DHL_OFF
+        from the same call.
+        """
+        self._set_line_attribute(PLAIN_LINE)
+
+    def double_width(self) -> None:
+        "DECDWL (\"ESC # 6\"): draw this line at twice the width."
+        self._set_line_attribute(LineAttribute(True, DoubleHeight.NONE))
+
+    def double_height_top(self) -> None:
+        """
+        DECDHL ("ESC # 3"): the top half of a double height line.
+
+        A double height line is a double width line as well. A program
+        writes the same text twice, once on each half, and the terminal
+        draws the top of the glyphs on one line and the bottom on the
+        other.
+        """
+        self._set_line_attribute(LineAttribute(True, DoubleHeight.TOP))
+
+    def double_height_bottom(self) -> None:
+        "DECDHL (\"ESC # 4\"): the bottom half of one."
+        self._set_line_attribute(LineAttribute(True, DoubleHeight.BOTTOM))
+
+    def _forget_line_attributes(self, rows) -> None:
+        "Take the DEC line attributes off these lines."
+        for row in rows:
+            self.line_attributes.pop(row, None)
 
     # Mapping of the ANSI color codes to their names.
     _fg_colors = {v: "#" + k for k, v in FG_ANSI_COLORS.items()}
@@ -5118,8 +5241,16 @@ class BetterScreen:
         line: List[Char] = []
         all_lines: List[List[Char]] = [line]
 
+        # The DEC line attribute of each unwrapped line. It comes from
+        # the row the line starts on, because that is the row the
+        # program addressed when it sent the sequence.
+        attributes: List[LineAttribute | None] = [None]
+
         for row_index in range(min(data_buffer), max(data_buffer) + 1):
             row = data_buffer[row_index]
+
+            if row_index not in self.wrapped_lines:
+                attributes[-1] = self.line_attributes.get(row_index)
 
             row[0]  # Avoid calling max() on empty collection.
             for column_index in range(0, max(row) + 1):
@@ -5133,6 +5264,7 @@ class BetterScreen:
             if row_index + 1 not in self.wrapped_lines:
                 line = []
                 all_lines.append(line)
+                attributes.append(None)
 
         # Take the blanks off the end of each line, so that a line that
         # was never filled does not carry its width around. Not the
@@ -5161,8 +5293,10 @@ class BetterScreen:
         new_row_index = offset
         new_column_index = 0
         new_wrapped_lines = []
+        new_line_attributes: Dict[int, LineAttribute] = {}
 
         for row_index, line in enumerate(all_lines):
+            first_new_row = new_row_index
             for column_index, char in enumerate(line):
                 # Check for space on the current line.
                 if new_column_index + char.width > width:
@@ -5178,6 +5312,13 @@ class BetterScreen:
                 new_data_buffer[new_row_index][new_column_index] = char
                 new_column_index += char.width
 
+            # A DEC line attribute belongs to the whole line, so every
+            # row the line now takes carries it.
+            attribute = attributes[row_index]
+            if attribute is not None:
+                for new_row in range(first_new_row, new_row_index + 1):
+                    new_line_attributes[new_row] = attribute
+
             new_row_index += 1
             new_column_index = 0
 
@@ -5190,6 +5331,7 @@ class BetterScreen:
         self.pt_screen.data_buffer = new_data_buffer
         self.data_buffer = new_data_buffer
         self.wrapped_lines = new_wrapped_lines
+        self.line_attributes = new_line_attributes
 
         cursor_position.y, cursor_position.x = cy, cx
         self.pt_cursor_position = cursor_position

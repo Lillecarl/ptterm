@@ -49,7 +49,7 @@ from kitty_oracle import (  # noqa: E402
     _underline_of_style,
 )
 
-from ptterm.screen import BetterScreen, TerminalChar  # noqa: E402
+from ptterm.screen import BetterScreen, DoubleHeight, TerminalChar  # noqa: E402
 from ptterm.stream import BetterStream  # noqa: E402
 
 #: The screen that libvterm's `INIT` makes.
@@ -235,21 +235,37 @@ class Harness:
             return "normal"
         return "?"
 
+    def _line_attribute(self, row: int):
+        "The DEC line attribute of one row of the visible screen, or None."
+        screen = self.screen
+        assert screen is not None
+        return screen.line_attributes.get(screen.line_offset + row)
+
     def lineinfo(self, argument: str) -> str:
         """
         What a whole line carries: a double size, and a continuation.
 
-        ptterm has no double width or double height line, so it only
-        ever answers the continuation. `wrapped_lines` holds the index
-        of each line that a wrap started, which is libvterm's
-        `continuation` for the same line.
+        libvterm prints the three words in this order, and prints the
+        double height without saying which half. `?screen_cell` is the
+        one that says the half.
+
+        `wrapped_lines` holds the index of each line that a wrap
+        started, which is libvterm's `continuation` for the same line.
         """
         screen = self.screen
         assert screen is not None
         row = int(argument.split(",")[0])
+
+        words = []
+        attribute = self._line_attribute(row)
+        if attribute is not None:
+            if attribute.double_width:
+                words.append("dwl")
+            if attribute.double_height:
+                words.append("dhl")
         if screen.line_offset + row in screen.wrapped_lines:
-            return "cont"
-        return ""
+            words.append("cont")
+        return " ".join(words)
 
     def screen_chars(self, argument: str) -> str:
         "Every character in a rectangle, as comma separated hex."
@@ -287,12 +303,26 @@ class Harness:
         if "reverse" in style:
             attributes += "R"
 
+        # The DEC line attributes of the line the cell is on. libvterm
+        # copies them onto every cell of the line, and prints them
+        # between the attributes and the colours.
+        size = ""
+        attribute = self._line_attribute(row)
+        if attribute is not None:
+            if attribute.double_width:
+                size += "dwl "
+            if attribute.double_height == DoubleHeight.TOP:
+                size += "dhl-top "
+            elif attribute.double_height == DoubleHeight.BOTTOM:
+                size += "dhl-bottom "
+
         foreground = self._rgb(_color_of_style(style, ""), self.default_foreground)
         background = self._rgb(_color_of_style(style, "bg:"), self.default_background)
-        return "{%s} width=%d attrs={%s} fg=%s bg=%s" % (
+        return "{%s} width=%d attrs={%s} %sfg=%s bg=%s" % (
             inside,
             cell.width or 1,
             attributes,
+            size,
             foreground,
             background,
         )

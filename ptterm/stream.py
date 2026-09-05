@@ -42,6 +42,30 @@ class Escape(StrEnum):
     DECID = "Z"
 
 
+class Sharp(StrEnum):
+    """
+    The byte that follows "ESC #", for the sequences ptterm adds.
+
+    These are the DEC line attributes of a VT100. They belong to the
+    line the cursor stands on, and not to a cell. pyte names only
+    DECALN, "ESC # 8".
+    """
+
+    #: Double height line, top half.
+    DECDHL_TOP = "3"
+
+    #: Double height line, bottom half. A program writes the same text
+    #: on both halves, and the terminal draws each half of it.
+    DECDHL_BOTTOM = "4"
+
+    #: Single width, single height. The plain line, and what a reset
+    #: leaves.
+    DECSWL = "5"
+
+    #: Double width, single height.
+    DECDWL = "6"
+
+
 class Csi(StrEnum):
     """
     The final byte of a CSI sequence, with its intermediate bytes in
@@ -181,6 +205,16 @@ class BetterStream(Stream):
             Escape.SPA: "start_protected_area",
             Escape.EPA: "end_protected_area",
             Escape.DECID: "report_device_attributes",
+        }
+    )
+
+    sharp = Stream.sharp.copy()
+    sharp.update(
+        {
+            Sharp.DECDHL_TOP: "double_height_top",
+            Sharp.DECDHL_BOTTOM: "double_height_bottom",
+            Sharp.DECSWL: "single_width",
+            Sharp.DECDWL: "double_width",
         }
     )
 
