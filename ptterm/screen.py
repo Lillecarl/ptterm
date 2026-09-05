@@ -443,8 +443,18 @@ class WindowOp(IntEnum):
     "The operations of \"CSI Ps t\" that a pane can answer."
 
     REPORT_TEXT_AREA_PIXELS = 14
+
+    #: "CSI 15 t": how much room there is, in pixels. For a pane that
+    #: is the pane: it draws on nothing else.
+    REPORT_SCREEN_SIZE_PIXELS = 15
+
     REPORT_CELL_SIZE_PIXELS = 16
     REPORT_TEXT_AREA_CHARS = 18
+
+    #: "CSI 19 t": how much room there is, in cells. A program asks
+    #: this to learn how large it could become.
+    REPORT_SCREEN_SIZE_CHARS = 19
+
     REPORT_ICON_LABEL = 20
     REPORT_WINDOW_TITLE = 21
     PUSH_TITLE = 22
@@ -4101,6 +4111,25 @@ class BetterScreen:
             # Size of the text area, in pixels.
             self.write_process_input(
                 "\x1b[4;%i;%it"
+                % (self.lines * ASSUMED_CELL_HEIGHT, self.columns * ASSUMED_CELL_WIDTH)
+            )
+        elif what == WindowOp.REPORT_SCREEN_SIZE_CHARS:
+            # How much room there is, in cells.
+            #
+            # For a window that is the display it stands on. A pane
+            # stands on no display: it draws where the embedder puts
+            # it and it cannot take more. So the room it has is the
+            # room it already fills, and the honest answer is its own
+            # size.
+            #
+            # A program reads this to learn how large it could become.
+            # Naming a screen it cannot reach would send it asking for
+            # a size that nothing can give.
+            self.write_process_input("\x1b[9;%i;%it" % (self.lines, self.columns))
+        elif what == WindowOp.REPORT_SCREEN_SIZE_PIXELS:
+            # The same room, counted in pixels.
+            self.write_process_input(
+                "\x1b[5;%i;%it"
                 % (self.lines * ASSUMED_CELL_HEIGHT, self.columns * ASSUMED_CELL_WIDTH)
             )
 

@@ -439,6 +439,41 @@ that class pass.
 The panel says nothing here: a colour query travels through a channel
 the judges do not carry.
 
+### 15. A pane has no window to move or iconify
+
+`\x1b[3;10;20t` then `\x1b[13t`, and `\x1b[2t` then `\x1b[11t`.
+
+"CSI 3 t" moves the window, "CSI 2 t" iconifies it, and "CSI 13 t" and
+"CSI 11 t" report where it is and whether it is iconified. xterm has a
+window and does all four. ptterm ignores the two that act and answers
+nothing for the two that ask.
+
+**Why.** A pane is not a window. It has no place on a screen to be
+moved to, and nothing to be iconified into. There is no honest number
+to report, and an invented one is worse than none: a program that
+reads a position will draw at it.
+
+The related question does have an honest answer, and ptterm gives it.
+"CSI 19 t" asks how much room there is. For a window that is the
+display it stands on; for a pane it is the pane, because a pane draws
+where the embedder puts it and cannot take more. So the room it has is
+the room it already fills, and "CSI 19 t" answers its own size. That
+is what makes a maximize or a fullscreen ask come out right: the pane
+is already as large as it can be.
+
+`XtermWinopsTests.test_XtermWinops_MoveToXY`,
+`test_XtermWinops_MoveToXY_Defaults` and
+`test_XtermWinops_IconifyDeiconfiy` of esctest2 ask for the window, so
+they fail, and the failure list records them. The other fifteen of
+that class pass.
+
+**A note on what a query costs.** Answering nothing is right here, and
+it is not free: a program that asks and waits hears nothing back. The
+two that ask are rare, and neither xterm nor a multiplexer can promise
+an answer to them, so a program that sends one already has to cope
+with silence. Where a pane can answer at all, it answers; see
+`DEVIATIONS.md` entry 13 and the device status reports.
+
 ## Where kitty looks wrong
 
 kitty puts the second character after a wrap into the cell of the

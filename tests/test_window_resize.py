@@ -90,3 +90,43 @@ def test_a_report_is_not_a_resize():
     _screen_, stream, asks = _screen()
     stream.feed("\x1b[18t")
     assert asks == []
+
+
+# ----------------------------------------------------------------------
+# How much room there is.
+
+
+def _answers(sequence):
+    "What a pane writes back for one sequence."
+    answers = []
+    screen = BetterScreen(25, 80, write_process_input=answers.append)
+    BetterStream(screen).feed(sequence)
+    return answers
+
+
+def test_the_room_in_cells_is_the_size_of_the_pane():
+    # A window stands on a display and can grow into it. A pane stands
+    # on no display: it draws where the embedder puts it and cannot
+    # take more, so the room it has is the room it fills.
+    assert _answers("\x1b[19t") == ["\x1b[9;25;80t"]
+
+
+def test_the_room_in_pixels_is_the_size_of_the_pane():
+    assert _answers("\x1b[15t") == [
+        "\x1b[5;%i;%it" % (25 * ASSUMED_CELL_HEIGHT, 80 * ASSUMED_CELL_WIDTH)
+    ]
+
+
+def test_the_room_and_the_text_area_agree():
+    # 18 reports the text area and 19 the room around it. They are the
+    # same for a pane, and a program that compares them reads that it
+    # is already as large as it can be.
+    room = _answers("\x1b[19t")[0].removeprefix("\x1b[9;")
+    area = _answers("\x1b[18t")[0].removeprefix("\x1b[8;")
+    assert room == area
+
+
+def test_asking_how_much_room_there_is_resizes_nothing():
+    _screen_, stream, asks = _screen()
+    stream.feed("\x1b[19t\x1b[15t")
+    assert asks == []
