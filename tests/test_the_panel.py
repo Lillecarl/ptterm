@@ -48,8 +48,74 @@ def marks_kept(data, lines=3, columns=6):
     return kept
 
 
+def columns_before_the_wrap(data, lines=4, columns=20):
+    """
+    How wide each judge thinks the first row is, and ptterm.
+
+    No judge reports a line attribute, so DECDWL cannot be read
+    directly. It is still visible: a double width line holds half the
+    columns, so text wraps at half the width. Counting the cells that
+    hold text on row 0 asks the question the panel can answer.
+    """
+
+    def wrote(rows):
+        return sum(1 for cell in rows[0] if cell.char.strip())
+
+    found = {"ptterm": wrote(ptterm_cells(data, lines, columns))}
+    for judge in judges():
+        found[judge.name] = wrote(judge.cells(data, lines, columns))
+    return found
+
+
 def test_a_plain_program_finds_no_difference():
     assert verdict("hello\r\nworld\x1b[1;31m!\x1b[0m", 8, 24) == "agree"
+
+
+#: What every judge but libvterm answers to a DEC line attribute: the
+#: line still holds every column it held.
+WHOLE_WIDTH = {
+    "ptterm": 15,
+    "alacritty": 15,
+    "ghostty": 15,
+    "kitty": 15,
+    "libvterm": 15,
+    "wezterm": 15,
+    "xterm": 15,
+}
+
+#: The same, with libvterm halving the line.
+HALF_WIDTH = dict(WHOLE_WIDTH, libvterm=10)
+
+
+def test_a_double_width_line_still_holds_every_column():
+    """
+    libvterm halves the columns of a DECDWL line. Nobody else does.
+
+    `ROWWIDTH` in `src/vterm_internal.h` gives a double width line
+    `cols / 2`, and `THISROWWIDTH` reaches every draw, erase and cursor
+    bound in `src/state.c`. So fifteen characters wrap after ten on a
+    twenty column screen.
+
+    kitty, WezTerm, Alacritty, Ghostty and xterm.js all keep the whole
+    line and let the renderer draw it twice as wide. Five to one, and
+    ptterm is with the five.
+
+    The panel cannot be asked the question directly, because no judge
+    reports a line attribute. It can be asked where the text wraps,
+    which is what `THISROWWIDTH` decides. Lillecarl/pymux#55.
+    """
+    assert columns_before_the_wrap("\x1b#6" + "a" * 15) == HALF_WIDTH
+
+
+def test_a_double_height_line_is_a_double_width_line_too():
+    "Both halves of a DECDHL line are double width, so libvterm halves both."
+    assert columns_before_the_wrap("\x1b#3" + "a" * 15) == HALF_WIDTH
+    assert columns_before_the_wrap("\x1b#4" + "a" * 15) == HALF_WIDTH
+
+
+def test_single_width_gives_the_columns_back():
+    "DECSWL puts libvterm back with the rest of the panel."
+    assert columns_before_the_wrap("\x1b#6\x1b#5" + "a" * 15) == WHOLE_WIDTH
 
 
 def test_a_tab_at_the_right_margin_follows_the_panel():
