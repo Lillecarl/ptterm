@@ -663,6 +663,19 @@ scrolling region. Every case around it draws two cells on both sides.
 The oracle takes the second character out of the cell, because a reader
 sees two cells either way, and `test_known_deviations` holds the case.
 
+## Where Alacritty looks wrong
+
+Alacritty reads "SGR 21" as the end of bold. Five judges read it as a
+double underline, which is what ECMA-48 numbers it: kitty, WezTerm,
+libvterm, Ghostty and xterm.js all keep the bold and draw the line.
+`test_the_panel.py::test_what_sgr_21_means` holds the tally.
+
+This is the whole of the `underline` difference that
+`checks.pymux-alacritty` reports. That reference test writes
+`CSI 4:3 ; 21 m` and records a curl, so ten cells differ. ptterm keeps
+all five shapes of a line, and a bare `CSI 4:3 m` reaches the wire as
+`SGR 4:3`.
+
 ## Where a judge cannot answer
 
 A judge that cannot hold something says nothing about it. A comparison

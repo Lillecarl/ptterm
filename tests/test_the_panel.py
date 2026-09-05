@@ -524,6 +524,22 @@ def test_where_the_cursor_stands_after_the_newest_alternate_mode():
     assert with_us == ["kitty", "wezterm"]
 
 
+def test_what_sgr_21_means():
+    """
+    Five judges read "SGR 21" as a double underline. Alacritty alone
+    reads it as the end of bold.
+
+    ECMA-48 numbers 21 "doubly underlined". Alacritty follows the other
+    reading, where 21 undoes "SGR 1". Its own reference test
+    `underline` writes "CSI 4:3 ; 21 m" and records a curl, so the ten
+    cells that `checks.pymux-alacritty` reports there are this
+    difference and not a lost underline shape.
+    """
+    against, with_us = sides("\x1b[1;4:3;21mX", lines=3, columns=6)
+    assert against == ["alacritty"]
+    assert with_us == ["ghostty", "kitty", "libvterm", "wezterm", "xterm"]
+
+
 def test_every_judge_holds_a_number_of_the_palette_as_a_number():
     """
     All six keep the number that "CSI 38 ; 5 ; n m" names, above
