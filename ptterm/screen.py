@@ -2581,9 +2581,14 @@ class BetterScreen:
     ) -> None:
         """Set the cursor to a specific `line` and `column`.
 
-        Cursor is allowed to move out of the scrolling region only when
-        :data:`~pyte.modes.DECOM` is reset, otherwise -- the position
-        doesn't change.
+        In origin mode the region is the whole page that a program
+        sees. A row past the bottom of it holds at the bottom, the way
+        a column past the right margin holds at the margin, and the way
+        a row past the last row of the screen holds there without the
+        mode. The move still happens: the column is set either way.
+
+        pyte leaves the cursor where it stands instead. The whole
+        panel moves it, and so does xterm.
 
         :param int line: line number to move the cursor to.
         :param int column: column number to move the cursor to.
@@ -2596,11 +2601,7 @@ class BetterScreen:
         margins = self.margins
 
         if margins is not None and mo.DECOM in self.mode:
-            line += margins.top
-
-            # Cursor is not allowed to move out of the scrolling region.
-            if not (margins.top <= line <= margins.bottom):
-                return
+            line = min(line + margins.top, margins.bottom)
 
         column = self._column_in_origin_mode(column)
 

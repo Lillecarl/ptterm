@@ -81,3 +81,45 @@ def test_a_move_down_above_the_region_counts_the_lines():
     screen, stream = _screen()
     stream.feed("\x1b[2;3r\x1b[3B")
     assert _row(screen) == 3
+
+
+# ----------------------------------------------------------------------
+# Origin mode. The region is the whole page a program sees, so a row
+# past the bottom of it holds at the bottom.
+
+
+def test_a_row_past_the_region_holds_at_the_bottom():
+    screen, stream = _screen()
+    stream.feed("\x1b[1;2r\x1b[?6h\x1b[3;1H")
+    assert _row(screen) == 1
+
+
+def test_it_holds_at_the_bottom_of_a_region_that_starts_lower():
+    screen, stream = _screen()
+    stream.feed("\x1b[2;3r\x1b[?6h\x1b[5;1H")
+    assert _row(screen) == 2
+
+
+def test_a_row_far_past_the_region_holds_there_as_well():
+    screen, stream = _screen()
+    stream.feed("\x1b[2;3r\x1b[?6h\x1b[99;1H")
+    assert _row(screen) == 2
+
+
+def test_the_column_moves_even_when_the_row_is_past_the_region():
+    "The move happens. pyte left the cursor where it stood."
+    screen, stream = _screen()
+    stream.feed("\x1b[1;2r\x1b[?6h\x1b[3;4H")
+    assert (_row(screen), screen.pt_cursor_position.x) == (1, 3)
+
+
+def test_a_row_inside_the_region_lands_where_it_was_asked():
+    screen, stream = _screen()
+    stream.feed("\x1b[1;2r\x1b[?6h\x1b[2;1H")
+    assert _row(screen) == 1
+
+
+def test_the_region_does_not_hold_the_row_without_origin_mode():
+    screen, stream = _screen()
+    stream.feed("\x1b[1;2r\x1b[3;1H")
+    assert _row(screen) == 2
