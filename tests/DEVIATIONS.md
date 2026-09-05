@@ -803,8 +803,16 @@ The 16 that run hold 270 assertions, and four of those sit inside a
 | --- | --- | --- |
 | `30state_pen` 68, 70 | SGR 10 to 19, the alternate fonts | Lillecarl/pymux#60 |
 | `30state_pen` 118 to 122 | SGR 73 to 75, superscript and subscript | Lillecarl/pymux#59 |
-| `61screen_unicode` 35, 41 | a cell keeps every combining mark, with no cap | Lillecarl/pymux#54 |
 | `67screen_dbl_wh` 16 to 37 | DECDWL and DECDHL, the double size lines | Lillecarl/pymux#55 |
+
+**The suite is describing a limit of libvterm, and the panel says so.**
+
+`61screen_unicode` 35 and 41 want a cell to hold a base character and
+five combining marks and no more. `VTERM_MAX_CHARS_PER_CELL` is a fixed
+array in a C struct, and nobody else has one: kitty, Alacritty, WezTerm
+and xterm.js all keep every mark, and so does ptterm. Four to one, with
+Ghostty abstaining because our reader for it drops the marks
+(Lillecarl/pymux#63). `test_the_panel.py` holds that tally.
 
 **The suite is describing its own rendering decision, and ptterm keeps
 the parts apart on purpose.**

@@ -17,6 +17,7 @@ setting. Change a tally here and change it there.
 import pytest
 
 from panel import judges, report, verdict
+from kitty_oracle import ptterm_cells
 
 #: Every judge that this file wants. With fewer, a tally means nothing.
 WANTED = {"kitty", "wezterm", "alacritty", "libvterm", "ghostty", "xterm"}
@@ -37,6 +38,14 @@ def sides(data, lines=8, columns=24, blank_style=True):
 
 def test_the_panel_is_whole():
     assert {judge.name for judge in judges()} >= WANTED
+
+
+def marks_kept(data, lines=3, columns=6):
+    "How many code points each judge keeps in the first cell, and ptterm."
+    kept = {"ptterm": len(ptterm_cells(data, lines, columns)[0][0].char)}
+    for judge in judges():
+        kept[judge.name] = len(judge.cells(data, lines, columns)[0][0].char)
+    return kept
 
 
 def test_a_plain_program_finds_no_difference():
@@ -342,6 +351,37 @@ def test_hpb_and_vpb_follow_the_three_judges_that_carry_them(data):
     against, with_us = sides(data, lines=8, columns=24, blank_style=False)
     assert against == WITHOUT_THE_PAIR
     assert with_us == WITH_THE_PAIR
+
+
+def test_how_many_combining_marks_a_cell_keeps():
+    """
+    Four judges keep every mark, and so does ptterm. libvterm keeps six.
+
+    libvterm's own `61screen_unicode.test` asserts the six, so
+    `checks.ptterm-vterm` records two failures for it. The panel says
+    that is libvterm's limit and not our fault:
+    `VTERM_MAX_CHARS_PER_CELL` is a fixed array in a C struct, and
+    nobody else has one.
+
+    **Ghostty's 1 is our own instrument and not Ghostty.**
+    `tests/judges-c` reports the base character of a cell and drops the
+    marks, so it abstains here rather than voting.
+    Lillecarl/pymux#63.
+
+    So the tally is four to one with one abstention, and ptterm is with
+    the four. A cell with no bound is still a cell a program can grow,
+    which is what Lillecarl/pymux#54 asked about, and the answer is that
+    every emulator people use has the same property.
+    """
+    assert marks_kept("e" + "́" * 20) == {
+        "ptterm": 21,
+        "alacritty": 21,
+        "kitty": 21,
+        "wezterm": 21,
+        "xterm": 21,
+        "libvterm": 6,
+        "ghostty": 1,
+    }
 
 
 def test_where_the_cursor_stands_after_the_older_alternate_modes():
