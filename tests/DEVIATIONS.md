@@ -691,14 +691,14 @@ that is left out and recorded as a failure as well.
 | `SMTitleTests.test_SMTitle_SetHexQueryUTF8` | Lillecarl/pymux#44 |
 | `SMTitleTests.test_SMTitle_SetUTF8QueryHex` | Lillecarl/pymux#44 |
 
-Four of the eight are new, and the host is why. It answers a resize,
+Five of the eight are new, and the host is why. It answers a resize,
 which no pane can, so DECCOLM really changes the width and what RIS and
 DECNCSM do afterwards can be judged at all (#42 and #43). It claims the
 window operations of xterm for the same reason, which lets the suite
 run the title and selection tests it was skipping (#44 and #45).
 
-Two of the eight are deliberate. Entry 18 has the DA answer, and entry
-14 has the reset of a dynamic colour.
+The other three are deliberate. Entry 18 has the two DA answers, and
+entry 14 has the reset of a dynamic colour.
 
 ### In a pane: nine
 
@@ -717,7 +717,7 @@ are not all here, because the pane never reaches four of them.
 | `ResetSpecialColorTests.test_ResetSpecialColor_Dynamic` | 14 |
 | `XtermWinopsTests.test_XtermWinops_DECSLPP` | 13 |
 
-Seven of the nine are the same sentence: **a pane is not a window.** It
+Eight of the nine are the same sentence: **a pane is not a window.** It
 has no printer, no locator, no window to move, and its width and height
 come from the layout and not from the program inside it.
 
