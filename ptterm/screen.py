@@ -1209,6 +1209,25 @@ class BetterScreen:
     NARROW_PAGE = 80
     WIDE_PAGE = 132
 
+    #: The private modes that a later DEC terminal brought, and the
+    #: level that brought each one. DECSCL can ask for an earlier
+    #: terminal, and then the mode is not there to set.
+    _MODE_LEVELS = {
+        PrivateMode.LEFT_RIGHT_MARGIN: ConformanceLevel.VT400,
+        PrivateMode.NO_CLEAR_ON_COLUMN_CHANGE: ConformanceLevel.VT500,
+    }
+
+    def _level_carries(self, number: int) -> bool:
+        """
+        Does the terminal that DECSCL named carry this private mode?
+
+        A mode that no DEC terminal ever had is carried at every level:
+        the levels say what a DEC terminal is, and xterm adds its own
+        modes on top of all of them.
+        """
+        needed = self._MODE_LEVELS.get(number)
+        return needed is None or self.conformance_level >= needed
+
     def _may_change_the_page_width(self) -> bool:
         """
         May DECCOLM take the page between 80 and 132 columns?
@@ -1504,7 +1523,9 @@ class BetterScreen:
         # Private mode codes are shifted, to be distingiushed from non
         # private ones.
         if kwargs.get("private"):
-            modes = tuple(mode << 5 for mode in modes)
+            modes = tuple(
+                flag_of(mode) for mode in modes if self._level_carries(mode)
+            )
 
         self.mode.update(modes)
 
@@ -3993,7 +4014,14 @@ class BetterScreen:
         to learn whether the terminal took it, and a 0 sends that
         program to a guess. `_remembered_ansi_modes` names the ones
         that are kept and not acted on.
+
+        DECRQM arrived with the VT320. A program that asked for an
+        earlier terminal with DECSCL hears nothing at all, which is
+        what a real one does.
         """
+        if self.conformance_level < ConformanceLevel.VT300:
+            return
+
         number = params[0] if params else 0
         is_private = private is True
 
@@ -4010,7 +4038,7 @@ class BetterScreen:
                 # both sequences write.
                 enabled = self.cursor_blinks
             else:
-                enabled = (number << 5) in self.mode
+                enabled = flag_of(number) in self.mode
         else:
             permanent = number in self._permanently_reset_ansi_modes
             known = (
