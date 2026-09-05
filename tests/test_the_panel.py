@@ -522,3 +522,19 @@ def test_where_the_cursor_stands_after_the_newest_alternate_mode():
     against, with_us = sides("\x1b[2;3H\x1b[?1049hX", lines=3, columns=6)
     assert against == ["alacritty", "ghostty", "libvterm", "xterm"]
     assert with_us == ["kitty", "wezterm"]
+
+
+def test_every_judge_holds_a_number_of_the_palette_as_a_number():
+    """
+    All six keep the number that "CSI 38 ; 5 ; n m" names, above
+    fifteen as well as below it. Each one paints the palette from its
+    own theme, so the number is what the cell holds.
+
+    The panel could not see this before. ptterm turned a number above
+    fifteen into the colour that xterm paints for it, and the oracles
+    did the same to each judge's answer, so every side matched. Now
+    ptterm keeps the number and the oracles hand it on.
+    """
+    against, with_us = sides("\x1b[38;5;200m\x1b[48;5;234mX", lines=3, columns=6)
+    assert against == []
+    assert with_us == ["alacritty", "ghostty", "kitty", "libvterm", "wezterm", "xterm"]

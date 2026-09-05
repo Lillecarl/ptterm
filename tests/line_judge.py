@@ -20,7 +20,7 @@ import os
 import subprocess
 from typing import Dict, List, Optional, Sequence, Tuple
 
-from kitty_oracle import Cell, _256_COLORS
+from kitty_oracle import Cell
 
 __all__ = ["LineJudge", "color_of"]
 
@@ -29,22 +29,15 @@ def color_of(value) -> Optional[Tuple]:
     """
     The colour that a judge holds, in the form that `kitty_oracle` uses.
 
-    A number of the first sixteen keeps its number, because a terminal
-    paints those from the theme of the user. Anything above becomes the
-    colour it stands for, the way ptterm resolves it.
+    A number keeps its number, at every value, because the terminal of
+    the user paints the palette from its own theme.
     """
     if value is None:
         return None
     kind = value[0]
     if kind == "rgb":
         return ("rgb", value[1], value[2], value[3])
-    index = value[1]
-    if index < 16:
-        return ("index", index)
-    if index < len(_256_COLORS):
-        red, green, blue = _256_COLORS[index]
-        return ("rgb", red, green, blue)
-    return None
+    return ("index", value[1])
 
 
 class LineJudge:

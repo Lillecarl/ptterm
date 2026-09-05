@@ -431,7 +431,7 @@ class Harness:
             return "rgb(%d,%d,%d)" % default
         if colour[0] == "rgb":
             return "rgb(%d,%d,%d)" % tuple(colour[1:])
-        return "rgb(%d,%d,%d)" % _ANSI_RGB[colour[1]]
+        return "rgb(%d,%d,%d)" % _PALETTE_RGB[colour[1]]
 
 
 def _switch(value) -> str:
@@ -489,6 +489,36 @@ _ANSI_RGB = [
 ]
 
 assert len(_ANSI_RGB) == len(ANSI_COLOR_NAMES)
+
+#: The six levels of the colour cube, and the 24 greys after it. These
+#: are libvterm's own ramps, in `src/pen.c`. xterm uses other numbers,
+#: so a number of the palette above fifteen paints one colour here and
+#: another one there.
+_CUBE_RAMP = [0x00, 0x33, 0x66, 0x99, 0xCC, 0xFF]
+
+_GREY_RAMP = [
+    0x00, 0x0B, 0x16, 0x21, 0x2C, 0x37, 0x42, 0x4D,
+    0x58, 0x63, 0x6E, 0x79, 0x85, 0x90, 0x9B, 0xA6,
+    0xB1, 0xBC, 0xC7, 0xD2, 0xDD, 0xE8, 0xF3, 0xFF,
+]
+
+
+def _build_palette():
+    "The colour that libvterm paints for each number of the palette."
+    palette = list(_ANSI_RGB)
+    for red in _CUBE_RAMP:
+        for green in _CUBE_RAMP:
+            for blue in _CUBE_RAMP:
+                palette.append((red, green, blue))
+    for level in _GREY_RAMP:
+        palette.append((level, level, level))
+    return palette
+
+
+#: The table that `?screen_cell` converts a number with.
+_PALETTE_RGB = _build_palette()
+
+assert len(_PALETTE_RGB) == 256
 
 
 def main() -> int:

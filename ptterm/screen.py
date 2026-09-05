@@ -15,8 +15,7 @@ from typing import Callable, DefaultDict, Dict, List, NamedTuple, Set, Tuple
 from prompt_toolkit.cache import FastDictCache
 from prompt_toolkit.layout.screen import Char, Screen
 from prompt_toolkit.output.vt100 import BG_ANSI_COLORS, FG_ANSI_COLORS
-from prompt_toolkit.output.vt100 import _256_colors as _256_colors_table
-from prompt_toolkit.styles import Attrs
+from prompt_toolkit.styles import Attrs, palette_color_number
 from pyte import charsets as cs
 from pyte import modes as mo
 from pyte.screens import Margins
@@ -638,6 +637,13 @@ UNDERLINE_PARAMETERS = {
     "dotted": "4:4",
     "dashed": "4:5",
 }
+
+
+def _palette_number(color: str | None) -> int | None:
+    "The number of the palette that a '#ansi234' colour names, or None."
+    if not color:
+        return None
+    return palette_color_number(color.lstrip("#"))
 
 
 def _rgb_components(color: str | None) -> Tuple[int, int, int] | None:
@@ -3759,19 +3765,24 @@ class BetterScreen:
     _fg_colors = {v: "#" + k for k, v in FG_ANSI_COLORS.items()}
     _bg_colors = {v: "#" + k for k, v in BG_ANSI_COLORS.items()}
 
-    # Mapping of the escape codes for 256colors to their '#ffffff' value.
+    # Mapping of the escape codes for 256colors to the style that
+    # carries each one.
     #
-    # The first sixteen keep their name. A program that asks for number
-    # one asks for "red", which the terminal of the user paints from
-    # its own theme. A number gives that away: kitty with a catppuccin
-    # theme would draw the red of xterm instead of its own.
+    # Every number keeps its number. A program that asks for number one
+    # asks for "red", which the terminal of the user paints from its
+    # own theme. A colour gives that away: kitty with a catppuccin
+    # theme would draw the red of xterm instead of its own. The same
+    # holds above fifteen, where a theme names another 240 colours.
+    #
+    # The first sixteen have a name in prompt_toolkit, and the rest are
+    # written "ansi16" up to "ansi255".
     _256_colors = {}
 
-    for i, (r, g, b) in enumerate(_256_colors_table.colors):
+    for i in range(len(PALETTE)):
         if i < len(PALETTE_NAMES):
             _256_colors[1024 + i] = "#" + PALETTE_NAMES[i]
         else:
-            _256_colors[1024 + i] = f"#{r:02x}{g:02x}{b:02x}"
+            _256_colors[1024 + i] = "#ansi%d" % i
 
     @staticmethod
     def _color_parameters(parameters: List[int]) -> int:
@@ -4436,10 +4447,10 @@ class BetterScreen:
         """
         The graphic rendition of this screen, as SGR parameters.
 
-        A colour comes back as its three components, also when the
-        program set it by index: the screen keeps the colour, not the
-        index. A program that probes for 24 bit colour reads its own
-        colour back, which is the answer it looks for.
+        A colour comes back the way the program named it. A number of
+        the palette is a number, and a colour of its own is its three
+        components. A program that probes for 24 bit colour reads its
+        own colour back, which is the answer it looks for.
         """
         attrs = self._attrs
         parts = ["0"]
@@ -4457,14 +4468,21 @@ class BetterScreen:
             if flag:
                 parts.append(parameter)
 
-        for color, number in ((attrs.color, 38), (attrs.bgcolor, 48)):
+        for color, code in ((attrs.color, 38), (attrs.bgcolor, 48)):
+            index = _palette_number(color)
             components = _rgb_components(color)
-            if components is not None:
-                parts.append("%i;2;%i;%i;%i" % ((number,) + components))
+            if index is not None:
+                parts.append("%i;5;%i" % (code, index))
+            elif components is not None:
+                parts.append("%i;2;%i;%i;%i" % ((code,) + components))
 
-        components = _rgb_components(attrs.underline_color)
-        if attrs.underline and components is not None:
-            parts.append("58:2::%i:%i:%i" % components)
+        if attrs.underline:
+            index = _palette_number(attrs.underline_color)
+            components = _rgb_components(attrs.underline_color)
+            if index is not None:
+                parts.append("58:5:%i" % index)
+            elif components is not None:
+                parts.append("58:2::%i:%i:%i" % components)
 
         return ";".join(parts)
 

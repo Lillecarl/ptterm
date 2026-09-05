@@ -15,7 +15,7 @@ import sys
 import unicodedata
 from typing import List, NamedTuple, Optional, Tuple
 
-from prompt_toolkit.output.vt100 import _256_colors as _256_colors_table
+from prompt_toolkit.styles import palette_color_number
 
 from ptterm.screen import BetterScreen
 from ptterm.stream import BetterStream
@@ -51,10 +51,6 @@ ANSI_COLOR_NAMES = [
 ]
 
 _INDEX_BY_ANSI_NAME = {name: index for index, name in enumerate(ANSI_COLOR_NAMES)}
-
-#: The colour that every number of the palette stands for. This is the
-#: table that ptterm resolves a number above fifteen with.
-_256_COLORS = _256_colors_table.colors
 
 
 class Cell(NamedTuple):
@@ -107,8 +103,9 @@ def _color_of_style(style: str, prefix: str) -> Optional[Tuple]:
     """
     The colour that a prompt_toolkit style string names.
 
-    `None` means the default colour. A name of the first sixteen gives
-    `("index", n)`, and anything else gives `("rgb", r, g, b)`.
+    `None` means the default colour. A number of the palette gives
+    `("index", n)`, by one of the sixteen names or by a number, and a
+    colour of its own gives `("rgb", r, g, b)`.
     """
     for part in style.split():
         if prefix and not part.startswith(prefix):
@@ -121,6 +118,9 @@ def _color_of_style(style: str, prefix: str) -> Optional[Tuple]:
         name = value[1:]
         if name in _INDEX_BY_ANSI_NAME:
             return ("index", _INDEX_BY_ANSI_NAME[name])
+        number = palette_color_number(name)
+        if number is not None:
+            return ("index", number)
         if len(name) == 6:
             return ("rgb", int(name[0:2], 16), int(name[2:4], 16), int(name[4:6], 16))
     return None
@@ -188,19 +188,13 @@ def _kitty_color(value: int) -> Optional[Tuple]:
     kitty keeps the kind in the low byte: one for a number out of the
     palette, two for a colour of its own. Zero is the default.
 
-    A number above fifteen becomes the colour it stands for. The style
-    of prompt_toolkit can name the first sixteen, which a terminal
-    paints from the theme of the user, but it has no way to carry a
-    number of the cube. ptterm therefore resolves those itself, out of
-    the same table that this uses.
+    A number stays a number, at every value. The terminal of the user
+    paints the palette from its own theme, so nothing here turns a
+    number into red, green and blue.
     """
     kind = value & 0xFF
     if kind == 1:
-        index = value >> 8
-        if index < len(ANSI_COLOR_NAMES):
-            return ("index", index)
-        red, green, blue = _256_COLORS[index]
-        return ("rgb", red, green, blue)
+        return ("index", value >> 8)
     if kind == 2:
         rgb = value >> 8
         return ("rgb", (rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF)

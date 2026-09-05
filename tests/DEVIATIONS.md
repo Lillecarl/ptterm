@@ -54,6 +54,10 @@ of them without asking a person.
 - The first sixteen colours of the palette became numbers of their own
   instead of names, so a program that asked for "red" got the red of
   xterm and not the red of the theme of the user.
+- The other 240 colours of the palette had the same fault, and Alacritty's
+  reference tests found it. A number above fifteen became the colour that
+  xterm paints, so the theme of the user reached only sixteen cells out of
+  256. Every judge of the panel keeps the number.
 - SU and SD ("CSI S" and "CSI T") did nothing. pyte has neither.
 - "CSI 2 L" dragged the lines above the cursor down with it.
 - The blanks that "CSI @" and "CSI P" leave took no background, and an

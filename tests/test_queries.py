@@ -172,12 +172,17 @@ def test_the_rendition_reports_a_24_bit_colour():
     assert answers == ["\x1bP1$r0;38;2;1;2;3m\x1b\\"]
 
 
-def test_a_colour_by_index_comes_back_as_its_components():
-    "The screen keeps the colour, not the index it was named with."
+def test_a_colour_by_index_comes_back_as_its_index():
+    """
+    The screen keeps the number, not the colour it stands for.
+
+    The terminal of the user paints the palette from its own theme, so
+    the number is the answer and a colour would be a guess.
+    """
     _screen, stream, answers = make_screen()
     stream.feed("\x1b[48;5;196m")
     request_setting(stream, "m")
-    assert answers == ["\x1bP1$r0;48;2;255;0;0m\x1b\\"]
+    assert answers == ["\x1bP1$r0;48;5;196m\x1b\\"]
 
 
 def test_a_reset_clears_the_rendition():

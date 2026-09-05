@@ -21,14 +21,7 @@ import ctypes
 import os
 from typing import List, Optional, Tuple
 
-from kitty_oracle import (
-    ANSI_COLOR_NAMES,
-    Cell,
-    _256_COLORS,
-    as_seen,
-    as_text,
-    ptterm_cells,
-)
+from kitty_oracle import Cell, as_seen, as_text, ptterm_cells
 
 __all__ = [
     "libvterm_is_available",
@@ -136,22 +129,15 @@ def _color(value: _Color, background: bool) -> Optional[Tuple]:
     The colour that libvterm holds, in the form that `kitty_oracle`
     uses.
 
-    `None` is the default colour. A number of the first sixteen keeps
-    its number, because a terminal paints those from the theme of the
-    user; anything above becomes the colour it stands for, the way
-    ptterm resolves it.
+    `None` is the default colour. A number keeps its number, at every
+    value, because the terminal of the user paints the palette from
+    its own theme.
     """
     default = _COLOR_DEFAULT_BG if background else _COLOR_DEFAULT_FG
     if value.type & default:
         return None
     if value.type & _COLOR_INDEXED:
-        index = value.first
-        if index < len(ANSI_COLOR_NAMES):
-            return ("index", index)
-        if index < len(_256_COLORS):
-            red, green, blue = _256_COLORS[index]
-            return ("rgb", red, green, blue)
-        return None
+        return ("index", value.first)
     return ("rgb", value.first, value.second, value.third)
 
 
