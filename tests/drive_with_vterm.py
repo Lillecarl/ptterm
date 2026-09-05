@@ -19,9 +19,10 @@ harness that stays quiet where libvterm reports `putglyph` fails; it
 cannot skip. So a file that expects libvterm's callbacks is left out by
 name before it runs, with the reason written down.
 
-What is left is the state: 16 files and 274 assertions about where the
+What is left is the state: 16 files and 270 assertions about where the
 cursor is, what the screen holds and what style the next character
-takes. That is what ptterm has.
+takes. That is what ptterm has. Four of the 270 sit inside a `$SEQ`, so
+the runner asks a few more questions than there are lines.
 
 Run it:
 

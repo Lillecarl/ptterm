@@ -787,7 +787,8 @@ drives. `NOT_OURS` in `tests/drive_with_vterm.py` leaves out 27 of the
 files, each with the reason: libvterm reports every glyph it lays down
 and which rectangle it redrew, and ptterm has neither.
 
-The 16 that run ask 274 questions. 249 agree. The 25 that do not are in
+The 16 that run hold 270 assertions, and four of those sit inside a
+`$SEQ` and are asked more than once. 25 answers differ. They are in
 `tests/vterm-failures.txt`, and each one is one of three things.
 
 **ptterm is wrong, and it is filed.**
