@@ -20,6 +20,7 @@
   libvterm-neovim,
   ncurses,
   libx11,
+  perl,
   xorg-server,
   package,
   testSources,
@@ -28,6 +29,10 @@
 }:
 let
   inherit (callPackage ./suite.nix { }) suite;
+
+  # The test files of libvterm and the runner that drives them, out of the
+  # same source as the library that `ptterm-panel` judges against.
+  vtermSuite = callPackage ./vterm-suite.nix { };
 
   pythonWithTests = python.withPackages (ps: [
     package
@@ -83,6 +88,15 @@ let
   esctestInclude =
     let
       value = builtins.getEnv "PTTERM_ESCTEST_INCLUDE";
+    in
+    if value == "" then ".*" else value;
+
+  # Which of libvterm's test files run. It is a regular expression that the
+  # driver matches against the name of a file, for instance
+  # `PTTERM_VTERM_INCLUDE=movecursor nix build --file . checks.ptterm-vterm`.
+  vtermInclude =
+    let
+      value = builtins.getEnv "PTTERM_VTERM_INCLUDE";
     in
     if value == "" then ".*" else value;
 
@@ -195,6 +209,31 @@ in
       export PTTERM_ESCTEST_OUT="$out"
     '';
   } "python tests/drive_with_esctest.py";
+
+  # The test suite of libvterm, run against ptterm through libvterm's own
+  # runner. Nothing in libvterm changes: `run-test.pl` takes the program to
+  # drive, and `tests/vterm_harness.py` is that program.
+  #
+  # esctest2 judges ptterm from inside a pty, as a program that writes
+  # sequences and reads reports. This judges the screen from the outside, one
+  # assertion at a time, in the words of an emulator that somebody else wrote.
+  #
+  # It is not a pass or fail of its own: each failure names a real difference
+  # from libvterm. The run is judged against `tests/vterm-failures.txt`, and a
+  # difference either way is what fails the check.
+  vterm = suite {
+    name = "ptterm-vterm";
+    inputs = [
+      pythonWithTests
+      perl
+    ];
+    env = { inherit vtermInclude; };
+    setup = prepare + ''
+      export PTTERM_VTERM=${vtermSuite}/share/libvterm-tests
+      export PTTERM_VTERM_INCLUDE="$vtermInclude"
+      export PTTERM_VTERM_OUT="$out"
+    '';
+  } "python tests/drive_with_vterm.py";
 
   # The hunt for deviations between ptterm and kitty. This is not a gate:
   # it finds them faster than they get fixed, and each one needs a
