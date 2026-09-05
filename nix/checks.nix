@@ -66,7 +66,7 @@ let
   '';
 
   # What pytest runs, for instance
-  # `PTTERM_TESTS=tests/test_left_right_margins.py nix build --file . checks.ptterm`.
+  # `PTTERM_TESTS=tests/test_left_right_margins.py nix build --file . checks.ptterm-unit`.
   # It reaches the evaluation through the environment, so it works with
   # impure evaluation, which a build from a file uses.
   selection =
