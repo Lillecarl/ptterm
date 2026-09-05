@@ -524,6 +524,21 @@ def test_where_the_cursor_stands_after_the_newest_alternate_mode():
     assert with_us == ["kitty", "wezterm"]
 
 
+def test_a_linefeed_at_the_bottom_paints_the_line_it_brings_in():
+    """
+    Four judges paint the new line with the background that is set, and
+    kitty and Ghostty give it the default. The same four and the same
+    two split over a scroll region, which is deviation 7.
+
+    ptterm is with the four everywhere now. It painted for a region and
+    not for a screen with no region, so the same linefeed painted or
+    did not paint by whether a program had set a region.
+    """
+    against, with_us = sides("\x1b[4;1H\x1b[42m\n", lines=4, columns=6)
+    assert against == ["ghostty", "kitty"]
+    assert with_us == ["alacritty", "libvterm", "wezterm", "xterm"]
+
+
 def test_what_sgr_21_means():
     """
     Five judges read "SGR 21" as a double underline. Alacritty alone

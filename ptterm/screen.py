@@ -2141,7 +2141,24 @@ class BetterScreen:
         if margins is None and self.horizontal_margins is None:
             # Simply move the cursor one position down.
             cursor_position = self.pt_cursor_position
+
+            # A linefeed on the last row of the screen brings a new
+            # line in. Anywhere else it only moves the cursor, and the
+            # row below is already there.
+            brings_a_line_in = (
+                cursor_position.y - self.line_offset == self.lines - 1
+            )
+
             cursor_position.y += 1
+
+            # A new line takes the background that is set. That is what
+            # `bce` means, and the terminfo entry of a pane claims it.
+            # A scrolling region already paints the line it brings in,
+            # so without this the same linefeed paints or does not paint
+            # by whether a program has set a region.
+            if brings_a_line_in:
+                self._erase_row(cursor_position.y)
+
             self.max_y = max(self.max_y, cursor_position.y)
 
             # Cleanup the history, but only every 100 calls.

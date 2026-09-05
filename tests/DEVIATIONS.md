@@ -274,6 +274,13 @@ ptterm paints the new line with the background that is set, and so do
 Alacritty, libvterm, WezTerm and xterm.js. kitty and Ghostty give it
 the default.
 
+Every way of bringing a line in paints it: SU, a linefeed at the
+bottom of the screen, and a linefeed or IND at the bottom of a
+scrolling region. A linefeed with no region painted nothing until
+Alacritty's `vim_large_window_scroll` reference test found it, so the
+same linefeed painted or did not paint by whether a program had set a
+region. `tests/test_scroll_background.py` holds all four.
+
 xterm paints it, and the terminfo entry of ptterm claims `bce`. A
 capability that is claimed has to hold.
 
