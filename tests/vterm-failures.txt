@@ -24,8 +24,6 @@
 67screen_dbl_wh.test:25 screen_cell 1,0
 67screen_dbl_wh.test:32 screen_cell 0,0
 67screen_dbl_wh.test:37 screen_cell 23,0
-69screen_reflow.test:58 ?screen_row 0
-69screen_reflow.test:66 ?screen_row 0
 69screen_reflow.test:74 ?screen_row 0
 69screen_reflow.test:75 ?screen_row 1
 69screen_reflow.test:76 ?screen_row 2

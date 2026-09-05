@@ -5110,13 +5110,25 @@ class BetterScreen:
                 line = []
                 all_lines.append(line)
 
-        # Remove trailing whitespace (unless it contains the cursor).
+        # Take the blanks off the end of each line, so that a line that
+        # was never filled does not carry its width around. Not the
+        # cursor, and not a blank a background was painted on.
+        #
+        # A blank that a program wrote is content, and it stays. The
+        # test is the class and not the character: a space out of
+        # `draw` is a `TerminalChar`, and the blank that an erase leaves
+        # is not. Reading the character instead lost the space after a
+        # shell prompt on every resize. Lillecarl/pymux#56.
+        #
         # Also make sure that lines consist of at lesat one character,
         # otherwise we can't calculate `max_y` correctly. (This is important
         # for the `clear` command.)
         for row_index, line in enumerate(all_lines):
-            # We do this only if no special styling given.
-            while len(line) > 1 and line[-1].char.isspace() and not line[-1].style:
+            while (
+                len(line) > 1
+                and not isinstance(line[-1], TerminalChar)
+                and not line[-1].style
+            ):
                 if row_index == cy and len(line) - 1 == cx:
                     break
                 line.pop()
