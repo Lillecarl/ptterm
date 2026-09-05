@@ -47,14 +47,50 @@ INTENSITY_SPECS = [
     "rgbi:0.9/0.05/0.5",
 ]
 
-#: The CIE spaces that hold inside what the screen can show. The ones
-#: that leave it need the gamut compressor.
-IN_GAMUT_SPECS = [
+#: The six CIE spaces, with the two vectors that the conformance suite
+#: checks in each one. Five hold inside what the screen can show. The
+#: other seven leave it, and reach an answer only through the gamut
+#: compressor.
+CIE_SPECS = [
+    "CIEXYZ:1/1/1",
     "CIEXYZ:0.5/0.5/0.5",
+    "CIEuvY:1/1/1",
+    "CIEuvY:0.5/0.5/0.5",
+    "CIExyY:1/1/1",
+    "CIExyY:0.5/0.5/0.5",
     "CIELab:1/1/1",
     "CIELab:0.5/0.5/0.5",
+    "CIELuv:1/1/1",
+    "CIELuv:0.5/0.5/0.5",
     "TekHVC:1/1/1",
     "TekHVC:0.5/0.5/0.5",
+]
+
+#: The range that each space counts in. A number means something
+#: different in every one of them, so a grid that suits one is
+#: nonsense in another.
+RANGES = {
+    "CIEXYZ": ([0.05, 0.3, 0.64, 0.95], [0.1, 0.4, 0.7, 1.0],
+               [0.05, 0.35, 0.8, 1.4]),
+    "CIEuvY": ([0.1, 0.19, 0.28, 0.4], [0.3, 0.4, 0.46, 0.55],
+               [0.05, 0.3, 0.65, 1.0]),
+    "CIExyY": ([0.15, 0.31, 0.45, 0.64], [0.06, 0.25, 0.33, 0.5],
+               [0.05, 0.3, 0.65, 1.0]),
+    "CIELab": ([5, 30, 60, 95], [-60, -10, 20, 70], [-60, -10, 20, 70]),
+    "CIELuv": ([5, 30, 60, 95], [-60, -10, 20, 70], [-60, -10, 20, 70]),
+    "TekHVC": ([0, 75, 160, 240, 300], [5, 30, 60, 95],
+               [10, 40, 80, 120]),
+}
+
+#: A wider sweep of every space, to find the colours that the
+#: conformance suite does not ask about. Most of them fall outside
+#: what the screen can show, which is the part that has to be right.
+GRID_SPECS = [
+    "%s:%s/%s/%s" % (space, first, second, third)
+    for space, (firsts, seconds, thirds) in RANGES.items()
+    for first in firsts
+    for second in seconds
+    for third in thirds
 ]
 
 
@@ -73,8 +109,13 @@ def test_an_intensity_reads_the_way_xlib_reads_it(spec):
     check(spec)
 
 
-@pytest.mark.parametrize("spec", IN_GAMUT_SPECS)
-def test_a_cie_colour_inside_the_gamut_reads_the_way_xlib_reads_it(spec):
+@pytest.mark.parametrize("spec", CIE_SPECS)
+def test_a_cie_colour_reads_the_way_xlib_reads_it(spec):
+    check(spec)
+
+
+@pytest.mark.parametrize("spec", GRID_SPECS)
+def test_the_wider_sweep_of_each_space_reads_the_way_xlib_reads_it(spec):
     check(spec)
 
 

@@ -90,17 +90,17 @@ def test_a_cie_spec_reads_the_way_xterm_reads_it(spec, color):
     assert parse_color(spec) == color
 
 
-@pytest.mark.parametrize("spec", [
+@pytest.mark.parametrize("spec,color", [
     # A screen shows only part of what the eye sees, and these fall
-    # outside it. Xcms answers them by pulling the colour in, which
-    # ptterm does not do yet, so there is no colour to give.
-    "CIEXYZ:1/1/1",
-    "CIEuvY:0.5/0.5/0.5",
-    "CIExyY:0.5/0.5/0.5",
-    "CIELuv:1/1/1",
+    # outside it. Xcms answers them by pulling the colour in, keeping
+    # the hue and the value and taking the chroma down.
+    ("CIEXYZ:1/1/1", Color(0xFF, 0xFF, 0xFF)),
+    ("CIEuvY:0.5/0.5/0.5", Color(0xFF, 0xA3, 0xAE)),
+    ("CIExyY:0.5/0.5/0.5", Color(0xF7, 0xB3, 0x0E)),
+    ("CIELuv:1/1/1", Color(0x16, 0x14, 0x0E)),
 ])
-def test_a_cie_colour_that_the_screen_cannot_show_is_no_colour(spec):
-    assert parse_color(spec) is None
+def test_a_cie_colour_outside_the_gamut_is_pulled_in(spec, color):
+    assert parse_color(spec) == color
 
 
 @pytest.mark.parametrize("spec", [
