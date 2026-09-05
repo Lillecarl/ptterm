@@ -205,7 +205,26 @@ pieces = st.one_of(
     ),
 )
 
+#: What kitty answers differently, on purpose, so a hunt against kitty
+#: alone leaves them out.
+#:
+#: kitty puts the cursor home when a program takes the screen with
+#: "?47" or "?1047". ptterm leaves it where it stands, with the other
+#: five judges and with xterm. And kitty keeps the content of the
+#: screen that "?1047l" gives back, where ptterm clears it, which xterm
+#: documents. Both are in `test_known_deviations`.
+#:
+#: The panel hunt keeps all three, because a verdict counts the judges
+#: and a difference from one of them is a question and not a fault.
+KITTY_DISAGREES = frozenset(["\x1b[?47h", "\x1b[?1047h", "\x1b[?1047l"])
+
 program = st.lists(pieces, min_size=1, max_size=24).map("".join)
+
+kitty_program = st.lists(
+    pieces.filter(lambda step: step not in KITTY_DISAGREES),
+    min_size=1,
+    max_size=24,
+).map("".join)
 
 
 @settings(
@@ -213,7 +232,7 @@ program = st.lists(pieces, min_size=1, max_size=24).map("".join)
     deadline=None,
     suppress_health_check=[HealthCheck.too_slow],
 )
-@given(program)
+@given(kitty_program)
 def test_a_random_program_gives_the_same_screen(data):
     # The style of a blank is left out here. ptterm follows xterm and
     # kitty does not, in more than one place, and each of those is
