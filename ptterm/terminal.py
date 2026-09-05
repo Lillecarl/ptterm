@@ -54,6 +54,32 @@ E = KeyPressEvent
 _NOT_FOR_A_SCREEN = frozenset(Char.display_mappings) - {"\xa0"}
 
 
+def cursor_offset(screen) -> int:
+    """
+    How many characters stand before the cursor on its own line.
+
+    prompt_toolkit places a cursor by the number of characters before
+    it, and not by the column. The two differ where a double width
+    character is drawn, which is why this counts rather than reads the
+    position.
+
+    **The column is the one the cursor stands on, and never the one it
+    waits to wrap into.** A character in the last column leaves the
+    cursor one column further here, and that column is not on the line.
+    prompt_toolkit answers a cursor outside the line by scrolling the
+    window sideways to bring it into view, and then every row of the
+    pane is drawn one column to the left for as long as the scroll
+    lasts. A whole pane moves because one character reached the edge.
+
+    `reported_column` is the same fold that a program reads with DSR, so
+    a pane draws the cursor where a program is told it stands.
+    """
+    row = screen.pt_screen.data_buffer[screen.pt_cursor_position.y]
+    return len(
+        "".join(row[x].char for x in range(0, screen.reported_column))
+    )
+
+
 def _visible_char(char: str) -> str:
     """
     What to draw for a cell.
@@ -134,14 +160,7 @@ class _TerminalControl(UIControl):
         data_buffer = pt_screen.data_buffer
         cursor_y = pt_cursor_position.y
 
-        # Prompt_toolkit needs the amount of characters before the cursor in a
-        # UIControl.  This doesn't correspond with the xpos in case of double
-        # width characters. That's why we compute the wcwidth.
-        cursor_row = data_buffer[pt_cursor_position.y]
-        text_before_cursor = "".join(
-            cursor_row[x].char for x in range(0, pt_cursor_position.x)
-        )
-        cursor_x = len(text_before_cursor)
+        cursor_x = cursor_offset(self.process.screen)
 
         def get_line(number: int) -> StyleAndTextTuples:
             row = data_buffer[number]
