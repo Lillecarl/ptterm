@@ -1,6 +1,9 @@
 # The esctest2 tests that failed in this run. Every name here is a
 # real difference between ptterm and xterm.
 #
+# pymux/tests/esctest-failures.txt is the same list for ptterm in a
+# pymux pane. A name there and not here is what the pane adds.
+#
 # This is what the run saw. To make it what the check expects:
 #     nix build --file . checks.ptterm-esctest.run
 #     cp result/failures.txt ptterm/tests/esctest-failures.txt
@@ -12,6 +15,3 @@ RISTests.test_RIS_ResetDECCOLM
 ResetSpecialColorTests.test_ResetSpecialColor_Dynamic
 SMTitleTests.test_SMTitle_SetHexQueryUTF8
 SMTitleTests.test_SMTitle_SetUTF8QueryHex
-XtermWinopsTests.test_XtermWinops_IconifyDeiconfiy
-XtermWinopsTests.test_XtermWinops_MoveToXY
-XtermWinopsTests.test_XtermWinops_MoveToXY_Defaults
