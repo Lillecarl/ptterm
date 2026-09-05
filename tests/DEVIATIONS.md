@@ -546,10 +546,16 @@ it home. `DECSETTests.test_DECSET_ALTBUF` and
 is with the five.
 
 For `?1049`, ptterm puts the cursor home, and so do kitty and WezTerm.
-Alacritty, Ghostty, libvterm and xterm.js leave it. Nothing in esctest2
-asks, so this one is a choice and not an answer: `?1049` saves the
-cursor on the way in and gives it back on the way out, so a program
-that used it never has to know where the cursor stood in between.
+Alacritty, Ghostty, libvterm and xterm.js leave it, and xterm describes
+the mode as a save, a switch and a clear, with no move. Nothing in
+esctest2 asks, so nothing forces the reading.
+
+The panel is four to two against ptterm here, so this is a choice
+ptterm has made and not an answer it has: the argument is that `?1049`
+saves the cursor on the way in and gives it back on the way out, so a
+program that uses the pair never has to know where the cursor stood in
+between. That argument does not cover a program that takes the screen
+and then reads the cursor. Lillecarl/pymux#34 holds the question.
 
 **As a setting:** the same argument as entry 2. A pane holds one
 cursor, so the choice belongs to the pane and is made once.
@@ -696,6 +702,13 @@ a different one.
   character that the erase was meant to take away. Three emulators,
   three answers, so there is nothing to follow. The hunt leaves the
   marks out; `test_combining_marks` covers them by hand.
+
+- Giving the alternate screen back under a name other than the one that
+  took it, with the cursor waiting to wrap:
+  `\x1b[?1049h\x1b[14G00000你你你\x1b[?47l0`. The verdict is a split.
+  kitty, WezTerm, Ghostty and xterm.js agree with each other and differ
+  from ptterm in two cells; Alacritty and libvterm differ in ten, for
+  the reason entry 2 gives. Lillecarl/pymux#35 holds it.
 
 Run it again to find more. Each one needs a decision about whether to
 follow kitty or xterm before it becomes a fix.
