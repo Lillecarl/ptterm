@@ -1,7 +1,11 @@
 # The package this repository builds. The suites that judge it live in
-# `nix/checks.nix` and the emulators they compare against in `nix/judges.nix`,
-# and both declare their own inputs, so nothing that only a test needs is
-# named here.
+# `nix/checks.nix`, the emulators they compare against in `nix/judges.nix`, and
+# the conformance suite in `nix/esctest2.nix`. Each declares its own inputs, so
+# nothing that only a test needs is named here.
+#
+# The last two reach `passthru`, because a tool is not a suite and pymux runs
+# the same conformance suite in a pane. Neither reaches the closure of the
+# package: `passthru` names a derivation and does not depend on it.
 #
 # Nothing else belongs in this repository: the dev shell and the collection
 # that assembles this with its siblings live in pyterm.
@@ -39,7 +43,7 @@ let
     doCheck = false;
     pythonImportsCheck = [ "ptterm" ];
 
-    passthru = { inherit checks judges; };
+    passthru = { inherit checks judges esctest2; };
 
     meta = {
       description = "Terminal emulator for prompt_toolkit";
@@ -80,8 +84,17 @@ let
   # build inputs of a test and reach no closure that runs.
   judges = callPackage ./nix/judges.nix { inherit judgeSources; };
 
+  # The conformance suite of xterm, which judges a terminal from the inside.
+  # pymux runs the same one in a pane, and takes it from here.
+  esctest2 = callPackage ./nix/esctest2.nix { };
+
   checks = callPackage ./nix/checks.nix {
-    inherit package testSources judges;
+    inherit
+      package
+      testSources
+      judges
+      esctest2
+      ;
   };
 in
 package
