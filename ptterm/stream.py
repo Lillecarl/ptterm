@@ -36,6 +36,11 @@ class Escape(StrEnum):
     #: End of a protected area.
     EPA = "W"
 
+    #: Identify terminal. It is the older way to ask what DA asks, and
+    #: a terminal answers it the same way. A VT100 had it; xterm keeps
+    #: it, so a program written for one still gets an answer.
+    DECID = "Z"
+
 
 class Csi(StrEnum):
     """
@@ -165,6 +170,7 @@ class BetterStream(Stream):
             Escape.DECFI: "forward_index",
             Escape.SPA: "start_protected_area",
             Escape.EPA: "end_protected_area",
+            Escape.DECID: "report_device_attributes",
         }
     )
 

@@ -77,3 +77,20 @@ def test_a_da_with_a_parameter_that_is_not_zero_is_ignored(pane):
     assert responses == []
 
 
+
+
+def test_decid_answers_the_way_da_answers(pane):
+    """
+    DECID ("ESC Z") is the older way to ask what DA asks.
+
+    A VT100 had it and xterm keeps it, so a program written for one
+    still gets an answer. esctest2 asks for it in
+    `DECIDTests.test_DECID_Basic`.
+    """
+    _screen, stream, responses = pane
+    stream.feed("\x1bZ")
+    first = responses[:]
+    responses.clear()
+    stream.feed("\x1b[c")
+    assert first == responses
+    assert first[0].startswith("\x1b[?")
