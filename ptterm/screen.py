@@ -1267,33 +1267,35 @@ class BetterScreen:
             self.restore_modes(*params)
             return
 
-        # No parameter at all puts the region back to the whole
-        # screen, so a zero is not the same as nothing here.
-        top = params[0] if len(params) > 0 else None
-        bottom = params[1] if len(params) > 1 else None
-        if top is None and bottom is None:
-            return
+        # A parameter that is missing and a parameter that is zero both
+        # mean the default, which is the first row and the last. So
+        # "CSI r" names the whole screen, and that is how a program
+        # gives the screen back after it has used a region.
+        first = params[0] if len(params) > 0 else 0
+        last = params[1] if len(params) > 1 else 0
 
-        margins = self.margins or Margins(0, self.lines - 1)
-
-        top = margins.top if top is None else top - 1
-        bottom = margins.bottom if bottom is None else bottom - 1
-
-        # Arguments are 1-based, while :attr:`margins` are zero based --
-        # so we have to decrement them by one. We also make sure that
-        # both of them is bounded by [0, lines - 1].
-        top = max(0, min(top, self.lines - 1))
-        bottom = max(0, min(bottom, self.lines - 1))
+        # The parameters count from one and the margins count from
+        # zero, and both stay on the screen.
+        top = max(0, min((first or 1) - 1, self.lines - 1))
+        bottom = max(0, min((last or self.lines) - 1, self.lines - 1))
 
         # Even though VT102 and VT220 require DECSTBM to ignore regions
         # of width less than 2, some programs (like aptitude for example)
         # rely on it. Practicality beats purity.
-        if bottom - top >= 1:
+        if bottom - top < 1:
+            return
+
+        if top == 0 and bottom == self.lines - 1:
+            # The whole screen is no region at all. `None` is what the
+            # rest of the screen reads as "there is no region", the way
+            # DECSLRM writes it for the columns.
+            self.margins = None
+        else:
             self.margins = Margins(top, bottom)
 
-            # The cursor moves to the home position when the top and
-            # bottom margins of the scrolling region (DECSTBM) changes.
-            self.cursor_position()
+        # The cursor moves to the home position when the top and
+        # bottom margins of the scrolling region (DECSTBM) changes.
+        self.cursor_position()
 
     @property
     def left_right(self) -> Tuple[int, int]:
