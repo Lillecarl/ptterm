@@ -1030,6 +1030,13 @@ class BetterScreen:
         # it back to the shape that the terminal starts with.
         self.cursor_style = DEFAULT_CURSOR_STYLE
 
+        # Has a program in here ever said what the cursor should look
+        # like? Until one does, the shape above is a guess and not an
+        # ask, and whoever draws this pane has to leave the cursor of
+        # the person alone. A pane that names a shape nobody asked for
+        # takes away the one they chose.
+        self.cursor_style_asked = False
+
         # The marks that SPA and DECSCA put on the cells that a
         # program draws next. Nothing is marked to start with.
         self.protection = 0
@@ -4158,6 +4165,11 @@ class BetterScreen:
             self.cursor_style = DEFAULT_CURSOR_STYLE
         elif style in iter(CursorShape):
             self.cursor_style = CursorShape(style)
+        else:
+            # A number no shape has. Nothing is asked for, so nothing
+            # changes, and the ask below would be a lie.
+            return
+        self.cursor_style_asked = True
 
     def set_cursor_blink(self, blinking: bool) -> None:
         """
@@ -4173,6 +4185,7 @@ class BetterScreen:
             self.cursor_style = CursorShape(style - 1)
         elif not blinking and style % 2 == 1:
             self.cursor_style = CursorShape(style + 1)
+        self.cursor_style_asked = True
 
     @property
     def cursor_blinks(self) -> bool:
