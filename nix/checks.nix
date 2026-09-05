@@ -93,22 +93,73 @@ let
     echo '{"data":"x","lines":1,"columns":1}' | "$PTTERM_JUDGES" > /dev/null
     echo '{"data":"x","lines":1,"columns":1}' | "$PTTERM_GHOSTTY" > /dev/null
     echo '{"data":"x","lines":1,"columns":1}' | "$PTTERM_XTERM" > /dev/null
-    python -c "import sys; sys.path.insert(0, 'tests'); import xlib_oracle; assert xlib_oracle.xlib_color('rgb:f/f/f') == (255, 255, 255)"
+  '';
+  runPytest = "python -m pytest $selection -q -p no:cacheprovider";
+
+  # The unit group runs what needs no oracle, so nothing in it should skip.
+  # A test that does need one and says so with `importorskip` or a `skipif`
+  # would land here, find nothing, skip, and pass in silence. That is the one
+  # way the split can go quietly wrong, so it is the one thing to watch.
+  #
+  # The report stays beside the log, as the machine readable half of it.
+  runUnitPytest = ''
+    ${runPytest} --junitxml="$out/report.xml"
+    status=$?
+    skipped="$(sed -n 's/.*[[:space:]]skipped="\([0-9]*\)".*/\1/p' \
+      "$out/report.xml" | head -1)"
+    if [ "$status" = 0 ] && [ "''${skipped:-0}" != "0" ]; then
+      echo "ptterm-unit skipped $skipped tests, and nothing here should skip."
+      echo "A test that needs an oracle belongs in another group, and it"
+      echo "gets there by importing that oracle. tests/conftest.py says how."
+      exit 1
+    fi
+    exit "$status"
   '';
 in
 {
-  tests = suite {
-    name = "ptterm-tests";
-    # ncurses for the check that the terminfo entry compiles, and
-    # xorg-server for the Xvfb that the Xlib colour judge asks.
+  # The tests that need nothing but python. About forty of the sixty
+  # files, so this is the one to run while working, and it pays for
+  # none of the six emulators.
+  #
+  # ncurses is here for the one test that compiles the terminfo entry.
+  unit = suite {
+    name = "ptterm-unit";
     inputs = [
       pythonWithTests
       ncurses
+    ];
+    env = { inherit selection; };
+    setup = prepare + ''
+      export PTTERM_GROUP=unit
+    '';
+  } runUnitPytest;
+
+  # The tests that read a screen back from another emulator. These are
+  # what the six judges are built for.
+  panel = suite {
+    name = "ptterm-panel";
+    inputs = [ pythonWithTests ];
+    env = { inherit selection; };
+    setup = prepare + oracles + everyJudgeAnswers + ''
+      export PTTERM_GROUP=panel
+    '';
+  } runPytest;
+
+  # The colour specs, read back with the real Xlib. `ptterm/xcms.py` is
+  # a port of the colour management of Xlib, and only the original says
+  # whether the port is right.
+  xcms = suite {
+    name = "ptterm-xcms";
+    inputs = [
+      pythonWithTests
       xorg-server
     ];
     env = { inherit selection; };
-    setup = prepare + oracles + display + everyJudgeAnswers;
-  } "python -m pytest $selection -q -p no:cacheprovider";
+    setup = prepare + display + ''
+      python -c "import sys; sys.path.insert(0, 'tests'); import xlib_oracle; assert xlib_oracle.xlib_color('rgb:f/f/f') == (255, 255, 255)"
+      export PTTERM_GROUP=xcms
+    '';
+  } runPytest;
 
   # The hunt for deviations between ptterm and kitty. This is not a gate:
   # it finds them faster than they get fixed, and each one needs a
