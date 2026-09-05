@@ -92,15 +92,31 @@ def test_erase_characters_takes_the_background_of_now():
     assert row[3].char == "l"
 
 
-def test_an_underline_reaches_the_erased_cells():
+def test_an_underline_reaches_no_erased_cell():
+    """
+    An underline does not carry over, and a background does.
+
+    ptterm carried it, on the reading that a reader sees a line on a
+    blank. Five judges say no and only kitty says yes, for both ED and
+    EL, and `test_the_panel.py` holds that tally. A shell that leaves
+    the underline on and clears the screen underlined every blank cell
+    of it. Lillecarl/pymux#67.
+    """
     screen, stream = _screen()
-    # An underline shows on a blank, so it carries over the same way a
-    # background does.
     stream.feed("\x1b[4mhi\x1b[K")
     row = _row(screen, 0)
     for column in range(2, 20):
+        assert "underline" not in row[column].style
+
+
+def test_a_background_still_reaches_the_erased_cells():
+    "The other half of the same question, and the panel is five to one."
+    screen, stream = _screen()
+    stream.feed("\x1b[41mhi\x1b[K")
+    row = _row(screen, 0)
+    for column in range(2, 20):
         assert row[column].char == " "
-        assert "underline" in row[column].style
+        assert "bg:" in row[column].style
 
 
 # ----------------------------------------------------------------------

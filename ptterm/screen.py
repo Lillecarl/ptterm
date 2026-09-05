@@ -2988,10 +2988,19 @@ class BetterScreen:
         it: htop draws the header of its table with "CSI K" and expects
         the colour to reach the end of the line.
 
-        Only what a reader can see on a blank carries over: the
-        background, reverse video and an underline. An empty answer
-        means that the cell can go away instead, which keeps the screen
-        sparse.
+        The background carries over, and the underline does not. Five
+        judges take the underline off an erased cell and only kitty
+        keeps it, for both ED and EL; the background is the other way
+        round, five keeping it and only Ghostty dropping it.
+        `test_the_panel.py` holds both tallies.
+
+        Reverse video is a split, so it stays. kitty and WezTerm paint
+        the cell; Alacritty, Ghostty, libvterm and xterm do not. Four to
+        two is a choice and not a rule, and a program that reverses and
+        then erases means the block to be seen.
+
+        An empty answer means that the cell can go away instead, which
+        keeps the screen sparse.
         """
         attrs = self._attrs
         style = ""
@@ -3004,11 +3013,6 @@ class BetterScreen:
 
         if attrs.bgcolor:
             style += "bg:%s " % attrs.bgcolor
-
-        if attrs.underline:
-            style += UNDERLINE_WORDS[attrs.underline_style or ""] + " "
-            if attrs.underline_color:
-                style += "ul:%s " % attrs.underline_color
 
         return style
 

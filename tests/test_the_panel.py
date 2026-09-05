@@ -71,6 +71,53 @@ def test_a_plain_program_finds_no_difference():
     assert verdict("hello\r\nworld\x1b[1;31m!\x1b[0m", 8, 24) == "agree"
 
 
+def test_an_erase_does_not_keep_the_underline():
+    """
+    Five judges take the underline off an erased cell. kitty keeps it.
+
+    ptterm kept it, and it was wrong: `erase_style` carried the
+    underline and its colour, so a shell that left the underline on and
+    then cleared the screen underlined every blank cell of it. That is
+    Alacritty's `clear_underline` reference test, two thousand cells of
+    it, and four more of their tests found the same thing through
+    `checks.pymux-alacritty`.
+
+    The background is the other way round, and both are the same
+    question: what can a reader see on a blank. A colour can be seen,
+    and the panel says a line under nothing cannot.
+    """
+    for erase in ("\x1b[2J", "\x1b[K"):
+        against, with_us = sides("\x1b[4mAB" + erase, lines=3, columns=6)
+        assert against == ["kitty"]
+        assert with_us == ["alacritty", "ghostty", "libvterm", "wezterm", "xterm"]
+
+
+def test_an_erase_keeps_the_background():
+    """
+    Five judges paint an erased cell with the background. Ghostty does
+    not.
+
+    Programs count on it: htop draws the header of its table with
+    "CSI K" and expects the colour to reach the end of the line.
+    """
+    against, with_us = sides("\x1b[41mAB\x1b[2J", lines=3, columns=6)
+    assert against == ["ghostty"]
+    assert with_us == ["alacritty", "kitty", "libvterm", "wezterm", "xterm"]
+
+
+def test_whether_an_erase_keeps_reverse_video_is_a_choice():
+    """
+    Four judges drop reverse video on an erased cell and two keep it.
+
+    A split is a choice and not a rule, so ptterm keeps it: a program
+    that turns reverse on and then erases means the block to be seen,
+    and that is the reading kitty and WezTerm take.
+    """
+    against, with_us = sides("\x1b[7mAB\x1b[2J", lines=3, columns=6)
+    assert against == ["alacritty", "ghostty", "libvterm", "xterm"]
+    assert with_us == ["kitty", "wezterm"]
+
+
 #: What every judge but libvterm answers to a DEC line attribute: the
 #: line still holds every column it held.
 WHOLE_WIDTH = {

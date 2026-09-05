@@ -82,12 +82,16 @@ def test_a_colour_with_no_line_reaches_no_cell():
     ]
 
 
-def test_an_erased_cell_keeps_the_line():
-    "A reader sees a line on a blank, so an erase carries it over."
-    assert styles("\x1b[4:3;58:5:9m\x1b[K", 2) == [
-        "undercurl ul:#ansibrightred ",
-        "undercurl ul:#ansibrightred ",
-    ]
+def test_an_erased_cell_keeps_no_line():
+    """
+    An erase leaves no line, and no colour for one.
+
+    ptterm carried both, on the reading that a reader sees a line on a
+    blank. Five judges disagree and only kitty agrees;
+    `test_the_panel.py` holds the tally, and the background is the
+    other way round. Lillecarl/pymux#67.
+    """
+    assert styles("\x1b[4:3;58:5:9m\x1b[K", 2) == ["", ""]
 
 
 def test_the_screen_reports_the_shape_and_the_colour():
