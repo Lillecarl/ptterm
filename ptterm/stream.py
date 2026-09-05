@@ -127,6 +127,16 @@ class Csi(StrEnum):
     #: ptterm keeps its own name for it and serves both the same way.
     HPA = "`"
 
+    #: Horizontal position backward: columns to the left. It is the
+    #: fourth of the position family, and the only one of the four that
+    #: pyte does not name. ECMA-48 8.3.58 moves the cursor backward
+    #: along the character path, which on this terminal is CUB.
+    HPB = "j"
+
+    #: Vertical position backward: rows up. ECMA-48 8.3.159, and the
+    #: same relation to CUU that HPB has to CUB.
+    VPB = "k"
+
     #: Repeat the last character that was drawn. It saves a program
     #: the bytes of a run of one character.
     REP = "b"
@@ -197,6 +207,11 @@ class BetterStream(Stream):
             Csi.DECSLRM: "set_left_right_margins",
             Csi.DECSTR: "soft_reset",
             Csi.HPA: "cursor_to_absolute_column",
+            # HPB and VPB move the way CUB and CUU move, so they go to
+            # the same handlers. libvterm serves them from the same two
+            # lines of arithmetic as well.
+            Csi.HPB: "cursor_back",
+            Csi.VPB: "cursor_up",
             Csi.REP: "repeat_last_character",
             Csi.SD: "scroll_down",
             Csi.SU: "scroll_up",

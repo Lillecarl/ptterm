@@ -788,14 +788,13 @@ files, each with the reason: libvterm reports every glyph it lays down
 and which rectangle it redrew, and ptterm has neither.
 
 The 16 that run hold 270 assertions, and four of those sit inside a
-`$SEQ` and are asked more than once. 25 answers differ. They are in
+`$SEQ` and are asked more than once. 23 answers differ. They are in
 `tests/vterm-failures.txt`, and each one is one of three things.
 
 **ptterm is wrong, and it is filed.**
 
 | Assertions | What | Issue |
 | --- | --- | --- |
-| `11state_movecursor` 178, 194 | HPB and VPB do nothing | Lillecarl/pymux#52 |
 | `32state_flow` 28 | EL leaves the continuation mark on the line below | Lillecarl/pymux#58 |
 | `69screen_reflow` 58, 66 | a reflow drops a trailing space a program wrote | Lillecarl/pymux#56 |
 | `69screen_reflow` 74 to 79 | a reflow anchors the top, and libvterm anchors the bottom | Lillecarl/pymux#57 |
@@ -823,11 +822,19 @@ decide, and a terminal that draws bold plus colour seven as bright will
 still do so. Whether the server should carry enough to make that call
 per client is Lillecarl/pymux#53.
 
-**One fault the suite found is already fixed.** DECALN filled the screen
-with a plain `Char`, which reads as a cell nobody wrote, so eight
+**Two faults the suite found are already fixed.** DECALN filled the
+screen with a plain `Char`, which reads as a cell nobody wrote, so eight
 assertions in `90vttest_01-movement-1` saw an empty frame where the E's
 should be. ptterm `9e6b697b` builds them out of `_CHAR_CACHE` like every
 other draw.
+
+HPB and VPB (`CSI Ps j` and `CSI Ps k`) reached no handler, so the
+cursor stayed where it was. `stream.py` names both now and gives them to
+the handlers of CUB and CUU, which is the arithmetic libvterm uses.
+Three of the six judges carry the pair and all three land in the same
+place; the other three do not carry it at all.
+`test_the_panel.py` holds that tally and `test_cursor_margins.py` holds
+the bounds.
 
 ## Not compared yet
 

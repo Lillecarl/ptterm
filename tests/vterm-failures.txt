@@ -8,8 +8,6 @@
 # This is what the run saw. To make it what the check expects:
 #     nix build --file . checks.ptterm-vterm.run
 #     cp result/failures.txt ptterm/tests/vterm-failures.txt
-11state_movecursor.test:178 cursor
-11state_movecursor.test:194 cursor
 30state_pen.test:111 pen foreground
 30state_pen.test:114 pen foreground
 30state_pen.test:118 pen small

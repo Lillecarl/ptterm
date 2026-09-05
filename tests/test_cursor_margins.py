@@ -123,3 +123,68 @@ def test_the_region_does_not_hold_the_row_without_origin_mode():
     screen, stream = _screen()
     stream.feed("\x1b[1;2r\x1b[3;1H")
     assert _row(screen) == 2
+
+
+# ----------------------------------------------------------------------
+# HPB and VPB, the two of the position family that move backward. They
+# move the way CUB and CUU move, so they are bounded the same way.
+# Lillecarl/pymux#52.
+
+
+def test_hpb_moves_the_cursor_to_the_left():
+    screen, stream = _screen()
+    stream.feed("\x1b[1;7H\x1b[3j")
+    assert screen.pt_cursor_position.x == 3
+
+
+def test_hpb_with_no_parameter_moves_one_column():
+    screen, stream = _screen()
+    stream.feed("\x1b[1;7H\x1b[j")
+    assert screen.pt_cursor_position.x == 5
+
+
+def test_hpb_stops_at_the_first_column():
+    screen, stream = _screen()
+    stream.feed("\x1b[1;3H\x1b[9j")
+    assert screen.pt_cursor_position.x == 0
+
+
+def test_hpb_stops_at_the_left_margin():
+    screen, stream = _screen()
+    stream.feed("\x1b[?69h\x1b[3;6s\x1b[1;5H\x1b[9j")
+    assert screen.pt_cursor_position.x == 2
+
+
+def test_vpb_moves_the_cursor_up():
+    screen, stream = _screen()
+    stream.feed("\x1b[4;1H\x1b[2k")
+    assert _row(screen) == 1
+
+
+def test_vpb_with_no_parameter_moves_one_row():
+    screen, stream = _screen()
+    stream.feed("\x1b[4;1H\x1b[k")
+    assert _row(screen) == 2
+
+
+def test_vpb_stops_at_the_first_row():
+    screen, stream = _screen()
+    stream.feed("\x1b[3;1H\x1b[9k")
+    assert _row(screen) == 0
+
+
+def test_vpb_stops_at_the_top_margin():
+    screen, stream = _screen()
+    stream.feed("\x1b[2;4r\x1b[4;1H\x1b[9k")
+    assert _row(screen) == 1
+
+
+def test_hpb_ends_the_wait_to_wrap():
+    """
+    A character in the last column leaves the cursor waiting to wrap.
+    Every move of the cursor ends that wait, and libvterm clears its own
+    `at_phantom` on HPB for the same reason.
+    """
+    screen, stream = _screen()
+    stream.feed("abcdefgh\x1b[0jX")
+    assert screen.pt_cursor_position.y - screen.line_offset == 0

@@ -173,6 +173,13 @@ def test_moving_back_over_a_tab_stop_splits_the_panel():
         "你好世界",
         "hello\r\nworld\x1b[2;2H\x1b[1K",
         "\x1b[2;4rabc\r\ndef\r\nghi\r\njkl",
+        # The four of the position family that ptterm already had. They
+        # are here so that a change to HPB and VPB cannot quietly move
+        # these.
+        "\x1b[1;8H\x1b[3GX",
+        "\x1b[1;4H\x1b[3aX",
+        "\x1b[6;3H\x1b[3dX",
+        "\x1b[2;3H\x1b[3eX",
     ],
 )
 def test_the_panel_agrees(data):
@@ -299,6 +306,42 @@ def test_no_judge_carries_a_rectangle_command(command):
     data = "abcdefg\r\nABCDEFG\r\nhijklmn\r\nHIJKLMN\r\nopqrstu" + command
     against, _with_us = sides(data, lines=6, columns=8)
     assert against == sorted(WANTED)
+
+
+#: The judges that carry HPB and VPB, and the ones that do not.
+WITH_THE_PAIR = ["ghostty", "libvterm", "wezterm"]
+WITHOUT_THE_PAIR = ["alacritty", "kitty", "xterm"]
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        # HPB: three columns to the left of column eight.
+        "\x1b[1;8H\x1b[3jX",
+        # VPB: two rows above row six.
+        "\x1b[6;3H\x1b[2kX",
+    ],
+)
+def test_hpb_and_vpb_follow_the_three_judges_that_carry_them(data):
+    """
+    Three of the six move the cursor, and three leave it where it is.
+
+    ptterm had neither: `CSI Ps j` and `CSI Ps k` reached no handler and
+    were consumed. So the panel read three against and three with us,
+    and the three that were with us were abstaining and not agreeing.
+    Alacritty, kitty and xterm.js do not carry the pair at all, and a
+    judge without a feature does nothing, which reads the same way as a
+    judge that does nothing on purpose.
+
+    Ghostty, libvterm and WezTerm carry them, and all three land in the
+    same place. ECMA-48 8.3.58 and 8.3.159 say that place too, and the
+    four sequences beside these were already right. So ptterm follows
+    the three, and the tally is now three that agree and three that
+    still do nothing. Lillecarl/pymux#52.
+    """
+    against, with_us = sides(data, lines=8, columns=24, blank_style=False)
+    assert against == WITHOUT_THE_PAIR
+    assert with_us == WITH_THE_PAIR
 
 
 def test_where_the_cursor_stands_after_the_older_alternate_modes():
