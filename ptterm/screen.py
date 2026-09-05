@@ -952,6 +952,19 @@ class BetterScreen:
            and tabstops should be reset as well, thanks to
            :manpage:`xterm` -- we now know that.
         """
+        # Is the terminal on the 132 column page, and was it allowed
+        # onto it? Read both before the modes go. Reading them after is
+        # the fault that `RISTests.test_RIS_ResetDECCOLM` of esctest2
+        # names: an older xterm dropped DECCOLM first and then found
+        # nothing to undo, so the page stayed wide.
+        # `__init__` builds the state by calling this, so there are no
+        # modes yet the first time round. A terminal that does not
+        # exist yet is on no page.
+        modes = getattr(self, "mode", frozenset())
+        on_the_wide_page = (
+            PrivateMode.ALLOW_80_TO_132.flag in modes and mo.DECCOLM in modes
+        )
+
         self._reset_screen()
 
         self.title = ""
@@ -1064,6 +1077,15 @@ class BetterScreen:
         # `None` means that nothing was ever drawn on it.
         self._alternate_screen: Screen | None = None
         self._alternate_screen_vars: dict = {}
+
+        # A reset gives the 80 column page back. The ask goes out last,
+        # because the modes above decide whether it goes out at all,
+        # and the embedder answers it by resizing this screen.
+        #
+        # The page is clear already, so this does not clear it again
+        # the way DECCOLM does.
+        if on_the_wide_page:
+            self.resize_func(None, self.NARROW_PAGE)
 
     def soft_reset(self, *params: int, **kwargs) -> None:
         """

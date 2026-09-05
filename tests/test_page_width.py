@@ -108,3 +108,60 @@ def test_decncsm_needs_the_level_that_brought_it():
     stream.feed("abc" + ALLOW + "\x1b[?95h" + WIDE)
     assert asks == [(None, 132)]
     assert screen.data_buffer[0].get(0) is None
+
+
+# ----------------------------------------------------------------------
+# RIS.
+
+
+RIS = "\x1bc"
+
+
+def test_a_reset_gives_the_narrow_page_back():
+    """
+    RIS ("ESC c") puts a terminal on the 132 column page back on the
+    80 column one. `RISTests.test_RIS_ResetDECCOLM` of esctest2 asks
+    for it, and Lillecarl/pymux#42 is where it was found.
+    """
+    screen, stream, asks = make_screen()
+    stream.feed(ALLOW + WIDE)
+    assert asks == [(None, 132)]
+    stream.feed(RIS)
+    assert asks == [(None, 132), (None, 80)]
+
+
+def test_a_reset_on_the_narrow_page_asks_for_nothing():
+    "A reset that changes no width must not ask the embedder for room."
+    screen, stream, asks = make_screen()
+    stream.feed(ALLOW + RIS)
+    assert asks == []
+
+
+def test_a_reset_reads_the_page_before_it_drops_the_modes():
+    """
+    The order is the fault the test in esctest2 names.
+
+    An older xterm dropped DECCOLM first, found the terminal on no
+    wide page, and left the width at 132. So the reading has to happen
+    before the modes go, and this is what says it does.
+    """
+    screen, stream, asks = make_screen()
+    stream.feed(ALLOW + WIDE)
+    asks.clear()
+    stream.feed(RIS)
+    assert asks == [(None, 80)]
+    # And the modes really are gone afterwards.
+    stream.feed(WIDE)
+    assert asks == [(None, 80)]
+
+
+def test_a_denied_wide_page_is_not_given_back():
+    """
+    A terminal that never left the 80 column page has nothing to undo.
+
+    Mode 40 off means DECCOLM did nothing at all, so a reset must not
+    ask for a width either.
+    """
+    screen, stream, asks = make_screen()
+    stream.feed(WIDE + RIS)
+    assert asks == []

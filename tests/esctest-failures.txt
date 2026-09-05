@@ -11,7 +11,6 @@ DATests.test_DA_0
 DATests.test_DA_NoParameter
 DECSETTests.test_DECSET_DECNCSM
 ManipulateSelectionDataTests.test_ManipulateSelectionData_default
-RISTests.test_RIS_ResetDECCOLM
 ResetSpecialColorTests.test_ResetSpecialColor_Dynamic
 SMTitleTests.test_SMTitle_SetHexQueryUTF8
 SMTitleTests.test_SMTitle_SetUTF8QueryHex
