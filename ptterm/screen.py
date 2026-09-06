@@ -14,8 +14,7 @@ from typing import Callable, DefaultDict, Dict, List, NamedTuple, Set, Tuple
 
 from prompt_toolkit.cache import FastDictCache
 from prompt_toolkit.layout.screen import Char, Screen
-from prompt_toolkit.output.vt100_colors import BG_ANSI_COLORS, FG_ANSI_COLORS
-from prompt_toolkit.styles import Attrs, palette_color_number
+from prompt_toolkit.styles import Attrs
 from pyte import charsets as cs
 from pyte import modes as mo
 from pyte.screens import Margins
@@ -29,11 +28,15 @@ from . import kitty_keys
 from .colors import (
     DEFAULT_COLORS,
     PALETTE,
+    STYLE_OF_A_BACKGROUND,
+    STYLE_OF_A_FOREGROUND,
     Color,
+    ansi_code,
+    palette_number,
     parse_color,
     rgb_components,
-    sgr_color,
     sgr_color_parameters,
+    style_of_sgr_color,
 )
 from .osc import (
     DYNAMIC_COLOR_CODES,
@@ -544,28 +547,6 @@ class TitlePart(IntEnum):
     ICON = 1
     WINDOW = 2
 
-#: The names that prompt_toolkit gives the first sixteen colours of the
-#: palette, in the order that "CSI 38 ; 5 ; n m" numbers them.
-PALETTE_NAMES = [
-    "ansiblack",
-    "ansired",
-    "ansigreen",
-    "ansiyellow",
-    "ansiblue",
-    "ansimagenta",
-    "ansicyan",
-    "ansigray",
-    "ansibrightblack",
-    "ansibrightred",
-    "ansibrightgreen",
-    "ansibrightyellow",
-    "ansibrightblue",
-    "ansibrightmagenta",
-    "ansibrightcyan",
-    "ansiwhite",
-]
-
-
 #: The name of the terminfo entry that describes a pane. A program
 #: reads it with the "TN" capability.
 TERMINAL_NAME = "pymux"
@@ -653,28 +634,6 @@ def _encoded(text: str) -> str:
     hold anything, so both travel as base64.
     """
     return base64.b64encode(text.encode("utf-8")).decode("ascii")
-
-
-#: What prompt_toolkit calls the colour of the terminal itself. It is
-#: in `FG_ANSI_COLORS` beside the sixteen, as 39 and 49.
-DEFAULT_COLOR_NAME = "ansidefault"
-
-#: The number of the palette that each of the sixteen names stands for.
-#: prompt_toolkit writes the first sixteen by name and the rest as
-#: "ansi16" upwards, so a number has to come from one table or the
-#: other.
-NUMBER_OF_A_PALETTE_NAME = {name: number for number, name in enumerate(PALETTE_NAMES)}
-
-
-def _palette_number(color: str | None) -> int | None:
-    "The number of the palette that a '#ansired' or '#ansi234' colour names."
-    if not color:
-        return None
-    name = color.lstrip("#")
-    number = NUMBER_OF_A_PALETTE_NAME.get(name)
-    if number is not None:
-        return number
-    return palette_color_number(name)
 
 
 def _reads_the_clipboard(param: str) -> bool:
@@ -3874,47 +3833,6 @@ class BetterScreen:
         for row in rows:
             self.line_attributes.pop(row, None)
 
-    # Mapping of the ANSI color codes to their names.
-    _fg_colors = {v: "#" + k for k, v in FG_ANSI_COLORS.items()}
-    _bg_colors = {v: "#" + k for k, v in BG_ANSI_COLORS.items()}
-
-    # Mapping of the escape codes for 256colors to the style that
-    # carries each one.
-    #
-    # Every number keeps its number. A program that asks for number one
-    # asks for "red", which the terminal of the user paints from its
-    # own theme. A colour gives that away: kitty with a catppuccin
-    # theme would draw the red of xterm instead of its own. The same
-    # holds above fifteen, where a theme names another 240 colours.
-    #
-    # The first sixteen have a name in prompt_toolkit, and the rest are
-    # written "ansi16" up to "ansi255".
-    _256_colors = {}
-
-    for i in range(len(PALETTE)):
-        if i < len(PALETTE_NAMES):
-            _256_colors[1024 + i] = "#" + PALETTE_NAMES[i]
-        else:
-            _256_colors[1024 + i] = "#ansi%d" % i
-
-    #: How many parameters a colour of "38", "48" or "58" takes.
-    _color_parameters = staticmethod(sgr_color_parameters)
-
-    def _color_of_parameters(self, parameters: List[int]) -> str | None:
-        """
-        How this screen spells the colour that "38", "48" or "58" names.
-
-        `colors.sgr_color` reads the parameters, and this puts the
-        answer into a style string. The reading is arithmetic and the
-        spelling is prompt_toolkit's, so they live apart.
-        """
-        named = sgr_color(parameters)
-        if named is None:
-            return None
-        if named.index is not None:
-            return self._256_colors.get(1024 + named.index)
-        return "#{:02x}{:02x}{:02x}".format(*named.rgb)
-
     def select_graphic_rendition(self, *attrs_tuple: int, private: bool = False) -> None:
         """
         SGR ("CSI Ps m"): the style of the cells that come next.
@@ -3943,12 +3861,12 @@ class BetterScreen:
             # holds everything the colour needs.
             if isinstance(attr, tuple):
                 if attr[0] in (38, 48):
-                    color = self._color_of_parameters(list(attr))
+                    color = style_of_sgr_color(list(attr))
                     if color is not None:
                         replace["color" if attr[0] == 38 else "bgcolor"] = color
                 elif attr[0] == 58:
                     replace["underline_color"] = (
-                        self._color_of_parameters(list(attr)) or ""
+                        style_of_sgr_color(list(attr)) or ""
                     )
                 elif attr[0] == 4:
                     number = attr[1] if len(attr) > 1 else 1
@@ -3958,10 +3876,10 @@ class BetterScreen:
                         replace["underline_style"] = shape
                 continue
 
-            if attr in self._fg_colors:
-                replace["color"] = self._fg_colors[attr]
-            elif attr in self._bg_colors:
-                replace["bgcolor"] = self._bg_colors[attr]
+            if attr in STYLE_OF_A_FOREGROUND:
+                replace["color"] = STYLE_OF_A_FOREGROUND[attr]
+            elif attr in STYLE_OF_A_BACKGROUND:
+                replace["bgcolor"] = STYLE_OF_A_BACKGROUND[attr]
             elif attr == 1:
                 replace["bold"] = True
             elif attr == 2:
@@ -4023,18 +3941,18 @@ class BetterScreen:
             elif attr in (38, 48):
                 # The colour follows in the parameters that come next.
                 parameters = [attr]
-                while attrs and len(parameters) < self._color_parameters(parameters):
+                while attrs and len(parameters) < sgr_color_parameters(parameters):
                     parameters.append(attrs.pop())
-                color = self._color_of_parameters(parameters)
+                color = style_of_sgr_color(parameters)
                 if color is not None:
                     replace["color" if attr == 38 else "bgcolor"] = color
 
             elif attr == 58:
                 parameters = [attr]
-                while attrs and len(parameters) < self._color_parameters(parameters):
+                while attrs and len(parameters) < sgr_color_parameters(parameters):
                     parameters.append(attrs.pop())
                 replace["underline_color"] = (
-                    self._color_of_parameters(parameters) or ""
+                    style_of_sgr_color(parameters) or ""
                 )
 
         attrs_obj = self._attrs._replace(**replace)  # type:ignore
@@ -4585,14 +4503,12 @@ class BetterScreen:
             if flag:
                 parts.append(parameter)
 
-        for color, code, parameters in (
-            (attrs.color, 38, FG_ANSI_COLORS),
-            (attrs.bgcolor, 48, BG_ANSI_COLORS),
+        for color, code, background in (
+            (attrs.color, 38, False),
+            (attrs.bgcolor, 48, True),
         ):
-            # The default is what the "0" at the front already says.
-            name = (color or "").lstrip("#")
-            named = parameters.get(name) if name != DEFAULT_COLOR_NAME else None
-            index = _palette_number(color)
+            named = ansi_code(color, background)
+            index = palette_number(color)
             components = rgb_components(color)
             if named is not None:
                 parts.append("%i" % named)
@@ -4602,7 +4518,7 @@ class BetterScreen:
                 parts.append("%i;2;%i;%i;%i" % ((code,) + components))
 
         if attrs.underline:
-            index = _palette_number(attrs.underline_color)
+            index = palette_number(attrs.underline_color)
             components = rgb_components(attrs.underline_color)
             if index is not None:
                 parts.append("58:5:%i" % index)

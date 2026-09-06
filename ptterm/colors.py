@@ -1,5 +1,6 @@
 """
-What a colour is, and how a spec of X11 becomes one.
+What a colour is, how a spec of X11 becomes one, and how a style
+string spells one.
 
 A pane answers colour queries, so it has to read the colour that a
 program names and write the colour that it holds. Neither job is about
@@ -7,22 +8,39 @@ a terminal: the syntax is `XParseColor`'s, the arithmetic is Xcms's,
 and the palette is a table. `xcms.py` holds the arithmetic that this
 one calls, and `osc.py` holds the sequences that carry the answers.
 
+The second half is the translation between a number and the style word
+that prompt_toolkit reads. A number of the palette, one of the sixteen
+single SGR codes and a colour of its own each have a spelling, and
+`screen.py` used to carry all three tables. They are not about a
+terminal either.
+
 Nothing here reads or writes a sequence.
 """
 from string import hexdigits
 from typing import Dict, List, NamedTuple
+
+from prompt_toolkit.output.vt100_colors import BG_ANSI_COLORS, FG_ANSI_COLORS
+from prompt_toolkit.styles import palette_color_number
 
 from .xcms import SPACES, intensity_to_value, screen_rgb
 
 __all__ = [
     "Color",
     "DEFAULT_COLORS",
+    "DEFAULT_COLOR_NAME",
     "PALETTE",
+    "PALETTE_NAMES",
+    "PALETTE_STYLES",
+    "STYLE_OF_A_BACKGROUND",
+    "STYLE_OF_A_FOREGROUND",
     "SgrColor",
+    "ansi_code",
+    "palette_number",
     "parse_color",
     "rgb_components",
     "sgr_color",
     "sgr_color_parameters",
+    "style_of_sgr_color",
 ]
 
 #: The width of one colour component that a pane keeps, in bits.
@@ -342,3 +360,101 @@ def sgr_color(parameters: List[int]) -> SgrColor | None:
         return SgrColor(rgb=Color(*values[: len(Color._fields)]))
 
     return None
+
+
+#: The names that prompt_toolkit gives the first sixteen colours of the
+#: palette, in the order that "CSI 38 ; 5 ; n m" numbers them.
+PALETTE_NAMES = [
+    "ansiblack",
+    "ansired",
+    "ansigreen",
+    "ansiyellow",
+    "ansiblue",
+    "ansimagenta",
+    "ansicyan",
+    "ansigray",
+    "ansibrightblack",
+    "ansibrightred",
+    "ansibrightgreen",
+    "ansibrightyellow",
+    "ansibrightblue",
+    "ansibrightmagenta",
+    "ansibrightcyan",
+    "ansiwhite",
+]
+
+#: What prompt_toolkit calls the colour of the terminal itself. It is
+#: in `FG_ANSI_COLORS` beside the sixteen, as 39 and 49.
+DEFAULT_COLOR_NAME = "ansidefault"
+
+#: The number of the palette that each of the sixteen names stands for.
+#: prompt_toolkit writes the first sixteen by name and the rest as
+#: "ansi16" upwards, so a number has to come from one table or the
+#: other.
+_NUMBER_OF_A_NAME = {name: number for number, name in enumerate(PALETTE_NAMES)}
+
+#: The style word for each number of the palette.
+#:
+#: A pane keeps the number and never the colour it stands for. A program
+#: that writes "SGR 38 ; 5 ; 1" asks for "red", which the terminal of
+#: the user paints from its own theme; a colour gives that away, and
+#: kitty with a catppuccin theme would draw the red of xterm instead of
+#: its own. The same holds above fifteen, where a theme names another
+#: 240 colours.
+PALETTE_STYLES = [
+    "#" + PALETTE_NAMES[number] if number < len(PALETTE_NAMES) else "#ansi%d" % number
+    for number in range(len(PALETTE))
+]
+
+
+#: The style word that each of the single SGR colour codes names.
+#: "SGR 31" is red and "SGR 101" is a bright red background.
+#: prompt_toolkit's tables read a name to a code, and these read a code
+#: back to a name.
+STYLE_OF_A_FOREGROUND = {code: "#" + name for name, code in FG_ANSI_COLORS.items()}
+STYLE_OF_A_BACKGROUND = {code: "#" + name for name, code in BG_ANSI_COLORS.items()}
+
+
+def ansi_code(color: str | None, background: bool = False) -> int | None:
+    """
+    The single SGR code that a style word answers with, or None.
+
+    The default colour has a code here, 39 and 49, and this does not
+    give it: a rendition opens with "0", which already says the
+    default. Anything that is not one of the sixteen and not the
+    default has no single code, and travels as "38" or "48" instead.
+    """
+    name = (color or "").lstrip("#")
+    if not name or name == DEFAULT_COLOR_NAME:
+        return None
+    table = BG_ANSI_COLORS if background else FG_ANSI_COLORS
+    return table.get(name)
+
+
+def palette_number(color: str | None) -> int | None:
+    "The number of the palette that a '#ansired' or '#ansi234' colour names."
+    if not color:
+        return None
+    name = color.lstrip("#")
+    number = _NUMBER_OF_A_NAME.get(name)
+    if number is not None:
+        return number
+    return palette_color_number(name)
+
+
+def style_of_sgr_color(parameters: List[int]) -> str | None:
+    """
+    The style word for the colour that "38", "48" or "58" names.
+
+    `sgr_color` reads the parameters and this spells the answer. The
+    reading is arithmetic and the spelling is prompt_toolkit's, which
+    is why they are two functions.
+    """
+    named = sgr_color(parameters)
+    if named is None:
+        return None
+    if named.index is not None:
+        if 0 <= named.index < len(PALETTE_STYLES):
+            return PALETTE_STYLES[named.index]
+        return None
+    return "#{:02x}{:02x}{:02x}".format(*named.rgb)
