@@ -33,6 +33,7 @@ from prompt_toolkit.application.current import set_app
 from prompt_toolkit.application.dummy import DummyApplication
 from prompt_toolkit.layout.mouse_handlers import MouseHandlers
 from prompt_toolkit.layout.screen import Char, Screen, WritePosition
+from prompt_toolkit.styles import Style
 
 from ptterm.terminal import _TerminalControl, _Window
 
@@ -72,11 +73,8 @@ def _a_loop():
     loop.close()
 
 
-def drawn(data: str, lines: int = 8, columns: int = 12):
-    """
-    Put `data` through the widget and read back the rows that a person
-    would see, top to bottom.
-    """
+def rendered(data: str, lines: int = 8, columns: int = 12) -> Screen:
+    "Put `data` through the widget and give back what prompt_toolkit drew."
     control = _TerminalControl(backend=_NoBackend())
     window = _Window(terminal_control=control, content=control, wrap_lines=False)
 
@@ -97,11 +95,74 @@ def drawn(data: str, lines: int = 8, columns: int = 12):
             None,
         )
 
+    return screen
+
+
+def drawn(data: str, lines: int = 8, columns: int = 12):
+    """
+    Put `data` through the widget and read back the rows that a person
+    would see, top to bottom.
+    """
+    screen = rendered(data, lines, columns)
     rows = []
     for y in range(lines):
         row = screen.data_buffer[y]
         rows.append("".join(row[x].char for x in range(columns)).rstrip())
     return rows
+
+
+def reversed_at(data: str, lines: int = 8, columns: int = 12):
+    """
+    Which cells prompt_toolkit draws reversed, as a row of booleans each.
+
+    `drawn` reads the characters. This reads the style of the same
+    cells, and it resolves the style the way a renderer does, so a
+    "reverse" that a later "noreverse" cancels comes back false.
+    """
+    screen = rendered(data, lines, columns)
+    style = Style([])
+    return [
+        [style.get_attrs_for_style_str(screen.data_buffer[y][x].style).reverse
+         for x in range(columns)]
+        for y in range(lines)
+    ]
+
+
+def test_reverse_video_turns_a_cell_that_a_program_wrote():
+    "\"CSI ? 5 h\" is DECSCNM: the whole screen goes the other way."
+    assert reversed_at("\x1b[?5hhi")[0][:2] == [True, True]
+
+
+def test_reverse_video_turns_the_rest_of_the_row_as_well():
+    """
+    The screen is more than the cells a program wrote. A row that ends
+    after two characters is reversed to the right edge of the pane.
+    """
+    assert reversed_at("\x1b[?5hhi")[0] == [True] * 12
+
+
+def test_reverse_video_turns_a_row_that_holds_nothing():
+    "An empty row is part of the screen, so it turns too."
+    assert reversed_at("\x1b[?5hhi")[4] == [True] * 12
+
+
+def test_reverse_video_cancels_a_reverse_that_a_program_set():
+    """
+    DECSCNM xors. A cell that "SGR 7" already reversed goes plain, and
+    the cell beside it goes reversed. libvterm's `64screen_pen` asks
+    this at lines 50 and 51.
+    """
+    assert reversed_at("\x1b[?5ha\x1b[7mb")[0][:2] == [True, False]
+
+
+def test_a_cell_that_a_program_reversed_stays_reversed_without_the_mode():
+    "The cancelling happens only while DECSCNM is on."
+    assert reversed_at("a\x1b[7mb")[0][:2] == [False, True]
+
+
+def test_reverse_video_goes_away_again():
+    '"CSI ? 5 l" puts the screen back.'
+    assert reversed_at("\x1b[?5hhi\x1b[?5l")[0] == [False] * 12
 
 
 #: Twelve lines on a screen of eight, so four scroll away.

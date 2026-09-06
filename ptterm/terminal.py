@@ -162,6 +162,17 @@ class _TerminalControl(UIControl):
 
         cursor_x = cursor_offset(self.process.screen)
 
+        # DECSCNM reverses the screen, and `_Window` paints that over the
+        # whole pane. A cell that a program already reversed with "SGR 7"
+        # turns the other way, so the two cancel out. libvterm calls this
+        # an xor, and it is the same answer.
+        reverse_video = self.process.screen.has_reverse_video
+
+        def cell_style(cell: Char) -> str:
+            if reverse_video and "reverse" in cell.style.split():
+                return cell.style + " noreverse"
+            return cell.style
+
         def get_line(number: int) -> StyleAndTextTuples:
             row = data_buffer[number]
             empty = True
@@ -180,7 +191,7 @@ class _TerminalControl(UIControl):
             else:
                 cells = [row[i] for i in range(max_column + 1)]
                 return [
-                    (cell.style, _visible_char(cell.char)) for cell in cells
+                    (cell_style(cell), _visible_char(cell.char)) for cell in cells
                 ]
 
         if data_buffer:
@@ -316,7 +327,27 @@ class _Window(Window):
 
     def __init__(self, terminal_control: _TerminalControl, **kw) -> None:
         self.terminal_control = terminal_control
+        kw.setdefault("style", self._pane_style)
         super().__init__(**kw)
+
+    def _pane_style(self) -> str:
+        """
+        The style of the whole pane, blank cells included.
+
+        DECSCNM ("CSI ? 5 h") reverses the screen, and the screen is
+        more than the cells a program wrote: an empty row and the space
+        after the last character both turn as well. prompt_toolkit fills
+        the area of a window with the style of that window before it
+        writes the content over it, so this is the one place that
+        reaches every cell of the pane.
+
+        `create_content` takes the reverse off a cell that already
+        carries one, which is the other half. Lillecarl/pymux#95.
+        """
+        screen = self.terminal_control.process.screen
+        if screen is not None and screen.has_reverse_video:
+            return "reverse"
+        return ""
 
     def write_to_screen(self, *a, **kw) -> None:
         # Make sure that the bottom of the terminal is always visible.

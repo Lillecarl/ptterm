@@ -1067,8 +1067,14 @@ Lines 50 and 51 are DECSCNM. libvterm folds the mode into every cell,
 so a cell that was already reverse goes plain. ptterm leaves the cells
 alone, because a rendition belongs to the program that drew it and the
 mode belongs to the screen. That is the same stance as `idx(15)` below.
-The half that is missing is the renderer: `has_reverse_video` has no
-reader, so the mode is held and never drawn (Lillecarl/pymux#95).
+
+The widget draws the mode instead. `_Window` paints "reverse" over the
+whole pane, blank cells included, and `create_content` puts a
+"noreverse" on a cell that "SGR 7" already reversed. The two cancel,
+which is the xor libvterm asks for, and the cell keeps what the program
+put in it. The panel has no vote here: it judges cells, and this is a
+rendering choice. `test_the_widget.py` holds the questions
+(Lillecarl/pymux#95).
 
 **The suite is describing a limit of libvterm, and the panel says so.**
 
