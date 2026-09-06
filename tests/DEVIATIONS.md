@@ -16,8 +16,10 @@ its own and reads the screen back with DECRQCRA, one cell at a time. A
 checksum holds the character and nothing else, so xterm cannot join the
 vote: `verdict()` drops what any judge on the panel misses, and a judge
 that misses everything would blind the panel to every colour and every
-line. `panel.what_xterm_draws` asks it on its own instead, and
-`tests/test_xterm_itself.py` asks it exactly where the panel abstains.
+line. `panel.what_xterm_draws` asks it on its own instead.
+`tests/test_xterm_itself.py` asks it exactly where the panel abstains,
+and `tests/test_corpus_against_the_panel.py` asks it about every
+recording of a real program.
 
 **A tally says more than a comparison.** Where every judge differs from
 ptterm and the judges agree with each other, ptterm is wrong and nobody
@@ -39,7 +41,9 @@ of them without asking a person.
   sequences by hand.
 - `tests/test_corpus_against_kitty.py` and
   `tests/test_corpus_against_the_panel.py` replay what real programs
-  wrote.
+  wrote. The second puts each capture to xterm as well, and xterm
+  draws the same 24 by 80 screen of characters as ptterm for every one
+  of them.
 - `tests/judges` builds the two written in Rust, `tests/judges-c` the
   one that reads libghostty-vt, and `tests/judges-js` the one that
   reads xterm.js. Each is a program that answers one line of JSON with

@@ -10,6 +10,11 @@ Four judges answer here instead of one. A difference from all of them
 is a bug of ptterm; a difference from some of them is a choice, and
 the tally says who is on which side.
 
+xterm answers as well, on its own and not as a judge. It holds only
+where a character landed, and that is most of what a real program
+does: every cursor move, every scroll and every wrap ends as a
+character in a place.
+
 `ptterm-record` makes a capture. A recording belongs to the
 terminal it was made on, because a program asks what the terminal can
 do and draws what the answers allow.
@@ -21,7 +26,14 @@ import pathlib
 import pytest
 
 from kitty_oracle import ptterm_cells, ptterm_cells_in_pieces
-from panel import judges, report, verdict
+from panel import (
+    judges,
+    report,
+    verdict,
+    what_ptterm_draws,
+    what_xterm_draws,
+    xterm_is_here,
+)
 
 CORPUS = pathlib.Path(__file__).parent / "corpus"
 
@@ -58,6 +70,26 @@ def test_no_judge_stands_against_ptterm_alone(name):
                 ),
             )
         )
+
+
+@pytest.mark.skipif(not xterm_is_here(), reason="xterm has no display here")
+@pytest.mark.parametrize("name", captures())
+def test_xterm_draws_the_same_characters(name):
+    """
+    The same capture, put to xterm itself.
+
+    xterm holds no colour and no underline, so it is not on the panel
+    and `verdict()` never sees it. It holds where a character landed,
+    which is what a whole program of a real terminal is mostly about:
+    every cursor move, every scroll, every wrap and every erase shows
+    up as a character in the wrong place.
+
+    A capture is 24 by 80, so this is 1920 queries and 1920 answers per
+    file, and it costs about ten milliseconds each.
+    `tests/xterm_oracle.py` says how it is asked.
+    """
+    data = text_of(name)
+    assert what_xterm_draws(data, 24, 80) == what_ptterm_draws(data, 24, 80)
 
 
 @pytest.mark.parametrize("name", captures())
