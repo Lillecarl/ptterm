@@ -81,6 +81,26 @@ static void put_codepoint(Buffer *buffer, uint32_t codepoint) {
   put(buffer, text);
 }
 
+/* A run of bytes as a JSON string, quotes included. The bytes are UTF-8
+ * and JSON carries UTF-8, so only the three things JSON cannot hold need
+ * an escape: a quote, a backslash and a control byte. */
+static void put_string(Buffer *buffer, const uint8_t *bytes, size_t len) {
+  char text[8];
+  put(buffer, "\"");
+  for (size_t i = 0; i < len; i++) {
+    uint8_t byte = bytes[i];
+    if (byte == '"' || byte == '\\') {
+      snprintf(text, sizeof(text), "\\%c", (char)byte);
+    } else if (byte < 0x20 || byte == 0x7f) {
+      snprintf(text, sizeof(text), "\\u%04x", byte);
+    } else {
+      snprintf(text, sizeof(text), "%c", (char)byte);
+    }
+    put(buffer, text);
+  }
+  put(buffer, "\"");
+}
+
 static void put_color(Buffer *buffer, GhosttyStyleColor color) {
   switch (color.tag) {
     case GHOSTTY_STYLE_COLOR_PALETTE:
@@ -263,11 +283,41 @@ static void write_cell(Buffer *out, const GhosttyGridRef *ref) {
   }
 
   /* The target of an "OSC 8", and what this emulator calls that one
-   * link. libghostty-vt carries neither: `ghostty/vt.h` holds no
-   * hyperlink symbol at all, so the judge says nothing about a link and
-   * `_as_ghostty_sees` drops it from both sides. Ghostty itself keeps
-   * one; the library that it hands out does not report it yet. */
-  put(out, ",null,null");
+   * link.
+   *
+   * libghostty-vt reports the target: `ghostty_grid_ref_hyperlink_uri`
+   * hands it over with the same ask-twice contract as the graphemes.
+   * It reports no name for the link, so the judge writes null there and
+   * `_as_ghostty_sees` drops the name from both sides. Ghostty holds a
+   * link id of its own; the library does not hand it out.
+   *
+   * That is why Ghostty votes on where a link goes and not on which
+   * cells are one link. See Lillecarl/pymux#92. */
+  put(out, ",");
+  bool has_link = false;
+  ghostty_cell_get(cell, GHOSTTY_CELL_DATA_HAS_HYPERLINK, &has_link);
+  if (!has_link) {
+    put(out, "null");
+  } else {
+    uint8_t small_uri[256];
+    uint8_t *uri = small_uri;
+    size_t uri_len = 0;
+    GhosttyResult result =
+        ghostty_grid_ref_hyperlink_uri(ref, small_uri, sizeof(small_uri),
+                                       &uri_len);
+    if (result == GHOSTTY_OUT_OF_SPACE && uri_len > 0) {
+      uri = malloc(uri_len);
+      assert(uri != NULL);
+      result = ghostty_grid_ref_hyperlink_uri(ref, uri, uri_len, &uri_len);
+    }
+    if (result == GHOSTTY_SUCCESS && uri_len > 0) {
+      put_string(out, uri, uri_len);
+    } else {
+      put(out, "null");
+    }
+    if (uri != small_uri) free(uri);
+  }
+  put(out, ",null");
   put(out, "]");
 }
 

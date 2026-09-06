@@ -803,8 +803,15 @@ on 2 lines and 4 columns. Two runs of the same target, with plain text
 between them and no id on either.
 
 ptterm calls that one link, and so do kitty and WezTerm. Alacritty
-calls it two. libvterm, Ghostty and xterm.js hold no link at all and do
-not vote, so the panel is three.
+calls it two. libvterm and xterm.js hold no link at all, so the panel
+is three.
+
+Ghostty holds the link and does not vote here either. libghostty-vt
+hands over the target of a link and not the name that Ghostty gives it,
+and the name is the whole question. Reading Ghostty's name for a link
+out of its target would be us voting for it, so the judge writes no
+name and abstains. Ghostty does vote on where a link goes.
+Lillecarl/pymux#92.
 
 Alacritty mints a name for every link that arrives without an id, out
 of a counter of the process, so two openings are never one link. kitty

@@ -8,11 +8,14 @@ through it, and `PTTERM_GHOSTTY` names that program.
 Ghostty holds the rendition of a cell whole: the shape of an underline
 and the colour of the line included.
 
-**It cannot answer about a hyperlink.** Ghostty itself keeps one, but
-the library it hands out does not report it: `ghostty/vt.h` holds no
-hyperlink symbol at all. So this judge says nothing about an "OSC 8",
-and `_as_ghostty_sees` drops the link from both sides before the
-comparison.
+**It answers where a link goes, and not which cells are one link.**
+`ghostty_grid_ref_hyperlink_uri` hands over the target of an "OSC 8".
+Nothing hands over the name that Ghostty gives that one link, so
+`_as_ghostty_sees` drops the name from both sides and keeps the target.
+
+Naming a link after its target would not fix that. It would decide, for
+Ghostty, that two openings of one address are one link, and that is the
+question the panel is being asked. See Lillecarl/pymux#92.
 
 A judge that cannot hold something has to say so. One that answers
 anyway is worse than one that abstains, because the panel counts its
@@ -40,6 +43,6 @@ def ghostty_cells(data: str, lines: int, columns: int) -> List[List[Cell]]:
 
 def _as_ghostty_sees(cell: Cell) -> Cell:
     "The part of a cell that libghostty-vt reports."
-    if cell.hyperlink is None and cell.hyperlink_id is None:
+    if cell.hyperlink_id is None:
         return cell
-    return cell._replace(hyperlink=None, hyperlink_id=None)
+    return cell._replace(hyperlink_id=None)

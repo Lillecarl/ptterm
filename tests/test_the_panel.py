@@ -789,10 +789,16 @@ def test_the_alternate_screen_gives_back_what_it_saved():
 # ----------------------------------------------------------------------
 # Hyperlinks, which "OSC 8" carries.
 #
-# Three of the six hold none. libvterm names no hyperlink in `vterm.h`,
-# libghostty-vt names none in `ghostty/vt.h`, and the buffer API of
-# xterm.js reports none. Those three abstain from every question here,
-# so the panel for a link is kitty, WezTerm and Alacritty.
+# A link asks two questions, and the judges do not split the same way on
+# both. Where does it go, and which cells are one link?
+#
+# Two of the six answer neither. libvterm names no hyperlink in
+# `vterm.h`, and the buffer API of xterm.js reports none.
+#
+# Ghostty answers the first alone. `ghostty_grid_ref_hyperlink_uri`
+# hands over the target, and nothing hands over the name that Ghostty
+# gives the one link. So the panel for a target is four and the panel
+# for a shape is three. Lillecarl/pymux#92.
 
 #: A link opens with its parameters and its target, and closes with
 #: neither.
@@ -802,11 +808,21 @@ CLOSE_LINK = "\x1b]8;;\x1b\\"
 A_TARGET = "https://a"
 ANOTHER_TARGET = "https://b"
 
-#: Every judge that can hold a link, and ptterm.
+#: Every judge that can say where a link goes, and ptterm.
+TARGET_HOLDERS = ("alacritty", "ghostty", "kitty", "ptterm", "wezterm")
+
+#: Every judge that can say which cells are one link, and ptterm.
 LINK_HOLDERS = ("alacritty", "kitty", "ptterm", "wezterm")
 
-#: Every judge that cannot.
-LINK_BLIND = ["ghostty", "libvterm", "xterm"]
+#: Every judge that holds no link at all.
+LINK_BLIND = ["libvterm", "xterm"]
+
+#: Every judge that the projection silences where a link is drawn, in
+#: name order. It is the two above and Ghostty, whose name for a link
+#: `_as_ghostty_sees` drops. Ghostty still votes on the target: a
+#: difference there survives the projection and `abstained()` would not
+#: name it.
+LINK_ABSTAINS = ["ghostty", "libvterm", "xterm"]
 
 
 def link_shape(data, lines=2, columns=4):
@@ -837,17 +853,19 @@ def link_targets(data, lines=2, columns=4):
     return found
 
 
-def test_three_judges_hold_no_link_at_all():
+def test_two_judges_hold_no_link_at_all():
     """
-    The panel for a link is three judges, not six.
+    The panel for a link is four judges, not six.
 
-    Ghostty and xterm.js both keep a link in the emulator. Neither
-    reports one through what the judge can reach: `ghostty/vt.h` names
-    no hyperlink symbol, and `IBufferCell` of xterm.js has no accessor
-    for one. libvterm keeps none at all.
+    xterm.js keeps a link in the emulator and reports none: `IBufferCell`
+    has no accessor for one. libvterm keeps none at all.
+
+    Ghostty holds no name for a link, so the projection silences it
+    here too. It is not blind: a wrong target would still reach the
+    comparison, and the test below reads the target it gives.
     """
     data = OPEN_LINK % ("id=1", A_TARGET) + "ab" + CLOSE_LINK
-    assert cannot_see(data, lines=2, columns=4) == LINK_BLIND
+    assert cannot_see(data, lines=2, columns=4) == LINK_ABSTAINS
     assert verdict(data, lines=2, columns=4) == "agree"
 
 
@@ -872,7 +890,7 @@ def test_every_judge_that_holds_a_link_holds_its_target():
     "The target is the text a program wrote, so it compares as it is."
     data = OPEN_LINK % ("id=1", A_TARGET) + "ab" + CLOSE_LINK
     held = link_targets(data)
-    for name in LINK_HOLDERS:
+    for name in TARGET_HOLDERS:
         assert held[name] == A_TARGET, name
     for name in LINK_BLIND:
         assert held[name] is None, name
@@ -973,5 +991,5 @@ def test_alacritty_alone_splits_a_link_that_carries_no_id():
     against, with_us = sides(data, lines=2, columns=4)
     assert against == ["alacritty"]
     assert with_us == ["kitty", "wezterm"]
-    assert cannot_see(data, lines=2, columns=4) == LINK_BLIND
+    assert cannot_see(data, lines=2, columns=4) == LINK_ABSTAINS
     assert verdict(data, lines=2, columns=4) == "split"
