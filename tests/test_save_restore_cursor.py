@@ -161,6 +161,31 @@ def test_the_mode_that_saves_the_cursor_puts_it_home():
     assert (screen.pt_cursor_position.y, screen.pt_cursor_position.x) == (1, 2)
 
 
+@pytest.mark.parametrize("save, restore", PAIRS)
+def test_a_reset_forgets_the_saved_cursor(save, restore):
+    """
+    RIS ("ESC c") is the power-up state, and a terminal that has just
+    been turned on remembers no cursor. So a restore after it goes
+    home.
+
+    Alacritty, Ghostty, kitty and xterm.js agree. libvterm and WezTerm
+    keep the save, and they keep it through DECSTR as well, so neither
+    of them draws the line where ptterm drew it: DECSTR emptied the
+    list and RIS did not, which is the wrong way round.
+    """
+    screen, stream = _screen()
+    stream.feed("\x1b[3;5H" + save + "\x1bc" + restore)
+    assert _position(screen) == (0, 0)
+
+
+@pytest.mark.parametrize("save, restore", PAIRS)
+def test_a_soft_reset_forgets_it_too(save, restore):
+    "DECSTR is the weaker reset, and it has always emptied the list."
+    screen, stream = _screen()
+    stream.feed("\x1b[3;5H" + save + "\x1b[!p" + restore)
+    assert _position(screen) == (0, 0)
+
+
 def test_the_alternate_screen_keeps_what_it_saved():
     """
     A save made on the alternate screen is still there the next time a

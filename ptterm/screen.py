@@ -1067,6 +1067,21 @@ class BetterScreen:
 
         self._reset_screen()
 
+        # What "ESC 7" saved goes with everything else. RIS is the
+        # power-up state, and a terminal that has just been turned on
+        # remembers no cursor.
+        #
+        # DECSTR already emptied this, and RIS did not, which is the
+        # wrong way round: the soft reset is the weaker of the two.
+        # Alacritty, Ghostty, kitty and xterm.js all forget the save on
+        # RIS; libvterm and WezTerm keep it, and they keep it on DECSTR
+        # as well, so neither of them is drawing the line where ptterm
+        # drew it.
+        #
+        # A list of its own, because a save writes into the list that is
+        # there rather than making a new one.
+        self.savepoints: List[_Savepoint] = []
+
         self.title = ""
         self.icon_name = ""
 
