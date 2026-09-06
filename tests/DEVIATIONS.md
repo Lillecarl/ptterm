@@ -10,6 +10,15 @@ written by other people, and each comes from a different line:
 - xterm.js, in TypeScript, the one VS Code draws in, through
   `tests/judges-js`.
 
+**xterm itself has no seat, and it answers anyway.** It is a program
+and not a library, so `tests/xterm_oracle.py` runs one on a display of
+its own and reads the screen back with DECRQCRA, one cell at a time. A
+checksum holds the character and nothing else, so xterm cannot join the
+vote: `verdict()` drops what any judge on the panel misses, and a judge
+that misses everything would blind the panel to every colour and every
+line. `panel.what_xterm_draws` asks it on its own instead, and
+`tests/test_xterm_itself.py` asks it exactly where the panel abstains.
+
 **A tally says more than a comparison.** Where every judge differs from
 ptterm and the judges agree with each other, ptterm is wrong and nobody
 has to decide anything. Where the judges disagree, the difference is a
@@ -187,21 +196,28 @@ They also found one. What looked like a quirk of Alacritty, in CBT and
 CHT, is a real difference: Ghostty and xterm.js take that side too, and
 the panel is three against three. It is number 9, and it is open.
 
-| # | What | With ptterm | Against ptterm |
-| --- | --- | --- | --- |
-| 1 | A tab in the last column of the last row | Ghostty, libvterm, WezTerm, xterm.js | Alacritty, kitty |
-| 2 | `?1047l` clears the alternate screen | Ghostty, libvterm, WezTerm, xterm.js | Alacritty, kitty |
-| 3 | A sequence with too many parameters | Alacritty, libvterm, xterm.js | Ghostty, kitty, WezTerm |
-| 4 | DECALN homes the cursor and clears the margins | Ghostty, kitty, WezTerm, xterm.js | Alacritty, libvterm |
-| 5 | A backspace in the first column | every other judge | kitty |
-| 6 | A count of zero for SU or SD | Alacritty, libvterm, WezTerm, xterm.js | Ghostty, kitty |
-| 7 | The background of the line a scroll brings in | Alacritty, libvterm, WezTerm, xterm.js | Ghostty, kitty |
-| 8 | A combining mark on a cell an erase left | kitty, WezTerm, xterm.js | Alacritty, Ghostty, libvterm |
-| 9 | CBT and CHT over the tab stops | kitty, libvterm, WezTerm | Alacritty, Ghostty, xterm.js |
-| 20 | The blank of the line drawing set | kitty | Alacritty, Ghostty, libvterm, WezTerm, xterm.js |
-| 21 | Reverse video on a cell an erase leaves | kitty, WezTerm | Alacritty, Ghostty, libvterm, xterm.js |
-| 22 | A saved cursor and the wait to wrap | kitty, libvterm, xterm.js | Alacritty, Ghostty, WezTerm |
-| 23 | Two runs of one target with no id | kitty, WezTerm | Alacritty |
+**xterm answers most of these, and it is a judge of characters only.**
+It votes where the difference is which character lands where, and the
+last column says what it said. Two go against ptterm: numbers 9 and 22
+are four against three now, where they were three against three.
+`tests/test_xterm_itself.py` holds each answer, and neither is decided
+here.
+
+| # | What | With ptterm | Against ptterm | xterm |
+| --- | --- | --- | --- | --- |
+| 1 | A tab in the last column of the last row | Ghostty, libvterm, WezTerm, xterm.js | Alacritty, kitty | with ptterm |
+| 2 | `?1047l` clears the alternate screen | Ghostty, libvterm, WezTerm, xterm.js | Alacritty, kitty | with ptterm |
+| 3 | A sequence with too many parameters | Alacritty, libvterm, xterm.js | Ghostty, kitty, WezTerm | with ptterm |
+| 4 | DECALN homes the cursor and clears the margins | Ghostty, kitty, WezTerm, xterm.js | Alacritty, libvterm | with ptterm |
+| 5 | A backspace in the first column | every other judge | kitty | with ptterm |
+| 6 | A count of zero for SU or SD | Alacritty, libvterm, WezTerm, xterm.js | Ghostty, kitty | with ptterm |
+| 7 | The background of the line a scroll brings in | Alacritty, libvterm, WezTerm, xterm.js | Ghostty, kitty | holds no colour |
+| 8 | A combining mark on a cell an erase left | kitty, WezTerm, xterm.js | Alacritty, Ghostty, libvterm | holds no mark |
+| 9 | CBT and CHT over the tab stops | kitty, libvterm, WezTerm | Alacritty, Ghostty, xterm.js | against ptterm |
+| 20 | The blank of the line drawing set | kitty | Alacritty, Ghostty, libvterm, WezTerm, xterm.js | a fourth answer |
+| 21 | Reverse video on a cell an erase leaves | kitty, WezTerm | Alacritty, Ghostty, libvterm, xterm.js | holds no colour |
+| 22 | A saved cursor and the wait to wrap | kitty, libvterm, xterm.js | Alacritty, Ghostty, WezTerm | against ptterm |
+| 23 | Two runs of one target with no id | kitty, WezTerm | Alacritty | holds no link |
 
 Number 20 is the newest, and it is open. The five judges against ptterm
 do not agree with each other either: one draws a space and four draw
@@ -259,8 +275,11 @@ ptterm reads the parameters the command takes and ignores the rest, and
 so do Alacritty, libvterm and xterm.js. kitty, WezTerm and Ghostty drop
 the sequence whole. Three against three.
 
-xterm reads the ones it needs. Dropping the sequence loses a move that
-the program meant. pyte raised a TypeError here and took the whole
+xterm reads the ones it needs, and it says so itself now:
+`test_xterm_itself.py::test_xterm_reads_the_parameters_it_needs_out_of_too_many`
+draws the same screen ptterm draws, so the tally is four against three
+and ptterm is on the larger side. Dropping the sequence loses a move
+that the program meant. pyte raised a TypeError here and took the whole
 stream with it, so the forgiving side is also the safe one.
 
 **As a setting:** possible, at the one place that counts the
@@ -361,6 +380,15 @@ Alacritty while the panel was four, and it sat in the list of judges
 standing apart. Two more judges took that side, so it is a difference
 that stands. Nobody has ruled on it.
 
+**xterm is on the other side, and it says why.** The "y" lands in the
+last column, which leaves the cursor waiting to wrap. xterm draws the
+"z" at the start of the next row: the wait outlives CBT there, and the
+cursor never moves back a tab stop at all. ptterm moves it to column 16
+and draws the "z" there.
+`test_xterm_itself.py::test_xterm_wraps_rather_than_moving_back_over_a_tab_stop`
+holds both answers. So the tally is four against three, and ptterm is
+on the smaller side. Lillecarl/pymux#106 holds the question.
+
 **As a setting:** too early. Work out which reading is right first.
 ncurses uses CHT to reach a column without drawing the blanks in
 between, so a program does depend on this.
@@ -381,6 +409,11 @@ margins draw what ptterm draws, cell for cell, on scrolling, on
 inserting and deleting lines and characters, and on a line feed at the
 bottom margin. xterm carries them as well, and esctest2 tests them
 heavily: 73 of its tests set a margin.
+
+**xterm says so itself now.** It draws what ptterm draws on all seven
+programs, cell for cell.
+`test_xterm_itself.py::test_the_margins_draw_what_xterm_draws` is the
+measurement, and it stands beside the word of the suite.
 
 **As a setting:** no. A program asks for the margins, and a program
 that does not ask never sees them.
@@ -405,6 +438,12 @@ side it is on is xterm and DEC STD 070, and because every judge that
 differs differs by doing nothing at all. A program that sends "ESC 6"
 means the column move, and a terminal that drops it draws the wrong
 screen quietly.
+
+**xterm says so itself now.** It draws what ptterm draws on all four
+programs, DECBI and DECFI included.
+`test_xterm_itself.py::test_the_columns_of_a_region_draw_what_xterm_draws`
+is the measurement, so the widest gap between ptterm and the panel is
+no longer the word of a suite alone.
 
 **As a setting:** no, for the same reason as the margins.
 
@@ -431,6 +470,11 @@ without the command does very well. `test_rectangles.py` follows the
 suite, and
 `test_the_panel.py` writes down the abstention so that a judge which
 grows the feature makes a test fail.
+
+**xterm says so itself now.** It draws what ptterm draws on all four
+commands, on the screen that `DECCRATests` draws.
+`test_xterm_itself.py::test_a_rectangle_command_draws_what_xterm_draws`
+is the measurement.
 
 One rule inside the four is worth naming, because it looks like an
 inconsistency and is not. **DECSERA reads only the mark of DECSCA.**
@@ -735,6 +779,15 @@ Three answers is not a rule, so ptterm keeps the one the table names.
 It sits with kitty, so the standing rule above sends this to the user
 rather than settling it.
 
+**xterm gives a fourth answer, and it is none of the three.** It draws
+nothing at all: `xtermCharSetDec` in `charsets.c` maps position 0x5F to
+0, and a cell of 0 never takes the `CHARDRAWN` mark. A program that
+reads the cell back with DECRQCRA gets a space, because the checksum
+counts an undrawn cell as one; the same query with `csDRAWN` off gets
+nothing.
+`test_xterm_itself.py::test_what_xterm_draws_for_the_blank_of_the_line_drawing_set`
+holds it. Four answers is still no rule.
+
 This is the whole of the `saved_cursor` difference that
 `checks.pymux-alacritty` reports: one cell, the underscore of a shell
 prompt drawn in the line drawing set.
@@ -784,14 +837,18 @@ savepoint and nothing can bring it back.
 
 | case | keeps the wait | loses it |
 | --- | --- | --- |
-| "ESC 7" and "ESC 8" | Alacritty, Ghostty, WezTerm | kitty, libvterm, xterm.js, ptterm |
-| "?1049h" and "?1049l" | Alacritty, Ghostty, WezTerm | kitty, libvterm, xterm.js, ptterm |
-| a save and a restore with no move between | Alacritty, Ghostty, libvterm, WezTerm | kitty, xterm.js, ptterm |
+| "ESC 7" and "ESC 8" | Alacritty, Ghostty, WezTerm, xterm | kitty, libvterm, xterm.js, ptterm |
+| "?1049h" and "?1049l" | Alacritty, Ghostty, WezTerm, xterm | kitty, libvterm, xterm.js, ptterm |
+| a save and a restore with no move between | Alacritty, Ghostty, libvterm, WezTerm, xterm | kitty, xterm.js, ptterm |
 
-Three against three on the first two, so ptterm keeps what it does.
+Four against three on the first two, and five against two on the third.
+ptterm keeps what it does for now, because it is not alone and a tally
+with ptterm on it goes to the user.
+`test_xterm_itself.py::test_xterm_brings_the_wait_to_wrap_back_through_a_restore`
+holds what xterm answers.
 
 The third row is the one to read before deciding. With no move in
-between, a save and a restore leave the screen alone in four emulators,
+between, a save and a restore leave the screen alone in five emulators,
 and libvterm joins them there because its restore does nothing rather
 than folding the column. Only kitty and xterm.js change the screen the
 way ptterm does. A pair that should be a no-op and is not is hard to

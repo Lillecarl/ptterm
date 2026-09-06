@@ -2,16 +2,16 @@
 Which group a test file belongs to, and why the groups exist.
 
 The suite is one thing to a reader and three things to a build. About
-forty of these files need nothing but python. Eighteen need the judge
+forty of these files need nothing but python. Nineteen need the judge
 panel, which means kitty, libvterm, a Rust build of two more emulators,
-a C build against libghostty and a node tarball. One needs an X server
-and the real Xlib.
+a C build against libghostty, a node tarball, and an X server for
+xterm itself. One needs an X server and the real Xlib.
 
 Run as one derivation, a change to any test pays for all of it. So
 `nix/checks.nix` runs three, and `PTTERM_GROUP` says which one this is:
 
     unit    nothing but python, and ncurses for the terminfo entry
-    panel   the six emulators that ptterm is judged against
+    panel   the six emulators that ptterm is judged against, and xterm
     xcms    Xvfb and libX11, for the colour specs
 
 **A file is not listed anywhere.** A list would be forgotten the first
@@ -38,6 +38,7 @@ PANEL_ORACLES = (
     "rust_oracle",
     "ghostty_oracle",
     "xtermjs_oracle",
+    "xterm_oracle",
 )
 
 #: The module that reads a colour with the real Xlib.

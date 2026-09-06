@@ -9,7 +9,8 @@ among emulators that other people wrote:
 - libvterm, in C, the one that Vim and Neovim carry.
 - Ghostty, in Zig, through libghostty-vt and `tests/judges-c`.
 - xterm.js, in TypeScript, the one VS Code draws in, through
-  `tests/judges-js`.
+  `tests/judges-js`. It is named `xtermjs` here, because xterm itself
+  is a different terminal and it answers at the end of this file.
 
 Each comes from a different line, which is the point. A difference
 from one judge is a question; a difference from all of them is an
@@ -42,7 +43,16 @@ from typing import Callable, Dict, List, NamedTuple, Optional, Tuple
 
 from kitty_oracle import Cell, as_seen, as_text, kitty_is_available, ptterm_cells
 
-__all__ = ["Judge", "judges", "verdict", "report", "abstained"]
+__all__ = [
+    "Judge",
+    "judges",
+    "verdict",
+    "report",
+    "abstained",
+    "xterm_is_here",
+    "what_xterm_draws",
+    "what_ptterm_draws",
+]
 
 #: A size to take after the data, as (lines, columns), or None.
 Resize = Optional[Tuple[int, int]]
@@ -287,3 +297,51 @@ def verdict(
         if project(answers[judge.name].screen) != first:
             return "split"
     return "ptterm-wrong"
+
+
+# ----------------------------------------------------------------------
+# xterm itself, which has no seat.
+#
+# The six judges above hold a whole cell, so their answers compare
+# field by field and `verdict()` can take a vote. xterm answers a
+# checksum, which holds the character and nothing else.
+#
+# A judge like that cannot join the vote. `verdict()` drops what any
+# judge on the panel misses, so one that misses everything would blind
+# the panel to every colour and every line, and a tally of six would
+# become a tally about characters.
+#
+# So xterm is asked on its own, and only about what it can answer.
+# Where the panel abstains and `DEVIATIONS.md` falls back to "what
+# xterm does", this is what turns that sentence into a measurement.
+# `xterm_oracle.py` says how the screen is read. Lillecarl/pymux#10.
+
+
+def xterm_is_here() -> bool:
+    "True when this machine can run xterm on a display of its own."
+    try:
+        from xterm_oracle import xterm_is_available
+    except ImportError:
+        return False
+    return xterm_is_available()
+
+
+def _as_text(rows: List[List[Cell]]) -> List[str]:
+    "One string per row, which is all that a character judge answers."
+    return ["".join(cell.char or " " for cell in row) for row in rows]
+
+
+def what_xterm_draws(
+    data: str, lines: int = 6, columns: int = 20, resize: Resize = None
+) -> List[str]:
+    "The screen of xterm itself, one string per row."
+    from xterm_oracle import xterm_cells
+
+    return _as_text(xterm_cells(data, lines, columns, resize))
+
+
+def what_ptterm_draws(
+    data: str, lines: int = 6, columns: int = 20, resize: Resize = None
+) -> List[str]:
+    "The screen of ptterm, read the way xterm can be read."
+    return _as_text(ptterm_cells(data, lines, columns, resize))

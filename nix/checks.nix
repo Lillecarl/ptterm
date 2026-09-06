@@ -23,6 +23,9 @@
   libx11,
   perl,
   xorg-server,
+  xterm,
+  makeFontsConf,
+  dejavu_fonts,
   package,
   testSources,
   judges,
@@ -55,6 +58,27 @@ let
     export PTTERM_JUDGES=${judges.rust}/bin/ptterm-judges
     export PTTERM_GHOSTTY=${judges.ghostty}/bin/ghostty-judge
     export PTTERM_XTERMJS=${judges.xtermjs}/bin/xtermjs-judge
+    export PTTERM_XTERM=${xterm}/bin/xterm
+  '';
+
+  # xterm draws with the fonts that fontconfig finds, and a build sandbox
+  # has no `/etc/fonts` at all. Without this it dies at startup.
+  fontsConf = makeFontsConf { fontDirectories = [ dejavu_fonts ]; };
+
+  # A display server of its own, with nothing on it.
+  #
+  # `-displayfd` makes the server say which display it took, once it is
+  # ready to answer. Sleeping for a while instead is a race.
+  #
+  # The screen is large enough for an xterm of eighty columns and more.
+  # A window that does not fit the screen is a window that xterm will
+  # not take, and the judge would read the wrong size back.
+  xvfb = ''
+    Xvfb -displayfd 3 -screen 0 1280x1024x24 3> display.txt \
+      > xvfb.log 2>&1 &
+    trap 'kill %1' EXIT
+    while [ ! -s display.txt ]; do sleep 0.1; done
+    export DISPLAY=":$(cat display.txt)"
   '';
 
   # The judge for a colour spec: the real Xlib. `ptterm/xcms.py` is a
@@ -64,17 +88,9 @@ let
   # Xcms needs a display, because it reads the screen description from
   # the root window. A bare Xvfb carries none, so Xlib uses its built-in
   # description, which is the one xterm uses on such a screen too.
-  #
-  # `-displayfd` makes the server say which display it took, once it is
-  # ready to answer. Sleeping for a while instead is a race.
   display = ''
     export PTTERM_LIBX11=${libx11}/lib/libX11.so
-    Xvfb -displayfd 3 -screen 0 640x480x24 3> display.txt \
-      > xvfb.log 2>&1 &
-    trap 'kill %1' EXIT
-    while [ ! -s display.txt ]; do sleep 0.1; done
-    export DISPLAY=":$(cat display.txt)"
-  '';
+  '' + xvfb;
 
   # What pytest runs, for instance
   # `PTTERM_TESTS=tests/test_left_right_margins.py nix build --file . checks.ptterm-unit`.
@@ -130,6 +146,7 @@ let
     echo '{"data":"x","lines":1,"columns":1}' | "$PTTERM_JUDGES" > /dev/null
     echo '{"data":"x","lines":1,"columns":1}' | "$PTTERM_GHOSTTY" > /dev/null
     echo '{"data":"x","lines":1,"columns":1}' | "$PTTERM_XTERMJS" > /dev/null
+    python -c "import sys; sys.path.insert(0, 'tests'); import xterm_oracle; assert xterm_oracle.xterm_cells('x', 1, 1)[0][0].char == 'x'"
   '';
   runPytest = "python -m pytest $selection -q -p no:cacheprovider";
 
@@ -175,9 +192,18 @@ in
   # what the six judges are built for.
   panel = suite {
     name = "ptterm-panel";
-    inputs = [ pythonWithTests ];
+    inputs = [
+      pythonWithTests
+      # xterm itself is the seventh judge, and it is a program and not
+      # a library: it needs a display to draw on and a font to draw
+      # with. `tests/xterm_oracle.py` says how it is asked.
+      xorg-server
+      xterm
+    ];
     env = { inherit selection; };
-    setup = prepare + oracles + everyJudgeAnswers + ''
+    setup = prepare + oracles + xvfb + ''
+      export FONTCONFIG_FILE=${fontsConf}
+    '' + everyJudgeAnswers + ''
       export PTTERM_GROUP=panel
     '';
   } runPytest;
