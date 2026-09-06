@@ -54,6 +54,11 @@ def style_word(color: SgrColor) -> str:
     back out, so the terminal of the user paints it from its own theme.
     A colour that a program named itself becomes "#rrggbb", because no
     theme has an opinion about that one.
+
+    The number has to be one the palette holds. `sgr_color` is the only
+    thing that makes one and it refuses the rest, so a number that is
+    not there is a fault in this repository and not a program's doing.
+    prompt_toolkit reads "#ansi256" as a style class it cannot find.
     """
     if color.rgb is not None:
         return "#%02x%02x%02x" % color.rgb

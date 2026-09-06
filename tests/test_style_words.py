@@ -12,7 +12,7 @@ a failure says which half is wrong.
 """
 import pytest
 
-from ptterm.colors import DEFAULT_COLOR, Color, SgrColor
+from ptterm.colors import DEFAULT_COLOR, PALETTE, Color, SgrColor
 from ptterm.style import style_word
 
 
@@ -53,7 +53,14 @@ def test_the_default_colour_has_a_word_of_its_own():
 
 
 def test_every_word_opens_with_a_hash():
-    "It tells prompt_toolkit to take the colour and not to look it up."
+    """
+    It tells prompt_toolkit to take the colour and not to look it up.
+
+    The range is the palette, and it stops there on purpose: `sgr_color`
+    is the only thing that makes a number, and it refuses one the
+    palette does not hold. A number above 255 would spell "#ansi256",
+    which prompt_toolkit reads as a style class it cannot find.
+    """
     colors = [DEFAULT_COLOR, SgrColor(rgb=Color(1, 2, 3))]
-    colors += [SgrColor(index=number) for number in range(256)]
+    colors += [SgrColor(index=number) for number in range(len(PALETTE))]
     assert all(style_word(color).startswith("#") for color in colors)
