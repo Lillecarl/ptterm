@@ -28,7 +28,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-def sides(data, lines=8, columns=24, blank_style=True):
+def sides(data, lines=8, columns=24, blank_style=True, resize=None):
     """
     The judges that differ from ptterm, and the ones that draw what it
     draws.
@@ -37,9 +37,23 @@ def sides(data, lines=8, columns=24, blank_style=True):
     It has no opinion, and counting it as one that agrees would say the
     panel answered a question that it never asked. `cannot_see` names
     those.
+
+    `resize` is a size to take after the data, as (lines, columns). The
+    screens are then read at that size, and what they hold is what each
+    reflow made of the rows before.
     """
-    answers = report(data, lines=lines, columns=columns, blank_style=blank_style)
-    blind = set(cannot_see(data, lines=lines, columns=columns, blank_style=blank_style))
+    answers = report(
+        data, lines=lines, columns=columns, blank_style=blank_style, resize=resize
+    )
+    blind = set(
+        cannot_see(
+            data,
+            lines=lines,
+            columns=columns,
+            blank_style=blank_style,
+            resize=resize,
+        )
+    )
     against = sorted(name for name, found in answers.items() if found)
     with_us = sorted(
         name for name, found in answers.items() if not found and name not in blind
@@ -47,9 +61,15 @@ def sides(data, lines=8, columns=24, blank_style=True):
     return against, with_us
 
 
-def cannot_see(data, lines=8, columns=24, blank_style=True):
+def cannot_see(data, lines=8, columns=24, blank_style=True, resize=None):
     "The judges that hold nothing that the difference is about."
-    return abstained(data, lines=lines, columns=columns, blank_style=blank_style)
+    return abstained(
+        data,
+        lines=lines,
+        columns=columns,
+        blank_style=blank_style,
+        resize=resize,
+    )
 
 
 def test_the_panel_is_whole():
@@ -747,12 +767,24 @@ def test_what_a_delete_leaves_at_the_right_edge():
         assert not reversed_cells[name][0][7].reverse, name
 
 
-def _cells(data, lines=3, columns=8):
+def _cells(data, lines=3, columns=8, resize=None):
     "Every judge's whole screen, and ptterm's."
-    found = {"ptterm": ptterm_cells(data, lines, columns)}
+    found = {"ptterm": ptterm_cells(data, lines, columns, resize)}
     for judge in judges():
-        found[judge.name] = judge.cells(data, lines, columns)
+        found[judge.name] = judge.cells(data, lines, columns, resize)
     return found
+
+
+def rows_of(data, lines, columns, resize):
+    "What each judge holds after a resize, as one string a row."
+
+    def text(rows):
+        return ["".join(cell.char or " " for cell in row).rstrip() for row in rows]
+
+    return {
+        name: text(rows)
+        for name, rows in _cells(data, lines, columns, resize).items()
+    }
 
 
 def test_what_the_line_drawing_set_draws_for_h():
@@ -1042,3 +1074,126 @@ def test_two_judges_split_a_link_that_carries_no_id():
     assert with_us == ["kitty", "wezterm"]
     assert cannot_see(data, lines=2, columns=4) == LINK_ABSTAINS
     assert verdict(data, lines=2, columns=4) == "split"
+
+
+# ----------------------------------------------------------------------
+# A reflow: what a screen holds after it changes width.
+#
+# The panel could not ask this until Lillecarl/pymux#64. It gave every
+# judge bytes and one size, so a reflow had no vote and two findings hit
+# that wall. `resize` is the size to take after the data, and every
+# judge acts on it.
+#
+# **libvterm cannot answer any of these.** A scrollback lives in
+# whoever embeds libvterm, behind `sb_pushline` and `sb_popline`, and
+# `vterm_oracle.py` sets neither. Without them `vterm_set_size` has
+# nowhere to put a row it drops and nothing to pull a row back from, so
+# it leaves the screen as it was. Lillecarl/pymux#104. Its own suite
+# runs it with those callbacks, and the expectations in
+# `69screen_reflow.test` are what libvterm really does.
+
+#: What libvterm answers to every reflow here: the screen it already
+#: had. It is not a vote.
+LIBVTERM_CANNOT_REFLOW = ["libvterm"]
+
+
+def test_widening_joins_a_row_that_was_wrapped():
+    """
+    Five judges join a wrapped row back together, and so does ptterm.
+
+    Ten characters on a screen four wide take three rows. At ten wide
+    they take one, and the two rows below it are blank.
+    """
+    found = rows_of("abcdefghij\r\n", 4, 4, (4, 10))
+    for name in ("ptterm", "alacritty", "ghostty", "kitty", "wezterm", "xterm"):
+        assert found[name] == ["abcdefghij", "", "", ""], name
+
+
+def test_narrowing_splits_a_row_that_no_longer_fits():
+    """
+    Four judges split the row and keep every character in view, and so
+    does ptterm.
+
+    **Alacritty keeps the text and moves the viewport.** The rows it
+    made go into the scrollback and the screen shows the last of them,
+    so the cells that a reader sees are not the cells the others show.
+    That is where the cursor is, and Alacritty puts the cursor row
+    first. It is one judge against four, so ptterm follows the four.
+    """
+    found = rows_of("abcdefghij\r\n", 4, 10, (4, 4))
+    for name in ("ptterm", "ghostty", "kitty", "wezterm", "xterm"):
+        assert found[name] == ["abcd", "efgh", "ij", ""], name
+    assert found["alacritty"] == ["ij", "", "", ""]
+
+
+def test_xterm_js_leaves_the_row_the_cursor_sits_on():
+    """
+    xterm.js reflows every row but the one the cursor is on.
+
+    `reflowCursorLine` is an option of xterm.js and it is off by
+    default, so this is what a reader of VS Code sees. The two tests
+    above move the cursor off the row with a "\\r\\n" first, and there
+    xterm.js reflows like everybody else.
+
+    **Narrowing on that row loses the text.** Ten characters on a
+    screen that becomes four wide come back as four: the rest is not in
+    the scrollback, it is gone. Five judges keep it.
+
+    The panel is not being asked to settle anything here. ptterm
+    reflows the cursor row, and so do five of the six.
+    """
+    on_the_cursor = rows_of("abcdefghij", 4, 10, (4, 4))
+    assert on_the_cursor["xterm"] == ["abcd", "", "", ""]
+    for name in ("ptterm", "ghostty", "kitty", "wezterm"):
+        assert on_the_cursor[name] == ["abcd", "efgh", "ij", ""], name
+
+    widened = rows_of("abcdefghij", 4, 4, (4, 10))
+    assert widened["xterm"] == ["abcd", "efgh", "ij", ""]
+    for name in ("ptterm", "alacritty", "ghostty", "kitty", "wezterm"):
+        assert widened[name] == ["abcdefghij", "", "", ""], name
+
+
+def test_where_a_shell_prompt_lands_when_a_window_gets_wider():
+    """
+    **This is the case Lillecarl/pymux#57 asked about, and the panel
+    answers it: ptterm is right.**
+
+    It is libvterm's own `69screen_reflow.test`, "Shell wrapped prompt
+    behaviour". Five rows ten wide hold two prompts, and the second
+    "PROMPT GOES HERE" needs a continuation row. At sixteen columns it
+    stops needing one, so the content is a row shorter than the screen
+    that held it, and the freed row has to come from somewhere.
+
+    ptterm anchors the top and pulls a row down from the history.
+    Alacritty, Ghostty, WezTerm and xterm.js all land in the same place.
+    Four judges and ptterm.
+
+    kitty leaves the freed row blank at the bottom instead, so the first
+    prompt never comes back. libvterm's suite expects a third answer:
+    the bottom stays where it is and nothing is pulled down, with the
+    cursor at 3,2. Our reader for libvterm cannot show either, because
+    it gives libvterm no scrollback.
+
+    So it is four with ptterm and two against, and the two do not agree
+    with each other. The seven assertions in `vterm-failures.txt` stand
+    as a difference and not as a fault.
+    """
+    prompt = "PROMPT GOES HERE\r\n> \r\n\r\nPROMPT GOES HERE\r\n> "
+    found = rows_of(prompt, 5, 10, (5, 16))
+    for name in ("ptterm", "alacritty", "ghostty", "wezterm", "xterm"):
+        assert found[name] == [
+            "PROMPT GOES HERE",
+            ">",
+            "",
+            "PROMPT GOES HERE",
+            ">",
+        ], name
+    assert found["kitty"] == [">", "", "PROMPT GOES HERE", ">", ""]
+    assert found["libvterm"] == [">", "", "PROMPT GOE", "S HERE", ">"]
+
+
+def test_a_narrower_width_that_needs_no_reflow_moves_nothing():
+    "Every judge agrees when the text already fits, libvterm included."
+    found = rows_of("one\r\ntwo\r\nthree\r\nfour\r\nfive", 3, 8, (3, 16))
+    for name in found:
+        assert found[name] == ["three", "four", "five"], name

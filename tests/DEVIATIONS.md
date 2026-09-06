@@ -1148,10 +1148,29 @@ Give the same harness `WANTSCREEN rb` and the same bytes, and it pops a
 line, backfills row 0, and reports the cursor at `4,2`, which is
 ptterm's answer.
 
-**The panel cannot rule here.** A judge takes bytes and one size, and no
-judge on it can be resized, so a reflow has no vote to read. libvterm's
-own source, run with its scrollback on, is the only oracle
-(Lillecarl/pymux#64). `test_reflow_history.py` holds the case.
+**The panel rules here now, and it is with ptterm.** A judge used to
+take bytes and one size, so a reflow had no vote to read. It takes a
+size to change to as well (Lillecarl/pymux#64), and the answer to the
+"Shell wrapped prompt behaviour" case of the same file is four judges
+with ptterm:
+
+| judge | row 0 after the widening |
+| --- | --- |
+| ptterm | `PROMPT GOES HERE` |
+| Alacritty | `PROMPT GOES HERE` |
+| Ghostty | `PROMPT GOES HERE` |
+| WezTerm | `PROMPT GOES HERE` |
+| xterm.js | `PROMPT GOES HERE` |
+| kitty | `> ` and a blank row at the bottom |
+| libvterm | cannot answer: our reader gives it no scrollback |
+
+kitty leaves the freed row blank at the bottom, so the first prompt
+never comes back. It is alone. Our reader for libvterm has the same gap
+as the suite harness (Lillecarl/pymux#104), so it shows the screen
+unchanged, and the paragraphs above are what libvterm really does.
+
+`test_the_panel.py::test_where_a_shell_prompt_lands_when_a_window_gets_wider`
+holds the tally, and `test_reflow_history.py` holds the case.
 
 One difference is ptterm's to keep. libvterm copies a popped line cell
 for cell (`src/screen.c` line 684) and does not rewrap it, so an

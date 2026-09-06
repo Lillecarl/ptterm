@@ -37,18 +37,22 @@ equal, so the difference is exactly what that judge misses.
 - "split": the judges that can see it do not agree with each other, so
   the difference is a choice and not a bug.
 """
-from typing import Callable, Dict, List, NamedTuple, Optional
+from typing import Callable, Dict, List, NamedTuple, Optional, Tuple
 
 from kitty_oracle import Cell, as_seen, as_text, kitty_is_available, ptterm_cells
 
 __all__ = ["Judge", "judges", "verdict", "report", "abstained"]
 
+#: A size to take after the data, as (lines, columns), or None.
+Resize = Optional[Tuple[int, int]]
+
 
 class Judge(NamedTuple):
     "One emulator, and what it can hold."
     name: str
-    #: Feed data to it and read the screen back.
-    cells: Callable[[str, int, int], List[List[Cell]]]
+    #: Feed data to it and read the screen back. The last argument is a
+    #: size to take after the data; every judge acts on it.
+    cells: Callable[[str, int, int, Resize], List[List[Cell]]]
     #: Drop what this judge cannot hold, or None when it holds all.
     projection: Optional[Callable[[Cell], Cell]]
 
@@ -72,8 +76,8 @@ def judges() -> List[Judge]:
                 found.append(
                     Judge(
                         name,
-                        lambda data, lines, columns, name=name: judge_cells(
-                            name, data, lines, columns
+                        lambda data, lines, columns, resize=None, name=name: (
+                            judge_cells(name, data, lines, columns, resize)
                         ),
                         None,
                     )
@@ -129,21 +133,45 @@ class _Answer(NamedTuple):
 
 
 def _ask(
-    data: str, lines: int, columns: int, keep, panel: List[Judge]
+    data: str,
+    lines: int,
+    columns: int,
+    keep,
+    panel: List[Judge],
+    resize: Resize = None,
 ) -> Dict[str, _Answer]:
-    "Put one program to every judge, and read each answer."
-    ours = [[keep(cell) for cell in row] for row in ptterm_cells(data, lines, columns)]
+    """
+    Put one program to every judge, and read each answer.
+
+    `lines` and `columns` are the size the data is written at. With a
+    `resize` the screens are read at that size instead, so every judge
+    has to act on it. One that ignored it would answer a screen of the
+    wrong shape, and the check below says so by name.
+    """
+    read_lines, read_columns = resize if resize is not None else (lines, columns)
+
+    def shaped(name: str, rows):
+        assert len(rows) == read_lines and all(
+            len(row) == read_columns for row in rows
+        ), "%s answered a screen of %d by %d, not %d by %d" % (
+            name,
+            len(rows),
+            len(rows[0]) if rows else 0,
+            read_lines,
+            read_columns,
+        )
+        return [[keep(cell) for cell in row] for row in rows]
+
+    ours = shaped("ptterm", ptterm_cells(data, lines, columns, resize))
 
     answers = {}
     for judge in panel:
         project = judge.projection or (lambda cell: cell)
-        theirs = [
-            [keep(cell) for cell in row] for row in judge.cells(data, lines, columns)
-        ]
+        theirs = shaped(judge.name, judge.cells(data, lines, columns, resize))
         found = []
         raw_differs = False
-        for y in range(lines):
-            for x in range(columns):
+        for y in range(read_lines):
+            for x in range(read_columns):
                 mine, other = ours[y][x], theirs[y][x]
                 if mine != other:
                     raw_differs = True
@@ -162,6 +190,7 @@ def report(
     columns: int = 20,
     strict: bool = False,
     blank_style: bool = True,
+    resize: Resize = None,
 ) -> Dict[str, List[str]]:
     """
     What every judge says about one program, as readable lines.
@@ -174,7 +203,7 @@ def report(
     keep = _keeper(strict, blank_style)
     return {
         name: answer.found
-        for name, answer in _ask(data, lines, columns, keep, panel).items()
+        for name, answer in _ask(data, lines, columns, keep, panel, resize).items()
     }
 
 
@@ -184,6 +213,7 @@ def abstained(
     columns: int = 20,
     strict: bool = False,
     blank_style: bool = True,
+    resize: Resize = None,
 ) -> List[str]:
     """
     The judges that cannot see the difference, in name order.
@@ -195,7 +225,7 @@ def abstained(
     panel = judges()
     assert panel, "no judge is available"
     keep = _keeper(strict, blank_style)
-    answers = _ask(data, lines, columns, keep, panel)
+    answers = _ask(data, lines, columns, keep, panel, resize)
     return sorted(name for name, answer in answers.items() if answer.blind)
 
 
@@ -205,12 +235,13 @@ def verdict(
     columns: int = 20,
     strict: bool = False,
     blank_style: bool = True,
+    resize: Resize = None,
 ) -> str:
     "What the panel says: agree, ptterm-wrong or split."
     panel = judges()
     assert panel, "no judge is available"
     keep = _keeper(strict, blank_style)
-    answers = _ask(data, lines, columns, keep, panel)
+    answers = _ask(data, lines, columns, keep, panel, resize)
 
     voting = [judge for judge in panel if not answers[judge.name].blind]
     against = [judge for judge in voting if answers[judge.name].found]

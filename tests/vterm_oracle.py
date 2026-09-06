@@ -106,6 +106,7 @@ def libvterm_is_available() -> bool:
     library.vterm_new.argtypes = [ctypes.c_int, ctypes.c_int]
     library.vterm_free.argtypes = [ctypes.c_void_p]
     library.vterm_set_utf8.argtypes = [ctypes.c_void_p, ctypes.c_int]
+    library.vterm_set_size.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int]
     library.vterm_obtain_screen.restype = ctypes.c_void_p
     library.vterm_obtain_screen.argtypes = [ctypes.c_void_p]
     library.vterm_screen_reset.argtypes = [ctypes.c_void_p, ctypes.c_int]
@@ -141,8 +142,21 @@ def _color(value: _Color, background: bool) -> Optional[Tuple]:
     return ("rgb", value.first, value.second, value.third)
 
 
-def vterm_cells(data: str, lines: int, columns: int) -> List[List[Cell]]:
-    "Feed `data` to libvterm and read the screen back."
+def vterm_cells(
+    data: str, lines: int, columns: int, resize: Optional[Tuple[int, int]] = None
+) -> List[List[Cell]]:
+    """
+    Feed `data` to libvterm and read the screen back.
+
+    `resize` is a new size to take after the data.
+
+    **libvterm keeps no history of its own.** A scrollback lives in
+    whoever embeds it, behind the `sb_pushline` and `sb_popline`
+    callbacks, and this reader sets neither. So a row that scrolls off
+    the top is gone, and a widening that would pull one back finds
+    nothing. libvterm cannot answer that question, and a probe that asks
+    it has to say so. Lillecarl/pymux#104.
+    """
     assert libvterm_is_available(), "PTTERM_LIBVTERM names no library"
     library = _library
 
@@ -157,6 +171,9 @@ def vterm_cells(data: str, lines: int, columns: int) -> List[List[Cell]]:
         library.vterm_screen_reset(screen, 1)
         raw = data.encode("utf-8")
         library.vterm_input_write(term, raw, len(raw))
+        if resize is not None:
+            lines, columns = resize
+            library.vterm_set_size(term, lines, columns)
 
         rows = []
         for y in range(lines):

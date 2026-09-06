@@ -28,7 +28,7 @@ A judge that cannot hold something has to say so. One that answers
 anyway is worse than one that abstains, because the panel counts its
 vote.
 """
-from typing import List
+from typing import List, Optional, Tuple
 
 from kitty_oracle import Cell
 from line_judge import LineJudge
@@ -43,9 +43,11 @@ def xterm_is_available() -> bool:
     return _JUDGE.is_available()
 
 
-def xterm_cells(data: str, lines: int, columns: int) -> List[List[Cell]]:
+def xterm_cells(
+    data: str, lines: int, columns: int, resize: Optional[Tuple[int, int]] = None
+) -> List[List[Cell]]:
     "Feed `data` to xterm.js and read the screen back."
-    return _JUDGE.cells("xterm", data, lines, columns)
+    return _JUDGE.cells("xterm", data, lines, columns, resize)
 
 
 def _as_xterm_sees(cell: Cell) -> Cell:

@@ -3,7 +3,10 @@
 // One process answers one request after another, the same way the
 // judges written in Rust and in C do. A request is one line of JSON:
 //
-//     {"data": "...", "lines": 6, "columns": 20}
+//     {"data": "...", "lines": 6, "columns": 20, "resize": [4, 40]}
+//
+// `resize` is optional. It is the size to take after the data, and the
+// screen that comes back is that size.
 //
 // The answer is one line holding the screen, as rows of cells:
 //
@@ -37,6 +40,10 @@ const { Terminal } = require(path);
 // A judge that reports less than the emulator holds is not neutral. It
 // abstains, and an abstention is a vote that nobody cast. xterm.js holds
 // all of these, so the judge reads them.
+
+// How many rows of history every judge keeps. `kitty_oracle.HISTORY`
+// holds the same number and says why.
+const HISTORY = 100;
 
 // A colour, in the form that the other judges write.
 function color(isDefault, isRGB, value) {
@@ -133,18 +140,27 @@ function answer(line, done) {
     return;
   }
 
-  const lines = request.lines || 6;
-  const columns = request.columns || 20;
+  let lines = request.lines || 6;
+  let columns = request.columns || 20;
   const terminal = new Terminal({
     cols: columns,
     rows: lines,
-    scrollback: 0,
+    // Every judge keeps the same history, so a widening has rows to
+    // pull back. `kitty_oracle.HISTORY` is the number.
+    scrollback: HISTORY,
     allowProposedApi: true,
   });
 
   // The write is asynchronous: the buffer is only settled once the
   // callback runs, so reading it earlier reads the screen before.
   terminal.write(request.data || "", () => {
+    if (Array.isArray(request.resize)) {
+      lines = request.resize[0];
+      columns = request.resize[1];
+      // `resize` takes the width first. Every other size in this
+      // protocol takes the height first.
+      terminal.resize(columns, lines);
+    }
     const rows = screenOf(terminal, lines, columns);
     terminal.dispose();
     done(JSON.stringify({ xterm: rows }));

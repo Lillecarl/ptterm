@@ -17,6 +17,22 @@ A colour is null, ["index", n] or ["rgb", r, g, b]. `link` is the
 target of an "OSC 8" and `link_name` is what that emulator calls the
 one link; `number_the_links` turns the name into a number of the
 screen, because no two emulators name a link alike.
+
+A request may carry one more field:
+
+    {"data": "...", "lines": 6, "columns": 20, "resize": [4, 40]}
+
+`resize` is the size to take **after** the data, as `[lines, columns]`.
+`lines` and `columns` are then only the size the data was written at,
+and the screen that comes back is the size `resize` names. What the
+rows hold is what the reflow of that emulator made of them, which is
+the whole point: a reflow is where terminals disagree most, and the
+panel had no way to ask. Lillecarl/pymux#64.
+
+Every judge keeps `kitty_oracle.HISTORY` rows of scrollback, so a
+widening has rows to pull back. A judge with none would answer "blank"
+and agree with every other judge with none, which says how the judges
+were built and nothing about the emulators.
 """
 import atexit
 import json
@@ -96,10 +112,19 @@ class LineJudge:
         except Exception:
             process.kill()
 
-    def ask(self, data: str, lines: int, columns: int) -> Dict[str, List[List[Cell]]]:
+    def ask(
+        self,
+        data: str,
+        lines: int,
+        columns: int,
+        resize: Optional[Tuple[int, int]] = None,
+    ) -> Dict[str, List[List[Cell]]]:
         "One request, and the screens that come back."
         assert self.is_available(), "%s names no program" % (self.variable,)
-        request = json.dumps({"data": data, "lines": lines, "columns": columns})
+        asked = {"data": data, "lines": lines, "columns": columns}
+        if resize is not None:
+            asked["resize"] = list(resize)
+        request = json.dumps(asked)
         self._process.stdin.write(request + "\n")
         self._process.stdin.flush()
         answer = self._process.stdout.readline()
@@ -131,6 +156,13 @@ class LineJudge:
             if name in raw
         }
 
-    def cells(self, name: str, data: str, lines: int, columns: int) -> List[List[Cell]]:
+    def cells(
+        self,
+        name: str,
+        data: str,
+        lines: int,
+        columns: int,
+        resize: Optional[Tuple[int, int]] = None,
+    ) -> List[List[Cell]]:
         "Feed `data` to one emulator of this judge and read the screen back."
-        return self.ask(data, lines, columns)[name]
+        return self.ask(data, lines, columns, resize)[name]

@@ -25,12 +25,25 @@ __all__ = [
     "as_seen",
     "as_text",
     "Cell",
+    "HISTORY",
     "kitty_is_available",
     "number_the_links",
     "ptterm_cells",
     "kitty_cells",
     "differences",
 ]
+
+#: How many rows of history every judge keeps, ptterm included.
+#:
+#: A resize needs one. Widening a screen pulls rows back from history,
+#: and a judge with none answers "blank" and agrees with every other
+#: judge that has none, which is a tally about how the judges were built
+#: and not about the emulators. So the number is the same everywhere and
+#: it is written here.
+#:
+#: It is the number kitty was already built with. No probe comes near
+#: it: a screen of eight rows that scrolls twice uses two.
+HISTORY = 100
 
 #: The names that prompt_toolkit gives the first sixteen colours.
 ANSI_COLOR_NAMES = [
@@ -229,13 +242,18 @@ def _underline_of_style(style: str) -> int:
     return 0
 
 
-def ptterm_cells(data: str, lines: int, columns: int) -> List[List[Cell]]:
+def ptterm_cells(
+    data: str, lines: int, columns: int, resize: Optional[Tuple[int, int]] = None
+) -> List[List[Cell]]:
     "Feed `data` to ptterm and read the screen back."
-    return ptterm_cells_in_pieces([data], lines, columns)
+    return ptterm_cells_in_pieces([data], lines, columns, resize)
 
 
 def ptterm_cells_in_pieces(
-    pieces: List[str], lines: int, columns: int
+    pieces: List[str],
+    lines: int,
+    columns: int,
+    resize: Optional[Tuple[int, int]] = None,
 ) -> List[List[Cell]]:
     """
     Feed ptterm one piece at a time, and read the screen back.
@@ -243,11 +261,23 @@ def ptterm_cells_in_pieces(
     A pty hands over what it has when it has it, so a sequence arrives
     in two reads as often as in one. The screen has to be the same
     either way.
+
+    `resize` is a new size to take after the last piece. The screen that
+    comes back is that size, and the rows it holds are what the reflow
+    made of the ones before.
     """
-    screen = BetterScreen(lines, columns, write_process_input=lambda answer: None)
+    screen = BetterScreen(
+        lines,
+        columns,
+        write_process_input=lambda answer: None,
+        get_history_limit=lambda: HISTORY,
+    )
     stream = BetterStream(screen)
     for piece in pieces:
         stream.feed(piece)
+    if resize is not None:
+        lines, columns = resize
+        screen.resize(lines, columns)
 
     buffer = screen.pt_screen.data_buffer
     offset = screen.line_offset
@@ -298,15 +328,20 @@ def _kitty_color(value: int) -> Optional[Tuple]:
     return None
 
 
-def kitty_cells(data: str, lines: int, columns: int) -> List[List[Cell]]:
+def kitty_cells(
+    data: str, lines: int, columns: int, resize: Optional[Tuple[int, int]] = None
+) -> List[List[Cell]]:
     "Feed `data` to kitty and read the screen back."
     from kitty.fast_data_types import Screen
 
-    screen = Screen(None, lines, columns, 100, 10, 20, 0, None)
+    screen = Screen(None, lines, columns, HISTORY, 10, 20, 0, None)
     raw = data.encode("utf-8")
     buffer = screen.test_create_write_buffer()
     screen.test_commit_write_buffer(raw, buffer)
     screen.test_parse_written_data()
+    if resize is not None:
+        lines, columns = resize
+        screen.resize(lines, columns)
 
     rows = []
     for y in range(lines):

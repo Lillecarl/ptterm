@@ -8,8 +8,12 @@
 //! One request is one line of JSON on standard input:
 //!
 //! ```json
-//! {"data": "hello", "lines": 6, "columns": 20}
+//! {"data": "hello", "lines": 6, "columns": 20, "resize": [4, 40]}
 //! ```
+//!
+//! `resize` is optional. It is the size to take after the data, and the
+//! screen that comes back is that size. What its rows hold is what the
+//! reflow of that emulator made of them.
 //!
 //! One answer is one line of JSON on standard output, holding a grid
 //! for every emulator. A cell is an array, to keep the answer small:
@@ -35,6 +39,29 @@ use std::io::{self, BufRead, Write};
 use std::sync::Arc;
 
 use serde_json::{json, Value};
+
+/// How many rows of history every judge keeps. `kitty_oracle.HISTORY`
+/// holds the same number and says why: a widening pulls rows back, and
+/// a judge with no history answers "blank" and agrees with every other
+/// judge that has none.
+const HISTORY: usize = 100;
+
+/// The size a screen takes, in cells. The first pair is where the data
+/// was written and the second, when there is one, is what the screen
+/// was resized to before it was read.
+fn sizes_of(request: &Value) -> ((usize, usize), Option<(usize, usize)>) {
+    let lines = request["lines"].as_u64().unwrap_or(6) as usize;
+    let columns = request["columns"].as_u64().unwrap_or(20) as usize;
+    let resize = request["resize"].as_array().and_then(|pair| {
+        let rows = pair.first()?.as_u64()? as usize;
+        let cols = pair.get(1)?.as_u64()? as usize;
+        if rows == 0 || cols == 0 {
+            return None;
+        }
+        Some((rows, cols))
+    });
+    ((lines, columns), resize)
+}
 
 // ---------------------------------------------------------------------
 // WezTerm.
@@ -63,22 +90,38 @@ fn wez_color(color: ColorAttribute) -> Value {
     }
 }
 
-fn wezterm_screen(data: &str, lines: usize, columns: usize) -> Value {
-    let size = TerminalSize {
+fn wez_size(lines: usize, columns: usize) -> TerminalSize {
+    TerminalSize {
         rows: lines,
         cols: columns,
         pixel_width: columns * 10,
         pixel_height: lines * 20,
         dpi: 96,
-    };
+    }
+}
+
+fn wezterm_screen(
+    data: &str,
+    lines: usize,
+    columns: usize,
+    resize: Option<(usize, usize)>,
+) -> Value {
     let mut terminal = Terminal::new(
-        size,
+        wez_size(lines, columns),
         Arc::new(WezConfig),
         "ptterm-judges",
         "0.1.0",
         Box::new(Vec::new()),
     );
     terminal.advance_bytes(data.as_bytes());
+
+    let (lines, columns) = match resize {
+        None => (lines, columns),
+        Some((rows, cols)) => {
+            terminal.resize(wez_size(rows, cols));
+            (rows, cols)
+        }
+    };
 
     let screen = terminal.screen_mut();
     let mut rows = Vec::with_capacity(lines);
@@ -193,15 +236,31 @@ fn alacritty_underline(flags: Flags) -> u8 {
     }
 }
 
-fn alacritty_screen(data: &str, lines: usize, columns: usize) -> Value {
+fn alacritty_screen(
+    data: &str,
+    lines: usize,
+    columns: usize,
+    resize: Option<(usize, usize)>,
+) -> Value {
     let size = Size { lines, columns };
     let config = Config {
-        scrolling_history: 0,
+        scrolling_history: HISTORY,
         ..Config::default()
     };
     let mut term = Term::new(config, &size, VoidListener);
     let mut processor: Processor = Processor::new();
     processor.advance(&mut term, data.as_bytes());
+
+    let (lines, columns) = match resize {
+        None => (lines, columns),
+        Some((rows, cols)) => {
+            term.resize(Size {
+                lines: rows,
+                columns: cols,
+            });
+            (rows, cols)
+        }
+    };
 
     let grid = term.grid();
     let mut rows = Vec::with_capacity(lines);
@@ -269,12 +328,11 @@ fn main() {
         }
         let request: Value = serde_json::from_str(&line).expect("a request of JSON");
         let data = request["data"].as_str().unwrap_or("");
-        let lines = request["lines"].as_u64().unwrap_or(6) as usize;
-        let columns = request["columns"].as_u64().unwrap_or(20) as usize;
+        let ((lines, columns), resize) = sizes_of(&request);
 
         let answer = json!({
-            "wezterm": wezterm_screen(data, lines, columns),
-            "alacritty": alacritty_screen(data, lines, columns),
+            "wezterm": wezterm_screen(data, lines, columns, resize),
+            "alacritty": alacritty_screen(data, lines, columns, resize),
         });
         writeln!(stdout, "{}", answer).expect("an answer on standard output");
         stdout.flush().expect("a flush");

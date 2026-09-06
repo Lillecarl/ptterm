@@ -5,7 +5,10 @@
  * One process answers one request after another, the same way the
  * judges written in Rust do. A request is one line of JSON:
  *
- *     {"data": "...", "lines": 6, "columns": 20}
+ *     {"data": "...", "lines": 6, "columns": 20, "resize": [4, 40]}
+ *
+ * `resize` is optional. It is the size to take after the data, and the
+ * screen that comes back is that size.
  *
  * The answer is one line holding the screen, as rows of cells:
  *
@@ -30,6 +33,16 @@
 
 /* A screen larger than this is not something the tests ask for. */
 #define MAX_CELLS (1024 * 1024)
+
+/* How many rows of history every judge keeps. `kitty_oracle.HISTORY`
+ * holds the same number and says why. */
+#define HISTORY 100
+
+/* The size of a cell in pixels. Nothing here draws, and no test asks
+ * about pixels, but `ghostty_terminal_resize` takes them, so the judge
+ * keeps one pair and uses it every time. */
+#define CELL_WIDTH_PX 10
+#define CELL_HEIGHT_PX 20
 
 /* Grow-as-needed output buffer. Writing straight to stdout would mean
  * a syscall for every cell. */
@@ -200,6 +213,26 @@ static char *read_string_field(const char *line, const char *name,
   return out;
 }
 
+/* Read a field that holds two numbers, as `"name":[4,40]`. It answers
+ * true when the field is there and both numbers are above zero. */
+static bool read_pair_field(const char *line, const char *name, long *first,
+                            long *second) {
+  char needle[64];
+  snprintf(needle, sizeof(needle), "\"%s\"", name);
+  const char *at = strstr(line, needle);
+  if (at == NULL) return false;
+  at = strchr(at + strlen(needle), '[');
+  if (at == NULL) return false;
+
+  char *end = NULL;
+  *first = strtol(at + 1, &end, 10);
+  if (end == NULL) return false;
+  at = strchr(end, ',');
+  if (at == NULL) return false;
+  *second = strtol(at + 1, NULL, 10);
+  return *first > 0 && *second > 0;
+}
+
 static long read_int_field(const char *line, const char *name, long fallback) {
   char needle[64];
   snprintf(needle, sizeof(needle), "\"%s\"", name);
@@ -339,7 +372,7 @@ static void answer(const char *line, Buffer *out) {
   GhosttyTerminalOptions options = {
       .cols = (uint16_t)columns,
       .rows = (uint16_t)rows,
-      .max_scrollback = 0,
+      .max_scrollback = HISTORY,
   };
   if (ghostty_terminal_new(NULL, &terminal, options) != GHOSTTY_SUCCESS) {
     put(out, "{\"ghostty\":[]}");
@@ -348,6 +381,21 @@ static void answer(const char *line, Buffer *out) {
   }
 
   ghostty_terminal_vt_write(terminal, (const uint8_t *)data, data_len);
+
+  /* A new size to take after the data. The screen that comes back is
+   * that size, and what its rows hold is what Ghostty's reflow made of
+   * them. See Lillecarl/pymux#64. */
+  long new_rows = 0;
+  long new_columns = 0;
+  if (read_pair_field(line, "resize", &new_rows, &new_columns) &&
+      new_rows * new_columns <= MAX_CELLS) {
+    if (ghostty_terminal_resize(terminal, (uint16_t)new_columns,
+                                (uint16_t)new_rows, CELL_WIDTH_PX,
+                                CELL_HEIGHT_PX) == GHOSTTY_SUCCESS) {
+      rows = new_rows;
+      columns = new_columns;
+    }
+  }
 
   put(out, "{\"ghostty\":[");
   for (long row = 0; row < rows; row++) {

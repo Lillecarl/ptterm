@@ -15,7 +15,7 @@ before the comparison.
 The shape of a cell, and the reader that turns a ptterm screen into
 cells, live in `kitty_oracle`. This adds two more readers.
 """
-from typing import List
+from typing import List, Optional, Tuple
 
 from kitty_oracle import (
     Cell,
@@ -43,9 +43,15 @@ def judges_are_available() -> bool:
     return _JUDGE.is_available()
 
 
-def judge_cells(name: str, data: str, lines: int, columns: int) -> List[List[Cell]]:
+def judge_cells(
+    name: str,
+    data: str,
+    lines: int,
+    columns: int,
+    resize: Optional[Tuple[int, int]] = None,
+) -> List[List[Cell]]:
     "Feed `data` to one of the judges and read the screen back."
-    return _JUDGE.cells(name, data, lines, columns)
+    return _JUDGE.cells(name, data, lines, columns, resize)
 
 
 def _keeper(strict: bool, blank_style: bool):
