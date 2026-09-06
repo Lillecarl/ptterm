@@ -21,7 +21,7 @@ import ctypes
 import os
 from typing import List, Optional, Tuple
 
-from kitty_oracle import Cell, as_seen, as_text, ptterm_cells
+from kitty_oracle import HISTORY, Cell, as_seen, as_text, ptterm_cells
 
 __all__ = [
     "libvterm_is_available",
@@ -86,6 +86,82 @@ class _Pos(ctypes.Structure):
     _fields_ = [("row", ctypes.c_int), ("col", ctypes.c_int)]
 
 
+#: The three callbacks that carry a scrollback, and the shape of the
+#: struct they sit in. libvterm keeps no history of its own: it hands a
+#: row that leaves the top to `sb_pushline` and asks `sb_popline` for
+#: one back when a reflow frees a row. `vterm.h` lines 534 to 544 give
+#: the order, and the six before them are not set.
+_PushLine = ctypes.CFUNCTYPE(
+    ctypes.c_int, ctypes.c_int, ctypes.POINTER(_Cell), ctypes.c_void_p
+)
+_PopLine = ctypes.CFUNCTYPE(
+    ctypes.c_int, ctypes.c_int, ctypes.POINTER(_Cell), ctypes.c_void_p
+)
+_Clear = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_void_p)
+
+
+class _ScreenCallbacks(ctypes.Structure):
+    _fields_ = [
+        ("damage", ctypes.c_void_p),
+        ("moverect", ctypes.c_void_p),
+        ("movecursor", ctypes.c_void_p),
+        ("settermprop", ctypes.c_void_p),
+        ("bell", ctypes.c_void_p),
+        ("resize", ctypes.c_void_p),
+        ("sb_pushline", _PushLine),
+        ("sb_popline", _PopLine),
+        ("sb_clear", _Clear),
+    ]
+
+
+class _Scrollback:
+    """
+    The history that libvterm does not keep.
+
+    A row arrives as a pointer to cells that libvterm owns and reuses,
+    so it is copied out at once. It goes back the same way: into cells
+    that libvterm owns, padded with blanks when the screen is wider now
+    than the row was.
+
+    The three callbacks are held here as well. ctypes collects a
+    callback that nothing refers to, and libvterm would then call into
+    memory that is gone.
+    """
+
+    def __init__(self, limit: int) -> None:
+        self.limit = limit
+        self.rows: List = []
+        self.callbacks = _ScreenCallbacks(
+            sb_pushline=_PushLine(self._push),
+            sb_popline=_PopLine(self._pop),
+            sb_clear=_Clear(self._clear),
+        )
+
+    def _push(self, columns, cells, user) -> int:
+        row = (_Cell * columns)()
+        ctypes.memmove(row, cells, ctypes.sizeof(_Cell) * columns)
+        self.rows.append(row)
+        del self.rows[: max(0, len(self.rows) - self.limit)]
+        return 1
+
+    def _pop(self, columns, cells, user) -> int:
+        if not self.rows:
+            return 0
+        row = self.rows.pop()
+        held = min(columns, len(row))
+        ctypes.memmove(cells, row, ctypes.sizeof(_Cell) * held)
+        for column in range(held, columns):
+            cells[column].chars[0] = 0
+            # A blank cell is one column wide. A width of zero is the
+            # second half of a wide character, which this is not.
+            cells[column].width = b"\x01"
+        return 1
+
+    def _clear(self, user) -> int:
+        self.rows.clear()
+        return 1
+
+
 _library = None
 
 
@@ -111,6 +187,12 @@ def libvterm_is_available() -> bool:
     library.vterm_obtain_screen.argtypes = [ctypes.c_void_p]
     library.vterm_screen_reset.argtypes = [ctypes.c_void_p, ctypes.c_int]
     library.vterm_screen_enable_altscreen.argtypes = [ctypes.c_void_p, ctypes.c_int]
+    library.vterm_screen_enable_reflow.argtypes = [ctypes.c_void_p, ctypes.c_bool]
+    library.vterm_screen_set_callbacks.argtypes = [
+        ctypes.c_void_p,
+        ctypes.POINTER(_ScreenCallbacks),
+        ctypes.c_void_p,
+    ]
     library.vterm_input_write.argtypes = [
         ctypes.c_void_p,
         ctypes.c_char_p,
@@ -150,12 +232,16 @@ def vterm_cells(
 
     `resize` is a new size to take after the data.
 
-    **libvterm keeps no history of its own.** A scrollback lives in
-    whoever embeds it, behind the `sb_pushline` and `sb_popline`
-    callbacks, and this reader sets neither. So a row that scrolls off
-    the top is gone, and a widening that would pull one back finds
-    nothing. libvterm cannot answer that question, and a probe that asks
-    it has to say so. Lillecarl/pymux#104.
+    **libvterm keeps no history of its own, so this reader keeps one for
+    it.** A scrollback lives in whoever embeds libvterm, behind the
+    `sb_pushline` and `sb_popline` callbacks. Without them a row that
+    leaves the top is gone and a widening that would pull one back finds
+    nothing, which is not what libvterm does. It is what its own suite
+    harness does with the scrollback off, and the expectations in
+    `69screen_reflow.test` are that fallback. Lillecarl/pymux#104.
+
+    Reflow is off by default as well, and `vterm_screen_enable_reflow`
+    turns it on. Its suite asks for both with `WANTSCREEN rb`.
     """
     assert libvterm_is_available(), "PTTERM_LIBVTERM names no library"
     library = _library
@@ -168,6 +254,11 @@ def vterm_cells(
         # for. Without this it draws everything on one screen and says
         # nothing useful about "?1049" and its two older names.
         library.vterm_screen_enable_altscreen(screen, 1)
+        library.vterm_screen_enable_reflow(screen, True)
+        scrollback = _Scrollback(HISTORY)
+        library.vterm_screen_set_callbacks(
+            screen, ctypes.byref(scrollback.callbacks), None
+        )
         library.vterm_screen_reset(screen, 1)
         raw = data.encode("utf-8")
         library.vterm_input_write(term, raw, len(raw))

@@ -1084,44 +1084,40 @@ def test_two_judges_split_a_link_that_carries_no_id():
 # that wall. `resize` is the size to take after the data, and every
 # judge acts on it.
 #
-# **libvterm cannot answer any of these.** A scrollback lives in
-# whoever embeds libvterm, behind `sb_pushline` and `sb_popline`, and
-# `vterm_oracle.py` sets neither. Without them `vterm_set_size` has
-# nowhere to put a row it drops and nothing to pull a row back from, so
-# it leaves the screen as it was. Lillecarl/pymux#104. Its own suite
-# runs it with those callbacks, and the expectations in
-# `69screen_reflow.test` are what libvterm really does.
-
-#: What libvterm answers to every reflow here: the screen it already
-#: had. It is not a vote.
-LIBVTERM_CANNOT_REFLOW = ["libvterm"]
+# **libvterm needs two things turned on, and it used to have neither.**
+# Reflow is off until `vterm_screen_enable_reflow`, and a scrollback
+# lives in whoever embeds libvterm, behind `sb_pushline` and
+# `sb_popline`. `vterm_oracle.py` sets all three now
+# (Lillecarl/pymux#104), so libvterm votes here like everybody else. Its
+# own suite asks for the same pair with `WANTSCREEN rb`.
 
 
 def test_widening_joins_a_row_that_was_wrapped():
     """
-    Five judges join a wrapped row back together, and so does ptterm.
+    Every judge joins a wrapped row back together, and so does ptterm.
 
     Ten characters on a screen four wide take three rows. At ten wide
-    they take one, and the two rows below it are blank.
+    they take one, and the two rows below it are blank. Six to nothing,
+    which is the answer a panel gives when a thing is not a choice.
     """
     found = rows_of("abcdefghij\r\n", 4, 4, (4, 10))
-    for name in ("ptterm", "alacritty", "ghostty", "kitty", "wezterm", "xterm"):
+    for name in found:
         assert found[name] == ["abcdefghij", "", "", ""], name
 
 
 def test_narrowing_splits_a_row_that_no_longer_fits():
     """
-    Four judges split the row and keep every character in view, and so
+    Five judges split the row and keep every character in view, and so
     does ptterm.
 
     **Alacritty keeps the text and moves the viewport.** The rows it
     made go into the scrollback and the screen shows the last of them,
     so the cells that a reader sees are not the cells the others show.
     That is where the cursor is, and Alacritty puts the cursor row
-    first. It is one judge against four, so ptterm follows the four.
+    first. It is one judge against five, so ptterm follows the five.
     """
     found = rows_of("abcdefghij\r\n", 4, 10, (4, 4))
-    for name in ("ptterm", "ghostty", "kitty", "wezterm", "xterm"):
+    for name in ("ptterm", "ghostty", "kitty", "libvterm", "wezterm", "xterm"):
         assert found[name] == ["abcd", "efgh", "ij", ""], name
     assert found["alacritty"] == ["ij", "", "", ""]
 
@@ -1137,19 +1133,19 @@ def test_xterm_js_leaves_the_row_the_cursor_sits_on():
 
     **Narrowing on that row loses the text.** Ten characters on a
     screen that becomes four wide come back as four: the rest is not in
-    the scrollback, it is gone. Five judges keep it.
+    the scrollback, it is gone. The other five judges keep it.
 
     The panel is not being asked to settle anything here. ptterm
     reflows the cursor row, and so do five of the six.
     """
     on_the_cursor = rows_of("abcdefghij", 4, 10, (4, 4))
     assert on_the_cursor["xterm"] == ["abcd", "", "", ""]
-    for name in ("ptterm", "ghostty", "kitty", "wezterm"):
+    for name in ("ptterm", "ghostty", "kitty", "libvterm", "wezterm"):
         assert on_the_cursor[name] == ["abcd", "efgh", "ij", ""], name
 
     widened = rows_of("abcdefghij", 4, 4, (4, 10))
     assert widened["xterm"] == ["abcd", "efgh", "ij", ""]
-    for name in ("ptterm", "alacritty", "ghostty", "kitty", "wezterm"):
+    for name in ("ptterm", "alacritty", "ghostty", "kitty", "libvterm", "wezterm"):
         assert widened[name] == ["abcdefghij", "", "", ""], name
 
 
@@ -1168,15 +1164,21 @@ def test_where_a_shell_prompt_lands_when_a_window_gets_wider():
     Alacritty, Ghostty, WezTerm and xterm.js all land in the same place.
     Four judges and ptterm.
 
-    kitty leaves the freed row blank at the bottom instead, so the first
-    prompt never comes back. libvterm's suite expects a third answer:
-    the bottom stays where it is and nothing is pulled down, with the
-    cursor at 3,2. Our reader for libvterm cannot show either, because
-    it gives libvterm no scrollback.
+    **libvterm pulls a row down as well.** It differs on one thing only:
+    it copies the popped row cell for cell and does not wrap it again,
+    so row 0 holds `S HERE` and not the whole prompt (`src/screen.c`
+    line 684). Where the freed row comes from is the question this case
+    asks, and libvterm answers it the way ptterm does.
 
-    So it is four with ptterm and two against, and the two do not agree
-    with each other. The seven assertions in `vterm-failures.txt` stand
-    as a difference and not as a fault.
+    The expectation written in `69screen_reflow.test` is neither. It is
+    what the suite harness does with the scrollback turned off, where
+    `sb_popline` gives nothing back and the text moves up instead. So
+    the seven assertions in `vterm-failures.txt` are the harness and not
+    libvterm.
+
+    kitty leaves the freed row blank at the bottom, so the first prompt
+    never comes back. It is alone: five judges and ptterm fill the row
+    from the top.
     """
     prompt = "PROMPT GOES HERE\r\n> \r\n\r\nPROMPT GOES HERE\r\n> "
     found = rows_of(prompt, 5, 10, (5, 16))
@@ -1189,7 +1191,7 @@ def test_where_a_shell_prompt_lands_when_a_window_gets_wider():
             ">",
         ], name
     assert found["kitty"] == [">", "", "PROMPT GOES HERE", ">", ""]
-    assert found["libvterm"] == [">", "", "PROMPT GOE", "S HERE", ">"]
+    assert found["libvterm"] == ["S HERE", ">", "", "PROMPT GOES HERE", ">"]
 
 
 def test_a_narrower_width_that_needs_no_reflow_moves_nothing():

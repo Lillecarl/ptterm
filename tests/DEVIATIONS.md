@@ -922,6 +922,12 @@ than kitty does. `test_against_vterm.py` writes each of these down.
   and ptterm follows kitty.
 - It holds no hyperlink. `vterm.h` names none, so libvterm says nothing
   about an "OSC 8".
+- It keeps no history and does not reflow, until it is asked. Both are
+  the embedder's job: `vterm_screen_enable_reflow` turns the first on,
+  and a scrollback is the `sb_pushline` and `sb_popline` callbacks. The
+  reader sets all three, so libvterm votes on a reflow. Its own suite
+  asks for the same pair with `WANTSCREEN rb`, and the cases that ask
+  for `r` alone are the ones whose expectations nobody else matches.
 
 ### xterm.js
 
@@ -1150,9 +1156,10 @@ ptterm's answer.
 
 **The panel rules here now, and it is with ptterm.** A judge used to
 take bytes and one size, so a reflow had no vote to read. It takes a
-size to change to as well (Lillecarl/pymux#64), and the answer to the
-"Shell wrapped prompt behaviour" case of the same file is four judges
-with ptterm:
+size to change to as well (Lillecarl/pymux#64), and the reader for
+libvterm turns reflow on and keeps a scrollback for it
+(Lillecarl/pymux#104). The answer to the "Shell wrapped prompt
+behaviour" case of the same file:
 
 | judge | row 0 after the widening |
 | --- | --- |
@@ -1161,13 +1168,18 @@ with ptterm:
 | Ghostty | `PROMPT GOES HERE` |
 | WezTerm | `PROMPT GOES HERE` |
 | xterm.js | `PROMPT GOES HERE` |
-| kitty | `> ` and a blank row at the bottom |
-| libvterm | cannot answer: our reader gives it no scrollback |
+| libvterm | `S HERE`, the popped row unwrapped |
+| kitty | `> `, and a blank row at the bottom |
 
-kitty leaves the freed row blank at the bottom, so the first prompt
-never comes back. It is alone. Our reader for libvterm has the same gap
-as the suite harness (Lillecarl/pymux#104), so it shows the screen
-unchanged, and the paragraphs above are what libvterm really does.
+**Six judges fill the freed row from the top, and kitty is alone.**
+libvterm is with ptterm about where the row comes from, which is the
+question this case asks. It differs on one thing only, the one the
+paragraph below names: it copies the popped row cell for cell and does
+not wrap it again.
+
+The expectation in the test file is a seventh answer, and it is nobody's
+behaviour. It is what the harness does with the scrollback off, where
+`sb_popline` gives nothing back and the text moves up instead.
 
 `test_the_panel.py::test_where_a_shell_prompt_lands_when_a_window_gets_wider`
 holds the tally, and `test_reflow_history.py` holds the case.
