@@ -20,7 +20,7 @@ from panel import abstained, judges, report, verdict
 from kitty_oracle import ptterm_cells
 
 #: Every judge that this file wants. With fewer, a tally means nothing.
-WANTED = {"kitty", "wezterm", "alacritty", "libvterm", "ghostty", "xterm"}
+WANTED = {"kitty", "wezterm", "alacritty", "libvterm", "ghostty", "xtermjs"}
 
 pytestmark = pytest.mark.skipif(
     not WANTED.issubset({judge.name for judge in judges()}),
@@ -137,7 +137,7 @@ def test_an_erase_does_not_keep_the_underline():
     for erase in ("\x1b[2J", "\x1b[K"):
         against, with_us = sides("\x1b[4mAB" + erase, lines=3, columns=6)
         assert against == ["kitty"]
-        assert with_us == ["alacritty", "ghostty", "libvterm", "wezterm", "xterm"]
+        assert with_us == ["alacritty", "ghostty", "libvterm", "wezterm", "xtermjs"]
 
 
 def test_an_erase_keeps_the_background():
@@ -150,7 +150,7 @@ def test_an_erase_keeps_the_background():
     """
     against, with_us = sides("\x1b[41mAB\x1b[2J", lines=3, columns=6)
     assert against == ["ghostty"]
-    assert with_us == ["alacritty", "kitty", "libvterm", "wezterm", "xterm"]
+    assert with_us == ["alacritty", "kitty", "libvterm", "wezterm", "xtermjs"]
 
 
 def test_whether_an_erase_keeps_reverse_video_is_a_choice():
@@ -162,7 +162,7 @@ def test_whether_an_erase_keeps_reverse_video_is_a_choice():
     and that is the reading kitty and WezTerm take.
     """
     against, with_us = sides("\x1b[7mAB\x1b[2J", lines=3, columns=6)
-    assert against == ["alacritty", "ghostty", "libvterm", "xterm"]
+    assert against == ["alacritty", "ghostty", "libvterm", "xtermjs"]
     assert with_us == ["kitty", "wezterm"]
 
 
@@ -175,7 +175,7 @@ WHOLE_WIDTH = {
     "kitty": 15,
     "libvterm": 15,
     "wezterm": 15,
-    "xterm": 15,
+    "xtermjs": 15,
 }
 
 #: The same, with libvterm halving the line.
@@ -246,21 +246,21 @@ def test_a_tab_on_the_last_row_keeps_the_panel():
     """
     against, with_us = sides("\x1b[8;20H12345\t")
     assert against == ["alacritty", "kitty"]
-    assert with_us == ["ghostty", "libvterm", "wezterm", "xterm"]
+    assert with_us == ["ghostty", "libvterm", "wezterm", "xtermjs"]
 
 
 def test_a_backspace_in_the_first_column_keeps_the_panel():
     "kitty steps back to the row above. None of the other five does."
     against, with_us = sides("\n\x080", lines=4, columns=8)
     assert against == ["kitty"]
-    assert with_us == ["alacritty", "ghostty", "libvterm", "wezterm", "xterm"]
+    assert with_us == ["alacritty", "ghostty", "libvterm", "wezterm", "xtermjs"]
 
 
 def test_a_count_of_zero_for_su_keeps_the_panel():
     "kitty and Ghostty read a zero as no scroll. The other four read one."
     against, with_us = sides("a\r\nb\x1b[0S", lines=4, columns=8)
     assert against == ["ghostty", "kitty"]
-    assert with_us == ["alacritty", "libvterm", "wezterm", "xterm"]
+    assert with_us == ["alacritty", "libvterm", "wezterm", "xtermjs"]
 
 
 def test_too_many_parameters_splits_the_panel():
@@ -272,7 +272,7 @@ def test_too_many_parameters_splits_the_panel():
     """
     against, with_us = sides("\x1b[3;9;9GX", lines=4, columns=8)
     assert against == ["ghostty", "kitty", "wezterm"]
-    assert with_us == ["alacritty", "libvterm", "xterm"]
+    assert with_us == ["alacritty", "libvterm", "xtermjs"]
 
 
 def test_who_clears_the_alternate_screen_keeps_the_panel():
@@ -284,7 +284,7 @@ def test_who_clears_the_alternate_screen_keeps_the_panel():
     """
     against, with_us = sides("\x1b[?1047h X \x1b[?1047l \x1b[?47h", lines=3, columns=6)
     assert against == ["alacritty", "kitty"]
-    assert with_us == ["ghostty", "libvterm", "wezterm", "xterm"]
+    assert with_us == ["ghostty", "libvterm", "wezterm", "xtermjs"]
 
 
 def test_decaln_sends_the_cursor_home_for_most_of_the_panel():
@@ -294,7 +294,7 @@ def test_decaln_sends_the_cursor_home_for_most_of_the_panel():
     """
     against, with_us = sides("ab\x1b#8X", lines=4, columns=6)
     assert against == ["alacritty", "libvterm"]
-    assert with_us == ["ghostty", "kitty", "wezterm", "xterm"]
+    assert with_us == ["ghostty", "kitty", "wezterm", "xtermjs"]
 
 
 def test_a_mark_on_an_erased_cell_splits_the_panel():
@@ -310,7 +310,7 @@ def test_a_mark_on_an_erased_cell_splits_the_panel():
     """
     against, with_us = sides("0\x1b[40m\x1b[1Ḱ", lines=3, columns=6)
     assert against == ["alacritty", "ghostty", "libvterm"]
-    assert with_us == ["kitty", "wezterm", "xterm"]
+    assert with_us == ["kitty", "wezterm", "xtermjs"]
 
 
 def test_moving_back_over_a_tab_stop_splits_the_panel():
@@ -325,7 +325,7 @@ def test_moving_back_over_a_tab_stop_splits_the_panel():
     against, with_us = sides(
         "\x1b[Ix\x1b[2Iy\x1b[Zz", lines=8, columns=24, blank_style=False
     )
-    assert against == ["alacritty", "ghostty", "xterm"]
+    assert against == ["alacritty", "ghostty", "xtermjs"]
     assert with_us == ["kitty", "libvterm", "wezterm"]
 
 
@@ -390,7 +390,7 @@ def test_one_judge_stands_apart(name, data):
 
 #: The judges that carry DECSLRM, and the ones that do not.
 WITH_MARGINS = ["ghostty", "libvterm", "wezterm"]
-WITHOUT_MARGINS = ["alacritty", "kitty", "xterm"]
+WITHOUT_MARGINS = ["alacritty", "kitty", "xtermjs"]
 
 
 @pytest.mark.parametrize(
@@ -480,7 +480,7 @@ def test_no_judge_carries_a_rectangle_command(command):
 
 #: The judges that carry HPB and VPB, and the ones that do not.
 WITH_THE_PAIR = ["ghostty", "libvterm", "wezterm"]
-WITHOUT_THE_PAIR = ["alacritty", "kitty", "xterm"]
+WITHOUT_THE_PAIR = ["alacritty", "kitty", "xtermjs"]
 
 
 @pytest.mark.parametrize(
@@ -539,7 +539,7 @@ def test_how_many_combining_marks_a_cell_keeps():
         "alacritty": 21,
         "kitty": 21,
         "wezterm": 21,
-        "xterm": 21,
+        "xtermjs": 21,
         "libvterm": 6,
         "ghostty": 21,
     }
@@ -556,7 +556,7 @@ def test_where_the_cursor_stands_after_the_older_alternate_modes():
     """
     against, with_us = sides("\x1b[2;3H\x1b[?47hX", lines=3, columns=6)
     assert against == ["kitty"]
-    assert with_us == ["alacritty", "ghostty", "libvterm", "wezterm", "xterm"]
+    assert with_us == ["alacritty", "ghostty", "libvterm", "wezterm", "xtermjs"]
 
 
 def test_where_the_cursor_stands_after_the_newest_alternate_mode():
@@ -568,7 +568,7 @@ def test_where_the_cursor_stands_after_the_newest_alternate_mode():
     esctest2 asks, so the difference stands as a choice.
     """
     against, with_us = sides("\x1b[2;3H\x1b[?1049hX", lines=3, columns=6)
-    assert against == ["alacritty", "ghostty", "libvterm", "xterm"]
+    assert against == ["alacritty", "ghostty", "libvterm", "xtermjs"]
     assert with_us == ["kitty", "wezterm"]
 
 
@@ -584,7 +584,7 @@ def test_a_linefeed_at_the_bottom_paints_the_line_it_brings_in():
     """
     against, with_us = sides("\x1b[4;1H\x1b[42m\n", lines=4, columns=6)
     assert against == ["ghostty", "kitty"]
-    assert with_us == ["alacritty", "libvterm", "wezterm", "xterm"]
+    assert with_us == ["alacritty", "libvterm", "wezterm", "xtermjs"]
 
 
 def test_what_sgr_21_means():
@@ -604,7 +604,7 @@ def test_what_sgr_21_means():
     program = "\x1b[1;4:3;21mX"
     against, with_us = sides(program, lines=3, columns=6)
     assert against == ["alacritty"]
-    assert with_us == ["ghostty", "kitty", "libvterm", "wezterm", "xterm"]
+    assert with_us == ["ghostty", "kitty", "libvterm", "wezterm", "xtermjs"]
     assert cannot_see(program, lines=3, columns=6) == []
 
 
@@ -623,7 +623,7 @@ def test_xterm_js_never_gets_back_to_the_default_colour_of_a_line():
     """
     program = "\x1b[4;58:2::255:0:0mred line\x1b[59m plain"
     against, with_us = sides(program, lines=8, columns=24, blank_style=False)
-    assert against == ["xterm"]
+    assert against == ["xtermjs"]
     assert with_us == ["alacritty", "ghostty", "kitty", "wezterm"]
     assert cannot_see(program, lines=8, columns=24, blank_style=False) == [
         "libvterm"
@@ -643,7 +643,7 @@ def test_every_judge_holds_a_number_of_the_palette_as_a_number():
     """
     against, with_us = sides("\x1b[38;5;200m\x1b[48;5;234mX", lines=3, columns=6)
     assert against == []
-    assert with_us == ["alacritty", "ghostty", "kitty", "libvterm", "wezterm", "xterm"]
+    assert with_us == ["alacritty", "ghostty", "kitty", "libvterm", "wezterm", "xtermjs"]
 
 
 def test_what_a_tab_leaves_in_the_cell_it_moves_from():
@@ -663,7 +663,7 @@ def test_what_a_tab_leaves_in_the_cell_it_moves_from():
     """
     held = characters_in_row("a\tb", lines=3, columns=20)
     assert held["alacritty"][:9] == "a\t      b"
-    for name in ("ptterm", "ghostty", "kitty", "libvterm", "wezterm", "xterm"):
+    for name in ("ptterm", "ghostty", "kitty", "libvterm", "wezterm", "xtermjs"):
         assert held[name][:9] == "a       b", name
 
 
@@ -683,13 +683,13 @@ def test_whether_a_reset_forgets_the_saved_cursor():
         return {name: rows[0][0].char == "z" for name, rows in held.items()}
 
     after_ris = home("\x1b[3;5H\x1b7\x1bc\x1b8z")
-    for name in ("ptterm", "alacritty", "ghostty", "kitty", "xterm"):
+    for name in ("ptterm", "alacritty", "ghostty", "kitty", "xtermjs"):
         assert after_ris[name], name
     for name in ("libvterm", "wezterm"):
         assert not after_ris[name], name
 
     after_decstr = home("\x1b[3;5H\x1b7\x1b[!p\x1b8z")
-    for name in ("ptterm", "kitty", "wezterm", "xterm"):
+    for name in ("ptterm", "kitty", "wezterm", "xtermjs"):
         assert after_decstr[name], name
     for name in ("alacritty", "ghostty", "libvterm"):
         assert not after_decstr[name], name
@@ -717,13 +717,13 @@ def test_whether_a_restore_brings_the_wait_to_wrap_back():
     through_decsc = where_b_landed(fill + "\x1b7\x1b[1;1H\x1b8b")
     for name in ("alacritty", "ghostty", "wezterm"):
         assert through_decsc[name] == "a", name
-    for name in ("ptterm", "kitty", "libvterm", "xterm"):
+    for name in ("ptterm", "kitty", "libvterm", "xtermjs"):
         assert through_decsc[name] == "b", name
 
     through_alt = where_b_landed(fill + "\x1b[?1049hx\x1b[?1049lb")
     for name in ("alacritty", "ghostty", "wezterm"):
         assert through_alt[name] == "a", name
-    for name in ("ptterm", "kitty", "libvterm", "xterm"):
+    for name in ("ptterm", "kitty", "libvterm", "xtermjs"):
         assert through_alt[name] == "b", name
 
     #: A save and a restore with nothing in between. Four judges leave
@@ -731,7 +731,7 @@ def test_whether_a_restore_brings_the_wait_to_wrap_back():
     no_move = where_b_landed(fill + "\x1b7\x1b8b")
     for name in ("alacritty", "ghostty", "libvterm", "wezterm"):
         assert no_move[name] == "a", name
-    for name in ("ptterm", "kitty", "xterm"):
+    for name in ("ptterm", "kitty", "xtermjs"):
         assert no_move[name] == "b", name
 
 
@@ -755,7 +755,7 @@ def test_what_a_delete_leaves_at_the_right_edge():
     `checks.pymux-alacritty`: twelve cells at the end of one row.
     """
     keeps_background = _cells("\x1b[41mabcdef\x1b[1;1H\x1b[1P")
-    for name in ("ptterm", "alacritty", "kitty", "libvterm", "xterm"):
+    for name in ("ptterm", "alacritty", "kitty", "libvterm", "xtermjs"):
         assert keeps_background[name][0][7].bg == ("index", 1), name
     for name in ("ghostty", "wezterm"):
         assert keeps_background[name][0][7].bg is None, name
@@ -763,7 +763,7 @@ def test_what_a_delete_leaves_at_the_right_edge():
     reversed_cells = _cells("\x1b[31;1;7;4;9mabcdef\x1b[1;1H\x1b[1P")
     for name in ("ptterm", "kitty"):
         assert reversed_cells[name][0][7].reverse, name
-    for name in ("alacritty", "ghostty", "libvterm", "wezterm", "xterm"):
+    for name in ("alacritty", "ghostty", "libvterm", "wezterm", "xtermjs"):
         assert not reversed_cells[name][0][7].reverse, name
 
 
@@ -799,7 +799,7 @@ def test_what_the_line_drawing_set_draws_for_h():
     """
     held = characters_in_row("\x1b(0h", lines=3, columns=6)
     assert held["kitty"][0] == "░"
-    for name in ("ptterm", "alacritty", "ghostty", "libvterm", "wezterm", "xterm"):
+    for name in ("ptterm", "alacritty", "ghostty", "libvterm", "wezterm", "xtermjs"):
         assert held[name][0] == "␤", name
 
 
@@ -820,7 +820,7 @@ def test_what_the_line_drawing_set_draws_for_the_blank():
     assert held["ptterm"][0] == " "
     assert held["kitty"][0] == " "
     assert held["alacritty"][0] == " "
-    for name in ("ghostty", "libvterm", "wezterm", "xterm"):
+    for name in ("ghostty", "libvterm", "wezterm", "xtermjs"):
         assert held[name][0] == "_", name
 
 
@@ -836,7 +836,7 @@ def test_the_alternate_screen_gives_back_what_it_saved():
     """
     data = "\x1b[?1049h\x1b[3;5H\x1b7\x1b[?1049l\x1b[?1049h\x1b8z"
     held = characters_in_row(data, row=2, lines=6, columns=10)
-    for name in ("ptterm", "alacritty", "ghostty", "kitty", "libvterm", "wezterm", "xterm"):
+    for name in ("ptterm", "alacritty", "ghostty", "kitty", "libvterm", "wezterm", "xtermjs"):
         assert held[name][:5] == "    z", name
 
 
@@ -869,10 +869,10 @@ A_TARGET = "https://a"
 ANOTHER_TARGET = "https://b"
 
 #: Every judge that can say where a link goes, and ptterm.
-TARGET_HOLDERS = ("alacritty", "ghostty", "kitty", "ptterm", "wezterm", "xterm")
+TARGET_HOLDERS = ("alacritty", "ghostty", "kitty", "ptterm", "wezterm", "xtermjs")
 
 #: Every judge that can say which cells are one link, and ptterm.
-LINK_HOLDERS = ("alacritty", "kitty", "ptterm", "wezterm", "xterm")
+LINK_HOLDERS = ("alacritty", "kitty", "ptterm", "wezterm", "xtermjs")
 
 #: Every judge that holds no link at all.
 LINK_BLIND = ["libvterm"]
@@ -941,7 +941,8 @@ def test_a_link_overwrites_the_shape_of_a_line():
     A link over a curly line reads as dashed, both ways round. The curl
     is gone, and no reader can bring it back. So the shape that xterm.js
     reports on a linked cell says nothing about the program, and
-    `_as_xterm_sees` drops the underline of such a cell from both sides.
+    `_as_xtermjs_sees` drops the underline of such a cell from both
+    sides.
 
     This test reads the raw answer, because the projection hides what it
     records.
@@ -949,14 +950,14 @@ def test_a_link_overwrites_the_shape_of_a_line():
     data = OPEN_LINK % ("id=1", A_TARGET) + "ab" + CLOSE_LINK
     held = _cells(data, lines=2, columns=4)
     for name in ("ptterm", "alacritty", "ghostty", "kitty", "libvterm",
-                 "wezterm", "xterm"):
+                 "wezterm", "xtermjs"):
         assert held[name][0][0].underline == 0, name
 
     over_a_curly = OPEN_LINK % ("id=1", A_TARGET) + "\x1b[4:3mab\x1b[m" + CLOSE_LINK
     under_a_curly = "\x1b[4:3m" + OPEN_LINK % ("id=1", A_TARGET) + "ab\x1b[m"
     for data in (over_a_curly, under_a_curly):
         held = _cells(data, lines=2, columns=4)
-        assert held["xterm"][0][0].underline == DASHED
+        assert held["xtermjs"][0][0].underline == DASHED
         assert held["ptterm"][0][0].underline == CURLY
 
 
@@ -1064,13 +1065,13 @@ def test_two_judges_split_a_link_that_carries_no_id():
         + "cd"
     )
     held = link_shape(data)
-    for name in ("alacritty", "xterm"):
+    for name in ("alacritty", "xtermjs"):
         assert held[name] == [(1, 1, None, None), (2, 2, None, None)], name
     for name in ("kitty", "ptterm", "wezterm"):
         assert held[name] == [(1, 1, None, None), (1, 1, None, None)], name
 
     against, with_us = sides(data, lines=2, columns=4)
-    assert against == ["alacritty", "xterm"]
+    assert against == ["alacritty", "xtermjs"]
     assert with_us == ["kitty", "wezterm"]
     assert cannot_see(data, lines=2, columns=4) == LINK_ABSTAINS
     assert verdict(data, lines=2, columns=4) == "split"
@@ -1117,7 +1118,7 @@ def test_narrowing_splits_a_row_that_no_longer_fits():
     first. It is one judge against five, so ptterm follows the five.
     """
     found = rows_of("abcdefghij\r\n", 4, 10, (4, 4))
-    for name in ("ptterm", "ghostty", "kitty", "libvterm", "wezterm", "xterm"):
+    for name in ("ptterm", "ghostty", "kitty", "libvterm", "wezterm", "xtermjs"):
         assert found[name] == ["abcd", "efgh", "ij", ""], name
     assert found["alacritty"] == ["ij", "", "", ""]
 
@@ -1139,12 +1140,12 @@ def test_xterm_js_leaves_the_row_the_cursor_sits_on():
     reflows the cursor row, and so do five of the six.
     """
     on_the_cursor = rows_of("abcdefghij", 4, 10, (4, 4))
-    assert on_the_cursor["xterm"] == ["abcd", "", "", ""]
+    assert on_the_cursor["xtermjs"] == ["abcd", "", "", ""]
     for name in ("ptterm", "ghostty", "kitty", "libvterm", "wezterm"):
         assert on_the_cursor[name] == ["abcd", "efgh", "ij", ""], name
 
     widened = rows_of("abcdefghij", 4, 4, (4, 10))
-    assert widened["xterm"] == ["abcd", "efgh", "ij", ""]
+    assert widened["xtermjs"] == ["abcd", "efgh", "ij", ""]
     for name in ("ptterm", "alacritty", "ghostty", "kitty", "libvterm", "wezterm"):
         assert widened[name] == ["abcdefghij", "", "", ""], name
 
@@ -1182,7 +1183,7 @@ def test_where_a_shell_prompt_lands_when_a_window_gets_wider():
     """
     prompt = "PROMPT GOES HERE\r\n> \r\n\r\nPROMPT GOES HERE\r\n> "
     found = rows_of(prompt, 5, 10, (5, 16))
-    for name in ("ptterm", "alacritty", "ghostty", "wezterm", "xterm"):
+    for name in ("ptterm", "alacritty", "ghostty", "wezterm", "xtermjs"):
         assert found[name] == [
             "PROMPT GOES HERE",
             ">",
@@ -1231,7 +1232,7 @@ def test_an_erase_at_the_end_of_a_line_ends_the_wrap_out_of_it():
     for name in ("ptterm", "alacritty", "ghostty", "kitty", "libvterm", "wezterm"):
         assert kept[name] == ["D" * 15, "", ""], name
     # xterm.js leaves the row the cursor sits on, as the test above says.
-    assert kept["xterm"] == ["DDDDDDDDDD", "DDDDD", ""]
+    assert kept["xtermjs"] == ["DDDDDDDDDD", "DDDDD", ""]
 
 
 # ----------------------------------------------------------------------
@@ -1254,7 +1255,7 @@ LOWERED = 2
 BASELINE_HOLDERS = ("libvterm", "ptterm", "wezterm")
 
 #: Every judge that holds no baseline at all.
-BASELINE_BLIND = ("alacritty", "ghostty", "kitty", "xterm")
+BASELINE_BLIND = ("alacritty", "ghostty", "kitty", "xtermjs")
 
 
 def baseline_of(data, lines=1, columns=4):

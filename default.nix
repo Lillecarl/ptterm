@@ -84,7 +84,7 @@ let
     };
     js = builtins.path {
       path = ./tests/judges-js;
-      name = "ptterm-xterm-judge-source";
+      name = "ptterm-xtermjs-judge-source";
     };
   };
 

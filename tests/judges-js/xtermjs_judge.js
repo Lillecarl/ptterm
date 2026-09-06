@@ -10,8 +10,8 @@
 //
 // The answer is one line holding the screen, as rows of cells:
 //
-//     {"xterm": [[[char, fg, bg, bold, italic, ul, rev, ulcol,
-//                  link, link_name, baseline], ...]]}
+//     {"xtermjs": [[[char, fg, bg, bold, italic, ul, rev, ulcol,
+//                    link, link_name, baseline], ...]]}
 //
 // A colour is null, ["index", n] or ["rgb", r, g, b]. That is the
 // shape every other judge speaks.
@@ -22,7 +22,7 @@
 
 const path = process.argv[2];
 if (!path) {
-  process.stderr.write("usage: xterm_judge.js <path to xterm-headless.js>\n");
+  process.stderr.write("usage: xtermjs_judge.js <path to xterm-headless.js>\n");
   process.exit(2);
 }
 const { Terminal } = require(path);
@@ -110,7 +110,7 @@ function screenOf(terminal, lines, columns) {
         // compares as it is.
         //
         // A cell of a link reads as 5 whatever the program asked for.
-        // `_as_xterm_sees` drops the line of a linked cell for that
+        // `_as_xtermjs_sees` drops the line of a linked cell for that
         // reason; the judge reports what xterm.js holds.
         cell.getUnderlineStyle(),
         cell.isInverse() !== 0,
@@ -139,7 +139,7 @@ function answer(line, done) {
   try {
     request = JSON.parse(line);
   } catch (error) {
-    done(JSON.stringify({ xterm: [] }));
+    done(JSON.stringify({ xtermjs: [] }));
     return;
   }
 
@@ -166,7 +166,7 @@ function answer(line, done) {
     }
     const rows = screenOf(terminal, lines, columns);
     terminal.dispose();
-    done(JSON.stringify({ xterm: rows }));
+    done(JSON.stringify({ xtermjs: rows }));
   });
 }
 

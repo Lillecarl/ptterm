@@ -37,7 +37,7 @@ PANEL_ORACLES = (
     "vterm_oracle",
     "rust_oracle",
     "ghostty_oracle",
-    "xterm_oracle",
+    "xtermjs_oracle",
 )
 
 #: The module that reads a colour with the real Xlib.

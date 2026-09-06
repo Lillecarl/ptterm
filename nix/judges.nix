@@ -72,20 +72,20 @@ rec {
     hash = "sha256-B+SXCxZ05+9svVfIwXdG6q3NQap99bM2lf1knm7E14o=";
   };
 
-  xtermLibrary = stdenv.mkDerivation {
-    pname = "ptterm-xterm-judge";
+  xtermjsLibrary = stdenv.mkDerivation {
+    pname = "ptterm-xtermjs-judge";
     version = "6.0.0";
     src = judgeSources.js;
     dontBuild = true;
     installPhase = ''
       mkdir -p $out/lib
       tar xzf ${xtermHeadless} -C $out/lib --strip-components=1
-      cp xterm_judge.js $out/lib/
+      cp xtermjs_judge.js $out/lib/
     '';
   };
 
-  xterm = writeShellScriptBin "xterm-judge" ''
-    exec ${nodejs}/bin/node ${xtermLibrary}/lib/xterm_judge.js \
-      ${xtermLibrary}/lib/lib-headless/xterm-headless.js "$@"
+  xtermjs = writeShellScriptBin "xtermjs-judge" ''
+    exec ${nodejs}/bin/node ${xtermjsLibrary}/lib/xtermjs_judge.js \
+      ${xtermjsLibrary}/lib/lib-headless/xterm-headless.js "$@"
   '';
 }

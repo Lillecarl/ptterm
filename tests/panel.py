@@ -117,12 +117,16 @@ def judges() -> List[Judge]:
             found.append(Judge("ghostty", ghostty_cells, _as_ghostty_sees))
 
     try:
-        from xterm_oracle import _as_xterm_sees, xterm_cells, xterm_is_available
+        from xtermjs_oracle import (
+            _as_xtermjs_sees,
+            xtermjs_cells,
+            xtermjs_is_available,
+        )
     except ImportError:
         pass
     else:
-        if xterm_is_available():
-            found.append(Judge("xterm", xterm_cells, _as_xterm_sees))
+        if xtermjs_is_available():
+            found.append(Judge("xtermjs", xtermjs_cells, _as_xtermjs_sees))
 
     return found
 

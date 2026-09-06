@@ -54,7 +54,7 @@ let
     export PTTERM_LIBVTERM=${libvterm-neovim}/lib/libvterm.so
     export PTTERM_JUDGES=${judges.rust}/bin/ptterm-judges
     export PTTERM_GHOSTTY=${judges.ghostty}/bin/ghostty-judge
-    export PTTERM_XTERM=${judges.xterm}/bin/xterm-judge
+    export PTTERM_XTERMJS=${judges.xtermjs}/bin/xtermjs-judge
   '';
 
   # The judge for a colour spec: the real Xlib. `ptterm/xcms.py` is a
@@ -129,7 +129,7 @@ let
     python -c "import ctypes, os; ctypes.CDLL(os.environ['PTTERM_LIBVTERM'])"
     echo '{"data":"x","lines":1,"columns":1}' | "$PTTERM_JUDGES" > /dev/null
     echo '{"data":"x","lines":1,"columns":1}' | "$PTTERM_GHOSTTY" > /dev/null
-    echo '{"data":"x","lines":1,"columns":1}' | "$PTTERM_XTERM" > /dev/null
+    echo '{"data":"x","lines":1,"columns":1}' | "$PTTERM_XTERMJS" > /dev/null
   '';
   runPytest = "python -m pytest $selection -q -p no:cacheprovider";
 
