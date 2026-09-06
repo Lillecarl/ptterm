@@ -122,12 +122,17 @@ class Harness:
         are one line. `run-test.pl` writes each byte as lowercase hex
         with no padding, separated by commas, which is what it compares
         against.
+
+        The encoding takes "surrogateescape" because a reply with eight
+        bit controls carries a C1 byte such as 0x9b. That is a byte and
+        not a character, so it travels as a surrogate and comes back as
+        the one byte the suite asks for.
         """
         answers, self.written[:] = "".join(self.written), []
         if not answers:
             return None
         return "output " + ",".join(
-            "%x" % byte for byte in answers.encode("utf-8")
+            "%x" % byte for byte in answers.encode("utf-8", "surrogateescape")
         )
 
     def cell(self, row: int, column: int):

@@ -1032,6 +1032,54 @@ class BetterScreen:
         "The whole screen is set to reverse video."
         return mo.DECSCNM in self.mode
 
+    def _control(self, final: str) -> str:
+        """
+        A C1 control, spelled the way the program asked for.
+
+        Every C1 control has two spellings. Seven bits is `ESC` and a
+        letter, and eight bits is the single byte 0x40 above that
+        letter: `CSI` is `ESC [` or 0x9b. S8C1T ("ESC SP G") picks the
+        second and S7C1T ("ESC SP F") picks the first.
+
+        The mode exists so that a program can parse an answer without
+        the escape. It has to reach every control the terminal writes,
+        or the program still finds two bytes where it looks for one.
+        xterm switches all of them in `unparseputc1`, and so does
+        libvterm in `vterm_push_output_sprintf_ctrl`.
+
+        A C1 byte is a byte and not a character, so UTF-8 has no
+        spelling for it. It travels as a surrogate, which is Python's
+        channel for exactly that, and the backend encodes it back with
+        "surrogateescape".
+        """
+        if self.seven_bit_controls:
+            return "\x1b" + final
+        return chr(0xDC00 + 0x40 + ord(final))
+
+    def reply_csi(self, body: str) -> None:
+        "Answer with a control sequence."
+        self.write_process_input(self._control("[") + body)
+
+    def reply_dcs(self, body: str) -> None:
+        "Answer with a device control string, closed with ST."
+        self.write_process_input(self._control("P") + body + self._control("\\"))
+
+    def reply_osc(self, body: str) -> None:
+        "Answer with an operating system command, closed with ST."
+        self.write_process_input(self._control("]") + body + self._control("\\"))
+
+    def reply_apc(self, body: str) -> None:
+        "Answer with an application program command, closed with ST."
+        self.write_process_input(self._control("_") + body + self._control("\\"))
+
+    def set_seven_bit_controls(self) -> None:
+        'S7C1T ("ESC SP F"): answer with "ESC" and a letter.'
+        self.seven_bit_controls = True
+
+    def set_eight_bit_controls(self) -> None:
+        'S8C1T ("ESC SP G"): answer with one C1 byte.'
+        self.seven_bit_controls = False
+
     def reset(self) -> None:
         """Resets the terminal to its initial state.
 
@@ -1147,7 +1195,7 @@ class BetterScreen:
         self.active_display = StatusDisplay.MAIN
         self.status_line = StatusLineType.NONE
         self.conformance_level = DEFAULT_CONFORMANCE_LEVEL
-        self.seven_bit_controls = 1
+        self.seven_bit_controls = True
         self.lines_per_screen = self.lines
 
         # Reset modes.
@@ -1459,8 +1507,8 @@ class BetterScreen:
         if PrivateMode.INBAND_RESIZE.flag not in self.mode:
             return
 
-        self.write_process_input(
-            "\x1b[48;%i;%i;%i;%it"
+        self.reply_csi(
+            "48;%i;%i;%i;%it"
             % (
                 self.lines,
                 self.columns,
@@ -3694,15 +3742,17 @@ class BetterScreen:
         the level for DECNCSM and answers every other sequence it
         knows whatever the level says.
 
-        The second parameter says whether the answers carry seven bit
-        controls. ptterm always writes seven bit controls, so that one
-        is kept as well.
+        The second parameter picks the form of a C1 control that this
+        terminal writes back. xterm's ctlseqs.txt gives it three values:
+        1 is seven bit, which is the DEC factory default, and 0 and 2
+        are both eight bit. It is optional, and level 1 ignores it.
+        S7C1T and S8C1T set the same thing.
         """
         level = params[0] if params else 0
         if level in tuple(ConformanceLevel):
             self.conformance_level = ConformanceLevel(level)
-        if len(params) > 1:
-            self.seven_bit_controls = 1 if params[1] in (0, 1) else 1
+        if len(params) > 1 and self.conformance_level != ConformanceLevel.VT100:
+            self.seven_bit_controls = params[1] == 1
 
     def set_lines_per_screen(self, *params: int, **kwargs) -> None:
         """
@@ -4067,31 +4117,35 @@ class BetterScreen:
     #: program that asks has to read one: a query with no answer leaves
     #: the program waiting, and leaves every answer after it one place
     #: out of step.
+    #:
+    #: Each answer is the body of a control sequence, without the CSI
+    #: in front of it. `reply_csi` spells that, because S8C1T changes
+    #: how it is spelled.
     _DEVICE_STATUS_ANSWERS = {
         # DSRPrinterPort. 13 is "no printer".
-        15: "\x1b[?13n",
+        15: "?13n",
         # DSRUDKLocked. 20 is "unlocked". Nothing here defines a key,
         # so nothing can lock one either.
-        25: "\x1b[?20n",
+        25: "?20n",
         # DSRKeyboard: 27, then the language, the state and the type.
         # 1 is North American, 0 is ready and 5 is a PC keyboard.
-        26: "\x1b[?27;1;0;5n",
+        26: "?27;1;0;5n",
         # DSRLocatorStatus. 50 is "no locator". DECELR is not here, so
         # there is no locator to report on.
-        55: "\x1b[?50n",
+        55: "?50n",
         # DSRLocatorId: 57, then the kind of pointing device. 0 is
         # "not known".
-        56: "\x1b[?57;0n",
+        56: "?57;0n",
         # DECMSR: the room left for a macro, in bytes. This terminal
         # holds no macro and defines none, so there is no room. The
         # answer carries no private marker, and ends with "* {".
-        62: "\x1b[0*{",
+        62: "0*{",
         # DSRDataIntegrity. 70 is "no error since the last report".
-        75: "\x1b[?70n",
+        75: "?70n",
         # DSRMultipleSessionStatus. 83 is "not configured for more
         # than one session". A pane is a session of pymux, not of the
         # terminal.
-        85: "\x1b[?83n",
+        85: "?83n",
     }
 
     def report_device_status(
@@ -4114,32 +4168,32 @@ class BetterScreen:
         stop the whole pane.
         """
         if private is True and data == 996:
-            self.write_process_input("\x1b[?997;%in" % self.color_scheme)
+            self.reply_csi("?997;%in" % self.color_scheme)
             return
 
         if private is True and data == 63:
             # DECCKSR: the checksum of the macros, as "DCS Pid ! ~
             # xxxx ST". No macro is defined, so the sum is zero.
             pid = args[0] if args else 0
-            self.write_process_input("\x1bP%i!~0000\x1b\\" % pid)
+            self.reply_dcs("%i!~0000" % pid)
             return
 
         if private is True and data in self._DEVICE_STATUS_ANSWERS:
-            self.write_process_input(self._DEVICE_STATUS_ANSWERS[data])
+            self.reply_csi(self._DEVICE_STATUS_ANSWERS[data])
             return
 
         if data == 6:
             y, x = self.reported_position
             if private is True:
                 # DECXCPR: the page number comes after the position.
-                self.write_process_input("\x1b[?%i;%i;1R" % (y, x))
+                self.reply_csi("?%i;%i;1R" % (y, x))
             else:
-                self.write_process_input("\x1b[%i;%iR" % (y, x))
+                self.reply_csi("%i;%iR" % (y, x))
             return
 
         if data == 5 and private is False:
             # "The terminal is well."
-            self.write_process_input("\x1b[0n")
+            self.reply_csi("0n")
 
     def unscroll(self, count: int | None = None, *args, **kwargs) -> None:
         """
@@ -4207,7 +4261,7 @@ class BetterScreen:
         """
         if private != ">":
             return
-        self.write_process_input("\x1bP>|%s\x1b\\" % TERMINAL_VERSION)
+        self.reply_dcs(">|%s" % TERMINAL_VERSION)
 
     #: The private modes that this screen acts on. DECRQM answers for
     #: these; every other mode is reported as not recognised, so that a
@@ -4367,8 +4421,8 @@ class BetterScreen:
         else:
             state = ModeReport.SET if enabled else ModeReport.RESET
 
-        self.write_process_input(
-            "\x1b[%s%i;%i$y" % ("?" if is_private else "", number, state)
+        self.reply_csi(
+            "%s%i;%i$y" % ("?" if is_private else "", number, state)
         )
 
     def set_cursor_style(self, *params: int, **kwargs) -> None:
@@ -4440,7 +4494,13 @@ class BetterScreen:
         elif name == "$~":
             value = "%i" % self.status_line
         elif name == '"p':
-            value = "%i;%i" % (self.conformance_level, self.seven_bit_controls)
+            # 1 names seven bit controls and 2 names eight, the way
+            # DECSCL reads them. 0 also means eight bit on the way in,
+            # and the answer picks one of the two names.
+            value = "%i;%i" % (
+                self.conformance_level,
+                1 if self.seven_bit_controls else 2,
+            )
         elif name == "*|":
             value = "%i" % self.lines_per_screen
         elif name == "t":
@@ -4455,10 +4515,10 @@ class BetterScreen:
             # `tests/DEVIATIONS.md` carries it.
             value = "%i" % self.lines
         else:
-            self.write_process_input("\x1bP0$r\x1b\\")
+            self.reply_dcs("0$r")
             return
 
-        self.write_process_input("\x1bP1$r%s%s\x1b\\" % (value, name))
+        self.reply_dcs("1$r%s%s" % (value, name))
 
     def report_capabilities(self, query: str) -> None:
         """
@@ -4476,18 +4536,17 @@ class BetterScreen:
             try:
                 name = bytes.fromhex(encoded).decode("ascii")
             except ValueError:
-                self.write_process_input("\x1bP0+r%s\x1b\\" % encoded)
+                self.reply_dcs("0+r%s" % encoded)
                 continue
 
             value = CAPABILITIES.get(name)
             if value is None:
-                self.write_process_input("\x1bP0+r%s\x1b\\" % encoded)
+                self.reply_dcs("0+r%s" % encoded)
             elif value is True:
-                self.write_process_input("\x1bP1+r%s\x1b\\" % encoded)
+                self.reply_dcs("1+r%s" % encoded)
             else:
-                self.write_process_input(
-                    "\x1bP1+r%s=%s\x1b\\"
-                    % (encoded, str(value).encode("utf-8").hex())
+                self.reply_dcs(
+                    "1+r%s=%s" % (encoded, str(value).encode("utf-8").hex())
                 )
 
     def _current_rendition(self) -> str:
@@ -4592,29 +4651,25 @@ class BetterScreen:
         elif what == WindowOp.RESIZE_PIXELS:
             self._resize_in_pixels(params)
         elif what == WindowOp.REPORT_ICON_LABEL:
-            self.write_process_input(
-                "\x1b]L%s\x1b\\" % self._title_to_report(self.icon_name)
-            )
+            self.reply_osc("L%s" % self._title_to_report(self.icon_name))
         elif what == WindowOp.REPORT_WINDOW_TITLE:
-            self.write_process_input(
-                "\x1b]l%s\x1b\\" % self._title_to_report(self.title)
-            )
+            self.reply_osc("l%s" % self._title_to_report(self.title))
         elif what == WindowOp.PUSH_TITLE:
             self._push_title()
         elif what == WindowOp.POP_TITLE:
             self._pop_title(which)
         elif what == WindowOp.REPORT_CELL_SIZE_PIXELS:
             # Cell size in pixels: height first, then width.
-            self.write_process_input(
-                "\x1b[6;%i;%it" % (ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH)
+            self.reply_csi(
+                "6;%i;%it" % (ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH)
             )
         elif what == WindowOp.REPORT_TEXT_AREA_CHARS:
             # Size of the text area, in cells.
-            self.write_process_input("\x1b[8;%i;%it" % (self.lines, self.columns))
+            self.reply_csi("8;%i;%it" % (self.lines, self.columns))
         elif what == WindowOp.REPORT_TEXT_AREA_PIXELS:
             # Size of the text area, in pixels.
-            self.write_process_input(
-                "\x1b[4;%i;%it"
+            self.reply_csi(
+                "4;%i;%it"
                 % (self.lines * ASSUMED_CELL_HEIGHT, self.columns * ASSUMED_CELL_WIDTH)
             )
         elif what == WindowOp.REPORT_SCREEN_SIZE_CHARS:
@@ -4629,11 +4684,11 @@ class BetterScreen:
             # A program reads this to learn how large it could become.
             # Naming a screen it cannot reach would send it asking for
             # a size that nothing can give.
-            self.write_process_input("\x1b[9;%i;%it" % (self.lines, self.columns))
+            self.reply_csi("9;%i;%it" % (self.lines, self.columns))
         elif what == WindowOp.REPORT_SCREEN_SIZE_PIXELS:
             # The same room, counted in pixels.
-            self.write_process_input(
-                "\x1b[5;%i;%it"
+            self.reply_csi(
+                "5;%i;%it"
                 % (self.lines * ASSUMED_CELL_HEIGHT, self.columns * ASSUMED_CELL_WIDTH)
             )
 
@@ -4784,7 +4839,7 @@ class BetterScreen:
                 char = row[x].char
                 total += ord(char[0]) if char else ord(" ")
 
-        self.write_process_input("\x1bP%i!~%04X\x1b\\" % (pid, -total & 0xFFFF))
+        self.reply_dcs("%i!~%04X" % (pid, -total & 0xFFFF))
 
     def save_modes(self, *params: int) -> None:
         """
@@ -4833,12 +4888,10 @@ class BetterScreen:
             # the patch level of xterm that a pane follows, which is
             # how a program reads it: the number says which behaviours
             # it may count on.
-            self.write_process_input(
-                "\x1b[>%i;%i;0c" % (XTERM_TYPE, XTERM_PATCH_LEVEL)
-            )
+            self.reply_csi(">%i;%i;0c" % (XTERM_TYPE, XTERM_PATCH_LEVEL))
         elif not private and not (params and params[0]):
-            self.write_process_input(
-                "\x1b[?%s;%sc"
+            self.reply_csi(
+                "?%s;%sc"
                 % (
                     self.conformance_level,
                     ";".join(str(one) for one in DEVICE_EXTENSIONS),
@@ -4859,9 +4912,7 @@ class BetterScreen:
             # Query: reply with the flags that this pane really gets.
             # (Not the ones it asked for: see
             # `deliverable_kitty_keyboard_flags`.)
-            self.write_process_input(
-                "\x1b[?%iu" % self.deliverable_kitty_keyboard_flags
-            )
+            self.reply_csi("?%iu" % self.deliverable_kitty_keyboard_flags)
 
         elif private == ">":
             # Push. The flags default to none.
@@ -5028,7 +5079,7 @@ class BetterScreen:
                 answers.append("default")
             else:
                 answers.append("0")
-        self.write_process_input("\x1b]22;%s\x1b\\" % ",".join(answers))
+        self.reply_osc("22;%s" % ",".join(answers))
 
     def _forward_osc(self, code: str, param: str) -> None:
         """
@@ -5088,9 +5139,7 @@ class BetterScreen:
             if value.strip() == self.QUERY:
                 color = self.color_of(entry)
                 if color is not None:
-                    self.write_process_input(
-                        "\x1b]%s;%s;%s\x1b\\" % (code, number, color.spec)
-                    )
+                    self.reply_osc("%s;%s;%s" % (code, number, color.spec))
             else:
                 color = parse_color(value)
                 if color is not None and self.color_of(entry) is not None:
@@ -5132,9 +5181,7 @@ class BetterScreen:
                 color = self.dynamic_colors.get(
                     number, DEFAULT_COLORS[DYNAMIC_COLOR_CODES[number]]
                 )
-                self.write_process_input(
-                    "\x1b]%s;%s\x1b\\" % (number, color.spec)
-                )
+                self.reply_osc("%s;%s" % (number, color.spec))
             else:
                 color = parse_color(value)
                 if color is not None:
@@ -5176,7 +5223,7 @@ class BetterScreen:
             else:
                 answers.append("%s=" % key)  # Not a colour that we hold.
         if answers:
-            self.write_process_input("\x1b]21;%s\x1b\\" % ";".join(answers))
+            self.reply_osc("21;%s" % ";".join(answers))
 
     def _change_title_modes(self, params: Tuple[int, ...], on: bool) -> None:
         """
@@ -5249,7 +5296,7 @@ class BetterScreen:
         result = self.graphics.handle(data[1:], self)
         if result is not None:
             response, _is_ok = result
-            self.write_process_input("\x1b_G" + response + "\x1b\\")
+            self.reply_apc("G" + response)
 
     def dcs(self, data: str) -> None:
         """

@@ -1012,7 +1012,7 @@ drives. `NOT_OURS` in `tests/drive_with_vterm.py` leaves out 25 of the
 files, each with the reason: libvterm reports every glyph it lays down
 and which rectangle it redrew, and ptterm has neither.
 
-The 18 that run hold 31 answers that differ. They are in
+The 18 that run hold 30 answers that differ. They are in
 `tests/vterm-failures.txt`, and each one is one of five things.
 
 **The harness reports what the terminal writes back.** It used to say
@@ -1032,12 +1032,17 @@ it. `26state_query` measures it now.
 | `30state_pen` 118 to 122 | SGR 73 to 75, superscript and subscript | Lillecarl/pymux#59 |
 | `64screen_pen` 28 | the same alternate fonts, read off a cell | Lillecarl/pymux#60 |
 | `64screen_pen` 41, 42 | the same superscript and subscript | Lillecarl/pymux#59 |
-| `26state_query` 63 | S8C1T: a reply still uses seven bit controls | Lillecarl/pymux#94 |
 
 **ptterm answers a query differently, and each answer has a reason.**
 
 `26state_query` is the only borrowed file that reads what a terminal
-writes back. Eight of its answers differ.
+writes back. Eight of its answers differ, and a ninth used to.
+
+The ninth was S8C1T at line 63. ptterm answers it now: `reply_csi`,
+`reply_dcs`, `reply_osc` and `reply_apc` spell every C1 control the
+terminal writes, reading the mode, and the eight bit form goes out as
+the one byte it is and not the two that UTF-8 would make of it
+(Lillecarl/pymux#94).
 
 | Line | What libvterm expects | What ptterm answers | Why |
 | --- | --- | --- | --- |

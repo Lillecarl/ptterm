@@ -15,7 +15,6 @@
 26state_query.test:49 what the terminal wrote back
 26state_query.test:54 what the terminal wrote back
 26state_query.test:59 what the terminal wrote back
-26state_query.test:63 what the terminal wrote back
 26state_query.test:9 what the terminal wrote back
 30state_pen.test:111 pen foreground
 30state_pen.test:114 pen foreground
