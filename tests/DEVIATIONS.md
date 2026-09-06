@@ -108,6 +108,13 @@ of them without asking a person.
 - The scrolling region and the saved cursor sat on the wrong side of
   the switch: the region belongs to the terminal and survives it, and
   the saved cursor belongs to one screen and does not.
+- RIS ("ESC c") kept what "ESC 7" saved, and DECSTR ("CSI ! p") threw
+  it away. That is the wrong way round: DECSTR is the weaker of the two
+  resets, and RIS is the power-up state, where a terminal remembers no
+  cursor. Alacritty, Ghostty, kitty and xterm.js all forget it on RIS.
+  libvterm and WezTerm keep it, and they keep it through DECSTR as
+  well, so neither of them drew the line where ptterm drew it. Nothing
+  in esctest2 asks, so nothing had caught it.
 - The saved cursor of the alternate screen went away when a program
   took that screen again. "?1049h" clears the content and leaves the
   save alone: xterm holds one saved cursor per screen for the life of

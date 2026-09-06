@@ -604,6 +604,34 @@ def test_what_a_tab_leaves_in_the_cell_it_moves_from():
         assert held[name][:9] == "a       b", name
 
 
+def test_whether_a_reset_forgets_the_saved_cursor():
+    """
+    RIS is the power-up state, so a terminal that has just been through
+    one remembers no cursor. Alacritty, Ghostty, kitty and xterm.js
+    forget it; libvterm and WezTerm keep it.
+
+    ptterm kept it, and emptied the list on DECSTR, which is the wrong
+    way round: the soft reset is the weaker of the two. Neither judge on
+    the other side draws the line there. It forgets it on both now.
+    """
+
+    def home(data):
+        held = _cells(data, lines=4, columns=8)
+        return {name: rows[0][0].char == "z" for name, rows in held.items()}
+
+    after_ris = home("\x1b[3;5H\x1b7\x1bc\x1b8z")
+    for name in ("ptterm", "alacritty", "ghostty", "kitty", "xterm"):
+        assert after_ris[name], name
+    for name in ("libvterm", "wezterm"):
+        assert not after_ris[name], name
+
+    after_decstr = home("\x1b[3;5H\x1b7\x1b[!p\x1b8z")
+    for name in ("ptterm", "kitty", "wezterm", "xterm"):
+        assert after_decstr[name], name
+    for name in ("alacritty", "ghostty", "libvterm"):
+        assert not after_decstr[name], name
+
+
 def test_whether_a_restore_brings_the_wait_to_wrap_back():
     """
     A character in the last column leaves the cursor waiting to wrap.
