@@ -4,7 +4,10 @@ Some utilities.
 import array
 import fcntl
 import os
+import select
 import termios
+from codecs import getincrementaldecoder
+
 from ..graphics import ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH
 
 #: The pixel fields of `struct winsize` are unsigned shorts, and the
@@ -13,10 +16,79 @@ from ..graphics import ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH
 MAX_WINSIZE_PIXELS = 32767
 
 __all__ = (
+    "PtyReader",
     "pty_make_controlling_tty",
     "set_terminal_size",
     "nonblocking",
 )
+
+
+class PtyReader:
+    """
+    The side of a pty that a program writes to, read as text.
+
+    A read gives back what is there and never blocks. It can give back
+    an empty string while the pty is still open, because a chunk can
+    end in the middle of a character, so `closed` is the only thing
+    that says the program has gone.
+
+    This was `prompt_toolkit.input.posix_utils.PosixStdinReader`, which
+    reads the keyboard of a person. It is the same arithmetic and a
+    different job, and running a program on a pty is not a toolkit's.
+    Lillecarl/pymux#85.
+
+    :param fd: the file descriptor to read.
+    :param errors: what to do with bytes that are not the encoding.
+        "replace" draws the character that says so, which is what a
+        terminal does with a program that writes rubbish.
+    """
+
+    def __init__(
+        self, fd: int, errors: str = "replace", encoding: str = "utf-8"
+    ) -> None:
+        self.fd = fd
+        self.errors = errors
+
+        # A chunk can end in the middle of a character, so the decoder
+        # keeps what it cannot finish until the rest arrives.
+        self._decoder = getincrementaldecoder(encoding)(errors=errors)
+
+        #: True when there is nothing more to read, ever.
+        self.closed = False
+
+    def read(self, count: int = 1024) -> str:
+        """
+        What the program has written, as text.
+
+        The count is small on purpose. Reading a great deal at once
+        gives the event loop one long turn, and everything else waits
+        for it.
+        """
+        if self.closed:
+            return ""
+
+        # `os.read` would block, and the caller is a callback that the
+        # loop fires when the descriptor is ready. It still happens
+        # that nothing is there, so this asks first.
+        try:
+            if not select.select([self.fd], [], [], 0)[0]:
+                return ""
+        except OSError:
+            # The descriptor was closed. It became ready, a callback
+            # was scheduled, and another callback closed it before this
+            # one ran.
+            self.closed = True
+
+        try:
+            data = os.read(self.fd, count)
+            if data == b"":
+                self.closed = True
+                return ""
+        except OSError:
+            # SIGWINCH interrupts the read.
+            data = b""
+
+        return self._decoder.decode(data)
 
 
 def pty_make_controlling_tty(tty_fd):

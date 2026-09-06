@@ -1,4 +1,4 @@
-from prompt_toolkit.eventloop.future import Future
+from asyncio import Future
 from yawinpty import Pty, SpawnConfig
 
 from .base import Backend

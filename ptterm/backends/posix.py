@@ -6,10 +6,8 @@ import time
 import traceback
 from asyncio import Future, get_event_loop
 
-from prompt_toolkit.input.posix_utils import PosixStdinReader
-
 from .base import Backend
-from .posix_utils import pty_make_controlling_tty, set_terminal_size
+from .posix_utils import PtyReader, pty_make_controlling_tty, set_terminal_size
 
 __all__ = ["PosixBackend"]
 
@@ -22,7 +20,7 @@ class PosixBackend(Backend):
         self.master, self.slave = os.openpty()
 
         # Master side -> attached to terminal emulator.
-        self._reader = PosixStdinReader(self.master, errors="replace")
+        self._reader = PtyReader(self.master, errors="replace")
         self._reader_connected = False
         self._input_ready_callbacks = []
 
