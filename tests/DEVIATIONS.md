@@ -1008,13 +1008,21 @@ a different one.
 
 `checks.ptterm-vterm` runs libvterm's own 43 test files through
 libvterm's own runner, with `tests/vterm_harness.py` as the program it
-drives. `NOT_OURS` in `tests/drive_with_vterm.py` leaves out 27 of the
+drives. `NOT_OURS` in `tests/drive_with_vterm.py` leaves out 25 of the
 files, each with the reason: libvterm reports every glyph it lays down
 and which rectangle it redrew, and ptterm has neither.
 
-The 16 that run hold 270 assertions, and four of those sit inside a
-`$SEQ` and are asked more than once. 15 answers differ. They are in
-`tests/vterm-failures.txt`, and each one is one of four things.
+The 18 that run hold 31 answers that differ. They are in
+`tests/vterm-failures.txt`, and each one is one of five things.
+
+**The harness reports what the terminal writes back.** It used to say
+nothing, so every file that reads a reply was left out. Two of them run
+now: `26state_query`, which is the only borrowed file that judges an
+answer rather than a screen, and `64screen_pen`, which was in that
+group by mistake and needs no reply at all.
+
+Lillecarl/pymux#73 was a bug in exactly that half, and nothing measured
+it. `26state_query` measures it now.
 
 **ptterm does not hold it at all, and holding it is a decision.**
 
@@ -1022,6 +1030,45 @@ The 16 that run hold 270 assertions, and four of those sit inside a
 | --- | --- | --- |
 | `30state_pen` 68, 70 | SGR 10 to 19, the alternate fonts | Lillecarl/pymux#60 |
 | `30state_pen` 118 to 122 | SGR 73 to 75, superscript and subscript | Lillecarl/pymux#59 |
+| `64screen_pen` 28 | the same alternate fonts, read off a cell | Lillecarl/pymux#60 |
+| `64screen_pen` 41, 42 | the same superscript and subscript | Lillecarl/pymux#59 |
+| `26state_query` 63 | S8C1T: a reply still uses seven bit controls | Lillecarl/pymux#94 |
+
+**ptterm answers a query differently, and each answer has a reason.**
+
+`26state_query` is the only borrowed file that reads what a terminal
+writes back. Eight of its answers differ.
+
+| Line | What libvterm expects | What ptterm answers | Why |
+| --- | --- | --- | --- |
+| 9 | `CSI ?1;2c` | the extensions a pane has | entry 18 |
+| 14 | `libvterm(0.3)` | `ptterm(0.2)` | the name of this terminal |
+| 29 | `CSI ?10;10R` | `CSI ?10;10;1R` | DECXCPR carries the page, and xterm sends it |
+| 39, 44, 49, 54, 59 | no `0` in front | `0` in front | see below |
+
+**The leading zero is xterm's, and the panel cannot rule on a reply.**
+libvterm answers `1$r1;5;7m` for `CSI 1;5;7 m`. ptterm answers
+`1$r0;1;5;7m`. esctest2 is xterm's own suite and
+`tests/decrqss.py::test_DECRQSS_SGR` asserts `1$r0;1m`, which ptterm
+passes. Two references, and ptterm follows the one that describes
+xterm.
+
+The same lines carry a second difference: libvterm writes a colour of
+the palette as `38:5:56` and ptterm writes `38;5;56`. Both are read the
+same way. `SGR 58` has only the colon form, and ptterm writes that one
+with colons.
+
+**Two of `64screen_pen`'s answers are decisions already written down.**
+
+Lines 45 and 46 are the reverse video that an erase leaves, which is
+entry 21 above: kitty and WezTerm keep it and four judges do not.
+
+Lines 50 and 51 are DECSCNM. libvterm folds the mode into every cell,
+so a cell that was already reverse goes plain. ptterm leaves the cells
+alone, because a rendition belongs to the program that drew it and the
+mode belongs to the screen. That is the same stance as `idx(15)` below.
+The half that is missing is the renderer: `has_reverse_video` has no
+reader, so the mode is held and never drawn (Lillecarl/pymux#95).
 
 **The suite is describing a limit of libvterm, and the panel says so.**
 
