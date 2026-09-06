@@ -692,6 +692,12 @@ program that uses the pair never has to know where the cursor stood in
 between. That argument does not cover a program that takes the screen
 and then reads the cursor. Lillecarl/pymux#34 holds the question.
 
+**xterm leaves the cursor, so it is five to two now.**
+`test_xterm_itself.py::test_where_xterm_leaves_the_cursor_on_the_newest_alternate_mode`
+holds it: the "X" lands at row 1, column 2, where the cursor stood.
+The description that this entry quotes is xterm's own, and the terminal
+behaves the way it reads.
+
 **As a setting:** the same argument as entry 2. A pane holds one
 cursor, so the choice belongs to the pane and is made once.
 

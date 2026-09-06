@@ -19,6 +19,9 @@ It is asked three kinds of question here.
 - The differences the panel already settled. Nothing there changes.
   The answers fill the last column of the table in `DEVIATIONS.md`, so
   that a reader sees a measurement and not a claim.
+- The questions that are still open on their own. xterm answers three
+  of those the same way, and Lillecarl/pymux#107 says why they are one
+  question: ptterm drops the wait to wrap where xterm keeps it.
 """
 import pytest
 
@@ -218,7 +221,7 @@ def test_xterm_reads_the_parameters_it_needs_out_of_too_many():
 
 # ----------------------------------------------------------------------
 # The differences the panel already settled, put to xterm as well. None
-# of these changes a decision. They fill the column in the table of
+# of these changes a decision. They fill the last column in the table of
 # `DEVIATIONS.md`, so that a reader sees a measurement where the entry
 # says "xterm does" and not a claim.
 
@@ -239,6 +242,69 @@ def test_a_settled_difference_reads_the_way_xterm_reads_it(
     "Entries 1, 2, 4, 5 and 6 of `DEVIATIONS.md`, in that order."
     drawn, ours = both(data, lines=lines, columns=columns)
     assert drawn == ours, number
+
+
+# ----------------------------------------------------------------------
+# The questions that are still open. Each is about where a character
+# lands, so xterm answers each, and none is settled here.
+
+
+def test_where_xterm_leaves_the_cursor_on_the_newest_alternate_mode():
+    """
+    Lillecarl/pymux#34, and entry 17 of `DEVIATIONS.md`.
+
+    ptterm sends the cursor home when a program takes the alternate
+    screen with "?1049", so the "X" lands at row 0, column 0. Alacritty,
+    Ghostty, libvterm and xterm.js leave the cursor where it stood, so
+    the "X" lands at row 1, column 2. kitty and WezTerm are with ptterm.
+    Four against two.
+
+    **xterm leaves the cursor.** Its own description of the mode says
+    what it does and does not mention a move: "Save cursor as in DECSC.
+    After saving the cursor, switch to the Alternate Screen Buffer,
+    clearing it first." So the tally is five against two, and the
+    document the issue quotes is the terminal that wrote it.
+    """
+    drawn = what_xterm_draws("\x1b[2;3H\x1b[?1049hX", lines=3, columns=6)
+    assert [(y, row.index("X")) for y, row in enumerate(drawn) if "X" in row] == [
+        (1, 2)
+    ]
+
+
+def test_where_xterm_draws_after_the_screen_goes_back_under_another_name():
+    """
+    Lillecarl/pymux#35.
+
+    A program takes the alternate screen with "?1049", draws to the end
+    of the row, and gives the screen back with "?47". The hunt found
+    this and hypothesis cut it down; the panel calls it a split, so it
+    is a choice and not a fault.
+
+    ptterm draws the last "0" where the cursor stood, at row 0 column
+    23. kitty, WezTerm, Ghostty and xterm.js draw it somewhere else.
+    The size is the one the hunt uses.
+
+    **xterm draws it at row 1, column 0.** The three wide characters
+    fill the row to the last column, which leaves the cursor waiting to
+    wrap, and giving the screen back does not clear that wait. So the
+    "0" wraps.
+
+    This is the same flag as entry 9 and entry 22: ptterm drops the
+    wait where xterm keeps it. Lillecarl/pymux#107 holds the three
+    together.
+    """
+    program = "\x1b[?1049h\x1b[14G00000你你你\x1b[?47l0"
+
+    def marks(rows):
+        return [
+            (y, x)
+            for y, row in enumerate(rows)
+            for x, one in enumerate(row)
+            if one != " "
+        ]
+
+    assert marks(what_xterm_draws(program, lines=8, columns=24)) == [(1, 0)]
+    assert marks(what_ptterm_draws(program, lines=8, columns=24)) == [(0, 23)]
 
 
 def test_what_xterm_draws_for_the_blank_of_the_line_drawing_set():
@@ -263,6 +329,10 @@ def test_what_xterm_draws_for_the_blank_of_the_line_drawing_set():
     them is what the other three are. Nothing to follow.
     """
     assert what_xterm_draws("\x1b(0_", lines=3, columns=6)[0][0] == " "
+
+
+# ----------------------------------------------------------------------
+# The instrument itself.
 
 
 def test_a_whole_screen_of_eighty_columns_comes_back():
