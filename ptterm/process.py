@@ -6,10 +6,7 @@ import time
 from asyncio import get_event_loop
 from typing import Callable
 
-from prompt_toolkit.eventloop import call_soon_threadsafe
-
 from .backends import Backend
-from .key_mappings import prompt_toolkit_key_to_vt100_key
 from .kitty_keys import translate_key_data
 from .screen import BetterScreen
 from .stream import BetterStream
@@ -17,6 +14,39 @@ from .stream import BetterStream
 __all__ = ["Process"]
 
 logger = logging.getLogger(__name__)
+
+#: How long a pane that nobody is looking at may wait before its output
+#: is parsed, in seconds. One second means that a saturated machine
+#: still parses a thousand bytes a second for such a pane, which is
+#: enough that the interface never feels stuck.
+POSTPONE = 1.0
+
+
+def _when_the_loop_is_free(work: Callable[[], None], deadline: float) -> None:
+    """
+    Run `work` when the event loop has nothing else to do, or at
+    `deadline`, whichever comes first.
+
+    asyncio runs what is scheduled in the order it arrives, and that is
+    the wrong order here: parsing the output of a pane that nobody is
+    looking at may wait, and drawing for the person who is looking may
+    not. A deadline keeps the wait from becoming a starve.
+
+    This was `prompt_toolkit.eventloop.call_soon_threadsafe` with a
+    `max_postpone_time`. Nothing in it is a toolkit's: it reads
+    asyncio's own queue. Lillecarl/pymux#85.
+    """
+    loop = get_event_loop()
+
+    def again() -> None:
+        # `_ready` is what asyncio has queued. uvloop has no such
+        # attribute, and then there is nothing to wait for.
+        if not getattr(loop, "_ready", []) or time.time() > deadline:
+            work()
+            return
+        loop.call_soon_threadsafe(again)
+
+    loop.call_soon_threadsafe(again)
 
 
 class Process:
@@ -142,16 +172,6 @@ class Process:
 
         self.backend.write_text(data)
 
-    def write_key(self, key: str) -> None:
-        """
-        Write prompt_toolkit Key.
-        """
-        data = prompt_toolkit_key_to_vt100_key(
-            key, application_mode=self.screen.in_application_mode
-        )
-        if data:
-            self.write_key_data(data)
-
     def write_key_data(self, data: str) -> None:
         """
         Write raw key data, encoding it for this pane's keyboard mode.
@@ -208,16 +228,7 @@ class Process:
                     if not self.suspended:
                         self.backend.connect_reader()
 
-                # When the event loop is saturated because of CPU, we will
-                # postpone this processing max 'x' seconds.
-
-                # '1' seems like a reasonable value, because that way we say
-                # that we will process max 1k/1s in case of saturation.
-                # That should be enough to prevent the UI from feeling
-                # unresponsive.
-                timestamp = time.time() + 1
-
-                call_soon_threadsafe(do_asap, max_postpone_time=timestamp)
+                _when_the_loop_is_free(do_asap, time.time() + POSTPONE)
         else:
             # End of stream. Remove child.
             self.backend.disconnect_reader()
