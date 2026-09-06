@@ -242,6 +242,21 @@ def test_a_special_colour_that_nobody_set_answers_the_text_colour(pane):
     assert responses == ["\x1b]5;0;%s\x1b\\" % DEFAULT_COLORS["foreground"].spec]
 
 
+def test_a_special_colour_that_nobody_set_follows_the_text_colour(pane):
+    """
+    "OSC 10" sets the colour of the text, and a special colour that
+    nobody set draws in that one.
+
+    xterm paints bold text in the current foreground while no bold
+    colour is set, so the answer has to follow the set and not the
+    default. Lillecarl/pymux#19.
+    """
+    _screen, stream, responses = pane
+    stream.feed("\x1b]10;#aabbcc\x1b\\")
+    stream.feed("\x1b]5;0;?\x1b\\")
+    assert responses == ["\x1b]5;0;rgb:aaaa/bbbb/cccc\x1b\\"]
+
+
 def test_a_special_colour_past_the_last_one_answers_nothing(pane):
     _screen, stream, responses = pane
     stream.feed("\x1b]5;%i;?\x1b\\" % len(SPECIAL_COLOR_NAMES))

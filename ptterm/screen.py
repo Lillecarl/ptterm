@@ -5075,8 +5075,12 @@ class BetterScreen:
         # A special colour that nobody set draws in the colour of the
         # text. xterm leaves such a colour unset and paints the text
         # colour, so that is the honest answer.
+        #
+        # It is the foreground this pane holds now, and not the default
+        # one. A program can set the foreground with "OSC 10", and the
+        # bold text of that program then draws in the colour it set.
         if index - FIRST_SPECIAL_COLOR < len(SPECIAL_COLOR_NAMES):
-            return DEFAULT_COLORS["foreground"]
+            return self._named_color("foreground")
         return None
 
     def _palette_colors(self, code: str, param: str, offset: int) -> None:
