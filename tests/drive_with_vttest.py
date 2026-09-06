@@ -62,6 +62,16 @@ Three variables reach this file from `ptterm/nix/checks.nix`:
 `PTTERM_VTTEST` names the program, and the check does nothing when it
 is not set. `PTTERM_VTTEST_OUT` names the directory to write the
 screens and the log into. `PTTERM_VTTEST_INCLUDE` narrows the walk.
+
+**The walker is also a proxy.** `PTTERM_VTTEST_THROUGH=1` sends every
+byte vttest wrote to this program's own terminal as well, so vttest
+draws on a real terminal while the same bytes go into the ptterm model
+that decides when a screen is finished. `PTTERM_VTTEST_PAUSE` names a
+directory holding two fifos, and then the walk stands still at each
+screen until a harness outside says it has taken the picture.
+`Shutter` says how. That is what `pymux/tests/photograph_vttest.py`
+uses to photograph vttest in a real terminal with a pane in the chain
+and without one.
 """
 from __future__ import annotations
 
@@ -90,9 +100,13 @@ ROWS, COLUMNS = 24, 80
 #: program that asks for a million rows should get a refusal.
 SMALLEST, LARGEST = 1, 500
 
-#: How long the whole walk may take, in seconds. The fence is exact,
-#: so this is not a budget the walk spends: it is the point at which
-#: something has gone wrong and the run should say so.
+#: How long the walk may spend waiting for vttest, in seconds. The
+#: fence is exact, so this is not a budget the walk spends: it is the
+#: point at which something has gone wrong and the run should say so.
+#:
+#: It is not a wall clock. A walk that stands still while a camera
+#: outside photographs the terminal is not a walk that is running
+#: slowly, and hundreds of pictures take far longer than the walk.
 #:
 #: Measured, the walk takes 247 seconds for 502 screens, and two runs
 #: write the same list of them. Most steps end at the fence in under
@@ -200,6 +214,12 @@ PATIENCE = 3
 #: A guard against a menu that never ends.
 MOST_STEPS = 20000
 
+#: How long to wait for an outside camera to take one picture, in
+#: seconds. It has to open a window, take a screenshot, compare two of
+#: them and come back. A camera that never answers is a harness that
+#: has died, and the walk says so rather than waiting for ever.
+PICTURE_TIMEOUT = 120.0
+
 #: The menu items that need a person, and the reason for each. A path
 #: that matches one of these regular expressions is never entered.
 #:
@@ -300,6 +320,56 @@ _DOUBLE_HEIGHT_WORDS = {
 
 class Failed(AssertionError):
     pass
+
+
+class Shutter:
+    """
+    The far end of a camera that lives outside this program.
+
+    A picture of vttest cannot be taken from in here. `pass_through`
+    makes the walker a proxy: vttest draws on a real terminal, and the
+    program that can photograph that terminal is the one that started
+    it. So the two talk over a pair of fifos in a directory they both
+    reach.
+
+    The walker writes the identity of each screen it keeps into
+    `ready.fifo`, and then waits for one line on `go.fifo`. Between
+    those two the screen stands still. vttest is blocked in `read`,
+    and the walker sends it nothing until the picture is taken.
+
+    **Both fifos are opened for reading and writing.** A fifo opened
+    for reading alone gives end of file whenever no writer holds it,
+    and that is not the same answer as a writer that has gone. Opening
+    both ways makes this end a writer as well, so end of file never
+    comes and a poll that finds nothing means only that. It also means
+    neither open blocks, so the two sides cannot deadlock on the order
+    they start in.
+    """
+
+    def __init__(self, room: Path) -> None:
+        self.ready = os.open(str(room / "ready.fifo"), os.O_RDWR)
+        self.go = os.open(str(room / "go.fifo"), os.O_RDWR | os.O_NONBLOCK)
+        #: How long the walk has spent standing still for pictures.
+        #: It is not the walk's own time, so the budget leaves it out.
+        self.spent = 0.0
+
+    async def picture_of(self, identity: str) -> None:
+        "Ask for a picture of the screen, and wait until it is taken."
+        started = time.monotonic()
+        os.write(self.ready, (identity + "\n").encode())
+        while True:
+            try:
+                if os.read(self.go, 4096):
+                    self.spent += time.monotonic() - started
+                    return
+            except BlockingIOError:
+                pass
+            if time.monotonic() - started > PICTURE_TIMEOUT:
+                raise Failed(
+                    "no picture of %r came in %g seconds"
+                    % (identity, PICTURE_TIMEOUT)
+                )
+            await asyncio.sleep(TICK)
 
 
 class Frame:
@@ -468,13 +538,24 @@ class Walk:
     or something this cannot give.
     """
 
-    def __init__(self, include: str, through: bool = False) -> None:
+    def __init__(
+        self,
+        include: str,
+        through: bool = False,
+        shutter: Shutter | None = None,
+    ) -> None:
         self.include = re.compile(include)
         #: Whether vttest draws on this program's own terminal too.
         #: When it does, everything the walker says goes to stderr, so
         #: that its words are never mistaken for what vttest drew.
         self.through = through
         self.say = sys.stderr if through else sys.stdout
+        #: The camera outside, if a harness is photographing the
+        #: terminal this draws on. `Shutter` says how the two talk.
+        self.shutter = shutter
+        #: How long the walk itself has taken, with the time it stood
+        #: still for a picture left out. `RUN_TIMEOUT` judges this.
+        self.awake = 0.0
         self.process: Process | None = None
         self.ended = False
         #: The number of the `read` call on this machine. `main`
@@ -604,6 +685,31 @@ class Walk:
             return data
 
         backend.read_text = read_text
+
+    def drain_the_terminal(self) -> None:
+        """
+        Throw away what the terminal outside answered.
+
+        `pass_through` sends every byte vttest wrote to a real
+        terminal, and that includes its queries. The terminal answers
+        them, and the answer arrives on this program's own input,
+        where nobody reads it. The line discipline holds a few
+        kilobytes and then the terminal blocks in its own write, which
+        stops it drawing.
+
+        Nothing is lost by dropping them. vttest reads its replies
+        from the pty ptterm answers, and never from here, so the two
+        runs of a comparison see the same answers whatever terminal
+        they are drawn on.
+        """
+        if not self.through:
+            return
+        try:
+            while select.select([0], [], [], 0)[0]:
+                if not os.read(0, 65536):
+                    return
+        except OSError:
+            return
 
     def start(self, command: list[str]) -> None:
         backend = PosixBackend.from_command(command)
@@ -744,8 +850,15 @@ class Walk:
             names.append(name)
         return " / ".join(names)
 
-    def keep(self, rows: list[str], why: str) -> None:
-        "Write one screen down, with the path that reached it."
+    async def keep(self, rows: list[str], why: str) -> None:
+        """
+        Write one screen down, with the path that reached it.
+
+        It waits, when a camera outside is photographing the terminal
+        this draws on. vttest is blocked in `read` at that point and
+        the walker sends it nothing, so the screen stands still for as
+        long as the picture takes.
+        """
         assert self.process is not None
         screen = self.process.screen
         attributes = attributes_of(screen)
@@ -797,6 +910,12 @@ class Walk:
         # used a fifth of a second in twenty minutes.
         print("vttest: %s" % identity, file=self.say, flush=True)
 
+        # A picture of exactly the screens `paths.txt` names, and in
+        # that order. A screen dropped above as a repeat is the same
+        # picture, so it gets none.
+        if self.shutter is not None:
+            await self.shutter.picture_of(identity)
+
     def excluded(self, path: str) -> str | None:
         "The reason `NOT_OURS` keeps the walker out of a path, or None."
         for pattern, reason in NOT_OURS:
@@ -831,6 +950,7 @@ class Walk:
         for _ in range(MOST_STEPS):
             if self.ended:
                 return
+            self.drain_the_terminal()
             here = self.path_of() or "(the main menu)"
             started = time.monotonic()
             waiting = SHORT_TIMEOUT if here in self.asked else PROMPT_TIMEOUT
@@ -838,7 +958,14 @@ class Walk:
             # What the screen holds as the next answer goes out. The
             # prompt after it has to differ from this.
             anchor = rows
-            self.spent.append((time.monotonic() - started, here))
+            step = time.monotonic() - started
+            self.spent.append((step, here))
+            self.awake += step
+            if self.awake > RUN_TIMEOUT:
+                raise Failed(
+                    "the walk spent more than %g seconds waiting for vttest"
+                    % RUN_TIMEOUT
+                )
             if self.ended:
                 return
 
@@ -850,7 +977,7 @@ class Walk:
 
             if holds(rows):
                 unknown = 0
-                self.keep(rows, "vttest asked to push return")
+                await self.keep(rows, "vttest asked to push return")
                 self.answer("")
                 continue
 
@@ -863,8 +990,8 @@ class Walk:
             # so write it down once and work through the escapes.
             if here not in self.asked:
                 self.asked.add(here)
-                self.keep(rows, "no menu and no return; the pty is %s"
-                          % self.mode())
+                await self.keep(rows, "no menu and no return; the pty is %s"
+                                % self.mode())
                 self.stuck.append(here)
 
             keys = asked_for(rows)
@@ -1013,6 +1140,10 @@ def report(walk: Walk, include: str) -> int:
         print("vttest: the include left out %d items of the main menu"
               % len(walk.narrowed))
 
+    if walk.shutter is not None:
+        print("vttest: %d screens were photographed, which took %.1f seconds"
+              % (len(walk.identities), walk.shutter.spent))
+
     print("vttest: %d steps took %.1f seconds. The slowest ten:"
           % (len(walk.spent), sum(one for one, _ in walk.spent)))
     for seconds, path in sorted(walk.spent, reverse=True)[:10]:
@@ -1039,12 +1170,18 @@ def report(walk: Walk, include: str) -> int:
 
 
 async def drive(walk: Walk, command: list[str]) -> None:
-    "Start vttest and walk it, with a budget for the whole run."
+    """
+    Start vttest and walk it.
+
+    The budget is inside `Walk.run`, and it counts the time the walk
+    spent waiting for vttest. It is not a wall clock: a walk that
+    stands still while a camera outside photographs the terminal is
+    not a walk that is running slowly, and hundreds of pictures take
+    far longer than the walk itself.
+    """
     walk.start(command)
     try:
-        await asyncio.wait_for(walk.run(), RUN_TIMEOUT)
-    except asyncio.TimeoutError:
-        raise Failed("the walk did not end in %g seconds" % RUN_TIMEOUT)
+        await walk.run()
     finally:
         assert walk.process is not None
         if not walk.ended:
@@ -1076,7 +1213,17 @@ def main() -> int:
     os.environ["TERM"] = "xterm-256color"
     os.environ["LANG"] = "C.UTF-8"
 
-    walk = Walk(include, through=os.environ.get("PTTERM_VTTEST_THROUGH") == "1")
+    # A camera outside, if a harness gave one. It photographs the
+    # terminal that `pass_through` draws on, so it needs that as well.
+    room = os.environ.get("PTTERM_VTTEST_PAUSE", "")
+    through = os.environ.get("PTTERM_VTTEST_THROUGH") == "1"
+    if room and not through:
+        print("vttest: PTTERM_VTTEST_PAUSE waits for pictures of a terminal "
+              "that PTTERM_VTTEST_THROUGH is not drawing on.")
+        return 1
+
+    walk = Walk(include, through=through,
+                shutter=Shutter(Path(room)) if room else None)
     if walk.through:
         # Everything this program says now goes to stderr. Its stdout
         # belongs to vttest, and a word of ours on that screen would be
