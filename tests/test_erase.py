@@ -4,9 +4,9 @@ An erased cell takes the background that is set now.
 A terminal that does not do this loses the colour bar that a program
 draws with "CSI K", which is how htop paints the header of its table.
 """
-from ptterm.screen import BetterScreen
-from ptterm.stream import BetterStream
 from ptterm.colors import SgrColor
+from ptterm.screen import BetterScreen, WrittenCell
+from ptterm.stream import BetterStream
 
 
 def _screen(lines=5, columns=20):
@@ -22,6 +22,28 @@ def _row(screen, y):
 def _rendition(row, column):
     "How one cell of a row asks to be drawn."
     return row[column].appearance.rendition
+
+
+def test_an_erased_cell_and_a_written_blank_look_the_same():
+    """
+    A cell holds only what an erase can carry: the background, and the
+    reverse with the foreground it paints. A program that writes a
+    space under the same background asks for the same picture, so the
+    two cells compare equal and a renderer draws no change between
+    them.
+
+    The class still tells them apart, and that is the difference that
+    matters: a combining mark hangs on a written space and falls off an
+    erased cell, and the renderer keeps a written blank at the end of a
+    row. Lillecarl/pymux#56.
+    """
+    screen, stream = _screen()
+    stream.feed("\x1b[42m \x1b[1;2H\x1b[K")
+    row = _row(screen, 0)
+    written, erased = row[0], row[1]
+    assert written == erased
+    assert isinstance(written, WrittenCell)
+    assert not isinstance(erased, WrittenCell)
 
 
 def test_erase_in_line_keeps_a_background():

@@ -1486,7 +1486,10 @@ class BetterScreen:
         """
         self._rendition = PLAIN
         # The target of the hyperlink that is open ("OSC 8"), and the
-        # id that joins its pieces.
+        # id that joins its pieces. These two are what a program last
+        # sent, and a program may send an id with no target. **A cell
+        # carries `appearance.hyperlink_id`, which is empty whenever
+        # there is no link.** Read that one to draw.
         self.hyperlink = ""
         self.hyperlink_id = ""
         # The two together, which is what a cell carries. They change
