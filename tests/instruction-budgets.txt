@@ -1,30 +1,54 @@
-# What it costs ptterm to parse each of Alacritty's recordings, in
-# bytecode instructions. `tests/measure_instructions.py` says why the
-# unit is not a second.
+# What it costs ptterm to parse each of Alacritty's recordings, and to
+# draw one frame of the screen that each one leaves, in bytecode
+# instructions. `tests/measure_instructions.py` says why the unit is
+# not a second, and which half "(render)" is.
 #
 # This is what the run saw. To make it what the check expects:
 #     nix build --file . checks.ptterm-instructions.run
 #     cp result/instruction-budgets.txt ptterm/tests/instruction-budgets.txt
-alt_reset                        2126243
-delete_lines                     218437
-fish_cc                          342399
-grid_reset                       271950
-indexed_256_colors               907143
-issue_855                        1416123
-ll                               235808
-region_scroll_down               745217
-row_reset                        4651899
-scroll_in_region_up_preserves_history 518439
-scroll_up_reset                  567551
-tmux_git_log                     1815074
-tmux_htop                        4997909
-vim_24bitcolors_bce              37888714
-vim_large_window_scroll          33122204
-vim_simple_edit                  491302
-vttest_cursor_movement_1         770986
-vttest_insert                    589030
-vttest_origin_mode_1             3452876
-vttest_origin_mode_2             1603095
-vttest_scroll                    1580454
-vttest_tab_clear_set             233169
-wrapline_alt_toggle              284388
+alt_reset                                2145027
+alt_reset (render)                       2191
+delete_lines                             218435
+delete_lines (render)                    37434
+fish_cc                                  347704
+fish_cc (render)                         14319
+grid_reset                               272429
+grid_reset (render)                      15235
+indexed_256_colors                       914449
+indexed_256_colors (render)              39610
+issue_855                                1419077
+issue_855 (render)                       63364
+ll                                       236687
+ll (render)                              72865
+region_scroll_down                       750865
+region_scroll_down (render)              6089
+row_reset                                4674523
+row_reset (render)                       128949
+scroll_in_region_up_preserves_history    518668
+scroll_in_region_up_preserves_history (render) 84770
+scroll_up_reset                          566896
+scroll_up_reset (render)                 51792
+tmux_git_log                             1821037
+tmux_git_log (render)                    59023
+tmux_htop                                5037971
+tmux_htop (render)                       80237
+vim_24bitcolors_bce                      38574595
+vim_24bitcolors_bce (render)             853166
+vim_large_window_scroll                  33681125
+vim_large_window_scroll (render)         408632
+vim_simple_edit                          493694
+vim_simple_edit (render)                 111477
+vttest_cursor_movement_1                 771789
+vttest_cursor_movement_1 (render)        111784
+vttest_insert                            589829
+vttest_insert (render)                   9987
+vttest_origin_mode_1                     3453610
+vttest_origin_mode_1 (render)            8422
+vttest_origin_mode_2                     1604045
+vttest_origin_mode_2 (render)            7502
+vttest_scroll                            1581404
+vttest_scroll (render)                   52441
+vttest_tab_clear_set                     233207
+vttest_tab_clear_set (render)            14520
+wrapline_alt_toggle                      287220
+wrapline_alt_toggle (render)             17827

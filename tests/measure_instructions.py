@@ -19,10 +19,20 @@ real program: vim, tmux, fish, zsh, htop, up to a third of a megabyte
 of it. They are already here for `checks.pymux-alacritty`, and they are
 the largest and most honest workload in the repository.
 
-One measurement is one recording fed to a fresh `BetterScreen` through
+Each recording is measured twice.
+
+**The parse** is the recording fed to a fresh `BetterScreen` through
 `BetterStream`, on the screen that Alacritty recorded it at. That is
 the parser and the screen and nothing else: no pty, no client, no
 render.
+
+**The render**, written "<name> (render)", is the projection that comes
+after it: `_TerminalControl.create_content` turns the screen into a
+`UIContent`, and every row of that content is read. It is one frame of
+what a person sees, and it is paid on every frame rather than once per
+byte. Nothing measured it before, and Lillecarl/pymux#84 asked for it:
+a change that moves the cost of a cell hides in the parse count,
+because the parse walks the bytes and the render walks the cells.
 
 ## What it is judged against
 
@@ -44,6 +54,7 @@ Two knobs reach this file from `ptterm/nix/checks.nix`:
 `PTTERM_INSTRUCTIONS` names the directory of recordings and
 `PTTERM_INSTRUCTIONS_OUT` is where the run leaves its report.
 """
+import asyncio
 import json
 import os
 import re
@@ -53,9 +64,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from instructions import count_instructions  # noqa: E402
+from no_backend import NoBackend  # noqa: E402
 
 from ptterm.screen import BetterScreen  # noqa: E402
 from ptterm.stream import BetterStream  # noqa: E402
+from ptterm.terminal import _TerminalControl  # noqa: E402
 
 HERE = Path(__file__).parent
 
@@ -103,6 +116,41 @@ def cost(data: bytes, lines: int, columns: int) -> int:
     return count_instructions(work)
 
 
+#: The name that the render of a recording is written under.
+RENDER = "%s (render)"
+
+
+def render_cost(data: bytes, lines: int, columns: int) -> int:
+    """
+    The instructions that one frame of the widget takes, on the screen
+    that the recording left.
+
+    The parse is not in the count: the recording goes in first, and
+    only the projection is measured. That is one frame, and a pane
+    draws a frame every time its content changes.
+
+    The rows are the ones a pane at the bottom of its history shows,
+    and never the whole buffer. prompt_toolkit asks for the rows it
+    draws, so a count over the history would be a scroll through the
+    whole recording and not a frame of it.
+    """
+    text = data.decode("utf-8", "replace")
+    control = _TerminalControl(backend=NoBackend())
+    # The size reaches the process the way a render does, and then the
+    # program writes. A write before the size lands on a screen of no
+    # columns.
+    control.create_content(columns, lines)
+    control.process.stream.feed(text)
+
+    def work():
+        content = control.create_content(columns, lines)
+        first = max(0, content.line_count - lines)
+        for number in range(first, content.line_count):
+            content.get_line(number)
+
+    return count_instructions(work)
+
+
 def read_budgets(path: Path):
     "The recorded count of each recording."
     budgets = {}
@@ -118,9 +166,10 @@ def read_budgets(path: Path):
 
 
 HEADER = """\
-# What it costs ptterm to parse each of Alacritty's recordings, in
-# bytecode instructions. `tests/measure_instructions.py` says why the
-# unit is not a second.
+# What it costs ptterm to parse each of Alacritty's recordings, and to
+# draw one frame of the screen that each one leaves, in bytecode
+# instructions. `tests/measure_instructions.py` says why the unit is
+# not a second, and which half "(render)" is.
 #
 # This is what the run saw. To make it what the check expects:
 #     nix build --file . checks.ptterm-instructions.run
@@ -148,27 +197,38 @@ def main() -> int:
     counts = {}
     wrong = []
 
-    for name, data, lines, columns in found:
-        counted = cost(data, lines, columns)
+    def judge(name: str, counted: int) -> None:
+        "Print one measurement against its budget, and remember a miss."
         counts[name] = counted
         budget = budgets.get(name)
         if budget is None:
-            print("%-32s %12d  (no budget yet)" % (name, counted))
+            print("%-40s %12d  (no budget yet)" % (name, counted))
             wrong.append(name)
-            continue
+            return
         moved = 100.0 * (counted - budget) / budget
         mark = "ok " if abs(moved) <= tolerance else "OFF"
         print(
-            "%-32s %12d  budget %12d  %+6.2f%%  %s"
+            "%-40s %12d  budget %12d  %+6.2f%%  %s"
             % (name, counted, budget, moved, mark)
         )
         if abs(moved) > tolerance:
             wrong.append(name)
 
+    # `Process` reads the running event loop, and a script starts none.
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        for name, data, lines, columns in found:
+            judge(name, cost(data, lines, columns))
+            judge(RENDER % name, render_cost(data, lines, columns))
+    finally:
+        asyncio.set_event_loop(None)
+        loop.close()
+
     out = os.environ.get("PTTERM_INSTRUCTIONS_OUT", "")
     if out:
         report = HEADER + "".join(
-            "%-32s %d\n" % (name, counts[name]) for name in sorted(counts)
+            "%-40s %d\n" % (name, counts[name]) for name in sorted(counts)
         )
         (Path(out) / "instruction-budgets.txt").write_text(report)
 

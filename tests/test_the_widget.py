@@ -40,35 +40,13 @@ from prompt_toolkit.token import KeepWhitespace
 
 from prompt_toolkit.layout.layout import Layout
 
+from no_backend import NoBackend
 from ptterm.terminal import Terminal, _TerminalControl, _Window
 
 
-class _NoBackend:
-    """
-    A backend that starts no program.
-
-    `Process` needs one to build a screen, and these tests write to the
-    screen themselves. Nothing here forks, so nothing here has to be
-    waited for or cleaned up.
-    """
-
-    def __init__(self) -> None:
-        self.sizes = []
-
-    def add_input_ready_callback(self, callback) -> None:
-        pass
-
-    def set_size(self, width: int, height: int) -> None:
-        self.sizes.append((width, height))
-
-    def start(self) -> None:
-        pass
-
-    def connect_reader(self) -> None:
-        pass
-
-    def disconnect_reader(self) -> None:
-        "Copy mode suspends the process, which stops the reader."
+#: `measure_instructions.py` builds the same widget to measure what the
+#: projection costs, so the stub lives beside both.
+_NoBackend = NoBackend
 
 
 @pytest.fixture(autouse=True)
