@@ -463,7 +463,16 @@ class Terminal:
             key_bindings=kb,
         )
 
-        self.copy_window = Window(content=self.copy_buffer_control, wrap_lines=False)
+        #: Whether the pane was in reverse video when copy mode opened.
+        #: `enter_copy_mode` reads it, because the process is suspended
+        #: after that and the mode cannot change.
+        self.copy_reverse_video = False
+
+        self.copy_window = Window(
+            content=self.copy_buffer_control,
+            wrap_lines=False,
+            style=self._copy_style,
+        )
 
         self.is_copying = False
 
@@ -519,12 +528,31 @@ class Terminal:
         else:
             return "[0/0]"
 
+    def _copy_style(self) -> str:
+        "The style of the whole copy window, blank cells included."
+        return "reverse" if self.copy_reverse_video else ""
+
+    def _copy_cell_style(self, char) -> str:
+        "The style of one cell of the copy buffer, with DECSCNM folded in."
+        if self.copy_reverse_video and "reverse" in char.style.split():
+            return char.style + " noreverse"
+        return char.style
+
     def enter_copy_mode(self) -> None:
         # Suspend process.
         self.terminal_control.process.suspend()
 
         # Copy content into copy buffer.
-        data_buffer = self.terminal_control.process.screen.pt_screen.data_buffer
+        screen = self.terminal_control.process.screen
+        data_buffer = screen.pt_screen.data_buffer
+
+        # DECSCNM reverses the whole screen, and copy mode shows the
+        # same screen stopped. `_copy_style` paints the reverse over the
+        # window, the way `_Window` does for the pane, and a cell that
+        # "SGR 7" already reversed turns the other way here. The process
+        # is suspended, so the mode cannot change while copy mode is
+        # open and reading it once is enough. Lillecarl/pymux#96.
+        self.copy_reverse_video = screen.has_reverse_video
 
         text = []
         styled_lines = []
@@ -538,7 +566,7 @@ class Terminal:
                     for column_index in range(0, max(line) + 1):
                         char = line[column_index]
                         text.append(char.char)
-                        styled_line.append((char.style, char.char))
+                        styled_line.append((self._copy_cell_style(char), char.char))
 
                 text.append("\n")
                 styled_lines.append(styled_line)

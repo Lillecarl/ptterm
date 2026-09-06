@@ -36,7 +36,9 @@ from prompt_toolkit.layout.screen import Char, Point, Screen, WritePosition
 from prompt_toolkit.mouse_events import MouseButton, MouseEvent, MouseEventType
 from prompt_toolkit.styles import Style
 
-from ptterm.terminal import _TerminalControl, _Window
+from prompt_toolkit.layout.layout import Layout
+
+from ptterm.terminal import Terminal, _TerminalControl, _Window
 
 
 class _NoBackend:
@@ -62,6 +64,9 @@ class _NoBackend:
 
     def connect_reader(self) -> None:
         pass
+
+    def disconnect_reader(self) -> None:
+        "Copy mode suspends the process, which stops the reader."
 
 
 @pytest.fixture(autouse=True)
@@ -204,6 +209,63 @@ def clicked(modes: str, lines: int = 8, columns: int = 12) -> bytes:
             )
         )
     return "".join(written).encode("utf-8", "surrogateescape")
+
+
+def copy_mode_reversed_at(data: str, lines: int = 4, columns: int = 8):
+    """
+    Enter copy mode after `data`, and say which cells are drawn
+    reversed.
+
+    Copy mode draws through a second window, so this renders the whole
+    widget rather than the pane alone. The floats are left out, so the
+    position indicator in the corner is not in the picture; it carries
+    a class of its own and is not the question here.
+
+    The caller has to be a coroutine: the copy buffer starts a
+    background task, and prompt_toolkit reads the running loop for it.
+    """
+    terminal = Terminal(backend=_NoBackend())
+    control = terminal.terminal_control
+    control.create_content(columns, lines)
+    control.process.stream.feed(data)
+
+    app = DummyApplication()
+    app.layout = Layout(terminal.container)
+    screen = Screen(default_char=None, initial_width=columns, initial_height=lines)
+    with set_app(app):
+        terminal.enter_copy_mode()
+        terminal.container.write_to_screen(
+            screen,
+            MouseHandlers(),
+            WritePosition(xpos=0, ypos=0, width=columns, height=lines),
+            "",
+            False,
+            None,
+        )
+
+    style = Style([])
+    return [
+        [style.get_attrs_for_style_str(screen.data_buffer[y][x].style).reverse
+         for x in range(columns)]
+        for y in range(lines)
+    ]
+
+
+async def test_copy_mode_draws_the_reverse_video_of_the_pane():
+    """
+    Copy mode shows the same screen, stopped. A screen that changes
+    appearance when the user scrolls it is a screen nobody can trust.
+    """
+    assert copy_mode_reversed_at("\x1b[?5hhi")[0] == [True] * 8
+
+
+async def test_copy_mode_cancels_a_reverse_that_a_program_set():
+    "DECSCNM xors here as well."
+    assert copy_mode_reversed_at("\x1b[?5ha\x1b[7mb")[0][:2] == [True, False]
+
+
+async def test_copy_mode_draws_no_reverse_without_the_mode():
+    assert copy_mode_reversed_at("hi")[0] == [False] * 8
 
 
 def test_the_sgr_mouse_report_reaches_the_program():
