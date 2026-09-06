@@ -35,6 +35,7 @@ from prompt_toolkit.layout.mouse_handlers import MouseHandlers
 from prompt_toolkit.layout.screen import Char, Point, Screen, WritePosition
 from prompt_toolkit.mouse_events import MouseButton, MouseEvent, MouseEventType
 from prompt_toolkit.styles import Style
+from prompt_toolkit.token import KeepWhitespace
 
 from prompt_toolkit.layout.layout import Layout
 
@@ -416,6 +417,46 @@ def test_a_no_break_space_reaches_the_screen_as_it_stands():
     keeps them.
     """
     assert drawn("a\xa0b")[0] == "a\xa0b"
+
+
+# ----------------------------------------------------------------------
+# A blank that a program wrote.
+#
+# The renderer drops whitespace without style at the end of a row, so
+# that a person who copies the output gets no trailing spaces. A pane
+# cannot take that guess: a space a program wrote is content, and a
+# terminal that reads its own screen back has to find the column.
+# `KeepWhitespace` on the cell is how the widget says so.
+# Lillecarl/pymux#61.
+
+
+def keeps_a_blank_at(data: str, lines: int = 8, columns: int = 12):
+    "Which cells ask the renderer to keep them, as a row of booleans each."
+    screen = rendered(data, lines, columns)
+    return [
+        [KeepWhitespace in screen.data_buffer[y][x].style for x in range(columns)]
+        for y in range(lines)
+    ]
+
+
+def test_a_space_that_a_program_wrote_asks_to_stay():
+    assert keeps_a_blank_at("a b")[0][:4] == [False, True, False, False]
+
+
+def test_a_cell_an_erase_left_asks_for_nothing():
+    "An erased cell and a cell nobody touched are the same to a renderer."
+    assert keeps_a_blank_at("abc\r\x1b[K")[0][:3] == [False, False, False]
+
+
+def test_a_cell_nobody_wrote_asks_for_nothing():
+    assert keeps_a_blank_at("a")[0][1:3] == [False, False]
+
+
+def test_the_stand_in_for_a_cell_of_an_image_asks_to_stay():
+    "The cell is drawn as a blank, and the image covers it."
+    from ptterm.placeholders import PLACEHOLDER
+
+    assert keeps_a_blank_at(PLACEHOLDER)[0][0] is True
 
 
 def test_the_first_render_sizes_the_pane_before_it_starts_the_program():

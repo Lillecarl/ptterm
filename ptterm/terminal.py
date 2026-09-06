@@ -34,12 +34,14 @@ from prompt_toolkit.layout.processors import (
 )
 from prompt_toolkit.layout.screen import Char, Point
 from prompt_toolkit.mouse_events import MouseEventType
+from prompt_toolkit.token import KeepWhitespace
 from prompt_toolkit.utils import Event, is_windows
 from prompt_toolkit.widgets.toolbars import SearchToolbar
 
 from .backends import Backend
 from .placeholders import PLACEHOLDER
 from .process import Process
+from .screen import TerminalChar
 
 __all__ = ["Terminal"]
 
@@ -170,10 +172,29 @@ class _TerminalControl(UIControl):
         # an xor, and it is the same answer.
         reverse_video = self.process.screen.has_reverse_video
 
-        def cell_style(cell: Char) -> str:
-            if reverse_video and "reverse" in cell.style.split():
-                return cell.style + " noreverse"
-            return cell.style
+        def fragment(cell: Char) -> tuple[str, str]:
+            """
+            The style and the character that one cell draws with.
+
+            A blank that a program wrote carries `KeepWhitespace`. The
+            renderer drops a blank at the end of a row when nothing
+            styles it, so that a person who copies the output gets no
+            trailing spaces. That guess is wrong for a pane: a space a
+            program wrote is content, and a terminal that reads its own
+            screen back has to find the column.
+
+            The test reads what the cell draws and not what it holds.
+            The stand-in for a cell of an image and the blank for a
+            control are both cells that a program made, and both keep
+            their column.
+            """
+            char = _visible_char(cell.char)
+            style = cell.style
+            if reverse_video and "reverse" in style.split():
+                style += " noreverse"
+            if char == " " and isinstance(cell, TerminalChar):
+                style += " " + KeepWhitespace
+            return style, char
 
         def get_line(number: int) -> StyleAndTextTuples:
             row = data_buffer[number]
@@ -192,9 +213,7 @@ class _TerminalControl(UIControl):
                 return [("", " ")]
             else:
                 cells = [row[i] for i in range(max_column + 1)]
-                return [
-                    (cell_style(cell), _visible_char(cell.char)) for cell in cells
-                ]
+                return [fragment(cell) for cell in cells]
 
         if data_buffer:
             # The screen is the rows from `line_offset` to `max_y`, and
@@ -541,10 +560,19 @@ class Terminal:
         return "reverse" if self.copy_reverse_video else ""
 
     def _copy_cell_style(self, char) -> str:
-        "The style of one cell of the copy buffer, with DECSCNM folded in."
-        if self.copy_reverse_video and "reverse" in char.style.split():
-            return char.style + " noreverse"
-        return char.style
+        """
+        The style of one cell of the copy buffer, with DECSCNM folded in.
+
+        A blank that a program wrote carries `KeepWhitespace` here too.
+        Copy mode shows the screen of the pane stopped, so it holds the
+        same columns the pane holds.
+        """
+        style = char.style
+        if self.copy_reverse_video and "reverse" in style.split():
+            style += " noreverse"
+        if char.char == " " and isinstance(char, TerminalChar):
+            style += " " + KeepWhitespace
+        return style
 
     def enter_copy_mode(self) -> None:
         # Suspend process.
