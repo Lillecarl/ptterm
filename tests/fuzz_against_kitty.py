@@ -145,6 +145,12 @@ RENDITIONS = [
     "21",
     "58:5:9",
     "58:2::255:0:0",
+    # Where the glyph sits. Only libvterm and WezTerm hold a baseline;
+    # kitty and Alacritty do not, and `without_a_baseline` is why the
+    # hunt against kitty can carry these at all. Lillecarl/pymux#105.
+    "73",
+    "74",
+    "75",
     "59",
 ]
 

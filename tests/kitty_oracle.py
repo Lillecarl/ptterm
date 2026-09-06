@@ -24,6 +24,7 @@ from ptterm.stream import BetterStream
 __all__ = [
     "as_seen",
     "as_text",
+    "without_a_baseline",
     "Cell",
     "HISTORY",
     "kitty_is_available",
@@ -480,6 +481,24 @@ def as_text(cell: Cell) -> Cell:
     return cell
 
 
+def without_a_baseline(cell: Cell) -> Cell:
+    """
+    The cell, with the baseline dropped.
+
+    kitty and Alacritty have no "SGR 73", so every glyph of theirs sits
+    on the line. An emulator that answered 0 with no projection would
+    agree with a screen that raised a glyph, which is an answer it
+    cannot give.
+
+    It lives here and not in `panel.py` because both hunts need it. The
+    panel hunt reads it through the projection of each judge; the hunt
+    against kitty alone reads it through `differences`, which is right
+    below. A drop that only one of them knows about makes the other
+    fail at random. Lillecarl/pymux#105.
+    """
+    return cell._replace(baseline=0)
+
+
 def differences(
     data: str,
     lines: int = 6,
@@ -495,15 +514,19 @@ def differences(
     the style of a blank cell, which leaves the characters and where
     they sit; the hunt uses that, because the two sides disagree on
     purpose about the style that a new blank takes.
+
+    The baseline goes in every case, `strict` included. kitty cannot
+    hold one at all, so a raised glyph is not a difference it reports:
+    it is a field it does not have.
     """
     ours = ptterm_cells(data, lines, columns)
     theirs = kitty_cells(data, lines, columns)
     if strict:
-        keep = lambda cell: cell  # noqa: E731
+        keep = without_a_baseline
     elif blank_style:
-        keep = as_seen
+        keep = lambda cell: without_a_baseline(as_seen(cell))  # noqa: E731
     else:
-        keep = as_text
+        keep = lambda cell: without_a_baseline(as_text(cell))  # noqa: E731
 
     reported = []
     for y in range(lines):

@@ -41,7 +41,14 @@ equal, so the difference is exactly what that judge misses.
 """
 from typing import Callable, Dict, List, NamedTuple, Optional, Tuple
 
-from kitty_oracle import Cell, as_seen, as_text, kitty_is_available, ptterm_cells
+from kitty_oracle import (
+    Cell,
+    as_seen,
+    as_text,
+    kitty_is_available,
+    ptterm_cells,
+    without_a_baseline,
+)
 
 __all__ = [
     "Judge",
@@ -72,12 +79,10 @@ class Judge(NamedTuple):
 #: "SGR 73", so every glyph of theirs sits on the line. A judge that
 #: answered 0 with no projection would agree with a screen that raised
 #: a glyph, which is a vote it cannot cast.
+#:
+#: `without_a_baseline` is the drop, and it lives in `kitty_oracle` so
+#: that the hunt against kitty alone reaches it too.
 _NO_BASELINE = frozenset(["kitty", "alacritty"])
-
-
-def _without_a_baseline(cell: Cell) -> Cell:
-    "The cell, with the baseline dropped."
-    return cell._replace(baseline=0)
 
 
 def judges() -> List[Judge]:
@@ -87,7 +92,7 @@ def judges() -> List[Judge]:
     if kitty_is_available():
         from kitty_oracle import kitty_cells
 
-        found.append(Judge("kitty", kitty_cells, _without_a_baseline))
+        found.append(Judge("kitty", kitty_cells, without_a_baseline))
 
     try:
         from rust_oracle import JUDGE_NAMES, judge_cells, judges_are_available
@@ -102,7 +107,7 @@ def judges() -> List[Judge]:
                         lambda data, lines, columns, resize=None, name=name: (
                             judge_cells(name, data, lines, columns, resize)
                         ),
-                        _without_a_baseline if name in _NO_BASELINE else None,
+                        without_a_baseline if name in _NO_BASELINE else None,
                     )
                 )
 
