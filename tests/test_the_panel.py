@@ -16,7 +16,7 @@ setting. Change a tally here and change it there.
 """
 import pytest
 
-from panel import judges, report, verdict
+from panel import abstained, judges, report, verdict
 from kitty_oracle import ptterm_cells
 
 #: Every judge that this file wants. With fewer, a tally means nothing.
@@ -29,11 +29,27 @@ pytestmark = pytest.mark.skipif(
 
 
 def sides(data, lines=8, columns=24, blank_style=True):
-    "The judges that differ from ptterm, and the ones that do not."
+    """
+    The judges that differ from ptterm, and the ones that draw what it
+    draws.
+
+    A judge that holds nothing the difference is about is in neither.
+    It has no opinion, and counting it as one that agrees would say the
+    panel answered a question that it never asked. `cannot_see` names
+    those.
+    """
     answers = report(data, lines=lines, columns=columns, blank_style=blank_style)
+    blind = set(cannot_see(data, lines=lines, columns=columns, blank_style=blank_style))
     against = sorted(name for name, found in answers.items() if found)
-    with_us = sorted(name for name, found in answers.items() if not found)
+    with_us = sorted(
+        name for name, found in answers.items() if not found and name not in blind
+    )
     return against, with_us
+
+
+def cannot_see(data, lines=8, columns=24, blank_style=True):
+    "The judges that hold nothing that the difference is about."
+    return abstained(data, lines=lines, columns=columns, blank_style=blank_style)
 
 
 def test_the_panel_is_whole():
@@ -553,7 +569,7 @@ def test_a_linefeed_at_the_bottom_paints_the_line_it_brings_in():
 
 def test_what_sgr_21_means():
     """
-    Five judges read "SGR 21" as a double underline. Alacritty alone
+    Four judges read "SGR 21" as a double underline. Alacritty alone
     reads it as the end of bold.
 
     ECMA-48 numbers 21 "doubly underlined". Alacritty follows the other
@@ -561,10 +577,15 @@ def test_what_sgr_21_means():
     `underline` writes "CSI 4:3 ; 21 m" and records a curl, so the ten
     cells that `checks.pymux-alacritty` reports there are this
     difference and not a lost underline shape.
+
+    xterm.js says only whether a line is there, and both readings draw
+    one. It holds no answer to this question, so it does not vote.
     """
-    against, with_us = sides("\x1b[1;4:3;21mX", lines=3, columns=6)
+    program = "\x1b[1;4:3;21mX"
+    against, with_us = sides(program, lines=3, columns=6)
     assert against == ["alacritty"]
-    assert with_us == ["ghostty", "kitty", "libvterm", "wezterm", "xterm"]
+    assert with_us == ["ghostty", "kitty", "libvterm", "wezterm"]
+    assert cannot_see(program, lines=3, columns=6) == ["xterm"]
 
 
 def test_every_judge_holds_a_number_of_the_palette_as_a_number():

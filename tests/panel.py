@@ -18,22 +18,27 @@ answer.
 A judge that cannot hold something says nothing about it. libvterm
 knows three shapes of underline and no colour for the line, and
 xterm.js says only whether a line is there. Their answers are read
-through a projection that drops what they cannot hold. kitty, Ghostty
-and the two written in Rust hold everything a cell of ours holds.
+through a projection that drops what they cannot hold.
+
+A judge that cannot hold the difference in front of it does not vote.
+It **abstains**, which is not the same as agreeing: `abstained()` tells
+the two apart. The raw answers differ and the projection makes them
+equal, so the difference is exactly what that judge misses.
 
 `verdict()` says one of:
 
 - "agree": every judge draws what ptterm draws.
-- "ptterm-wrong": every judge differs from ptterm, and the judges
-  agree with each other. Nobody has to decide anything.
-- "split": the judges do not agree with each other, so the difference
-  is a choice and not a bug.
+- "ptterm-wrong": every judge that can see the difference differs from
+  ptterm, and those judges agree with each other. Nobody has to decide
+  anything.
+- "split": the judges that can see it do not agree with each other, so
+  the difference is a choice and not a bug.
 """
 from typing import Callable, Dict, List, NamedTuple, Optional
 
 from kitty_oracle import Cell, as_seen, as_text, kitty_is_available, ptterm_cells
 
-__all__ = ["Judge", "judges", "verdict", "report"]
+__all__ = ["Judge", "judges", "verdict", "report", "abstained"]
 
 
 class Judge(NamedTuple):
@@ -104,13 +109,44 @@ def _keeper(strict: bool, blank_style: bool) -> Callable[[Cell], Cell]:
     return as_seen if blank_style else as_text
 
 
-def _screens(
+class _Answer(NamedTuple):
+    "What one judge says about one program."
+    #: Every cell where the judge and ptterm differ, as readable lines.
+    found: List[str]
+    #: The judge, as this comparison reads it.
+    screen: List[List[Cell]]
+    #: True when the two screens differ and the projection hides it.
+    #: The judge cannot hold what the difference is about, so it says
+    #: nothing and does not vote.
+    blind: bool
+
+
+def _ask(
     data: str, lines: int, columns: int, keep, panel: List[Judge]
-) -> Dict[str, List[List[Cell]]]:
-    return {
-        judge.name: [[keep(cell) for cell in row] for row in judge.cells(data, lines, columns)]
-        for judge in panel
-    }
+) -> Dict[str, _Answer]:
+    "Put one program to every judge, and read each answer."
+    ours = [[keep(cell) for cell in row] for row in ptterm_cells(data, lines, columns)]
+
+    answers = {}
+    for judge in panel:
+        project = judge.projection or (lambda cell: cell)
+        theirs = [
+            [keep(cell) for cell in row] for row in judge.cells(data, lines, columns)
+        ]
+        found = []
+        raw_differs = False
+        for y in range(lines):
+            for x in range(columns):
+                mine, other = ours[y][x], theirs[y][x]
+                if mine != other:
+                    raw_differs = True
+                seen, shown = project(mine), project(other)
+                if seen != shown:
+                    found.append(
+                        "cell %d,%d: ptterm %r, %s %r" % (y, x, seen, judge.name, shown)
+                    )
+        answers[judge.name] = _Answer(found, theirs, raw_differs and not found)
+    return answers
 
 
 def report(
@@ -123,28 +159,37 @@ def report(
     """
     What every judge says about one program, as readable lines.
 
-    A judge with an empty list draws what ptterm draws.
+    A judge with an empty list draws what ptterm draws, or holds nothing
+    that says otherwise. `abstained()` tells those two apart.
     """
     panel = judges()
     assert panel, "no judge is available"
     keep = _keeper(strict, blank_style)
-    ours = [[keep(cell) for cell in row] for row in ptterm_cells(data, lines, columns)]
+    return {
+        name: answer.found
+        for name, answer in _ask(data, lines, columns, keep, panel).items()
+    }
 
-    answers = {}
-    for judge in panel:
-        project = judge.projection or (lambda cell: cell)
-        theirs = judge.cells(data, lines, columns)
-        found = []
-        for y in range(lines):
-            for x in range(columns):
-                mine = project(ours[y][x])
-                other = project(keep(theirs[y][x]))
-                if mine != other:
-                    found.append(
-                        "cell %d,%d: ptterm %r, %s %r" % (y, x, mine, judge.name, other)
-                    )
-        answers[judge.name] = found
-    return answers
+
+def abstained(
+    data: str,
+    lines: int = 6,
+    columns: int = 20,
+    strict: bool = False,
+    blank_style: bool = True,
+) -> List[str]:
+    """
+    The judges that cannot see the difference, in name order.
+
+    Such a judge draws something else than ptterm and the projection
+    drops the part that differs, so its answer is not an opinion. It is
+    the absence of one.
+    """
+    panel = judges()
+    assert panel, "no judge is available"
+    keep = _keeper(strict, blank_style)
+    answers = _ask(data, lines, columns, keep, panel)
+    return sorted(name for name, answer in answers.items() if answer.blind)
 
 
 def verdict(
@@ -158,35 +203,32 @@ def verdict(
     panel = judges()
     assert panel, "no judge is available"
     keep = _keeper(strict, blank_style)
-    ours = [[keep(cell) for cell in row] for row in ptterm_cells(data, lines, columns)]
-    screens = _screens(data, lines, columns, keep, panel)
+    answers = _ask(data, lines, columns, keep, panel)
 
-    #: What every judge in this panel can hold. A comparison of the
+    voting = [judge for judge in panel if not answers[judge.name].blind]
+    against = [judge for judge in voting if answers[judge.name].found]
+    if not against:
+        return "agree"
+    if len(against) < len(voting):
+        return "split"
+
+    #: What every judge that votes can hold. A comparison of those
     #: judges against each other has to drop what any of them misses.
+    #: The judges that abstain are not in it: their projections would
+    #: drop the very thing that the vote is about.
     def common(cell: Cell) -> Cell:
-        for judge in panel:
+        for judge in voting:
             if judge.projection is not None:
                 cell = judge.projection(cell)
         return cell
 
-    def project(rows, function):
-        return [[function(cell) for cell in row] for row in rows]
+    def project(rows):
+        return [[common(cell) for cell in row] for row in rows]
 
-    against = [
-        judge.name
-        for judge in panel
-        if project(ours, judge.projection or (lambda cell: cell))
-        != project(screens[judge.name], judge.projection or (lambda cell: cell))
-    ]
-    if not against:
-        return "agree"
-    if len(against) < len(panel):
-        return "split"
-
-    # Every judge differs from ptterm. They only answer the question
-    # when they also agree with each other.
-    first = project(screens[panel[0].name], common)
-    for judge in panel[1:]:
-        if project(screens[judge.name], common) != first:
+    # Every judge that can see the difference differs from ptterm. They
+    # only answer the question when they also agree with each other.
+    first = project(answers[voting[0].name].screen)
+    for judge in voting[1:]:
+        if project(answers[judge.name].screen) != first:
             return "split"
     return "ptterm-wrong"
