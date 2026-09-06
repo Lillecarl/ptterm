@@ -589,9 +589,12 @@ class Walk:
         is exact for anything well formed, which vttest is.
         """
         original = backend.read_text
-        # The real terminal, kept before `main` sends everything this
-        # program says to stderr instead.
-        out = sys.stdout.buffer
+        # The real terminal, and not `sys.stdout`. `main` points that
+        # at stderr before the walk starts, so reading it here would
+        # send every byte vttest drew into the log and leave the
+        # terminal blank. Both go to the same place in a nix log, so
+        # the mistake looked right until a picture was taken.
+        out = sys.__stdout__.buffer
 
         def read_text(amount: int = 4096) -> str:
             data = original(amount)

@@ -320,7 +320,19 @@ in
       export PTTERM_VTTEST_THROUGH="$vttestThrough"
       export PTTERM_VTTEST_OUT="$out"
     '';
-  } "python tests/drive_with_vttest.py";
+    # In the proxy mode, stdout is what a terminal would have been given,
+    # so it is kept as a file rather than mixed into the log. Two things
+    # follow. The bytes can be counted, which is how a proxy that writes
+    # to the wrong stream is caught: both streams reach the same log, so
+    # the log alone cannot tell them apart. And the walker's own words go
+    # to stderr, where they still reach the log.
+  } ''
+    if [ -n "$vttestThrough" ]; then
+      python tests/drive_with_vttest.py > "$out/through.bin"
+    else
+      python tests/drive_with_vttest.py
+    fi
+  '';
 
   # What it costs to parse a recording, in bytecode instructions.
   #
