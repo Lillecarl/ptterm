@@ -318,7 +318,7 @@ def test_moving_back_over_a_tab_stop_splits_the_panel():
     "data",
     [
         "\x1b[4:2mdouble\x1b[4:3mcurly\x1b[4:4mdotted\x1b[4:5mdashed",
-        "\x1b[4;58:2::255:0:0mred line\x1b[59m plain",
+        "\x1b[4;58:2::255:0:0mred line",
         "\x1b#8",
         "你好世界",
         "hello\r\nworld\x1b[2;2H\x1b[1K",
@@ -569,7 +569,7 @@ def test_a_linefeed_at_the_bottom_paints_the_line_it_brings_in():
 
 def test_what_sgr_21_means():
     """
-    Four judges read "SGR 21" as a double underline. Alacritty alone
+    Five judges read "SGR 21" as a double underline. Alacritty alone
     reads it as the end of bold.
 
     ECMA-48 numbers 21 "doubly underlined". Alacritty follows the other
@@ -578,14 +578,36 @@ def test_what_sgr_21_means():
     cells that `checks.pymux-alacritty` reports there are this
     difference and not a lost underline shape.
 
-    xterm.js says only whether a line is there, and both readings draw
-    one. It holds no answer to this question, so it does not vote.
+    xterm.js said only whether a line was there and could not vote. It
+    now reports the shape, and it draws the double line.
     """
     program = "\x1b[1;4:3;21mX"
     against, with_us = sides(program, lines=3, columns=6)
     assert against == ["alacritty"]
-    assert with_us == ["ghostty", "kitty", "libvterm", "wezterm"]
-    assert cannot_see(program, lines=3, columns=6) == ["xterm"]
+    assert with_us == ["ghostty", "kitty", "libvterm", "wezterm", "xterm"]
+    assert cannot_see(program, lines=3, columns=6) == []
+
+
+def test_xterm_js_never_gets_back_to_the_default_colour_of_a_line():
+    """
+    "SGR 59" asks for the colour a line has when nothing set one.
+    xterm.js paints white instead, and it is alone.
+
+    It stores the default as -1 in a field of twenty six bits, so the
+    sentinel reads back as the colour with every bit set. Nothing later
+    can tell that from "SGR 58:2::255:255:255", and the emulator draws
+    what it holds.
+
+    libvterm keeps no colour for a line at all, so it does not vote.
+    Four judges and ptterm go back to the default.
+    """
+    program = "\x1b[4;58:2::255:0:0mred line\x1b[59m plain"
+    against, with_us = sides(program, lines=8, columns=24, blank_style=False)
+    assert against == ["xterm"]
+    assert with_us == ["alacritty", "ghostty", "kitty", "wezterm"]
+    assert cannot_see(program, lines=8, columns=24, blank_style=False) == [
+        "libvterm"
+    ]
 
 
 def test_every_judge_holds_a_number_of_the_palette_as_a_number():
@@ -792,13 +814,19 @@ def test_the_alternate_screen_gives_back_what_it_saved():
 # A link asks two questions, and the judges do not split the same way on
 # both. Where does it go, and which cells are one link?
 #
-# Two of the six answer neither. libvterm names no hyperlink in
-# `vterm.h`, and the buffer API of xterm.js reports none.
+# libvterm answers neither. `vterm.h` names no hyperlink at all.
 #
 # Ghostty answers the first alone. `ghostty_grid_ref_hyperlink_uri`
 # hands over the target, and nothing hands over the name that Ghostty
-# gives the one link. So the panel for a target is four and the panel
-# for a shape is three. Lillecarl/pymux#92.
+# gives the one link. Lillecarl/pymux#92.
+#
+# xterm.js answers both, through paths that `IBufferCell` does not name.
+# So the panel for a target is five, and the panel for a shape is four.
+
+#: Two shapes of a line, as every judge numbers them. xterm.js draws a
+#: link with the dashed one.
+CURLY = 3
+DASHED = 5
 
 #: A link opens with its parameters and its target, and closes with
 #: neither.
@@ -809,20 +837,20 @@ A_TARGET = "https://a"
 ANOTHER_TARGET = "https://b"
 
 #: Every judge that can say where a link goes, and ptterm.
-TARGET_HOLDERS = ("alacritty", "ghostty", "kitty", "ptterm", "wezterm")
+TARGET_HOLDERS = ("alacritty", "ghostty", "kitty", "ptterm", "wezterm", "xterm")
 
 #: Every judge that can say which cells are one link, and ptterm.
-LINK_HOLDERS = ("alacritty", "kitty", "ptterm", "wezterm")
+LINK_HOLDERS = ("alacritty", "kitty", "ptterm", "wezterm", "xterm")
 
 #: Every judge that holds no link at all.
-LINK_BLIND = ["libvterm", "xterm"]
+LINK_BLIND = ["libvterm"]
 
 #: Every judge that the projection silences where a link is drawn, in
-#: name order. It is the two above and Ghostty, whose name for a link
-#: `_as_ghostty_sees` drops. Ghostty still votes on the target: a
-#: difference there survives the projection and `abstained()` would not
-#: name it.
-LINK_ABSTAINS = ["ghostty", "libvterm", "xterm"]
+#: name order. It is libvterm, which holds no link, and Ghostty, whose
+#: name for a link `_as_ghostty_sees` drops. Ghostty still votes on the
+#: target: a difference there survives the projection and `abstained()`
+#: would not name it.
+LINK_ABSTAINS = ["ghostty", "libvterm"]
 
 
 def link_shape(data, lines=2, columns=4):
@@ -853,12 +881,11 @@ def link_targets(data, lines=2, columns=4):
     return found
 
 
-def test_two_judges_hold_no_link_at_all():
+def test_one_judge_holds_no_link_at_all():
     """
-    The panel for a link is four judges, not six.
+    The panel for a link is five judges, not six.
 
-    xterm.js keeps a link in the emulator and reports none: `IBufferCell`
-    has no accessor for one. libvterm keeps none at all.
+    libvterm keeps no link at all: `vterm.h` names none.
 
     Ghostty holds no name for a link, so the projection silences it
     here too. It is not blind: a wrong target would still reach the
@@ -869,21 +896,36 @@ def test_two_judges_hold_no_link_at_all():
     assert verdict(data, lines=2, columns=4) == "agree"
 
 
-def test_xterm_js_marks_a_link_with_an_underline():
+def test_a_link_overwrites_the_shape_of_a_line():
     """
-    xterm.js puts the underline attribute on every cell of a link. It
-    is alone: the other five draw no line, and neither does ptterm.
+    xterm.js draws a link as a dashed underline. It writes that into the
+    cell, over whatever shape the program asked for.
 
-    That is how xterm.js marks a link, and `IBufferCell` cannot tell
-    that line from one a program drew. So `_as_xterm_sees` reads a link
-    as a line on both sides, and this test reads the raw answer instead,
-    because the projection would hide what it records.
+    A link on its own reads as no line at all. The mark lives in the
+    extended attributes, and `getUnderlineStyle` reaches them only when
+    a program asked for a line too. So on that cell every judge reports
+    nothing, and so does ptterm.
+
+    A link over a curly line reads as dashed, both ways round. The curl
+    is gone, and no reader can bring it back. So the shape that xterm.js
+    reports on a linked cell says nothing about the program, and
+    `_as_xterm_sees` drops the underline of such a cell from both sides.
+
+    This test reads the raw answer, because the projection hides what it
+    records.
     """
     data = OPEN_LINK % ("id=1", A_TARGET) + "ab" + CLOSE_LINK
     held = _cells(data, lines=2, columns=4)
-    assert held["xterm"][0][0].underline == 1
-    for name in ("ptterm", "alacritty", "ghostty", "kitty", "libvterm", "wezterm"):
+    for name in ("ptterm", "alacritty", "ghostty", "kitty", "libvterm",
+                 "wezterm", "xterm"):
         assert held[name][0][0].underline == 0, name
+
+    over_a_curly = OPEN_LINK % ("id=1", A_TARGET) + "\x1b[4:3mab\x1b[m" + CLOSE_LINK
+    under_a_curly = "\x1b[4:3m" + OPEN_LINK % ("id=1", A_TARGET) + "ab\x1b[m"
+    for data in (over_a_curly, under_a_curly):
+        held = _cells(data, lines=2, columns=4)
+        assert held["xterm"][0][0].underline == DASHED
+        assert held["ptterm"][0][0].underline == CURLY
 
 
 def test_every_judge_that_holds_a_link_holds_its_target():
@@ -956,24 +998,30 @@ def test_the_same_id_opened_again_is_the_same_link():
         assert held[name] == [(1, 1, None, None), (1, 1, None, None)], name
 
 
-def test_alacritty_alone_splits_a_link_that_carries_no_id():
+def test_two_judges_split_a_link_that_carries_no_id():
     """
     The same target opens twice with no id, and the two runs do not
-    touch. Alacritty calls that two links. kitty and WezTerm call it
-    one, and so does ptterm.
+    touch. Alacritty and xterm.js call that two links. kitty and WezTerm
+    call it one, and so does ptterm.
 
     Alacritty mints a name for every link that arrives without an id,
     out of a counter of the process, so two opens are never the same
-    link. kitty keys its pool on the id and the target together, and an
-    empty id is still an id, so both opens land on one entry.
+    link. xterm.js does the same, out of a pool it keeps for the screen.
+    kitty keys its pool on the id and the target together, and an empty
+    id is still an id, so both opens land on one entry.
 
-    The specification of "OSC 8" is on Alacritty's side: without an id,
-    only cells that touch are one link. ptterm cannot take that side as
-    it stands, because a cell carries the target and the id and nothing
-    that says which opening drew it. It sits with the larger side by
-    accident and not by choice. Lillecarl/pymux#91 holds that.
+    xterm.js is not simply on Alacritty's side. It keys on the id and
+    the target the way kitty does whenever there is an id: two openings
+    of one target under one id are one link for it, and a wrap does not
+    cut a link in two. Only the empty id sends it the other way.
 
-    This is a split, so nothing changes here.
+    The specification of "OSC 8" is on that side: without an id, only
+    cells that touch are one link. ptterm cannot take it as it stands,
+    because a cell carries the target and the id and nothing that says
+    which opening drew it. It sits with the larger side by accident and
+    not by choice. Lillecarl/pymux#91 holds that.
+
+    Two against two is a split, so nothing changes here.
     """
     data = (
         OPEN_LINK % ("", A_TARGET)
@@ -984,12 +1032,13 @@ def test_alacritty_alone_splits_a_link_that_carries_no_id():
         + "cd"
     )
     held = link_shape(data)
-    assert held["alacritty"] == [(1, 1, None, None), (2, 2, None, None)]
+    for name in ("alacritty", "xterm"):
+        assert held[name] == [(1, 1, None, None), (2, 2, None, None)], name
     for name in ("kitty", "ptterm", "wezterm"):
         assert held[name] == [(1, 1, None, None), (1, 1, None, None)], name
 
     against, with_us = sides(data, lines=2, columns=4)
-    assert against == ["alacritty"]
+    assert against == ["alacritty", "xterm"]
     assert with_us == ["kitty", "wezterm"]
     assert cannot_see(data, lines=2, columns=4) == LINK_ABSTAINS
     assert verdict(data, lines=2, columns=4) == "split"

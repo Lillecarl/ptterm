@@ -210,9 +210,10 @@ the underscore, so there is no answer to follow.
 Number 21 was decided in the code and never written down here. The
 tally moved it: `erase_style` in `ptterm/screen.py` carried it alone.
 
-Number 23 is the first that a panel of three decided. libvterm, Ghostty
-and xterm.js hold no hyperlink, so they abstain and the tally has three
-names and not six.
+Number 23 was the first that a panel of three decided, and it is a
+panel of four now. libvterm holds no hyperlink and Ghostty reports no
+name for one, so those two abstain. Reading a link out of xterm.js
+brought the fourth name in, and the tally is even.
 
 ### 1. A tab in the last column of the last row
 
@@ -802,30 +803,41 @@ no reason to hold an opinion about it.
 on 2 lines and 4 columns. Two runs of the same target, with plain text
 between them and no id on either.
 
-ptterm calls that one link, and so do kitty and WezTerm. Alacritty
-calls it two. libvterm and xterm.js hold no link at all, so the panel
-is three.
+ptterm calls that one link, and so do kitty and WezTerm. Alacritty and
+xterm.js call it two. libvterm holds no link at all, and Ghostty holds
+one whose name it does not report, so the panel is four.
 
-Ghostty holds the link and does not vote here either. libghostty-vt
-hands over the target of a link and not the name that Ghostty gives it,
-and the name is the whole question. Reading Ghostty's name for a link
-out of its target would be us voting for it, so the judge writes no
-name and abstains. Ghostty does vote on where a link goes.
-Lillecarl/pymux#92.
+**Two against two, and the specification is on the other side.** This
+entry used to be two against one, which is the smallest tally the panel
+has ever run, and it moved when the judge for xterm.js learned to read
+a link (Lillecarl/pymux#92 and the section on xterm.js below).
+
+xterm.js is not simply on Alacritty's side. Wherever a program writes
+an id it keys on the id and the target the way kitty does: two openings
+of one target under one id are one link, and a wrap does not cut a link
+in two. Only the empty id sends it the other way, and there it mints a
+new name for each opening.
+
+Ghostty does vote on where a link goes and not on this. libghostty-vt
+hands over the target of a link and not the name Ghostty gives it, and
+the name is the whole question here. Reading a name out of a target
+would be us voting for Ghostty, so the judge writes none.
 
 Alacritty mints a name for every link that arrives without an id, out
 of a counter of the process, so two openings are never one link. kitty
 keys its pool on the id and the target together, and an empty id is
 still an id, so both openings land on one entry.
 
-The specification of "OSC 8" is on Alacritty's side: without an id,
-only cells that touch are one link. ptterm cannot take that side as it
-stands. A cell carries the target and the id, and nothing that says
-which opening drew it, so two openings of one target are the same cell
-either way. Lillecarl/pymux#91 holds what changing that would take.
+The specification of "OSC 8" is on that side: without an id, only cells
+that touch are one link. ptterm cannot take it as it stands. A cell
+carries the target and the id, and nothing that says which opening drew
+it, so two openings of one target are the same cell either way.
+Lillecarl/pymux#91 holds what changing that would take.
 
-Two against one is a split, so nothing changes.
-`test_the_panel.py::test_alacritty_alone_splits_a_link_that_carries_no_id`
+Two against two is a split, so nothing changes here. The tally is worth
+a second look now that it is even and the specification is on the side
+ptterm is not: Lillecarl/pymux#91 is the place for that decision.
+`test_the_panel.py::test_two_judges_split_a_link_that_carries_no_id`
 holds the tally.
 
 **As a setting:** no. A program that wants two links writes an id, and
@@ -841,12 +853,12 @@ sees two cells either way, and `test_known_deviations` holds the case.
 
 ## Where Alacritty looks wrong
 
-Alacritty reads "SGR 21" as the end of bold. Four judges read it as a
+Alacritty reads "SGR 21" as the end of bold. Five judges read it as a
 double underline, which is what ECMA-48 numbers it: kitty, WezTerm,
-libvterm and Ghostty all keep the bold and draw the line. xterm.js does
-not vote, because it says only whether a line is there and both
-readings draw one. `test_the_panel.py::test_what_sgr_21_means` holds
-the tally.
+libvterm, Ghostty and xterm.js all keep the bold and draw the line.
+xterm.js used to abstain here, because the judge for it said only
+whether a line was there. It now reports the shape.
+`test_the_panel.py::test_what_sgr_21_means` holds the tally.
 
 This is the whole of the `underline` difference that
 `checks.pymux-alacritty` reports. That reference test writes
@@ -913,21 +925,38 @@ than kitty does. `test_against_vterm.py` writes each of these down.
 
 ### xterm.js
 
-The buffer API of xterm.js says whether a cell carries an underline
-and nothing more: not the shape of the line, and not its colour. The
-judge reports a plain single line for any of them, and the comparison
-drops the shape and the colour from both sides before it looks.
+The buffer API of xterm.js says whether a cell carries an underline and
+nothing more, and it names no hyperlink at all. **The judge does not
+stop at that API.** It reads three things `IBufferCell` does not name:
 
-It reports no hyperlink either. `IBufferCell` has no accessor for one.
-xterm.js keeps a link behind a link service of its own, and reaching
-for that would tie the judge to a private path that the next version
-moves.
+- `cell.getUnderlineStyle()`, the shape of the line and its colour, so
+  xterm.js votes on both like everybody else.
+- `cell.extended.urlId`, the name xterm.js gives one link.
+- `terminal._core._oscLinkService`, which turns that name into a target.
 
-What it does report is an underline on every cell of a link. That is
-how xterm.js marks one, and its API cannot tell that line from one a
-program drew. So the projection reads a link as a line on both sides,
-and `test_the_panel.py::test_xterm_js_marks_a_link_with_an_underline`
-reads the raw answer to record it.
+Those are private paths of `@xterm/headless` 6.0.0, and the judge names
+them where it uses them, so a version bump knows what to probe again. A
+judge that reports less than the emulator holds is not neutral: it
+abstains, and an abstention is a vote nobody cast.
+
+**A link overwrites the shape of a line.** xterm.js draws a link as a
+dashed underline and writes it into the cell. A link on its own reads
+as no line, because the mark lives in the extended attributes and
+`getUnderlineStyle` reaches them only when a program asked for a line
+too. A link over a curly line reads as dashed, both ways round, and the
+curl is gone. So the shape on a linked cell says nothing about the
+program, and the projection drops the whole underline of such a cell
+from both sides.
+`test_the_panel.py::test_a_link_overwrites_the_shape_of_a_line` reads
+the raw answer to record it.
+
+**"SGR 59" never gets back to the default colour of a line.** xterm.js
+stores the default as -1 in a field of twenty six bits, so the sentinel
+reads back as the colour with every bit set and the line goes white. It
+is alone: four judges and ptterm go back to the default, and libvterm
+holds no colour for a line to vote.
+`test_the_panel.py::test_xterm_js_never_gets_back_to_the_default_colour_of_a_line`
+holds the tally.
 
 ### Ghostty
 

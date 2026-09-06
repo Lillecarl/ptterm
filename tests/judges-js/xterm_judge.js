@@ -24,6 +24,20 @@ if (!path) {
 }
 const { Terminal } = require(path);
 
+// This judge reads what `IBufferCell` does not name. These are private
+// paths of @xterm/headless 6.0.0, and a version bump has to probe them
+// again:
+//
+//   terminal._core._oscLinkService   the pool of links
+//   cell.extended.urlId              which link a cell belongs to, or 0
+//   cell.getUnderlineStyle()         the shape of the line, 0 to 5
+//   cell.getUnderlineColor()         the colour of the line
+//   cell.isUnderlineColor*()         which kind of colour that is
+//
+// A judge that reports less than the emulator holds is not neutral. It
+// abstains, and an abstention is a vote that nobody cast. xterm.js holds
+// all of these, so the judge reads them.
+
 // A colour, in the form that the other judges write.
 function color(isDefault, isRGB, value) {
   if (isDefault) return null;
@@ -33,6 +47,7 @@ function color(isDefault, isRGB, value) {
 
 function screenOf(terminal, lines, columns) {
   const buffer = terminal.buffer.active;
+  const links = terminal._core._oscLinkService;
   const rows = [];
 
   for (let y = 0; y < lines; y++) {
@@ -54,6 +69,26 @@ function screenOf(terminal, lines, columns) {
       // space there.
       const text = cell.getWidth() === 0 ? " " : cell.getChars() || " ";
 
+      // Which link this cell belongs to, and where that link goes.
+      // `urlId` is the name xterm.js gives one link, out of a pool it
+      // keeps for the screen, so it says which cells are one link. It is
+      // 0 on a cell that carries none.
+      const urlId = (cell.extended && cell.extended.urlId) || 0;
+      const link = urlId ? links.getLinkData(urlId) : null;
+
+      // Whether an "SGR 58" ever set a colour for the line. The raw
+      // field is the only thing that says so. `isUnderlineColorDefault`
+      // does not: it answers false on a cell that carries a foreground
+      // and no "SGR 58" at all, and `getUnderlineColor` then hands back
+      // that foreground. A red letter with a plain line would read as a
+      // red line, on every cell of every coloured program.
+      //
+      // Zero is not a colour a program can ask for. The two bits above
+      // the value say which kind of colour it is, and both forms set
+      // one, so the field is zero only when nothing wrote it.
+      const hasUnderlineColor =
+        ((cell.extended && cell.extended.underlineColor) || 0) !== 0;
+
       // `isFgDefault` and `isFgRGB` answer with a boolean; `isBold`
       // and the other attributes answer with a number.
       cells.push([
@@ -62,21 +97,26 @@ function screenOf(terminal, lines, columns) {
         color(cell.isBgDefault(), cell.isBgRGB(), cell.getBgColor()),
         cell.isBold() !== 0,
         cell.isItalic() !== 0,
-        // Only whether a line is there. xterm.js keeps the shape and
-        // the colour of the line out of its buffer API, so this judge
-        // says nothing about either and the panel drops both before
-        // it compares.
-        cell.isUnderline() !== 0 ? 1 : 0,
+        // The shape of the line: 0 none, 1 single, 2 double, 3 curly,
+        // 4 dotted, 5 dashed. That is how kitty numbers them and how
+        // libghostty-vt numbers `GHOSTTY_SGR_UNDERLINE_*`, so the number
+        // compares as it is.
+        //
+        // A cell of a link reads as 5 whatever the program asked for.
+        // `_as_xterm_sees` drops the line of a linked cell for that
+        // reason; the judge reports what xterm.js holds.
+        cell.getUnderlineStyle(),
         cell.isInverse() !== 0,
-        null,
+        // The colour of the line itself, once the raw field says a
+        // program asked for one.
+        hasUnderlineColor
+          ? color(false, cell.isUnderlineColorRGB(), cell.getUnderlineColor())
+          : null,
         // The target of an "OSC 8", and what xterm.js calls that one
-        // link. `IBufferCell` reports neither. xterm.js holds a link
-        // out of sight, behind its own link service, and reaching for
-        // that would tie the judge to a private path that the next
-        // version moves. So this judge says nothing about a link, and
-        // `_as_xterm_sees` drops it from both sides.
-        null,
-        null,
+        // link. The name is the number out of the pool, as a string,
+        // because `number_the_links` wants a name and not an index.
+        link ? link.uri : null,
+        urlId ? String(urlId) : null,
       ]);
     }
     rows.push(cells);

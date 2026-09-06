@@ -5,23 +5,24 @@ xterm.js is the terminal that VS Code draws in, written in TypeScript.
 `@xterm/headless` is the same emulator with no drawing attached.
 `PTTERM_XTERM` names a program that feeds it and reads the screen back.
 
-**It cannot answer about an underline.** The buffer API of xterm.js
-says whether a cell carries a line and nothing more: not the shape of
-the line, and not its colour. So this judge reports a line as a plain
-single one, and `_as_xterm_sees` drops the shape and the colour from
-both sides before the comparison.
+**It answers about an underline.** The buffer API of xterm.js says
+whether a cell carries a line and nothing more. The judge reaches past
+it, to `getUnderlineStyle` and the underline colour, so xterm.js votes
+on the shape of a line and on its colour like everybody else.
 
-**It cannot answer about a hyperlink either.** `IBufferCell` reports
-none. xterm.js holds a link out of sight, behind a link service of its
-own, and reaching for that would tie the judge to a private path that
-the next version moves. So the link goes the same way as the shape of
-the line.
+**It answers about a hyperlink.** `IBufferCell` reports none, and the
+judge reaches past it: `cell.extended.urlId` is the name xterm.js gives
+one link, and `_core._oscLinkService` turns that name into the target.
+Both are private paths of the version the tests pin, and the judge says
+so where it uses them.
 
-What it does report is an underline on every cell of a link. That is
-how xterm.js marks one, and its API cannot tell that line from one that
-a program drew. So through this judge a linked cell and an underlined
-cell are one cell, and `_as_xterm_sees` reads a link on either side as
-a line.
+**A link overwrites the shape of the line.** xterm.js draws a link as a
+dashed underline and writes it into the cell. A link on its own reads as
+no line, because the mark lives in the extended attributes and
+`getUnderlineStyle` reaches them only when a program asked for a line
+too. A link over a curly line reads as dashed, both ways round, and the
+curl is gone. So `_as_xterm_sees` drops the whole underline of a linked
+cell from both sides. It keeps the link.
 
 A judge that cannot hold something has to say so. One that answers
 anyway is worse than one that abstains, because the panel counts its
@@ -51,16 +52,13 @@ def _as_xterm_sees(cell: Cell) -> Cell:
     """
     The part of a cell that xterm.js can hold.
 
-    A cell of a link reads as an underlined cell, on both sides. That is
-    not a guess about what ptterm should draw: it is what this judge
-    reports either way, and a comparison that kept the two apart would
-    report the mark of xterm.js as a difference in the rendition.
-    `test_the_panel.py::test_xterm_js_marks_a_link_with_an_underline`
+    A cell that carries a link keeps no underline, on either side.
+    xterm.js marks a link with a dashed line and writes it over whatever
+    the program asked for, so its answer there is its own decoration and
+    not a reading of the program.
+    `test_the_panel.py::test_a_link_overwrites_the_shape_of_a_line`
     holds the raw answer.
     """
-    return cell._replace(
-        underline=1 if (cell.underline or cell.hyperlink is not None) else 0,
-        underline_color=None,
-        hyperlink=None,
-        hyperlink_id=None,
-    )
+    if cell.hyperlink is not None:
+        return cell._replace(underline=0, underline_color=None)
+    return cell

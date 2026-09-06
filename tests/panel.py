@@ -16,11 +16,12 @@ from one judge is a question; a difference from all of them is an
 answer.
 
 A judge that cannot hold something says nothing about it. libvterm
-knows three shapes of underline and no colour for the line, and
-xterm.js says only whether a line is there. libvterm, Ghostty and
-xterm.js hold no hyperlink: the two libraries name none in their
-headers, and the buffer API of xterm.js reports none. Their answers are
-read through a projection that drops what they cannot hold.
+knows three shapes of underline, no colour for the line and no
+hyperlink. Ghostty holds a link and reports its target only, so it says
+nothing about which cells are one link. xterm.js marks a link with a
+dashed line and writes it over the shape a program asked for, so it
+says nothing about the line of a linked cell. Their answers are read
+through a projection that drops what they cannot hold.
 
 A judge that cannot hold the difference in front of it does not vote.
 It **abstains**, which is not the same as agreeing: `abstained()` tells
