@@ -88,7 +88,7 @@ from pathlib import Path
 
 from ptterm.backends.posix import PosixBackend
 from ptterm.process import Process
-from ptterm.screen import DoubleHeight, TerminalChar
+from ptterm.screen import DoubleHeight, WrittenCell
 
 #: The screen vttest draws on. Its own default is 24 by 80, with 132
 #: as the wide setting, and it prints the size in the title when it is
@@ -406,12 +406,12 @@ def _text_of(cell) -> str:
     """
     One cell, as what it shows.
 
-    A cell that nothing wrote is not a `TerminalChar`, and it shows a
+    A cell that nothing wrote is not a `WrittenCell`, and it shows a
     space. The second half of a wide character holds no character at
     all, and it shows nothing: the character before it already covers
     both columns, so the row stays as wide as the screen.
     """
-    if not isinstance(cell, TerminalChar):
+    if not isinstance(cell, WrittenCell):
         return " "
     return cell.char
 
@@ -448,7 +448,7 @@ def blinks(screen) -> bool:
         line = buffer[offset + row]
         for column in range(screen.columns):
             cell = line[column]
-            if isinstance(cell, TerminalChar) and "blink" in cell.style:
+            if isinstance(cell, WrittenCell) and "blink" in cell.style:
                 return True
     return False
 

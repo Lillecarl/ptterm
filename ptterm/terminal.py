@@ -42,7 +42,7 @@ from prompt_toolkit.widgets.toolbars import SearchToolbar
 from .backends import Backend
 from .placeholders import PLACEHOLDER
 from .process import Process
-from .screen import DoubleHeight, TerminalChar
+from .screen import Cell, DoubleHeight, WrittenCell
 
 __all__ = ["Terminal"]
 
@@ -192,7 +192,7 @@ class _TerminalControl(UIControl):
         # an xor, and it is the same answer.
         reverse_video = self.process.screen.has_reverse_video
 
-        def fragment(cell: Char) -> tuple[str, str]:
+        def fragment(cell: Cell) -> tuple[str, str]:
             """
             The style and the character that one cell draws with.
 
@@ -212,7 +212,7 @@ class _TerminalControl(UIControl):
             style = cell.style
             if reverse_video and "reverse" in style.split():
                 style += " noreverse"
-            if char == " " and isinstance(cell, TerminalChar):
+            if char == " " and isinstance(cell, WrittenCell):
                 style += " " + KeepWhitespace
             return style, char
 
@@ -615,7 +615,7 @@ class Terminal:
         style = char.style
         if self.copy_reverse_video and "reverse" in style.split():
             style += " noreverse"
-        if char.char == " " and isinstance(char, TerminalChar):
+        if char.char == " " and isinstance(char, WrittenCell):
             style += " " + KeepWhitespace
         return style
 

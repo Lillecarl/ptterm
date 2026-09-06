@@ -17,7 +17,7 @@ harness `WANTSCREEN rb` and the same bytes, and it pops a line, fills
 the top row and puts the cursor at `4,2`, which is what these tests
 assert. Lillecarl/pymux#57.
 """
-from ptterm.screen import BetterScreen, TerminalChar
+from ptterm.screen import BetterScreen, WrittenCell
 from ptterm.stream import BetterStream
 
 # The prompt of libvterm's "Shell wrapped prompt behaviour" case. On ten
@@ -38,7 +38,7 @@ def _row(screen, row: int) -> str:
 
     The row can hold more than that: the cell the cursor stands on is in
     it too, and `_reflow` keeps that cell on purpose. So the read stops
-    at the last cell a program wrote, which is the same `TerminalChar`
+    at the last cell a program wrote, which is the same `WrittenCell`
     test `_reflow` uses.
 
     The blank inside a row is content. The space after "> " is one, and
@@ -46,7 +46,7 @@ def _row(screen, row: int) -> str:
     """
     line = screen.page.data_buffer[screen.line_offset + row]
     text = [line[x] for x in range(0, max(line) + 1)]
-    while text and not isinstance(text[-1], TerminalChar):
+    while text and not isinstance(text[-1], WrittenCell):
         text.pop()
     return "".join(cell.char for cell in text)
 

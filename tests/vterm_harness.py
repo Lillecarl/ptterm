@@ -57,7 +57,7 @@ from kitty_oracle import (  # noqa: E402
     _underline_of_style,
 )
 
-from ptterm.screen import BetterScreen, DoubleHeight, TerminalChar  # noqa: E402
+from ptterm.screen import BetterScreen, DoubleHeight, WrittenCell  # noqa: E402
 from ptterm.stream import BetterStream  # noqa: E402
 
 #: The screen that libvterm's `INIT` makes.
@@ -324,7 +324,7 @@ class Harness:
         cell = self.cell(row, column)
         style = _rendition_of(cell)
 
-        characters = cell.char if isinstance(cell, TerminalChar) else ""
+        characters = cell.char if isinstance(cell, WrittenCell) else ""
         inside = ",".join("0x%x" % ord(one) for one in characters)
 
         attributes = ""
@@ -377,7 +377,7 @@ class Harness:
         assert screen is not None
         row, column = (int(number) for number in argument.split(",")[:2])
         for x in range(column, screen.columns):
-            if isinstance(self.cell(row, x), TerminalChar):
+            if isinstance(self.cell(row, x), WrittenCell):
                 return "0"
         return "1"
 
@@ -437,7 +437,7 @@ class Harness:
                 cell = self.cell(row, column)
                 if cell.char == "":
                     continue
-                if not isinstance(cell, TerminalChar):
+                if not isinstance(cell, WrittenCell):
                     padding += 1
                     continue
                 out.extend(" " * padding)

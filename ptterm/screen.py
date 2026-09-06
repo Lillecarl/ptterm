@@ -10,9 +10,10 @@ Changes compared to the original `Screen` class:
 import base64
 from collections import defaultdict, namedtuple
 from enum import IntEnum, IntFlag, StrEnum
+from functools import lru_cache
 from typing import Callable, DefaultDict, Dict, List, NamedTuple, Set, Tuple
 
-from prompt_toolkit.layout.screen import Char
+from wcwidth import wcwidth  # type: ignore[import-untyped]
 from pyte import charsets as cs
 from pyte import modes as mo
 from pyte.screens import Margins
@@ -684,7 +685,66 @@ class _UnicodeInternDict(Dict[str, str]):
 _unicode_intern_dict = _UnicodeInternDict()
 
 
-class ErasedChar(Char):
+@lru_cache(maxsize=4096)
+def character_width(text: str) -> int:
+    """
+    How many columns the content of one cell takes.
+
+    A combining mark measures zero and hangs on the character before
+    it, so a cell that holds a base and its marks is as wide as the
+    base alone. A control character measures -1 and draws nothing, so
+    it counts as nothing here.
+    """
+    if len(text) == 1:
+        return max(0, wcwidth(text))
+    return sum(character_width(character) for character in text)
+
+
+class Cell:
+    """
+    One cell of a screen: what a program wrote there, and the style
+    that draws it.
+
+    It is immutable, and `_CHAR_CACHE` hands out one object for each
+    pair, so a screen full of spaces holds one cell many times.
+
+    This was `prompt_toolkit.layout.screen.Char`, without that class's
+    `display_mappings`. The table swaps a control character for "^A"
+    and a no-break space for an underlined blank, which is right for a
+    prompt that a person types into and wrong for a screen: the
+    program that wrote the screen already chose what it says.
+    `WrittenCell` existed to undo one entry of that table.
+    Lillecarl/pymux#11.
+    """
+
+    __slots__ = ("char", "style", "width")
+
+    def __init__(self, char: str = " ", style: str = "") -> None:
+        self.char = char
+        self.style = style
+
+        # Every caller needs it, so it is a field and not a method.
+        self.width = character_width(char)
+
+    def __eq__(self, other: object) -> bool:
+        return (
+            self.char == other.char  # type: ignore[attr-defined]
+            and self.style == other.style  # type: ignore[attr-defined]
+        )
+
+    def __ne__(self, other: object) -> bool:
+        # Not `not __eq__`: this is called for every cell of every
+        # frame, and one call is cheaper than two.
+        return (
+            self.char != other.char  # type: ignore[attr-defined]
+            or self.style != other.style  # type: ignore[attr-defined]
+        )
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.char!r}, {self.style!r})"
+
+
+class ErasedCell(Cell):
     """
     The blank that an erase leaves behind.
 
@@ -702,26 +762,17 @@ class ErasedChar(Char):
     __slots__ = ()
 
 
-class TerminalChar(Char):
+class WrittenCell(Cell):
     """
-    One cell of a pane, holding what the program wrote.
+    One cell that a program wrote, as against one that an erase left.
 
-    prompt_toolkit shows a no-break space as a space that is underlined
-    in yellow, so that a reader of a widget can see one. A pane is not
-    a widget: "tree" draws its indentation with no-break spaces, and
-    every emulator keeps them as they are. So does this.
+    It adds nothing to a `Cell`. What it says is who put the character
+    there, and two things read that: the renderer keeps a blank that a
+    program wrote and drops one that it did not, and a selective erase
+    leaves an erased cell alone.
     """
 
     __slots__ = ()
-
-    def __init__(self, char: str = " ", style: str = "") -> None:
-        if char == "\xa0":
-            # Skip the mapping of the parent, and keep the character.
-            self.char = char
-            self.style = style
-            self.width = 1
-        else:
-            super().__init__(char, style)
 
 
 class DoubleHeight(IntEnum):
@@ -738,7 +789,7 @@ class LineAttribute(NamedTuple):
 
     A VT100 draws a line at twice the width, at twice the height, or
     both. The attribute belongs to the line and not to a cell, so it
-    lives next to `wrapped_lines` and not in a `Char`.
+    lives next to `wrapped_lines` and not in a `Cell`.
 
     ptterm holds it and draws nothing: how wide a line looks is the
     renderer's decision, and a pane is not a whole line of the terminal
@@ -775,7 +826,7 @@ class Protection(IntFlag):
     DEC = 2
 
 
-class ProtectedChar(TerminalChar):
+class ProtectedCell(WrittenCell):
     """
     One cell that an erase may have to leave alone.
 
@@ -793,7 +844,7 @@ class ProtectedChar(TerminalChar):
         self.protection = protection
 
 
-def protection_of(cell: Char) -> int:
+def protection_of(cell: Cell) -> int:
     "The marks that a cell carries. A plain cell carries none."
     return getattr(cell, "protection", 0)
 
@@ -810,15 +861,15 @@ def _four(params: Tuple[int, ...], first: int) -> Tuple[int, int, int, int]:
     return tuple(read) + (0,) * (4 - len(read))  # type: ignore[return-value]
 
 
-# Cache for Char objects.
-_CHAR_CACHE: FastDictCache[Tuple[str, str], Char] = FastDictCache(
-    TerminalChar, size=1000 * 1000
+# Cache for Cell objects.
+_CHAR_CACHE: FastDictCache[Tuple[str, str], Cell] = FastDictCache(
+    WrittenCell, size=1000 * 1000
 )
 
 #: The same for the cells that carry a mark. Nearly no program marks
 #: one, so this one stays small.
-_PROTECTED_CHAR_CACHE: FastDictCache[Tuple[str, str, int], Char] = FastDictCache(
-    ProtectedChar, size=10 * 1000
+_PROTECTED_CHAR_CACHE: FastDictCache[Tuple[str, str, int], Cell] = FastDictCache(
+    ProtectedCell, size=10 * 1000
 )
 
 
@@ -887,11 +938,11 @@ class Page:
 
     __slots__ = ("data_buffer", "show_cursor")
 
-    def __init__(self, default_char: Char) -> None:
+    def __init__(self, default_char: Cell) -> None:
         #: The cells, by row and then by column. A row that nobody
         #: wrote to is absent, and so is a column, so the cost of an
         #: empty screen is one dictionary.
-        self.data_buffer: DefaultDict[int, DefaultDict[int, Char]] = defaultdict(
+        self.data_buffer: DefaultDict[int, DefaultDict[int, Cell]] = defaultdict(
             lambda: defaultdict(lambda: default_char)
         )
 
@@ -1375,7 +1426,7 @@ class BetterScreen:
         else:
             self.protection &= ~Protection.DEC
 
-    def _erase_holds(self, cell: Char, selective: bool) -> bool:
+    def _erase_holds(self, cell: Cell, selective: bool) -> bool:
         """
         True when an erase has to leave this cell alone.
 
@@ -1416,7 +1467,7 @@ class BetterScreen:
     def _reset_screen(self) -> None:
         """Reset the Screen content. (also called when switching from/to
         alternate buffer."""
-        self.page = Page(default_char=Char(" ", ""))
+        self.page = Page(default_char=Cell(" ", ""))
 
         self.data_buffer = self.page.data_buffer
         self.pt_cursor_position = CursorPosition(0, 0)
@@ -2120,7 +2171,7 @@ class BetterScreen:
         waiting_to_wrap = self.pending_wrap
 
         for char in chars:
-            # Create 'Char' instance.
+            # Create 'Cell' instance.
             pt_char = char_cache[(char,) + key_tail]
             char_width = pt_char.width
 
@@ -2214,7 +2265,7 @@ class BetterScreen:
                 if (
                     previous >= 0
                     and cell is not None
-                    and not isinstance(cell, ErasedChar)
+                    and not isinstance(cell, ErasedCell)
                 ):
                     # The mark belongs to the cell that is there, so it
                     # keeps the marks of that cell and not the ones
@@ -2471,7 +2522,7 @@ class BetterScreen:
         style = self.erase_style()
 
         if style:
-            blank = ErasedChar(" ", style)
+            blank = ErasedCell(" ", style)
             for column in range(left, right + 1):
                 row[column] = blank
         else:
@@ -2795,8 +2846,8 @@ class BetterScreen:
             data_buffer.pop(row, None)
             return
 
-        line: DefaultDict[int, Char] = defaultdict(lambda: Char(" "))
-        erased = ErasedChar(" ", style)
+        line: DefaultDict[int, Cell] = defaultdict(lambda: Cell(" "))
+        erased = ErasedCell(" ", style)
         for column in range(self.columns):
             line[column] = erased
         data_buffer[row] = line
@@ -2879,7 +2930,7 @@ class BetterScreen:
 
         style = self.erase_style()
         if style:
-            blank = ErasedChar(" ", style)
+            blank = ErasedCell(" ", style)
             for column in range(cursor_x, min(cursor_x + count, edge)):
                 line[column] = blank
 
@@ -2916,7 +2967,7 @@ class BetterScreen:
 
         style = self.erase_style()
         if style:
-            blank = ErasedChar(" ", style)
+            blank = ErasedCell(" ", style)
             for column in range(max(cursor_x, edge - count), edge):
                 line[column] = blank
 
@@ -3225,7 +3276,7 @@ class BetterScreen:
         cursor_position = self.pt_cursor_position
         row = self.data_buffer[cursor_position.y]
         style = self.erase_style()
-        erased = ErasedChar(" ", style)
+        erased = ErasedCell(" ", style)
 
         end = min(cursor_position.x + count, self.columns)
         for column in range(cursor_position.x, end):
@@ -3263,7 +3314,7 @@ class BetterScreen:
         line_offset = self.line_offset
         data_buffer = self.data_buffer
         style = self.erase_style()
-        blank = ErasedChar(" ", style) if style else None
+        blank = ErasedCell(" ", style) if style else None
 
         for row in range(top, bottom + 1):
             line = data_buffer[row + line_offset]
@@ -3394,7 +3445,7 @@ class BetterScreen:
 
         line = data_buffer[pt_cursor_position.y]
         holds = self._erase_holds
-        erased = ErasedChar(" ", style) if style else None
+        erased = ErasedCell(" ", style) if style else None
 
         for column in columns:
             cell = line.get(column)
@@ -3500,7 +3551,7 @@ class BetterScreen:
                 return
 
             data_buffer = self.data_buffer
-            erased = ErasedChar(" ", style) if style else None
+            erased = ErasedCell(" ", style) if style else None
 
             # "CSI 2 J" takes the whole screen, marks and all. Only
             # the two that erase a part of it read the marks, and the
@@ -3539,7 +3590,7 @@ class BetterScreen:
                     )
                     continue
 
-                data_buffer[line] = defaultdict(lambda: Char(" "))
+                data_buffer[line] = defaultdict(lambda: Cell(" "))
                 if erased is not None:
                     # A background is set, so the erased cells take it.
                     row = data_buffer[line]
@@ -3700,7 +3751,7 @@ class BetterScreen:
         top, left, bottom, right = corners
 
         style = self.erase_style()
-        erased = ErasedChar(" ", style) if style else None
+        erased = ErasedCell(" ", style) if style else None
         reads_the_marks = selective and self._protected_chars
 
         data_buffer = self.data_buffer
@@ -3894,7 +3945,7 @@ class BetterScreen:
         libvterm does neither.
 
         Every cell holds a character that a program asked for, so it
-        comes out of the cache that `draw` uses. A plain `Char` reads as
+        comes out of the cache that `draw` uses. A plain `Cell` reads as
         a cell that nobody wrote, which is what an erase leaves, and
         anything that tells the two apart then reads a blank screen.
         """
@@ -5376,7 +5427,7 @@ class BetterScreen:
         width = self.columns
 
         data_buffer = self.page.data_buffer
-        new_data_buffer = Page(default_char=Char(" ", "")).data_buffer
+        new_data_buffer = Page(default_char=Cell(" ", "")).data_buffer
         cursor_position = self.pt_cursor_position
         cy, cx = (cursor_position.y, cursor_position.x)
 
@@ -5388,8 +5439,8 @@ class BetterScreen:
 
         # Unwrap all the lines.
         offset = min(data_buffer)
-        line: List[Char] = []
-        all_lines: List[List[Char]] = [line]
+        line: List[Cell] = []
+        all_lines: List[List[Cell]] = [line]
 
         # The DEC line attribute of each unwrapped line. It comes from
         # the row the line starts on, because that is the row the
@@ -5422,7 +5473,7 @@ class BetterScreen:
         #
         # A blank that a program wrote is content, and it stays. The
         # test is the class and not the character: a space out of
-        # `draw` is a `TerminalChar`, and the blank that an erase leaves
+        # `draw` is a `WrittenCell`, and the blank that an erase leaves
         # is not. Reading the character instead lost the space after a
         # shell prompt on every resize. Lillecarl/pymux#56.
         #
@@ -5432,7 +5483,7 @@ class BetterScreen:
         for row_index, line in enumerate(all_lines):
             while (
                 len(line) > 1
-                and not isinstance(line[-1], TerminalChar)
+                and not isinstance(line[-1], WrittenCell)
                 and not line[-1].style
             ):
                 if row_index == cy and len(line) - 1 == cx:
