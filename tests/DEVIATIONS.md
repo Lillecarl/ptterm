@@ -1085,10 +1085,10 @@ rendering choice. `test_the_widget.py` holds the questions
 
 `61screen_unicode` 35 and 41 want a cell to hold a base character and
 five combining marks and no more. `VTERM_MAX_CHARS_PER_CELL` is a fixed
-array in a C struct, and nobody else has one: kitty, Alacritty, WezTerm
-and xterm.js all keep every mark, and so does ptterm. Four to one, with
-Ghostty abstaining because our reader for it drops the marks
-(Lillecarl/pymux#63). `test_the_panel.py` holds that tally.
+array in a C struct, and nobody else has one: kitty, Alacritty, WezTerm,
+xterm.js and Ghostty all keep every mark, and so does ptterm. Five to
+one. Ghostty read as one mark until Lillecarl/pymux#63, which was our
+reader and not Ghostty. `test_the_panel.py` holds that tally.
 
 **The suite runs libvterm without a scrollback, and ptterm always has
 one.**

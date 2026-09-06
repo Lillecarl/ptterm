@@ -212,18 +212,33 @@ static void write_cell(Buffer *out, const GhosttyGridRef *ref) {
     /* The graphemes of a cell are the whole cluster: the character and
      * the marks of no width that hang on it, in order. Reading the
      * codepoint alone would drop every combining mark, and reading
-     * both would write the character twice. */
-    uint32_t cluster[16];
+     * both would write the character twice.
+     *
+     * A cell holds as many marks as the program sends, so no fixed
+     * buffer is large enough. The library says so: it answers
+     * GHOSTTY_OUT_OF_SPACE and writes the length it wants, and the
+     * caller asks again with room. A judge that skipped the second ask
+     * reported one codepoint for a cell of twenty one, and voted as
+     * though Ghostty dropped them. See Lillecarl/pymux#63. */
+    uint32_t small[16];
+    uint32_t *cluster = small;
     size_t cluster_len = 0;
-    if (ghostty_grid_ref_graphemes(ref, cluster, 16, &cluster_len) ==
-            GHOSTTY_SUCCESS &&
-        cluster_len > 0) {
+    GhosttyResult result =
+        ghostty_grid_ref_graphemes(ref, small, 16, &cluster_len);
+    if (result == GHOSTTY_OUT_OF_SPACE && cluster_len > 0) {
+      cluster = malloc(cluster_len * sizeof(uint32_t));
+      assert(cluster != NULL);
+      result = ghostty_grid_ref_graphemes(ref, cluster, cluster_len,
+                                          &cluster_len);
+    }
+    if (result == GHOSTTY_SUCCESS && cluster_len > 0) {
       for (size_t i = 0; i < cluster_len; i++) put_codepoint(out, cluster[i]);
     } else {
       uint32_t codepoint = 0;
       ghostty_cell_get(cell, GHOSTTY_CELL_DATA_CODEPOINT, &codepoint);
       put_codepoint(out, codepoint);
     }
+    if (cluster != small) free(cluster);
   } else {
     put(out, " ");
   }

@@ -496,7 +496,7 @@ def test_hpb_and_vpb_follow_the_three_judges_that_carry_them(data):
 
 def test_how_many_combining_marks_a_cell_keeps():
     """
-    Four judges keep every mark, and so does ptterm. libvterm keeps six.
+    Five judges keep every mark, and so does ptterm. libvterm keeps six.
 
     libvterm's own `61screen_unicode.test` asserts the six, so
     `checks.ptterm-vterm` records two failures for it. The panel says
@@ -504,15 +504,15 @@ def test_how_many_combining_marks_a_cell_keeps():
     `VTERM_MAX_CHARS_PER_CELL` is a fixed array in a C struct, and
     nobody else has one.
 
-    **Ghostty's 1 is our own instrument and not Ghostty.**
-    `tests/judges-c` reports the base character of a cell and drops the
-    marks, so it abstains here rather than voting.
-    Lillecarl/pymux#63.
+    Ghostty read as 1 until Lillecarl/pymux#63. That was our own
+    instrument: `tests/judges-c` asked for the cluster with a buffer of
+    sixteen and did not ask again when the library said the cluster was
+    longer. It now asks twice and reports what Ghostty holds.
 
-    So the tally is four to one with one abstention, and ptterm is with
-    the four. A cell with no bound is still a cell a program can grow,
-    which is what Lillecarl/pymux#54 asked about, and the answer is that
-    every emulator people use has the same property.
+    So the tally is five to one, and ptterm is with the five. A cell
+    with no bound is still a cell a program can grow, which is what
+    Lillecarl/pymux#54 asked about, and the answer is that every
+    emulator people use has the same property.
     """
     assert marks_kept("e" + "́" * 20) == {
         "ptterm": 21,
@@ -521,7 +521,7 @@ def test_how_many_combining_marks_a_cell_keeps():
         "wezterm": 21,
         "xterm": 21,
         "libvterm": 6,
-        "ghostty": 1,
+        "ghostty": 21,
     }
 
 
