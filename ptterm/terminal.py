@@ -184,9 +184,17 @@ class _TerminalControl(UIControl):
                 ]
 
         if data_buffer:
-            line_count = (
-                max(data_buffer) + 1
-            )  # TODO: subtract all empty lines from the beginning. (If we need to. Not sure.)
+            # The screen is the rows from `line_offset` to `max_y`, and
+            # the buffer can end above `max_y`: an erase with no
+            # background drops the row it clears, so "CSI 1000 M" at the
+            # top of a full screen takes every row below it away.
+            #
+            # prompt_toolkit then reads a document shorter than the
+            # window and scrolls back to the top, because it does not
+            # scroll past the end. Lines that had left the screen come
+            # back. So the count is what the screen occupies, and never
+            # what is left in the buffer.
+            line_count = max(max(data_buffer) + 1, self.process.screen.max_y + 1)
         else:
             line_count = 1
 
