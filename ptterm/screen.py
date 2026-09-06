@@ -1750,9 +1750,21 @@ class BetterScreen:
                 self._reset_rendition()
             else:
                 self._reset_screen()
-                # A list of its own, because a save writes into the
-                # list that is there rather than making a new one.
-                self.savepoints = []
+                # What "ESC 7" saved on the alternate screen comes back
+                # with the screen. "?1049h" clears the content, and it
+                # does not touch the saved cursor: xterm keeps one per
+                # screen, for the life of the terminal, so a program
+                # that takes the alternate screen again finds the save
+                # that the last one left.
+                #
+                # kitty, WezTerm, Alacritty, libvterm, Ghostty and
+                # xterm.js all give that save back. Only ptterm sent
+                # the cursor home instead.
+                #
+                # It is the list the leave put away, so a save on the
+                # alternate screen writes into that one and not into
+                # the list the first screen holds.
+                self.savepoints = self._alternate_screen_vars.get("savepoints", [])
 
                 # The alternate screen has its own, empty kitty keyboard
                 # flag stack and its own graphics state. (The main screen
@@ -1766,8 +1778,13 @@ class BetterScreen:
 
             # "?47" and "?1047" leave the cursor where it stands.
             # xterm does, and so do WezTerm, Alacritty, libvterm,
-            # Ghostty and xterm.js; only kitty puts it home. "?1049"
-            # does put it home, which is what xterm and kitty both do.
+            # Ghostty and xterm.js; only kitty puts it home.
+            #
+            # "?1049" does put it home here, and that is a choice and
+            # not an answer: kitty and WezTerm put it home, and
+            # Alacritty, Ghostty, libvterm and xterm.js leave it.
+            # Entry 17 of `tests/DEVIATIONS.md` holds the argument, and
+            # Lillecarl/pymux#34 holds the question.
             if PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR.flag not in taken_by:
                 self.pt_cursor_position.x = held_column
                 self.pt_cursor_position.y = held_row + self.line_offset

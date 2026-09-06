@@ -159,3 +159,34 @@ def test_the_mode_that_saves_the_cursor_puts_it_home():
     assert (screen.pt_cursor_position.y, screen.pt_cursor_position.x) == (0, 0)
     stream.feed("\x1b[?1049l")
     assert (screen.pt_cursor_position.y, screen.pt_cursor_position.x) == (1, 2)
+
+
+def test_the_alternate_screen_keeps_what_it_saved():
+    """
+    A save made on the alternate screen is still there the next time a
+    program takes that screen.
+
+    "?1049h" clears the content and leaves the saved cursor alone.
+    xterm keeps one saved cursor per screen for the life of the
+    terminal, and the whole panel gives this one back: kitty, WezTerm,
+    Alacritty, libvterm, Ghostty and xterm.js all put the cursor at
+    row 3, column 5. ptterm sent it home.
+    """
+    screen, stream = _screen(lines=6, columns=10)
+    stream.feed("\x1b[?1049h\x1b[3;5H\x1b7\x1b[?1049l\x1b[?1049h\x1b8")
+    assert _position(screen) == (4, 2)
+
+
+def test_the_alternate_screen_saves_its_charsets_as_well():
+    "The character sets come back with it, the same way ESC 8 brings them."
+    screen, stream = _screen(lines=6, columns=10)
+    stream.feed("\x1b(0\x1b[?1049h\x1b7\x1b[?1049l\x1b(B\x1b[?1049h\x1b8xyz")
+    row = screen.pt_screen.data_buffer[0]
+    assert "".join(row[column].char for column in range(3)) == "│≤≥"
+
+
+def test_a_save_on_the_alternate_screen_leaves_the_first_one_alone():
+    "The two screens hold two savepoints, so neither one reads the other."
+    screen, stream = _screen(lines=6, columns=10)
+    stream.feed("\x1b[2;2H\x1b7\x1b[?1049h\x1b[4;7H\x1b7\x1b[?1049l\x1b8")
+    assert _position(screen) == (1, 1)
