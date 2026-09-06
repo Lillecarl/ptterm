@@ -6,7 +6,7 @@ from typing import Callable, Iterable, List
 from prompt_toolkit.application.current import get_app, get_app_or_none
 from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.document import Document
-from prompt_toolkit.filters import Condition, has_selection
+from prompt_toolkit.filters import Condition, FilterOrBool, has_selection, to_filter
 from prompt_toolkit.formatted_text import StyleAndTextTuples
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.key_binding.key_processor import KeyPressEvent
@@ -33,6 +33,7 @@ from prompt_toolkit.layout.processors import (
     Transformation,
 )
 from prompt_toolkit.layout.screen import Char, Point
+from prompt_toolkit.line_attributes import LineAttribute
 from prompt_toolkit.mouse_events import MouseEventType
 from prompt_toolkit.token import KeepWhitespace
 from prompt_toolkit.utils import Event, is_windows
@@ -41,11 +42,27 @@ from prompt_toolkit.widgets.toolbars import SearchToolbar
 from .backends import Backend
 from .placeholders import PLACEHOLDER
 from .process import Process
-from .screen import TerminalChar
+from .screen import DoubleHeight, TerminalChar
 
 __all__ = ["Terminal"]
 
 E = KeyPressEvent
+
+
+#: How a DEC line attribute of the screen reads to prompt_toolkit.
+#:
+#: ptterm holds the two halves of the attribute apart, because a program
+#: sets them with one sequence and they mean two things. The renderer
+#: writes one sequence for a line, so it wants the four together.
+#:
+#: The half of the height is enough to tell them apart. A line that is
+#: twice as high is twice as wide as well, and a line that carries
+#: neither is not in the map of the screen at all.
+_LINE_ATTRIBUTES = {
+    DoubleHeight.NONE: LineAttribute.DOUBLE_WIDTH,
+    DoubleHeight.TOP: LineAttribute.DOUBLE_HEIGHT_TOP,
+    DoubleHeight.BOTTOM: LineAttribute.DOUBLE_HEIGHT_BOTTOM,
+}
 
 
 #: The characters that must not reach the terminal of the user as they
@@ -120,7 +137,10 @@ class _TerminalControl(UIControl):
         osc_func: Callable[[str, str], None] | None = None,
         resize_func: Callable[[int | None, int | None], None] | None = None,
         may_resize: Callable[[], bool] | None = None,
+        owns_whole_lines: FilterOrBool = False,
     ) -> None:
+        self.owns_whole_lines = to_filter(owns_whole_lines)
+
         def has_priority() -> bool:
             # Give priority to the processing of this terminal output, if this
             # user control has the focus.
@@ -196,6 +216,15 @@ class _TerminalControl(UIControl):
                 style += " " + KeepWhitespace
             return style, char
 
+        #: The DEC line attribute of each row, when this pane may ask for
+        #: one. The attribute belongs to a line of the terminal, so a
+        #: pane that shares its rows with another pane holds it and says
+        #: nothing. `owns_whole_lines` is the embedder answering that.
+        if self.owns_whole_lines():
+            line_attributes = self.process.screen.line_attributes
+        else:
+            line_attributes = {}
+
         def get_line(number: int) -> StyleAndTextTuples:
             row = data_buffer[number]
             empty = True
@@ -215,6 +244,13 @@ class _TerminalControl(UIControl):
                 cells = [row[i] for i in range(max_column + 1)]
                 return [fragment(cell) for cell in cells]
 
+        def get_line_attribute(number: int) -> LineAttribute | None:
+            "How big the terminal draws this row, or None for a plain one."
+            attribute = line_attributes.get(number)
+            if attribute is None:
+                return None
+            return _LINE_ATTRIBUTES[attribute.double_height]
+
         if data_buffer:
             # The screen is the rows from `line_offset` to `max_y`, and
             # the buffer can end above `max_y`: an erase with no
@@ -232,6 +268,7 @@ class _TerminalControl(UIControl):
 
         return UIContent(
             get_line,
+            get_line_attribute=get_line_attribute,
             line_count=line_count,
             show_cursor=pt_screen.show_cursor,
             cursor_position=Point(x=cursor_x, y=cursor_y),
@@ -419,6 +456,12 @@ class Terminal:
         ask. The private modes that only exist where a program can have
         a different page go away when it says no, so a program learns at
         once instead of laying its output out for room it will not get.
+    :param owns_whole_lines: Whether every row this pane draws is a whole
+        row of the terminal of the user. Only then may the pane put the
+        DEC line attributes of the program on the wire: a line that is
+        drawn twice as wide is a line of that terminal, and a pane beside
+        another one holds half of it. It is a filter, because a layout
+        changes while the pane runs.
     """
 
     def __init__(
@@ -434,6 +477,7 @@ class Terminal:
         osc_func: Callable[[str, str], None] | None = None,
         resize_func: Callable[[int | None, int | None], None] | None = None,
         may_resize: Callable[[], bool] | None = None,
+        owns_whole_lines: FilterOrBool = False,
     ) -> None:
         if backend is None:
             backend = create_backend(command, before_exec_func)
@@ -445,6 +489,7 @@ class Terminal:
             resize_func=resize_func,
             may_resize=may_resize,
             done_callback=done_callback,
+            owns_whole_lines=owns_whole_lines,
         )
 
         self.terminal_window = _Window(
