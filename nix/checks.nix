@@ -137,6 +137,12 @@ let
     if value == "" then ".*" else value;
   vttestArgs = builtins.getEnv "PTTERM_VTTEST_ARGS";
 
+  # Whether vttest also draws on the terminal this runs in. That is what
+  # makes the walker a proxy, so a picture can be taken of vttest in a
+  # real emulator with pymux in the chain and without it. The walker's
+  # own words go to stderr then, because its stdout is vttest's screen.
+  vttestThrough = builtins.getEnv "PTTERM_VTTEST_THROUGH";
+
   # Which recordings the instruction count measures, and how far a count may
   # move before the check fails. Both are for narrowing a hunt, for instance
   # `PTTERM_INSTRUCTIONS_INCLUDE=vim nix build --file . checks.ptterm-instructions`.
@@ -306,11 +312,12 @@ in
       pythonWithTests
       vttestProgram
     ];
-    env = { inherit vttestInclude vttestArgs; };
+    env = { inherit vttestInclude vttestArgs vttestThrough; };
     setup = prepare + ''
       export PTTERM_VTTEST=${vttestProgram}/bin/vttest
       export PTTERM_VTTEST_INCLUDE="$vttestInclude"
       export PTTERM_VTTEST_ARGS="$vttestArgs"
+      export PTTERM_VTTEST_THROUGH="$vttestThrough"
       export PTTERM_VTTEST_OUT="$out"
     '';
   } "python tests/drive_with_vttest.py";

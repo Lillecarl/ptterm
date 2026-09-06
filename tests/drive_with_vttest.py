@@ -468,8 +468,13 @@ class Walk:
     or something this cannot give.
     """
 
-    def __init__(self, include: str) -> None:
+    def __init__(self, include: str, through: bool = False) -> None:
         self.include = re.compile(include)
+        #: Whether vttest draws on this program's own terminal too.
+        #: When it does, everything the walker says goes to stderr, so
+        #: that its words are never mistaken for what vttest drew.
+        self.through = through
+        self.say = sys.stderr if through else sys.stdout
         self.process: Process | None = None
         self.ended = False
         #: The number of the `read` call on this machine. `main`
@@ -565,9 +570,43 @@ class Walk:
         modes[3] &= ~termios.ECHO
         termios.tcsetattr(backend.slave, termios.TCSANOW, modes)
 
+    def pass_through(self, backend) -> None:
+        """
+        Send what vttest writes to this program's own terminal as well.
+
+        Without this the walk happens where nobody can see it. With it
+        the walker is a proxy: vttest draws on a real terminal, and the
+        same bytes go into the ptterm model that decides when a screen
+        is ready. That is what lets a picture be taken of vttest in
+        kitty or foot, with pymux in the chain and without it, and the
+        two compared.
+
+        Nothing goes the other way. The walker answers vttest itself,
+        so the keyboard of the outer terminal is not in the loop and
+        there is no input to forward.
+
+        The bytes are the ones the reader decoded, encoded again. That
+        is exact for anything well formed, which vttest is.
+        """
+        original = backend.read_text
+        # The real terminal, kept before `main` sends everything this
+        # program says to stderr instead.
+        out = sys.stdout.buffer
+
+        def read_text(amount: int = 4096) -> str:
+            data = original(amount)
+            if data:
+                out.write(data.encode("utf-8", "surrogatepass"))
+                out.flush()
+            return data
+
+        backend.read_text = read_text
+
     def start(self, command: list[str]) -> None:
         backend = PosixBackend.from_command(command)
         self.hush(backend)
+        if self.through:
+            self.pass_through(backend)
         self.process = Process(
             invalidate=lambda: None,
             backend=backend,
@@ -753,7 +792,7 @@ class Walk:
         # which had deadlocked into one that looked merely slow: the
         # driver was spinning at four percent of a core and vttest had
         # used a fifth of a second in twenty minutes.
-        print("vttest: %s" % identity, flush=True)
+        print("vttest: %s" % identity, file=self.say, flush=True)
 
     def excluded(self, path: str) -> str | None:
         "The reason `NOT_OURS` keeps the walker out of a path, or None."
@@ -1034,7 +1073,12 @@ def main() -> int:
     os.environ["TERM"] = "xterm-256color"
     os.environ["LANG"] = "C.UTF-8"
 
-    walk = Walk(include)
+    walk = Walk(include, through=os.environ.get("PTTERM_VTTEST_THROUGH") == "1")
+    if walk.through:
+        # Everything this program says now goes to stderr. Its stdout
+        # belongs to vttest, and a word of ours on that screen would be
+        # a word in the picture.
+        sys.stdout = sys.stderr
     failed = None
     try:
         asyncio.run(drive(walk, command))
