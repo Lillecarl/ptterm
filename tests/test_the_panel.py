@@ -226,6 +226,11 @@ def test_a_tab_at_the_right_margin_follows_the_panel():
 
     The panel won. `tab()` now leaves a cursor that sits past the last
     column alone.
+
+    The document was read wrong, and xterm itself says so:
+    `test_xterm_itself.py::test_xterm_keeps_the_wait_to_wrap_through_a_tab`
+    puts the same program to xterm, and xterm puts the "X" on the next
+    row with the panel.
     """
     assert verdict("\x1b[1;20H12345\tX", 8, 24) == "agree"
 

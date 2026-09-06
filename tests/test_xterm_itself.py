@@ -5,7 +5,7 @@ The six judges hold a whole cell and vote. xterm holds a character, so
 it does not vote: `panel.py` says why, and `xterm_oracle.py` says how
 it is asked.
 
-It is asked three kinds of question here.
+It is asked four kinds of question here.
 
 - The sequences that no judge carries. Three entries of
   `DEVIATIONS.md` say some form of "no judge carries this, and xterm
@@ -175,6 +175,12 @@ def test_xterm_brings_the_wait_to_wrap_back_through_a_restore():
     ]
     assert landed == ["a", "a", "a"]
 
+    # The restore puts the column back as well as the wait. "CSI D"
+    # clears the wait and moves one column left, so the "b" lands one
+    # left of the last column and the "a" there stays.
+    with_a_move = what_xterm_draws(fill + "\x1b7\x1b[1;1H\x1b8\x1b[Db", 4, 6)
+    assert with_a_move[0] == "aaaaba"
+
 
 def test_xterm_wraps_rather_than_moving_back_over_a_tab_stop():
     """
@@ -185,11 +191,19 @@ def test_xterm_wraps_rather_than_moving_back_over_a_tab_stop():
 
     ptterm moves the cursor to column 16 and draws the "z" there, and
     kitty, libvterm and WezTerm do the same. Alacritty, Ghostty and
-    xterm.js land somewhere else. Three against three.
+    xterm.js draw it at the start of the next row, all three of them.
+    Three against three.
 
-    **xterm draws the "z" at the start of the next row.** The wait to
-    wrap outlives CBT there, and the cursor never moves back. So the
-    tally is four against three, and ptterm is on the smaller side.
+    **xterm draws it at the start of the next row too**, so the tally
+    is four against three and ptterm is on the smaller side.
+
+    **The cursor does move.** A checksum says where a character landed
+    and not where the cursor stood, so the second probe asks. "CSI D"
+    moves the cursor one column left, and it clears the wait to wrap in
+    every terminal. The "z" then lands at column 15, which is one left
+    of 16, so CBT had moved the cursor back a tab stop after all. What
+    outlives CBT is the wait, not the column: the cursor stands at 16
+    and the next character wraps anyway.
     """
     program = "\x1b[Ix\x1b[2Iy\x1b[Zz"
 
@@ -202,6 +216,32 @@ def test_xterm_wraps_rather_than_moving_back_over_a_tab_stop():
     ours = what_ptterm_draws(program, lines=8, columns=24)
     assert [where(drawn, one) for one in "xyz"] == [(0, 8), (0, 23), (1, 0)]
     assert [where(ours, one) for one in "xyz"] == [(0, 8), (0, 23), (0, 16)]
+
+    with_a_move = what_xterm_draws("\x1b[Ix\x1b[2Iy\x1b[Z\x1b[Dz", 8, 24)
+    assert where(with_a_move, "z") == (0, 15)
+
+
+def test_xterm_keeps_the_wait_to_wrap_through_a_tab():
+    """
+    The same wait, through HT, where ptterm already follows the panel.
+
+    `test_the_panel.py::test_a_tab_at_the_right_margin_follows_the_panel`
+    holds this one. ptterm used to clear the wait on a tab, so the
+    character after the tab landed over the one that was there. Every
+    judge put it on the next row instead, and the only thing on the
+    other side was a reading of a document: xterm says a cursor move
+    clears the wait, and a tab is a cursor move. The panel won and
+    `tab()` changed.
+
+    **xterm puts the "X" on the next row as well.** So the document was
+    read wrong and the panel had xterm with it all along. That matters
+    for Lillecarl/pymux#107: ptterm already made this exact change once,
+    in one place, and three more places still drop the wait.
+    """
+    drawn = what_xterm_draws("\x1b[1;20H12345\tX", lines=8, columns=24)
+    assert [(y, row.index("X")) for y, row in enumerate(drawn) if "X" in row] == [
+        (1, 0)
+    ]
 
 
 def test_xterm_reads_the_parameters_it_needs_out_of_too_many():
@@ -305,6 +345,12 @@ def test_where_xterm_draws_after_the_screen_goes_back_under_another_name():
 
     assert marks(what_xterm_draws(program, lines=8, columns=24)) == [(1, 0)]
     assert marks(what_ptterm_draws(program, lines=8, columns=24)) == [(0, 23)]
+
+    # The cursor is in the last column, as it is for ptterm. "CSI D"
+    # clears the wait and moves one column left, and the "0" lands
+    # there.
+    with_a_move = "\x1b[?1049h\x1b[14G00000你你你\x1b[?47l\x1b[D0"
+    assert marks(what_xterm_draws(with_a_move, lines=8, columns=24)) == [(0, 22)]
 
 
 def test_what_xterm_draws_for_the_blank_of_the_line_drawing_set():

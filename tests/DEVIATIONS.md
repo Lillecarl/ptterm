@@ -380,14 +380,20 @@ Alacritty while the panel was four, and it sat in the list of judges
 standing apart. Two more judges took that side, so it is a difference
 that stands. Nobody has ruled on it.
 
-**xterm is on the other side, and it says why.** The "y" lands in the
-last column, which leaves the cursor waiting to wrap. xterm draws the
-"z" at the start of the next row: the wait outlives CBT there, and the
-cursor never moves back a tab stop at all. ptterm moves it to column 16
-and draws the "z" there.
+**The three that stand apart all draw it in the same place**, at row 1
+column 0, and **xterm draws it there too**. So the tally is four
+against three, and ptterm is on the smaller side.
+
+**What differs is the wait to wrap, not the column.** The "y" lands in
+the last column, which leaves the cursor waiting to wrap. A second
+probe, `\x1b[Ix\x1b[2Iy\x1b[Z\x1b[Dz`, puts the "z" at column 15 in
+xterm: "CSI D" clears the wait and moves one column left, so CBT had
+moved the cursor back to column 16 after all. The cursor stands at 16
+and the next character wraps anyway.
 `test_xterm_itself.py::test_xterm_wraps_rather_than_moving_back_over_a_tab_stop`
-holds both answers. So the tally is four against three, and ptterm is
-on the smaller side. Lillecarl/pymux#106 holds the question.
+holds both probes. Lillecarl/pymux#106 holds the question, and
+Lillecarl/pymux#107 holds it beside the other two places where ptterm
+drops the wait.
 
 **As a setting:** too early. Work out which reading is right first.
 ncurses uses CHT to reach a column without drawing the blanks in
