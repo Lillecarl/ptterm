@@ -258,15 +258,18 @@ class Harness:
             return self._colour(attrs.color, self.default_foreground, "fg")
         if argument == "background":
             return self._colour(attrs.bgcolor, self.default_background, "bg")
-        # A font of its own, a smaller glyph and a raised or lowered
-        # baseline are three things ptterm does not hold. It says so by
-        # answering the value of a terminal that has none.
+        # A font of its own is one thing ptterm does not hold. It says
+        # so by answering the value of a terminal that has none.
+        # Lillecarl/pymux#60.
         if argument == "font":
             return "0"
+        # A raised or a lowered glyph is a small one, so libvterm's two
+        # questions have one answer here. `src/pen.c` sets `small` and
+        # `baseline` together for "SGR 73" and "SGR 74".
         if argument == "small":
-            return "off"
+            return _switch(bool(attrs.baseline))
         if argument == "baseline":
-            return "normal"
+            return _BASELINE_WORDS[attrs.baseline or ""]
         return "?"
 
     def _line_attribute(self, row: int):
@@ -336,6 +339,13 @@ class Harness:
             attributes += "K"
         if "reverse" in style:
             attributes += "R"
+        # A raised or a lowered glyph is a small one, so libvterm
+        # prints "S" and then the direction. `t/harness.c` line 1182
+        # holds the order, and no font goes before it: SGR 10 to 19 do
+        # nothing here yet (Lillecarl/pymux#60).
+        baseline = _baseline_of_style(style)
+        if baseline:
+            attributes += "S" + baseline
 
         # The DEC line attributes of the line the cell is on. libvterm
         # copies them onto every cell of the line, and prints them
@@ -471,6 +481,31 @@ class Harness:
 def _switch(value) -> str:
     "How libvterm spells a flag that is on or off."
     return "on" if value else "off"
+
+
+#: How libvterm spells each baseline. `VTERM_BASELINE_NORMAL`,
+#: `_RAISE` and `_LOWER` of `vterm.h`, in the words `t/harness.c`
+#: prints for them.
+_BASELINE_WORDS = {
+    "": "normal",
+    "superscript": "raise",
+    "subscript": "lower",
+}
+
+#: The mark that `?screen_cell` prints after the "S" of a small glyph.
+_BASELINE_MARKS = {
+    "superscript": "^",
+    "subscript": "_",
+}
+
+
+def _baseline_of_style(style: str) -> str:
+    "The mark that one cell takes, or an empty string for none."
+    for part in style.split():
+        mark = _BASELINE_MARKS.get(part)
+        if mark:
+            return mark
+    return ""
 
 
 def _rendition_of(cell) -> str:

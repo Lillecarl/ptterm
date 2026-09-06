@@ -18,17 +18,11 @@
 26state_query.test:9 what the terminal wrote back
 30state_pen.test:111 pen foreground
 30state_pen.test:114 pen foreground
-30state_pen.test:118 pen small
-30state_pen.test:119 pen baseline
-30state_pen.test:121 pen small
-30state_pen.test:122 pen baseline
 30state_pen.test:68 pen font
 30state_pen.test:70 pen font
 61screen_unicode.test:35 screen_cell 0,0
 61screen_unicode.test:41 screen_cell 0,0
 64screen_pen.test:28 screen_cell 0,5
-64screen_pen.test:41 screen_cell 0,9
-64screen_pen.test:42 screen_cell 0,10
 64screen_pen.test:46 screen_cell 0,0
 64screen_pen.test:47 screen_cell 0,79
 64screen_pen.test:51 screen_cell 0,0

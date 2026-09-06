@@ -625,6 +625,14 @@ UNDERLINE_PARAMETERS = {
     "dashed": "4:5",
 }
 
+#: The parameter that raises or lowers a glyph. "SGR 75" puts it back
+#: on the line and needs no parameter of its own: a report starts with
+#: a reset, which says the same thing.
+BASELINE_PARAMETERS = {
+    "superscript": "73",
+    "subscript": "74",
+}
+
 
 def _encoded(text: str) -> str:
     """
@@ -1328,6 +1336,7 @@ class BetterScreen:
             hidden=False,
             underline_style="",
             underline_color="",
+            baseline="",
         )
         self._style_str = ""
         # The rendition alone, without the hyperlink. The two change
@@ -3950,6 +3959,14 @@ class BetterScreen:
                 replace["strike"] = True
             elif attr == 29:
                 replace["strike"] = False
+            # Where the glyph sits. A terminal draws a raised or a
+            # lowered glyph smaller, and 75 puts it back on the line.
+            elif attr == 73:
+                replace["baseline"] = "superscript"
+            elif attr == 74:
+                replace["baseline"] = "subscript"
+            elif attr == 75:
+                replace["baseline"] = ""
             elif attr == 22:
                 replace["bold"] = False
                 replace["dim"] = False
@@ -3981,6 +3998,7 @@ class BetterScreen:
                     hidden=False,
                     underline_style="",
                     underline_color="",
+                    baseline="",
                 )
 
             elif attr == 59:
@@ -4030,6 +4048,8 @@ class BetterScreen:
             style_str += "hidden "
         if attrs_obj.strike:
             style_str += "strike "
+        if attrs_obj.baseline:
+            style_str += attrs_obj.baseline + " "
 
         self._rendition_str = _unicode_intern_dict[style_str]
         self._attrs = attrs_obj
@@ -4546,6 +4566,10 @@ class BetterScreen:
             (attrs.reverse, "7"),
             (attrs.hidden, "8"),
             (attrs.strike, "9"),
+            (
+                attrs.baseline,
+                BASELINE_PARAMETERS.get(attrs.baseline or "", ""),
+            ),
         ):
             if flag:
                 parts.append(parameter)

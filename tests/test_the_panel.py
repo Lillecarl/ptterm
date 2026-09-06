@@ -1291,3 +1291,15 @@ def test_sgr_0_puts_the_glyph_back_on_the_line():
     found = baseline_of("\x1b[74m\x1b[0mx")
     for name in found:
         assert found[name] == 0, name
+
+
+def test_a_raised_glyph_leaves_ptterm_alone():
+    """
+    ptterm raises the glyph and the two judges that can see it agree.
+
+    The other four abstain. They answer 0, ptterm answers 1, and their
+    projection drops the field, so the difference is exactly what they
+    do not hold.
+    """
+    assert verdict("\x1b[73mx", lines=1, columns=4) == "agree"
+    assert cannot_see("\x1b[73mx", lines=1, columns=4) == list(BASELINE_BLIND)

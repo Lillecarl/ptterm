@@ -1083,9 +1083,13 @@ it. `26state_query` measures it now.
 | Assertions | What | Issue |
 | --- | --- | --- |
 | `30state_pen` 68, 70 | SGR 10 to 19, the alternate fonts | Lillecarl/pymux#60 |
-| `30state_pen` 118 to 122 | SGR 73 to 75, superscript and subscript | Lillecarl/pymux#59 |
 | `64screen_pen` 28 | the same alternate fonts, read off a cell | Lillecarl/pymux#60 |
-| `64screen_pen` 41, 42 | the same superscript and subscript | Lillecarl/pymux#59 |
+
+SGR 73 to 75 used to be in that table, at `30state_pen` 118 to 122 and
+`64screen_pen` 41 and 42. ptterm holds the baseline now
+(Lillecarl/pymux#59), so those six assertions pass. The panel agreed
+first: libvterm and WezTerm both raise the glyph, and the four judges
+that hold no baseline abstain.
 
 **ptterm answers a query differently, and each answer has a reason.**
 
