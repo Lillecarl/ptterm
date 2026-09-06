@@ -14,14 +14,8 @@ are only useful together.
 """
 import pytest
 
-from ptterm.osc import (
-    DEFAULT_COLORS,
-    FIRST_SPECIAL_COLOR,
-    PALETTE,
-    SPECIAL_COLOR_NAMES,
-    Color,
-    parse_color,
-)
+from ptterm.colors import DEFAULT_COLORS, PALETTE, Color, parse_color
+from ptterm.osc import FIRST_SPECIAL_COLOR, SPECIAL_COLOR_NAMES
 from ptterm.screen import BetterScreen
 from ptterm.stream import BetterStream
 

@@ -10,7 +10,7 @@ build says so, because a judge that cannot run proves nothing.
 """
 import pytest
 
-from ptterm.osc import parse_color
+from ptterm.colors import parse_color
 from xlib_oracle import xlib_color, xlib_is_available
 
 pytestmark = pytest.mark.skipif(

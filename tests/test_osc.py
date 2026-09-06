@@ -4,7 +4,8 @@ Tests for the OSC sequences that a pane sends.
 A pane has no palette of its own, but a program that asks for one needs
 an answer: without it, it waits forever.
 """
-from ptterm.osc import DEFAULT_COLORS, PALETTE, Color, parse_kitty_color_query
+from ptterm.colors import DEFAULT_COLORS, PALETTE, Color
+from ptterm.osc import parse_kitty_color_query
 from ptterm.screen import BetterScreen
 from ptterm.stream import BetterStream
 

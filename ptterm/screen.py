@@ -25,16 +25,13 @@ from .graphics import (
     ASSUMED_CELL_WIDTH,
     GraphicsState,
 )
+from .colors import DEFAULT_COLORS, PALETTE, Color, parse_color
 from .osc import (
-    DEFAULT_COLORS,
     DYNAMIC_COLOR_CODES,
     DYNAMIC_COLOR_RESET_OFFSET,
     FIRST_SPECIAL_COLOR,
     MAX_POINTER_SHAPES,
-    PALETTE,
     SPECIAL_COLOR_NAMES,
-    Color,
-    parse_color,
     parse_hyperlink,
     parse_kitty_color_query,
     pointer_shape_name,
