@@ -43,7 +43,16 @@ let
     doCheck = false;
     pythonImportsCheck = [ "ptterm" ];
 
-    passthru = { inherit checks judges esctest2 vtermSuite alacrittySuite; };
+    passthru = {
+      inherit
+        checks
+        judges
+        esctest2
+        vtermSuite
+        alacrittySuite
+        vttestWalker
+        ;
+    };
 
     meta = {
       description = "Terminal emulator for prompt_toolkit";
@@ -105,6 +114,15 @@ let
   # takes both from here and puts itself in the middle, the same way it
   # does with libvterm's.
   alacrittySuite = callPackage ./nix/alacritty-suite.nix { };
+
+  # The walker that drives vttest. `checks.vttest` runs it against a pty of
+  # its own, and pymux runs it inside a real terminal, twice: once with a
+  # pane in the chain and once without one. The two pictures are then
+  # subtracted, which is the only way to see what a terminal really paints.
+  #
+  # It is one file and not `testSources`, so an edit to any other test of
+  # this repository does not rebuild the pymux check that photographs it.
+  vttestWalker = ./tests/drive_with_vttest.py;
 
   checks = callPackage ./nix/checks.nix {
     inherit
