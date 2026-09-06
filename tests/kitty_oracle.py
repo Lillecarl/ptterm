@@ -305,7 +305,7 @@ def ptterm_cells_in_pieces(
         lines, columns = resize
         screen.resize(lines, columns)
 
-    buffer = screen.pt_screen.data_buffer
+    buffer = screen.page.data_buffer
     offset = screen.line_offset
     rows = []
     for y in range(offset, offset + lines):

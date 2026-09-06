@@ -191,12 +191,12 @@ def test_an_unknown_sequence_is_consumed():
     stream.feed("\x1b]99;i=1;body\x1b\\")
     stream.feed("hello")
     assert responses == []
-    row = screen.pt_screen.data_buffer[0]
+    row = screen.page.data_buffer[0]
     assert "".join(row[i].char for i in range(5)) == "hello"
 
 
 def test_a_hyperlink_does_not_reach_the_screen():
     screen, stream, responses = make_screen()
     stream.feed("\x1b]8;;https://example.com\x1b\\link\x1b]8;;\x1b\\")
-    row = screen.pt_screen.data_buffer[0]
+    row = screen.page.data_buffer[0]
     assert "".join(row[i].char for i in range(4)) == "link"

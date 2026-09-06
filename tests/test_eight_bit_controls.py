@@ -76,7 +76,7 @@ def test_an_announcer_draws_nothing():
     """
     screen, stream, _answers = make_screen()
     stream.feed(S8C1T + S7C1T)
-    assert screen.pt_screen.data_buffer[0] == {}
+    assert screen.page.data_buffer[0] == {}
 
 
 def test_a_reset_puts_seven_bit_controls_back():

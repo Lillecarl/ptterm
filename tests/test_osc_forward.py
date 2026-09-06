@@ -116,7 +116,7 @@ def test_the_screen_content_survives_a_forwarded_sequence():
     stream, forwarded, _answers = make_screen()
     screen = stream.listener
     stream.feed("before\x1b]52;c;aGVsbG8=\x1b\\after")
-    line = screen.pt_screen.data_buffer[0]
+    line = screen.page.data_buffer[0]
     text = "".join(line[x].char for x in range(len("beforeafter")))
     assert text == "beforeafter"
     assert forwarded == [("52", "c;aGVsbG8=")]

@@ -18,7 +18,7 @@ def style_of(data, column=0):
     screen = BetterScreen(2, 8, write_process_input=lambda answer: None)
     stream = BetterStream(screen)
     stream.feed(data)
-    return screen.pt_screen.data_buffer[screen.line_offset][column].style
+    return screen.page.data_buffer[screen.line_offset][column].style
 
 
 def test_the_first_sixteen_keep_their_name():

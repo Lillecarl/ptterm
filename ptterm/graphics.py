@@ -714,7 +714,7 @@ class GraphicsState:
     # way that BetterScreen erases text.
 
     def _clear_cells(self, screen, x: int, y: int, columns: int, rows: int) -> None:
-        data_buffer = screen.pt_screen.data_buffer
+        data_buffer = screen.page.data_buffer
         for row in range(y, y + rows):
             line = data_buffer.get(row)
             if line is None:

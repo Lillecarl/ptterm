@@ -138,7 +138,7 @@ class Harness:
     def cell(self, row: int, column: int):
         "The cell at a place on the visible screen."
         assert self.screen is not None
-        buffer = self.screen.pt_screen.data_buffer
+        buffer = self.screen.page.data_buffer
         return buffer[self.screen.line_offset + row][column]
 
     # -- the commands ---------------------------------------------------

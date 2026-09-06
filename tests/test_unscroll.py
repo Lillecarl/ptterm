@@ -28,7 +28,7 @@ def visible(screen):
     offset = screen.line_offset
     rows = []
     for y in range(offset, offset + screen.lines):
-        row = screen.pt_screen.data_buffer.get(y, {})
+        row = screen.page.data_buffer.get(y, {})
         text = "".join(
             row[x].char if x in row else " " for x in range(screen.columns)
         )
@@ -80,7 +80,7 @@ def test_the_lines_that_leave_the_bottom_are_dropped():
     stream.feed("\x1b[2 D")
     # "line9" sat on the last row before the unscroll.
     assert "line9" not in "\n".join(visible(screen))
-    assert 10 not in screen.pt_screen.data_buffer
+    assert 10 not in screen.page.data_buffer
 
 
 def test_unscroll_stops_at_the_top_of_the_history():

@@ -93,7 +93,7 @@ def cursor_offset(screen) -> int:
     `reported_column` is the same fold that a program reads with DSR, so
     a pane draws the cursor where a program is told it stands.
     """
-    row = screen.pt_screen.data_buffer[screen.pt_cursor_position.y]
+    row = screen.page.data_buffer[screen.pt_cursor_position.y]
     return len(
         "".join(row[x].char for x in range(0, screen.reported_column))
     )
@@ -179,9 +179,9 @@ class _TerminalControl(UIControl):
         if not self.process.screen:
             return UIContent()
 
-        pt_screen = self.process.screen.pt_screen
+        page = self.process.screen.page
         pt_cursor_position = self.process.screen.pt_cursor_position
-        data_buffer = pt_screen.data_buffer
+        data_buffer = page.data_buffer
         cursor_y = pt_cursor_position.y
 
         cursor_x = cursor_offset(self.process.screen)
@@ -270,7 +270,7 @@ class _TerminalControl(UIControl):
             get_line,
             get_line_attribute=get_line_attribute,
             line_count=line_count,
-            show_cursor=pt_screen.show_cursor,
+            show_cursor=page.show_cursor,
             cursor_position=Point(x=cursor_x, y=cursor_y),
             # A terminal draws what the program in it drew. Every
             # character on this screen was chosen by that program, so
@@ -625,7 +625,7 @@ class Terminal:
 
         # Copy content into copy buffer.
         screen = self.terminal_control.process.screen
-        data_buffer = screen.pt_screen.data_buffer
+        data_buffer = screen.page.data_buffer
 
         # DECSCNM reverses the whole screen, and copy mode shows the
         # same screen stopped. `_copy_style` paints the reverse over the

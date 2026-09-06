@@ -185,7 +185,7 @@ def test_apc_and_dcs_are_consumed():
 
     def row_text():
         return "".join(
-            screen.pt_screen.data_buffer[0][i].char for i in range(40)
+            screen.page.data_buffer[0][i].char for i in range(40)
         )
 
     stream.feed("before\x1b_Gf=32,s=10,v=10;AAAA\x1b\\after")
@@ -246,7 +246,7 @@ def test_an_unknown_device_status_is_ignored():
     stream.feed("\x1b[99n")
     stream.feed("hello")
     assert responses == []
-    row = screen.pt_screen.data_buffer[0]
+    row = screen.page.data_buffer[0]
     assert "".join(row[i].char for i in range(5)) == "hello"
 
 
@@ -272,5 +272,5 @@ def test_other_window_manipulation_is_ignored():
     stream.feed("\x1b[3;10;10t")  # Move the window.
     stream.feed("hello")
     assert responses == []
-    row = screen.pt_screen.data_buffer[0]
+    row = screen.page.data_buffer[0]
     assert "".join(row[i].char for i in range(5)) == "hello"

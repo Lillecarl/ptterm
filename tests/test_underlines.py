@@ -24,7 +24,7 @@ def screen_of(data, lines=2, columns=20):
 def styles(data, count):
     "The style of the first `count` cells of the first line."
     screen = screen_of(data)
-    row = screen.pt_screen.data_buffer[screen.line_offset]
+    row = screen.page.data_buffer[screen.line_offset]
     return [row[x].style for x in range(count)]
 
 

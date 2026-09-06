@@ -27,7 +27,7 @@ def apc(command, payload=""):
 
 
 def row_text(screen, row=0, width=40):
-    return "".join(screen.pt_screen.data_buffer[row][i].char for i in range(width))
+    return "".join(screen.page.data_buffer[row][i].char for i in range(width))
 
 
 def test_transmit_and_display_moves_cursor_and_clears_cells():

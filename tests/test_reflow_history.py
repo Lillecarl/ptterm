@@ -44,7 +44,7 @@ def _row(screen, row: int) -> str:
     The blank inside a row is content. The space after "> " is one, and
     a reflow that drops it is Lillecarl/pymux#56 again.
     """
-    line = screen.pt_screen.data_buffer[screen.line_offset + row]
+    line = screen.page.data_buffer[screen.line_offset + row]
     text = [line[x] for x in range(0, max(line) + 1)]
     while text and not isinstance(text[-1], TerminalChar):
         text.pop()

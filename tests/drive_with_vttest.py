@@ -418,7 +418,7 @@ def _text_of(cell) -> str:
 
 def rows_of(screen) -> list[str]:
     "Every row of the visible screen, as text."
-    buffer = screen.pt_screen.data_buffer
+    buffer = screen.page.data_buffer
     offset = screen.line_offset
     out = []
     for row in range(screen.lines):
@@ -442,7 +442,7 @@ def blinks(screen) -> bool:
     ptterm writes "blink" into the style of a cell for SGR 5 and SGR 6
     alike, and the style is what the renderer reads.
     """
-    buffer = screen.pt_screen.data_buffer
+    buffer = screen.page.data_buffer
     offset = screen.line_offset
     for row in range(screen.lines):
         line = buffer[offset + row]

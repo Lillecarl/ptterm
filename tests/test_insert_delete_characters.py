@@ -15,7 +15,7 @@ def _screen(lines=4, columns=8):
 
 
 def _rows(screen):
-    buffer = screen.pt_screen.data_buffer
+    buffer = screen.page.data_buffer
     offset = screen.line_offset
     return [
         "".join(buffer[y][x].char for x in range(screen.columns)).rstrip()
@@ -26,7 +26,7 @@ def _rows(screen):
 def test_inserted_characters_take_the_background():
     screen, stream = _screen()
     stream.feed("abcdef\x1b[1;3H\x1b[42m\x1b[2@")
-    row = screen.pt_screen.data_buffer[screen.line_offset]
+    row = screen.page.data_buffer[screen.line_offset]
     assert row[0].char == "a"
     assert "bg:" in row[2].style and row[2].char == " "
     assert "bg:" in row[3].style
@@ -42,7 +42,7 @@ def test_inserted_characters_fall_off_the_right_edge():
 def test_deleted_characters_take_the_background_at_the_edge():
     screen, stream = _screen(columns=6)
     stream.feed("abcdef\x1b[1;1H\x1b[41m\x1b[2P")
-    row = screen.pt_screen.data_buffer[screen.line_offset]
+    row = screen.page.data_buffer[screen.line_offset]
     assert row[0].char == "c"
     assert "bg:" in row[4].style and row[4].char == " "
     assert "bg:" in row[5].style

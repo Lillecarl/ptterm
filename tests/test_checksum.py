@@ -83,7 +83,7 @@ def test_an_unknown_intermediate_does_not_leak_its_final_byte():
     # "}" on the screen.
     screen, stream, responses = make_screen()
     stream.feed("\x1b[2'}hi")
-    row = screen.pt_screen.data_buffer[0]
+    row = screen.page.data_buffer[0]
     assert "".join(row[i].char for i in range(2)) == "hi"
 
 

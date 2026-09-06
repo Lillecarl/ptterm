@@ -198,7 +198,7 @@ def test_a_virtual_placement_covers_no_cells():
     screen, stream, _r = make_screen()
     stream.feed("abcd")
     transmit_virtual(stream, 5, 40, 40)
-    line = screen.pt_screen.data_buffer[0]
+    line = screen.page.data_buffer[0]
     assert "".join(line[x].char for x in range(4)) == "abcd"
 
 

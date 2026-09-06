@@ -15,7 +15,7 @@ def _screen(lines=5, columns=20):
 
 
 def _row(screen, y):
-    return screen.pt_screen.data_buffer[y]
+    return screen.page.data_buffer[y]
 
 
 def test_erase_in_line_keeps_a_background():

@@ -20,7 +20,7 @@ def screen(lines=2, columns=20):
 
 
 def style_of(made, row=0, column=0):
-    return made.pt_screen.data_buffer[made.line_offset + row][column].style
+    return made.page.data_buffer[made.line_offset + row][column].style
 
 
 def test_a_crossed_out_cell_says_so():

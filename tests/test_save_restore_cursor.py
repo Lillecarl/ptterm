@@ -48,7 +48,7 @@ def test_a_restore_brings_the_place_back(save, restore):
 def test_a_restore_brings_the_rendition_back(save, restore):
     screen, stream = _screen()
     stream.feed("\x1b[31m" + save + "\x1b[0m" + restore + "x")
-    assert "ansired" in screen.pt_screen.data_buffer[0][0].style
+    assert "ansired" in screen.page.data_buffer[0][0].style
 
 
 @pytest.mark.parametrize("save, restore", PAIRS)
@@ -56,7 +56,7 @@ def test_a_restore_brings_the_mark_of_decsca_back(save, restore):
     screen, stream = _screen()
     stream.feed('\x1b[1"q' + save + '\x1b[0"q' + restore)
     stream.feed("a\x1b[1;1;1;1${")
-    assert screen.pt_screen.data_buffer[0][0].char == "a"
+    assert screen.page.data_buffer[0][0].char == "a"
 
 
 def test_one_pair_saves_and_another_pair_restores():
@@ -206,7 +206,7 @@ def test_the_alternate_screen_saves_its_charsets_as_well():
     "The character sets come back with it, the same way ESC 8 brings them."
     screen, stream = _screen(lines=6, columns=10)
     stream.feed("\x1b(0\x1b[?1049h\x1b7\x1b[?1049l\x1b(B\x1b[?1049h\x1b8xyz")
-    row = screen.pt_screen.data_buffer[0]
+    row = screen.page.data_buffer[0]
     assert "".join(row[column].char for column in range(3)) == "│≤≥"
 
 

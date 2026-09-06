@@ -407,7 +407,7 @@ def test_a_control_character_in_a_cell_is_drawn_as_a_blank():
     # prompt_toolkit's own `Char` swaps a control for "^A" as it is
     # built, so a cell can only hold one when that is turned off. This
     # is the cell the guard in `_visible_char` is there for.
-    control.process.screen.pt_screen.data_buffer[0][0] = Char(
+    control.process.screen.page.data_buffer[0][0] = Char(
         "\x01", "", apply_display_mappings=False
     )
     content = control.create_content(6, 3)

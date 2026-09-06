@@ -22,7 +22,7 @@ def _screen(lines=4, columns=6):
 def test_every_cell_holds_an_e():
     screen, stream = _screen()
     stream.feed("\x1b#8")
-    buffer = screen.pt_screen.data_buffer
+    buffer = screen.page.data_buffer
     for y in range(screen.line_offset, screen.line_offset + 4):
         assert "".join(buffer[y][x].char for x in range(6)) == "EEEEEE"
 
@@ -41,7 +41,7 @@ def test_the_pattern_covers_the_scrolling_region_too():
     "DECALN draws over the whole screen, region or no region."
     screen, stream = _screen()
     stream.feed("\x1b[2;3r\x1b#8")
-    buffer = screen.pt_screen.data_buffer
+    buffer = screen.page.data_buffer
     for y in range(screen.line_offset, screen.line_offset + 4):
         assert "".join(buffer[y][x].char for x in range(6)) == "EEEEEE"
 

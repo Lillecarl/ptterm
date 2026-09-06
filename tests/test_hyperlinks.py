@@ -31,7 +31,7 @@ def _screen(lines=3, columns=12):
 
 
 def _style(screen, column, row=0):
-    return screen.pt_screen.data_buffer[row][column].style
+    return screen.page.data_buffer[row][column].style
 
 
 def _token(target):

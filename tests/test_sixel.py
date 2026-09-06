@@ -217,7 +217,7 @@ def test_the_image_covers_its_cells():
     stream.feed("abcdef")
     stream.feed("\r")
     stream.feed(sixel('"1;1;30;12' + DEFINE_RED + RED_ + "~"))
-    row = screen.pt_screen.data_buffer[0]
+    row = screen.page.data_buffer[0]
     assert "".join(row[i].char for i in range(6)) == "   def"
 
 
@@ -238,7 +238,7 @@ def test_a_non_sixel_dcs_is_consumed():
     stream.feed("\x1bP$qm\x1b\\")
     stream.feed("hello")
     assert screen.graphics.placements == []
-    row = screen.pt_screen.data_buffer[0]
+    row = screen.page.data_buffer[0]
     assert "".join(row[i].char for i in range(5)) == "hello"
 
 

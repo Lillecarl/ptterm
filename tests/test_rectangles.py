@@ -145,7 +145,7 @@ def test_a_fill_drops_a_character_that_a_latin_1_terminal_has_no_cell_for():
 def test_a_filled_cell_takes_the_rendition_that_is_set_now():
     screen, stream = _screen()
     stream.feed("\x1b[42m\x1b[37;1;1;1;2$x")
-    row = screen.pt_screen.data_buffer[0]
+    row = screen.page.data_buffer[0]
     assert row[0].char == "%"
     assert "bg:" in row[0].style
     assert "bg:" in row[1].style
@@ -196,7 +196,7 @@ def test_an_erased_rectangle_keeps_the_background():
     screen, stream = _screen()
     _prepare(stream)
     stream.feed("\x1b[42m\x1b[1;1;1;3$z")
-    row = screen.pt_screen.data_buffer[0]
+    row = screen.page.data_buffer[0]
     for column in range(3):
         assert row[column].char == " "
         assert "bg:" in row[column].style

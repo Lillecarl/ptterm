@@ -2,8 +2,8 @@
 Custom `Screen` class for the `pyte` library.
 
 Changes compared to the original `Screen` class:
-    - We store the layout in a prompt_toolkit.layout.screen.Screen instance.
-      This allows fast rendering in a prompt_toolkit user control.
+    - We store the cells in a `Page`, one per screen, so that a swap to
+      the alternate screen carries the cells and the cursor together.
     - 256 colour and true color support.
     - CPR support and device attributes.
 """
@@ -13,7 +13,7 @@ from enum import IntEnum, IntFlag, StrEnum
 from typing import Callable, DefaultDict, Dict, List, NamedTuple, Set, Tuple
 
 from prompt_toolkit.cache import FastDictCache
-from prompt_toolkit.layout.screen import Char, Screen
+from prompt_toolkit.layout.screen import Char
 from prompt_toolkit.styles import Attrs
 from pyte import charsets as cs
 from pyte import modes as mo
@@ -823,6 +823,38 @@ _PROTECTED_CHAR_CACHE: FastDictCache[Tuple[str, str, int], Char] = FastDictCache
 )
 
 
+class Page:
+    """
+    One screen of cells, and whether the cursor shows on it.
+
+    A terminal holds two of these. `set_mode` puts the first one away
+    and takes the alternate screen, and `reset_mode` gives it back, so
+    the two things that belong to a screen rather than to the terminal
+    live together in one object that a swap can carry.
+
+    This was `prompt_toolkit.layout.screen.Screen`. A pane never used
+    the rest of that class: the floats, the menu positions, the windows
+    and the write positions all belong to a program that draws an
+    interface, and a pane draws what another program wrote. Holding
+    them here tied the screen to one toolkit for nothing.
+    Lillecarl/pymux#11.
+    """
+
+    __slots__ = ("data_buffer", "show_cursor")
+
+    def __init__(self, default_char: Char) -> None:
+        #: The cells, by row and then by column. A row that nobody
+        #: wrote to is absent, and so is a column, so the cost of an
+        #: empty screen is one dictionary.
+        self.data_buffer: DefaultDict[int, DefaultDict[int, Char]] = defaultdict(
+            lambda: defaultdict(lambda: default_char)
+        )
+
+        #: Does the cursor show? DECTCEM ("?25") sets it, and it belongs
+        #: to the screen in front, so the alternate screen has its own.
+        self.show_cursor = True
+
+
 # Custom Savepoint that also stores the Attrs.
 _Savepoint = namedtuple(
     "_Savepoint",
@@ -848,9 +880,9 @@ class BetterScreen:
     Custom screen class. Most of the methods are called from a vt100 Pyte
     stream.
 
-    The data buffer is stored in a :class:`prompt_toolkit.layout.screen.Screen`
-    class, because this way, we can send it to the renderer without any
-    transformation.
+    The cells are stored in a :class:`Page`. A front end reads them and
+    makes what its own toolkit draws: `ptterm/terminal.py` builds a
+    `UIContent` of style strings and text.
     """
 
     #: The state that the alternate screen keeps for itself. The
@@ -1213,13 +1245,13 @@ class BetterScreen:
         # relies on the stops to be there.)
         self.tabstops = set(range(8, 1000, 8))
 
-        # The original Screen instance, when going to the alternate screen.
-        self._original_screen: Screen | None = None
+        # The first page, while the alternate screen is in front.
+        self._original_screen: Page | None = None
         # The alternate screen, while the first one is in front. A
         # terminal keeps one alternate screen for its whole life and
         # hands it back with what it held, so this outlives a visit.
         # `None` means that nothing was ever drawn on it.
-        self._alternate_screen: Screen | None = None
+        self._alternate_screen: Page | None = None
         self._alternate_screen_vars: dict = {}
 
         # A reset gives the 80 column page back. The ask goes out last,
@@ -1254,7 +1286,7 @@ class BetterScreen:
         alternate = self.mode.intersection(self._ALTERNATE_SCREEN_MODES)
         self.mode = {mo.DECAWM, mo.DECTCEM}
         self.mode.update(alternate)
-        self.pt_screen.show_cursor = True
+        self.page.show_cursor = True
 
         # A list of its own, because a save writes into the list that
         # is there rather than making a new one.
@@ -1353,13 +1385,9 @@ class BetterScreen:
     def _reset_screen(self) -> None:
         """Reset the Screen content. (also called when switching from/to
         alternate buffer."""
-        self.pt_screen = Screen(
-            default_char=Char(" ", "")
-        )  # TODO: Stop using this Screen class!
+        self.page = Page(default_char=Char(" ", ""))
 
-        self.pt_screen.show_cursor = True
-
-        self.data_buffer = self.pt_screen.data_buffer
+        self.data_buffer = self.page.data_buffer
         self.pt_cursor_position = CursorPosition(0, 0)
         self.wrapped_lines: List[int] = []  # List of line indexes that were wrapped.
 
@@ -1773,7 +1801,7 @@ class BetterScreen:
 
         # Make the cursor visible.
         if mo.DECTCEM in modes:
-            self.pt_screen.show_cursor = True
+            self.page.show_cursor = True
 
         # On "\e[?1049h", enter alternate screen mode. Backup the current
         # state. "?47" and "?1047" name the same screen; they are what a
@@ -1793,7 +1821,7 @@ class BetterScreen:
             held_column = self.pt_cursor_position.x
             held_row = self.pt_cursor_position.y - self.line_offset
 
-            self._original_screen = self.pt_screen
+            self._original_screen = self.page
             self._original_screen_vars = {
                 v: getattr(self, v) for v in self.swap_variables
             }
@@ -1810,7 +1838,7 @@ class BetterScreen:
                 and self._alternate_screen is not None
             )
             if keeps_the_content:
-                self.pt_screen = self._alternate_screen
+                self.page = self._alternate_screen
                 for name, value in self._alternate_screen_vars.items():
                     setattr(self, name, value)
                 self._alternate_screen = None
@@ -1900,7 +1928,7 @@ class BetterScreen:
 
         # Hide the cursor.
         if mo.DECTCEM in modes:
-            self.pt_screen.show_cursor = False
+            self.page.show_cursor = False
 
         # On "\e[?1049l", restore from alternate screen mode. "?47" and
         # "?1047" give the screen back as well.
@@ -1921,14 +1949,14 @@ class BetterScreen:
                 self._alternate_screen = None
                 self._alternate_screen_vars = {}
             else:
-                self._alternate_screen = self.pt_screen
+                self._alternate_screen = self.page
                 self._alternate_screen_vars = {
                     name: getattr(self, name) for name in self.swap_variables
                 }
 
             for k, v in self._original_screen_vars.items():
                 setattr(self, k, v)
-            self.pt_screen = self._original_screen
+            self.page = self._original_screen
 
             self._original_screen = None
             self._original_screen_vars = {}
@@ -2016,8 +2044,8 @@ class BetterScreen:
         # Local lookups are always faster.
         # (This draw function is called for every printable character that a
         # process outputs; it should be as performant as possible.)
-        pt_screen = self.pt_screen
-        data_buffer = pt_screen.data_buffer
+        page = self.page
+        data_buffer = page.data_buffer
         cursor_position = self.pt_cursor_position
         cursor_position_x = cursor_position.x
         cursor_position_y = cursor_position.y
@@ -2424,7 +2452,7 @@ class BetterScreen:
         Remove top from the scroll buffer. (Outside bounds of history limit.)
         """
         remove_above = max(0, self.pt_cursor_position.y - self.get_history_limit())
-        data_buffer = self.pt_screen.data_buffer
+        data_buffer = self.page.data_buffer
         for line in list(data_buffer):
             if line < remove_above:
                 data_buffer.pop(line, None)
@@ -3406,7 +3434,7 @@ class BetterScreen:
         line_offset = self.line_offset
         pt_cursor_position = self.pt_cursor_position
         try:
-            max_line = max(self.pt_screen.data_buffer)
+            max_line = max(self.page.data_buffer)
         except ValueError:
             # max() called on empty sequence: no line holds a cell yet.
             # There is nothing to take away, but a background still has
@@ -4226,7 +4254,7 @@ class BetterScreen:
         if not self.graphics.has_virtual_placements:
             return []
 
-        data_buffer = self.pt_screen.data_buffer
+        data_buffer = self.page.data_buffer
         columns = self.columns
         runs: List[PlaceholderRun] = []
         for row in range(first_row, last_row + 1):
@@ -5330,8 +5358,8 @@ class BetterScreen:
         """
         width = self.columns
 
-        data_buffer = self.pt_screen.data_buffer
-        new_data_buffer = Screen(default_char=Char(" ", "")).data_buffer
+        data_buffer = self.page.data_buffer
+        new_data_buffer = Page(default_char=Char(" ", "")).data_buffer
         cursor_position = self.pt_cursor_position
         cy, cx = (cursor_position.y, cursor_position.x)
 
@@ -5433,7 +5461,7 @@ class BetterScreen:
             if row_index > cy + self.lines:
                 del data_buffer[row_index]
 
-        self.pt_screen.data_buffer = new_data_buffer
+        self.page.data_buffer = new_data_buffer
         self.data_buffer = new_data_buffer
         self.wrapped_lines = new_wrapped_lines
         self.line_attributes = new_line_attributes

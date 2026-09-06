@@ -15,7 +15,7 @@ def _screen(lines=4, columns=8):
 
 
 def _rows(screen):
-    buffer = screen.pt_screen.data_buffer
+    buffer = screen.page.data_buffer
     offset = screen.line_offset
     return [
         "".join(buffer[y][x].char for x in range(screen.columns)).rstrip()

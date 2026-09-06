@@ -68,7 +68,7 @@ def test_autowrap_stays_on():
 def test_the_cursor_stays_visible():
     screen, stream, _answers = _screen()
     stream.feed("\x1b[?25l\x1b[!p")
-    assert screen.pt_screen.show_cursor is True
+    assert screen.page.show_cursor is True
 
 
 def test_the_saved_cursor_goes_home():
