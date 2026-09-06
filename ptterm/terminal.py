@@ -285,7 +285,12 @@ class _TerminalControl(UIControl):
                 except KeyError:
                     pass
                 else:
-                    self.process.write_input(f"\x1b[<{ev};{x + 1};{y + 1}{m}")
+                    # `reply_csi` and not a literal "\x1b[": a mouse
+                    # report is a C1 control that the terminal sends on
+                    # its own, and S8C1T asks for one byte in front of
+                    # it. xterm writes every one of them through
+                    # `unparseputc1`, which is not a query only path.
+                    process.screen.reply_csi(f"<{ev};{x + 1};{y + 1}{m}")
 
             elif process.screen.urxvt_mouse_support_enabled:
                 # Urxvt mode.
@@ -299,7 +304,7 @@ class _TerminalControl(UIControl):
                 except KeyError:
                     pass
                 else:
-                    self.process.write_input(f"\x1b[{ev};{x + 1};{y + 1}M")
+                    process.screen.reply_csi(f"{ev};{x + 1};{y + 1}M")
 
             elif process.screen.mouse_support_enabled:
                 # Fall back to old mode.
@@ -314,8 +319,8 @@ class _TerminalControl(UIControl):
                     except KeyError:
                         pass
                     else:
-                        self.process.write_input(
-                            f"\x1b[M{chr(ev)}{chr(x + 33)}{chr(y + 33)}"
+                        process.screen.reply_csi(
+                            f"M{chr(ev)}{chr(x + 33)}{chr(y + 33)}"
                         )
 
     def is_focusable(self) -> bool:

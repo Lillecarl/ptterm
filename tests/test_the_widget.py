@@ -32,7 +32,8 @@ import pytest
 from prompt_toolkit.application.current import set_app
 from prompt_toolkit.application.dummy import DummyApplication
 from prompt_toolkit.layout.mouse_handlers import MouseHandlers
-from prompt_toolkit.layout.screen import Char, Screen, WritePosition
+from prompt_toolkit.layout.screen import Char, Point, Screen, WritePosition
+from prompt_toolkit.mouse_events import MouseButton, MouseEvent, MouseEventType
 from prompt_toolkit.styles import Style
 
 from ptterm.terminal import _TerminalControl, _Window
@@ -163,6 +164,63 @@ def test_a_cell_that_a_program_reversed_stays_reversed_without_the_mode():
 def test_reverse_video_goes_away_again():
     '"CSI ? 5 l" puts the screen back.'
     assert reversed_at("\x1b[?5hhi\x1b[?5l")[0] == [False] * 12
+
+
+class _FocusedLayout:
+    "A layout that says this control has the focus, and nothing else."
+
+    def __init__(self, control) -> None:
+        self.current_control = control
+
+    def has_focus(self, _control) -> bool:
+        return True
+
+
+def clicked(modes: str, lines: int = 8, columns: int = 12) -> bytes:
+    """
+    The bytes a mouse press writes back, after `modes` turns a mouse
+    protocol on.
+
+    The answer is read off the wire, the way the backend encodes it: an
+    eight bit control is one byte and not the two that UTF-8 would make
+    of it.
+    """
+    written = []
+    control = _TerminalControl(backend=_NoBackend())
+    control.create_content(columns, lines)
+    control.process.write_input = written.append
+    control.process.screen.write_process_input = written.append
+    control.process.stream.feed(modes)
+
+    app = DummyApplication()
+    app.layout = _FocusedLayout(control)
+    with set_app(app):
+        control.mouse_handler(
+            MouseEvent(
+                position=Point(x=2, y=1),
+                event_type=MouseEventType.MOUSE_DOWN,
+                button=MouseButton.LEFT,
+                modifiers=frozenset(),
+            )
+        )
+    return "".join(written).encode("utf-8", "surrogateescape")
+
+
+def test_the_sgr_mouse_report_reaches_the_program():
+    assert clicked("\x1b[?1000h\x1b[?1006h") == b"\x1b[<0;3;2M"
+
+
+def test_the_sgr_mouse_report_takes_eight_bit_controls():
+    "It is a control the terminal sends, so S8C1T reaches it."
+    assert clicked("\x1b G\x1b[?1000h\x1b[?1006h") == b"\x9b<0;3;2M"
+
+
+def test_the_urxvt_mouse_report_takes_eight_bit_controls():
+    assert clicked("\x1b G\x1b[?1000h\x1b[?1015h") == b"\x9b32;3;2M"
+
+
+def test_the_old_mouse_report_takes_eight_bit_controls():
+    assert clicked("\x1b G\x1b[?1000h") == b"\x9bM \x23\x22"
 
 
 #: Twelve lines on a screen of eight, so four scroll away.
