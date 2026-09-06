@@ -90,8 +90,21 @@ class Process:
     def start(self) -> None:
         """
         Start the process: fork child.
+
+        The size the pane already has wins. A render sets the size and
+        then starts the program, so the child forks onto a pty of the
+        size it will really have. Without this the child forked at 120
+        by 24, the pty resized one frame later, and a program that drew
+        before the resize reached it drew at the wrong width. That is a
+        race: the child starts writing as soon as it is forked, and the
+        next render is a turn of the event loop away.
+
+        A size of nothing means nobody has said, which is an embedder
+        that starts the program before it draws. It gets what it always
+        got.
         """
-        self.set_size(120, 24)
+        if (self.sx, self.sy) == (0, 0):
+            self.set_size(120, 24)
         self.backend.start()
         self.backend.connect_reader()
 
