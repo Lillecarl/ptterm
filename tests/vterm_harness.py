@@ -453,15 +453,16 @@ class Harness:
         """
         What `?pen foreground` and `?pen background` answer.
 
-        A style that names no colour is the default, and libvterm says
-        which default it is. "SGR 39" and "SGR 49" put the default back
-        by naming it, so the style then holds "#ansidefault", which
-        stands for no colour as much as an empty style does.
+        A rendition that names no colour is the default, and libvterm
+        says which default it is. "SGR 39" and "SGR 49" put the default
+        back by naming it, so the rendition then holds `DEFAULT_COLOR`,
+        which stands for no colour as much as `None` does.
         """
-        colour = _read_style_colour(value) if value else None
-        if colour is None:
+        if value is None or value.index is None and value.rgb is None:
             return "rgb(%d,%d,%d,is_default_%s)" % (default + (side,))
-        return _spell(colour)
+        if value.index is not None:
+            return "idx(%d)" % value.index
+        return "rgb(%d,%d,%d)" % value.rgb
 
     def _rgb(self, colour, default) -> str:
         """
@@ -513,20 +514,6 @@ def _rendition_of(cell) -> str:
     return " ".join(
         part for part in cell.style.split() if not part.startswith(_LINK)
     )
-
-
-def _read_style_colour(value: str):
-    "The colour that one style word names, as `_color_of_style` gives it."
-    return _color_of_style(value if value.startswith("#") else "#" + value, "")
-
-
-def _spell(colour) -> str:
-    "A colour in the spelling that libvterm prints."
-    if colour is None:
-        return "invalid(0)"
-    if colour[0] == "index":
-        return "idx(%d)" % colour[1]
-    return "rgb(%d,%d,%d)" % tuple(colour[1:])
 
 
 def _read_colour(text: str):

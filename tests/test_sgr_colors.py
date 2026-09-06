@@ -6,9 +6,9 @@ many parameters each form takes decides where the next attribute
 starts. That is arithmetic on numbers: no sequence is read and none is
 written, so it lives in `ptterm/colors.py` beside the palette.
 
-What a screen does with the answer is the other half. It spells the
-colour as a prompt_toolkit style string, and that stays in
-`screen.py`, because the spelling belongs to whoever draws.
+What a screen does with the answer is the other half. It keeps the
+number, and `ptterm/style.py` spells it as a prompt_toolkit style
+word, because the spelling belongs to whoever draws.
 
 `test_indexed_colors.py` and `test_colon_colors.py` judge the whole
 path through a screen. This file judges the arithmetic alone, so a
@@ -60,10 +60,19 @@ def test_the_colon_form_may_name_a_colour_space_first():
         [38, 2, 1, 2],
         # A form nobody defines.
         [38, 7, 1, 2, 3],
+        # A number outside the palette. The rendition keeps the colour
+        # it had, the way a terminal that cannot read a parameter does.
+        [38, 5, 256],
+        [38, 5, -1],
     ],
 )
 def test_what_is_not_a_colour(parameters):
     assert sgr_color(parameters) is None
+
+
+def test_the_last_number_of_the_palette_is_a_colour():
+    "The edge of the range above, from the inside."
+    assert sgr_color([38, 5, 255]).index == 255
 
 
 def test_the_two_forms_are_told_apart_by_which_field_is_set():

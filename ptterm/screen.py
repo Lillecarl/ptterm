@@ -26,17 +26,17 @@ from .graphics import (
 from . import kitty_keys
 from .cache import FastDictCache
 from .colors import (
+    COLOR_OF_A_BACKGROUND,
+    COLOR_OF_A_FOREGROUND,
+    DEFAULT_COLOR,
     DEFAULT_COLORS,
     PALETTE,
-    STYLE_OF_A_BACKGROUND,
-    STYLE_OF_A_FOREGROUND,
     Color,
-    ansi_code,
-    palette_number,
+    SgrColor,
     parse_color,
-    rgb_components,
+    sgr_code_of,
+    sgr_color,
     sgr_color_parameters,
-    style_of_sgr_color,
 )
 from .osc import (
     DYNAMIC_COLOR_CODES,
@@ -50,6 +50,7 @@ from .osc import (
 )
 from .placeholders import PlaceholderRun, merge_runs, runs_in_line
 from .sixel import decode_sixel
+from .style import style_word
 
 __all__ = ("BetterScreen",)
 
@@ -882,10 +883,10 @@ class Rendition(NamedTuple):
     decision: a terminal that draws none of them still has to hold
     them, because a program can ask for them back.
 
-    A colour is a style word that `colors.py` made, so it is
-    prompt_toolkit's spelling of a colour today. That is the last
-    coupling in this file and it goes next: two front ends want two
-    different style objects out of one cell.
+    A colour is a number: a place in the palette, or three components
+    that a program named itself. `None` means that no program has asked
+    for one, and `DEFAULT_COLOR` means that one asked for the colour of
+    the terminal by name. DECRQSS has to tell those two apart.
 
     This was `prompt_toolkit.styles.Attrs`, with the two hyperlink
     fields left out. A hyperlink is not a rendition: it comes from OSC
@@ -893,8 +894,8 @@ class Rendition(NamedTuple):
     Lillecarl/pymux#11.
     """
 
-    color: str | None = None
-    bgcolor: str | None = None
+    color: SgrColor | None = None
+    bgcolor: SgrColor | None = None
     bold: bool = False
     dim: bool = False
     underline: bool = False
@@ -909,7 +910,7 @@ class Rendition(NamedTuple):
     underline_style: str = ""
     #: The colour of that line, when a program named one apart from the
     #: colour of the text.
-    underline_color: str = ""
+    underline_color: SgrColor | None = None
     #: Where the glyph sits: "superscript", "subscript", or an empty
     #: string for on the line.
     baseline: str = ""
@@ -3251,10 +3252,10 @@ class BetterScreen:
             # Reverse video paints the cell with the foreground.
             style += "reverse "
             if rendition.color:
-                style += "%s " % rendition.color
+                style += "%s " % style_word(rendition.color)
 
         if rendition.bgcolor:
-            style += "bg:%s " % rendition.bgcolor
+            style += "bg:%s " % style_word(rendition.bgcolor)
 
         return style
 
@@ -4027,13 +4028,11 @@ class BetterScreen:
             # holds everything the colour needs.
             if isinstance(attr, tuple):
                 if attr[0] in (38, 48):
-                    color = style_of_sgr_color(list(attr))
+                    color = sgr_color(list(attr))
                     if color is not None:
                         replace["color" if attr[0] == 38 else "bgcolor"] = color
                 elif attr[0] == 58:
-                    replace["underline_color"] = (
-                        style_of_sgr_color(list(attr)) or ""
-                    )
+                    replace["underline_color"] = sgr_color(list(attr))
                 elif attr[0] == 4:
                     number = attr[1] if len(attr) > 1 else 1
                     shape = UNDERLINE_SHAPES.get(number)
@@ -4042,10 +4041,10 @@ class BetterScreen:
                         replace["underline_style"] = shape
                 continue
 
-            if attr in STYLE_OF_A_FOREGROUND:
-                replace["color"] = STYLE_OF_A_FOREGROUND[attr]
-            elif attr in STYLE_OF_A_BACKGROUND:
-                replace["bgcolor"] = STYLE_OF_A_BACKGROUND[attr]
+            if attr in COLOR_OF_A_FOREGROUND:
+                replace["color"] = COLOR_OF_A_FOREGROUND[attr]
+            elif attr in COLOR_OF_A_BACKGROUND:
+                replace["bgcolor"] = COLOR_OF_A_BACKGROUND[attr]
             elif attr == 1:
                 replace["bold"] = True
             elif attr == 2:
@@ -4098,13 +4097,13 @@ class BetterScreen:
                 self._rendition = PLAIN
 
             elif attr == 59:
-                replace["underline_color"] = ""
+                replace["underline_color"] = None
             elif attr in (38, 48):
                 # The colour follows in the parameters that come next.
                 parameters = [attr]
                 while attrs and len(parameters) < sgr_color_parameters(parameters):
                     parameters.append(attrs.pop())
-                color = style_of_sgr_color(parameters)
+                color = sgr_color(parameters)
                 if color is not None:
                     replace["color" if attr == 38 else "bgcolor"] = color
 
@@ -4112,18 +4111,16 @@ class BetterScreen:
                 parameters = [attr]
                 while attrs and len(parameters) < sgr_color_parameters(parameters):
                     parameters.append(attrs.pop())
-                replace["underline_color"] = (
-                    style_of_sgr_color(parameters) or ""
-                )
+                replace["underline_color"] = sgr_color(parameters)
 
         rendition = self._rendition._replace(**replace)  # type:ignore
 
         # Build style string.
         style_str = ""
         if rendition.color:
-            style_str += "%s " % rendition.color
+            style_str += "%s " % style_word(rendition.color)
         if rendition.bgcolor:
-            style_str += "bg:%s " % rendition.bgcolor
+            style_str += "bg:%s " % style_word(rendition.bgcolor)
         if rendition.bold:
             style_str += "bold "
         if rendition.dim:
@@ -4135,7 +4132,7 @@ class BetterScreen:
             # The colour of a line that nobody draws would travel with
             # every cell for nothing.
             if rendition.underline_color:
-                style_str += "ul:%s " % rendition.underline_color
+                style_str += "ul:%s " % style_word(rendition.underline_color)
         if rendition.blink:
             style_str += "blink "
         if rendition.reverse:
@@ -4674,23 +4671,26 @@ class BetterScreen:
             (rendition.color, 38, False),
             (rendition.bgcolor, 48, True),
         ):
-            named = ansi_code(color, background)
-            index = palette_number(color)
-            components = rgb_components(color)
-            if named is not None:
-                parts.append("%i" % named)
-            elif index is not None:
-                parts.append("%i;5;%i" % (code, index))
-            elif components is not None:
-                parts.append("%i;2;%i;%i;%i" % ((code,) + components))
+            # The default colour has a single code of its own, 39 and
+            # 49, and this does not write it: the answer opens with "0",
+            # which already says the default.
+            if color is None or color == DEFAULT_COLOR:
+                continue
+            if color.index is not None:
+                short = sgr_code_of(color.index, background)
+                if short is not None:
+                    parts.append("%i" % short)
+                else:
+                    parts.append("%i;5;%i" % (code, color.index))
+            elif color.rgb is not None:
+                parts.append("%i;2;%i;%i;%i" % ((code,) + color.rgb))
 
-        if rendition.underline:
-            index = palette_number(rendition.underline_color)
-            components = rgb_components(rendition.underline_color)
-            if index is not None:
-                parts.append("58:5:%i" % index)
-            elif components is not None:
-                parts.append("58:2::%i:%i:%i" % components)
+        underline_color = rendition.underline_color
+        if rendition.underline and underline_color is not None:
+            if underline_color.index is not None:
+                parts.append("58:5:%i" % underline_color.index)
+            elif underline_color.rgb is not None:
+                parts.append("58:2::%i:%i:%i" % underline_color.rgb)
 
         return ";".join(parts)
 
