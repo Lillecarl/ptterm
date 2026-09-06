@@ -168,8 +168,8 @@ of them without asking a person.
 
 ## The deviations that stand
 
-**The user has decided seven of these twelve, and ptterm keeps what it
-does in each.** Do not reopen one of those without a new reason. The
+**The user has decided seven of these thirteen, and ptterm keeps what
+it does in each.** Do not reopen one of those without a new reason. The
 tally is what the decision rested on, so it stands beside each entry.
 
 **The standing rule, when a tally leaves ptterm alone against the
@@ -201,6 +201,7 @@ the panel is three against three. It is number 9, and it is open.
 | 20 | The blank of the line drawing set | kitty | Alacritty, Ghostty, libvterm, WezTerm, xterm.js |
 | 21 | Reverse video on a cell an erase leaves | kitty, WezTerm | Alacritty, Ghostty, libvterm, xterm.js |
 | 22 | A saved cursor and the wait to wrap | kitty, libvterm, xterm.js | Alacritty, Ghostty, WezTerm |
+| 23 | Two runs of one target with no id | kitty, WezTerm | Alacritty |
 
 Number 20 is the newest, and it is open. The five judges against ptterm
 do not agree with each other either: one draws a space and four draw
@@ -208,6 +209,10 @@ the underscore, so there is no answer to follow.
 
 Number 21 was decided in the code and never written down here. The
 tally moved it: `erase_style` in `ptterm/screen.py` carried it alone.
+
+Number 23 is the first that a panel of three decided. libvterm, Ghostty
+and xterm.js hold no hyperlink, so they abstain and the tally has three
+names and not six.
 
 ### 1. A tab in the last column of the last row
 
@@ -790,6 +795,35 @@ Lillecarl/pymux#88 holds the question and what changing it would take.
 **As a setting:** no. This is one answer or the other, and a person has
 no reason to hold an opinion about it.
 
+### 23. Two runs of one target, opened twice with no id
+
+    OSC 8 ; ; https://a  ST  ab  OSC 8 ; ;  ST  xy  OSC 8 ; ; https://a  ST  cd
+
+on 2 lines and 4 columns. Two runs of the same target, with plain text
+between them and no id on either.
+
+ptterm calls that one link, and so do kitty and WezTerm. Alacritty
+calls it two. libvterm, Ghostty and xterm.js hold no link at all and do
+not vote, so the panel is three.
+
+Alacritty mints a name for every link that arrives without an id, out
+of a counter of the process, so two openings are never one link. kitty
+keys its pool on the id and the target together, and an empty id is
+still an id, so both openings land on one entry.
+
+The specification of "OSC 8" is on Alacritty's side: without an id,
+only cells that touch are one link. ptterm cannot take that side as it
+stands. A cell carries the target and the id, and nothing that says
+which opening drew it, so two openings of one target are the same cell
+either way. Lillecarl/pymux#91 holds what changing that would take.
+
+Two against one is a split, so nothing changes.
+`test_the_panel.py::test_alacritty_alone_splits_a_link_that_carries_no_id`
+holds the tally.
+
+**As a setting:** no. A program that wants two links writes an id, and
+that works in all four.
+
 ## Where kitty looks wrong
 
 kitty puts the second character after a wrap into the cell of the
@@ -800,10 +834,12 @@ sees two cells either way, and `test_known_deviations` holds the case.
 
 ## Where Alacritty looks wrong
 
-Alacritty reads "SGR 21" as the end of bold. Five judges read it as a
+Alacritty reads "SGR 21" as the end of bold. Four judges read it as a
 double underline, which is what ECMA-48 numbers it: kitty, WezTerm,
-libvterm, Ghostty and xterm.js all keep the bold and draw the line.
-`test_the_panel.py::test_what_sgr_21_means` holds the tally.
+libvterm and Ghostty all keep the bold and draw the line. xterm.js does
+not vote, because it says only whether a line is there and both
+readings draw one. `test_the_panel.py::test_what_sgr_21_means` holds
+the tally.
 
 This is the whole of the `underline` difference that
 `checks.pymux-alacritty` reports. That reference test writes
@@ -835,6 +871,12 @@ that asks for more reads a limit of the reference as a difference, so
 `panel.py` runs each answer through a projection that drops what the
 judge misses.
 
+**Saying nothing is not agreeing.** A judge whose projection hides the
+difference in front of it abstains, and `abstained()` names those. It
+used to count as a judge that agrees with ptterm, which turned a
+question that every judge who could see it answered the same way into a
+"split". Lillecarl/pymux#89 holds what that cost.
+
 **Read the judge before you trust a tally.** The reader in
 `tests/judges/src/main.rs` took the character of an Alacritty cell and
 stopped there. Alacritty keeps a mark of no width beside the cell and
@@ -859,6 +901,8 @@ than kitty does. `test_against_vterm.py` writes each of these down.
   "38:2:<colour space>:r:g:b", with the colour space empty, and
   libvterm takes that empty part for the red. kitty reads both forms
   and ptterm follows kitty.
+- It holds no hyperlink. `vterm.h` names none, so libvterm says nothing
+  about an "OSC 8".
 
 ### xterm.js
 
@@ -867,13 +911,25 @@ and nothing more: not the shape of the line, and not its colour. The
 judge reports a plain single line for any of them, and the comparison
 drops the shape and the colour from both sides before it looks.
 
-Everything else a cell of ours holds, xterm.js holds.
+It reports no hyperlink either. `IBufferCell` has no accessor for one.
+xterm.js keeps a link behind a link service of its own, and reaching
+for that would tie the judge to a private path that the next version
+moves.
+
+What it does report is an underline on every cell of a link. That is
+how xterm.js marks one, and its API cannot tell that line from one a
+program drew. So the projection reads a link as a line on both sides,
+and `test_the_panel.py::test_xterm_js_marks_a_link_with_an_underline`
+reads the raw answer to record it.
 
 ### Ghostty
 
-Nothing. libghostty-vt holds every part of a cell that ptterm holds,
-the shape of an underline and the colour of the line included, so its
-answers pass through no projection.
+libghostty-vt holds every part of the rendition that ptterm holds, the
+shape of an underline and the colour of the line included.
+
+It reports no hyperlink. Ghostty itself keeps one; `ghostty/vt.h` names
+no hyperlink symbol, so the library that Ghostty hands out does not
+report it yet.
 
 ## Every esctest2 failure that stands, and where it is written down
 

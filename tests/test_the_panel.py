@@ -784,3 +784,194 @@ def test_the_alternate_screen_gives_back_what_it_saved():
     held = characters_in_row(data, row=2, lines=6, columns=10)
     for name in ("ptterm", "alacritty", "ghostty", "kitty", "libvterm", "wezterm", "xterm"):
         assert held[name][:5] == "    z", name
+
+
+# ----------------------------------------------------------------------
+# Hyperlinks, which "OSC 8" carries.
+#
+# Three of the six hold none. libvterm names no hyperlink in `vterm.h`,
+# libghostty-vt names none in `ghostty/vt.h`, and the buffer API of
+# xterm.js reports none. Those three abstain from every question here,
+# so the panel for a link is kitty, WezTerm and Alacritty.
+
+#: A link opens with its parameters and its target, and closes with
+#: neither.
+OPEN_LINK = "\x1b]8;%s;%s\x1b\\"
+CLOSE_LINK = "\x1b]8;;\x1b\\"
+
+A_TARGET = "https://a"
+ANOTHER_TARGET = "https://b"
+
+#: Every judge that can hold a link, and ptterm.
+LINK_HOLDERS = ("alacritty", "kitty", "ptterm", "wezterm")
+
+#: Every judge that cannot.
+LINK_BLIND = ["ghostty", "libvterm", "xterm"]
+
+
+def link_shape(data, lines=2, columns=4):
+    """
+    Which cells each judge groups into one link, and ptterm.
+
+    A link number is a number of this screen and not a name of the
+    emulator: the first link that a reader meets is 1, the next is 2.
+    kitty numbers a link out of its own pool, Alacritty mints a name
+    from a counter of the process, and ptterm carries the target and
+    the id. None of those compare, and the shape does.
+    """
+
+    def shape(rows):
+        return [tuple(cell.hyperlink_id for cell in row) for row in rows]
+
+    found = {"ptterm": shape(ptterm_cells(data, lines, columns))}
+    for judge in judges():
+        found[judge.name] = shape(judge.cells(data, lines, columns))
+    return found
+
+
+def link_targets(data, lines=2, columns=4):
+    "The target that each judge puts on the first cell, and ptterm."
+    found = {"ptterm": ptterm_cells(data, lines, columns)[0][0].hyperlink}
+    for judge in judges():
+        found[judge.name] = judge.cells(data, lines, columns)[0][0].hyperlink
+    return found
+
+
+def test_three_judges_hold_no_link_at_all():
+    """
+    The panel for a link is three judges, not six.
+
+    Ghostty and xterm.js both keep a link in the emulator. Neither
+    reports one through what the judge can reach: `ghostty/vt.h` names
+    no hyperlink symbol, and `IBufferCell` of xterm.js has no accessor
+    for one. libvterm keeps none at all.
+    """
+    data = OPEN_LINK % ("id=1", A_TARGET) + "ab" + CLOSE_LINK
+    assert cannot_see(data, lines=2, columns=4) == LINK_BLIND
+    assert verdict(data, lines=2, columns=4) == "agree"
+
+
+def test_xterm_js_marks_a_link_with_an_underline():
+    """
+    xterm.js puts the underline attribute on every cell of a link. It
+    is alone: the other five draw no line, and neither does ptterm.
+
+    That is how xterm.js marks a link, and `IBufferCell` cannot tell
+    that line from one a program drew. So `_as_xterm_sees` reads a link
+    as a line on both sides, and this test reads the raw answer instead,
+    because the projection would hide what it records.
+    """
+    data = OPEN_LINK % ("id=1", A_TARGET) + "ab" + CLOSE_LINK
+    held = _cells(data, lines=2, columns=4)
+    assert held["xterm"][0][0].underline == 1
+    for name in ("ptterm", "alacritty", "ghostty", "kitty", "libvterm", "wezterm"):
+        assert held[name][0][0].underline == 0, name
+
+
+def test_every_judge_that_holds_a_link_holds_its_target():
+    "The target is the text a program wrote, so it compares as it is."
+    data = OPEN_LINK % ("id=1", A_TARGET) + "ab" + CLOSE_LINK
+    held = link_targets(data)
+    for name in LINK_HOLDERS:
+        assert held[name] == A_TARGET, name
+    for name in LINK_BLIND:
+        assert held[name] is None, name
+
+
+def test_a_link_that_a_wrap_cuts_in_two_is_one_link():
+    """
+    Three judges agree with ptterm: the pieces on both rows carry one
+    link and not two.
+
+    This is what the id is for. A program that draws a long link does
+    not know where the terminal will break it.
+    """
+    data = OPEN_LINK % ("id=1", A_TARGET) + "abcdef" + CLOSE_LINK
+    held = link_shape(data)
+    for name in LINK_HOLDERS:
+        assert held[name] == [(1, 1, 1, 1), (1, 1, None, None)], name
+
+
+def test_two_ids_on_one_target_are_two_links():
+    "The id says which link, and the target says where it goes."
+    data = (
+        OPEN_LINK % ("id=1", A_TARGET)
+        + "ab"
+        + OPEN_LINK % ("id=2", A_TARGET)
+        + "cd"
+        + CLOSE_LINK
+    )
+    held = link_shape(data)
+    for name in LINK_HOLDERS:
+        assert held[name] == [(1, 1, 2, 2), (None, None, None, None)], name
+
+
+def test_two_targets_under_one_id_are_two_links():
+    "One id and two targets is two links, the same way round."
+    data = (
+        OPEN_LINK % ("id=1", A_TARGET)
+        + "ab"
+        + OPEN_LINK % ("id=1", ANOTHER_TARGET)
+        + "cd"
+        + CLOSE_LINK
+    )
+    held = link_shape(data)
+    for name in LINK_HOLDERS:
+        assert held[name] == [(1, 1, 2, 2), (None, None, None, None)], name
+
+
+def test_the_same_id_opened_again_is_the_same_link():
+    """
+    A link closes, plain text follows, and the same id and target open
+    again. Three judges call the two runs one link, and so does ptterm.
+    """
+    data = (
+        OPEN_LINK % ("id=1", A_TARGET)
+        + "ab"
+        + CLOSE_LINK
+        + "xy"
+        + OPEN_LINK % ("id=1", A_TARGET)
+        + "cd"
+    )
+    held = link_shape(data)
+    for name in LINK_HOLDERS:
+        assert held[name] == [(1, 1, None, None), (1, 1, None, None)], name
+
+
+def test_alacritty_alone_splits_a_link_that_carries_no_id():
+    """
+    The same target opens twice with no id, and the two runs do not
+    touch. Alacritty calls that two links. kitty and WezTerm call it
+    one, and so does ptterm.
+
+    Alacritty mints a name for every link that arrives without an id,
+    out of a counter of the process, so two opens are never the same
+    link. kitty keys its pool on the id and the target together, and an
+    empty id is still an id, so both opens land on one entry.
+
+    The specification of "OSC 8" is on Alacritty's side: without an id,
+    only cells that touch are one link. ptterm cannot take that side as
+    it stands, because a cell carries the target and the id and nothing
+    that says which opening drew it. It sits with the larger side by
+    accident and not by choice. Lillecarl/pymux#91 holds that.
+
+    This is a split, so nothing changes here.
+    """
+    data = (
+        OPEN_LINK % ("", A_TARGET)
+        + "ab"
+        + CLOSE_LINK
+        + "xy"
+        + OPEN_LINK % ("", A_TARGET)
+        + "cd"
+    )
+    held = link_shape(data)
+    assert held["alacritty"] == [(1, 1, None, None), (2, 2, None, None)]
+    for name in ("kitty", "ptterm", "wezterm"):
+        assert held[name] == [(1, 1, None, None), (1, 1, None, None)], name
+
+    against, with_us = sides(data, lines=2, columns=4)
+    assert against == ["alacritty"]
+    assert with_us == ["kitty", "wezterm"]
+    assert cannot_see(data, lines=2, columns=4) == LINK_BLIND
+    assert verdict(data, lines=2, columns=4) == "split"
