@@ -48,6 +48,18 @@ def marks_kept(data, lines=3, columns=6):
     return kept
 
 
+def characters_in_row(data, row=0, lines=3, columns=20):
+    "What each judge holds in one row, as a string, and ptterm."
+
+    def text(rows):
+        return "".join(cell.char or " " for cell in rows[row])
+
+    found = {"ptterm": text(ptterm_cells(data, lines, columns))}
+    for judge in judges():
+        found[judge.name] = text(judge.cells(data, lines, columns))
+    return found
+
+
 def columns_before_the_wrap(data, lines=4, columns=20):
     """
     How wide each judge thinks the first row is, and ptterm.
@@ -569,3 +581,24 @@ def test_every_judge_holds_a_number_of_the_palette_as_a_number():
     against, with_us = sides("\x1b[38;5;200m\x1b[48;5;234mX", lines=3, columns=6)
     assert against == []
     assert with_us == ["alacritty", "ghostty", "kitty", "libvterm", "wezterm", "xterm"]
+
+
+def test_what_a_tab_leaves_in_the_cell_it_moves_from():
+    """
+    Alacritty writes a tab character into the cell the cursor moves
+    from. Nobody else does, and neither does ptterm.
+
+    A tab moves the cursor and draws nothing, so the cells it steps
+    over hold what was already there. Alacritty keeps the character so
+    that a copy of the line gives the tab back, instead of the spaces
+    that the line looks like. A pane does not select, and it hands
+    cells to a renderer, so it has nowhere to put the character.
+
+    This is the whole of `tab_rendering` and `vttest_tab_clear_set` in
+    `checks.pymux-alacritty`: 24 cells, and every one of them is a tab
+    where ptterm holds a space, with every other field equal.
+    """
+    held = characters_in_row("a\tb", lines=3, columns=20)
+    assert held["alacritty"][:9] == "a\t      b"
+    for name in ("ptterm", "ghostty", "kitty", "libvterm", "wezterm", "xterm"):
+        assert held[name][:9] == "a       b", name

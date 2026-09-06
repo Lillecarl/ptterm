@@ -687,6 +687,23 @@ This is the whole of the `underline` difference that
 all five shapes of a line, and a bare `CSI 4:3 m` reaches the wire as
 `SGR 4:3`.
 
+Alacritty also writes a tab character into the cell that a tab moves
+the cursor from. Nobody else does: kitty, WezTerm, libvterm, Ghostty
+and xterm.js all leave the cells a tab steps over holding what was
+already there, and so does ptterm. Five to one again, and
+`test_the_panel.py::test_what_a_tab_leaves_in_the_cell_it_moves_from`
+holds the tally.
+
+A tab moves the cursor and draws nothing, so there is nothing for a
+cell to take. Alacritty keeps the character for its own selection: a
+copy of the line then gives the tab back, instead of the spaces that
+the line looks like. A pane does not select, and it hands cells to a
+renderer, so it has no use for the character and nowhere to put it.
+
+This is the whole of the `tab_rendering` and `vttest_tab_clear_set`
+differences, 11 cells and 13 cells, and every one of them is a `\t`
+where ptterm holds a space.
+
 ## Where a judge cannot answer
 
 A judge that cannot hold something says nothing about it. A comparison
