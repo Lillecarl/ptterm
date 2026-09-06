@@ -24,6 +24,7 @@
   perl,
   xorg-server,
   xterm,
+  vttest,
   makeFontsConf,
   dejavu_fonts,
   package,
@@ -35,6 +36,10 @@
 }:
 let
   inherit (callPackage ./suite.nix { }) suite;
+
+  # The check below is called `vttest` too, and a reader should not have to
+  # work out which of the two a name means.
+  vttestProgram = vttest;
 
 
   # anyio carries the pytest plugin that runs a coroutine test. Without
@@ -119,6 +124,18 @@ let
       value = builtins.getEnv "PTTERM_VTERM_INCLUDE";
     in
     if value == "" then ".*" else value;
+
+  # Which item of vttest's main menu the walker enters. It is a regular
+  # expression matched against "N title", for instance
+  # `PTTERM_VTTEST_INCLUDE='^4 ' nix build --file . checks.ptterm-vttest.run`.
+  # `PTTERM_VTTEST_ARGS` passes options to vttest itself; `-u` is the one
+  # that keeps the terminal in UTF-8.
+  vttestInclude =
+    let
+      value = builtins.getEnv "PTTERM_VTTEST_INCLUDE";
+    in
+    if value == "" then ".*" else value;
+  vttestArgs = builtins.getEnv "PTTERM_VTTEST_ARGS";
 
   # Which recordings the instruction count measures, and how far a count may
   # move before the check fails. Both are for narrowing a hunt, for instance
@@ -272,6 +289,31 @@ in
       export PTTERM_VTERM_OUT="$out"
     '';
   } "python tests/drive_with_vterm.py";
+
+  # The other conformance program of Thomas Dickey, walked against ptterm.
+  #
+  # It is not a gate, and it cannot be one yet. esctest2 reads the screen
+  # back and judges it. vttest draws a screen and asks a person whether what
+  # they see is right, so what this leaves behind is a text file of every
+  # screen it drew, with the menu path that reached it. A person reads that.
+  # Lillecarl/pymux#46 says why the recorded list comes first.
+  #
+  # What the verdict here does judge is the walk: a run that drew nothing,
+  # or an exclusion in `NOT_OURS` that names no menu item.
+  vttest = suite {
+    name = "ptterm-vttest";
+    inputs = [
+      pythonWithTests
+      vttestProgram
+    ];
+    env = { inherit vttestInclude vttestArgs; };
+    setup = prepare + ''
+      export PTTERM_VTTEST=${vttestProgram}/bin/vttest
+      export PTTERM_VTTEST_INCLUDE="$vttestInclude"
+      export PTTERM_VTTEST_ARGS="$vttestArgs"
+      export PTTERM_VTTEST_OUT="$out"
+    '';
+  } "python tests/drive_with_vttest.py";
 
   # What it costs to parse a recording, in bytecode instructions.
   #
