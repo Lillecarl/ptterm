@@ -604,6 +604,46 @@ def test_what_a_tab_leaves_in_the_cell_it_moves_from():
         assert held[name][:9] == "a       b", name
 
 
+def test_whether_a_restore_brings_the_wait_to_wrap_back():
+    """
+    A character in the last column leaves the cursor waiting to wrap.
+    `save_cursor` stores the column the cursor stands on, so the wait is
+    not in the savepoint, and a restore cannot bring it back.
+
+    Three judges bring it back and three do not, so ptterm keeps what it
+    does. The third case is the one to read: with no move between the
+    save and the restore, four judges leave the screen alone.
+
+    Entry 22 of `DEVIATIONS.md` and Lillecarl/pymux#88 hold it. It is
+    the whole of `wrapline_alt_toggle` in `checks.pymux-alacritty`.
+    """
+    fill = "a" * 6
+
+    def where_b_landed(data):
+        held = _cells(data, lines=4, columns=6)
+        return {name: rows[0][5].char for name, rows in held.items()}
+
+    through_decsc = where_b_landed(fill + "\x1b7\x1b[1;1H\x1b8b")
+    for name in ("alacritty", "ghostty", "wezterm"):
+        assert through_decsc[name] == "a", name
+    for name in ("ptterm", "kitty", "libvterm", "xterm"):
+        assert through_decsc[name] == "b", name
+
+    through_alt = where_b_landed(fill + "\x1b[?1049hx\x1b[?1049lb")
+    for name in ("alacritty", "ghostty", "wezterm"):
+        assert through_alt[name] == "a", name
+    for name in ("ptterm", "kitty", "libvterm", "xterm"):
+        assert through_alt[name] == "b", name
+
+    #: A save and a restore with nothing in between. Four judges leave
+    #: the screen alone, and libvterm is one of them here.
+    no_move = where_b_landed(fill + "\x1b7\x1b8b")
+    for name in ("alacritty", "ghostty", "libvterm", "wezterm"):
+        assert no_move[name] == "a", name
+    for name in ("ptterm", "kitty", "xterm"):
+        assert no_move[name] == "b", name
+
+
 def test_what_a_delete_leaves_at_the_right_edge():
     """
     DCH shifts a line left and blanks the right edge. Those blanks take

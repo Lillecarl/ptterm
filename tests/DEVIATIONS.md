@@ -161,7 +161,7 @@ of them without asking a person.
 
 ## The deviations that stand
 
-**The user has decided seven of these eleven, and ptterm keeps what it
+**The user has decided seven of these twelve, and ptterm keeps what it
 does in each.** Do not reopen one of those without a new reason. The
 tally is what the decision rested on, so it stands beside each entry.
 
@@ -193,6 +193,7 @@ the panel is three against three. It is number 9, and it is open.
 | 9 | CBT and CHT over the tab stops | kitty, libvterm, WezTerm | Alacritty, Ghostty, xterm.js |
 | 20 | The blank of the line drawing set | kitty | Alacritty, Ghostty, libvterm, WezTerm, xterm.js |
 | 21 | Reverse video on a cell an erase leaves | kitty, WezTerm | Alacritty, Ghostty, libvterm, xterm.js |
+| 22 | A saved cursor and the wait to wrap | kitty, libvterm, xterm.js | Alacritty, Ghostty, WezTerm |
 
 Number 20 is the newest, and it is open. The five judges against ptterm
 do not agree with each other either: one draws a space and four draw
@@ -744,6 +745,43 @@ Alacritty holds a plain blank.
 
 **As a setting:** it could be, and it is the same shape as entry 2. A
 pane paints its own cells, so the choice belongs to the pane.
+
+### 22. A saved cursor does not remember the wait to wrap
+
+`aaaaaa\x1b7\x1b[1;1H\x1b8b` on 4 lines and 6 columns, and the same
+through `?1048` and `?1049`. A `b` on the next line means the restore
+brought the wait back.
+
+A character in the last column leaves the cursor waiting to wrap.
+`save_cursor` in `ptterm/screen.py` stores the column the cursor stands
+on, which is the same fold DSR reports, so the wait is not in the
+savepoint and nothing can bring it back.
+
+| case | keeps the wait | loses it |
+| --- | --- | --- |
+| "ESC 7" and "ESC 8" | Alacritty, Ghostty, WezTerm | kitty, libvterm, xterm.js, ptterm |
+| "?1049h" and "?1049l" | Alacritty, Ghostty, WezTerm | kitty, libvterm, xterm.js, ptterm |
+| a save and a restore with no move between | Alacritty, Ghostty, libvterm, WezTerm | kitty, xterm.js, ptterm |
+
+Three against three on the first two, so ptterm keeps what it does.
+
+The third row is the one to read before deciding. With no move in
+between, a save and a restore leave the screen alone in four emulators,
+and libvterm joins them there because its restore does nothing rather
+than folding the column. Only kitty and xterm.js change the screen the
+way ptterm does. A pair that should be a no-op and is not is hard to
+argue for, whatever the first two rows say.
+
+This is the whole of `wrapline_alt_toggle` that
+`checks.pymux-alacritty` reports: 40 cells. The recording fills a row
+with 139 characters, takes the alternate screen, gives it back and
+writes one more. Alacritty starts a new line for it and ptterm writes
+it into the last column, so every row after it sits one row higher.
+
+Lillecarl/pymux#88 holds the question and what changing it would take.
+
+**As a setting:** no. This is one answer or the other, and a person has
+no reason to hold an opinion about it.
 
 ## Where kitty looks wrong
 
