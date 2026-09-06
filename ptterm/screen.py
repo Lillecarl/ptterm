@@ -12,7 +12,6 @@ from collections import defaultdict, namedtuple
 from enum import IntEnum, IntFlag, StrEnum
 from typing import Callable, DefaultDict, Dict, List, NamedTuple, Set, Tuple
 
-from prompt_toolkit.cache import FastDictCache
 from prompt_toolkit.layout.screen import Char
 from prompt_toolkit.styles import Attrs
 from pyte import charsets as cs
@@ -25,6 +24,7 @@ from .graphics import (
     GraphicsState,
 )
 from . import kitty_keys
+from .cache import FastDictCache
 from .colors import (
     DEFAULT_COLORS,
     PALETTE,
