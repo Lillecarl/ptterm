@@ -40,6 +40,10 @@ class Process:
         program asks for, when it sends DECSLPP or a window resize.
         Either one is None when the program leaves that side alone. A
         pane cannot resize itself, so the embedder decides.
+    :param may_resize: Returns whether the embedder would grant such an
+        ask. The modes that only exist where a program can have a
+        different page go away when it says no, so a program learns at
+        once instead of laying its output out for room it will not get.
     :param done_callback: Called when the process terminates.
     :param has_priority: Callable that returns True when this Process should
         get priority in the event loop. (When this pane has the focus.)
@@ -55,6 +59,7 @@ class Process:
         has_priority: Callable[[], bool] | None = None,
         osc_func: Callable[[str, str], None] | None = None,
         resize_func: Callable[[int | None, int | None], None] | None = None,
+        may_resize: Callable[[], bool] | None = None,
     ) -> None:
         self.loop = get_event_loop()
         self.invalidate = invalidate
@@ -82,6 +87,7 @@ class Process:
             bell_func=bell_func,
             osc_func=osc_func,
             resize_func=resize_func,
+            may_resize=may_resize,
         )
 
         self.stream = BetterStream(self.screen)

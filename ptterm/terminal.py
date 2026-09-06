@@ -117,6 +117,7 @@ class _TerminalControl(UIControl):
         bell_func: Callable[[], None] | None = None,
         osc_func: Callable[[str, str], None] | None = None,
         resize_func: Callable[[int | None, int | None], None] | None = None,
+        may_resize: Callable[[], bool] | None = None,
     ) -> None:
         def has_priority() -> bool:
             # Give priority to the processing of this terminal output, if this
@@ -136,6 +137,7 @@ class _TerminalControl(UIControl):
             bell_func=bell_func,
             osc_func=osc_func,
             resize_func=resize_func,
+            may_resize=may_resize,
             has_priority=has_priority,
         )
 
@@ -394,6 +396,10 @@ class Terminal:
         program asks for, when it sends DECSLPP or a window resize.
         Either one is None when the program leaves that side alone. A
         pane cannot resize itself, so the embedder decides.
+    :param may_resize: Returns whether the embedder would grant such an
+        ask. The private modes that only exist where a program can have
+        a different page go away when it says no, so a program learns at
+        once instead of laying its output out for room it will not get.
     """
 
     def __init__(
@@ -408,6 +414,7 @@ class Terminal:
         done_callback: Callable[[], None] | None = None,
         osc_func: Callable[[str, str], None] | None = None,
         resize_func: Callable[[int | None, int | None], None] | None = None,
+        may_resize: Callable[[], bool] | None = None,
     ) -> None:
         if backend is None:
             backend = create_backend(command, before_exec_func)
@@ -417,6 +424,7 @@ class Terminal:
             bell_func=bell_func,
             osc_func=osc_func,
             resize_func=resize_func,
+            may_resize=may_resize,
             done_callback=done_callback,
         )
 

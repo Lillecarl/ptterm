@@ -111,6 +111,74 @@ def test_decncsm_needs_the_level_that_brought_it():
 
 
 # ----------------------------------------------------------------------
+# What the embedder allows.
+#
+# A pane sits in a layout, and the person who owns it says whether a
+# program may have room. DECNCSM is only a way to ask for a different
+# page, so a pane that will never get one does not carry the mode.
+# xterm keeps it behind `allowWindowOps` for the same reason, and
+# esctest2 marks `DECRQMTests.test_DECRQM_DEC_DECNCSM` `optionRequired`
+# on that resource. Lillecarl/pymux#31.
+
+
+def refusing_screen(allowed):
+    "A screen whose embedder answers `allowed()` to every ask for room."
+    answers = []
+    screen = BetterScreen(
+        4,
+        80,
+        write_process_input=answers.append,
+        resize_func=lambda lines, columns: None,
+        may_resize=allowed,
+    )
+    return screen, BetterStream(screen), answers
+
+
+def test_decncsm_is_unknown_where_the_embedder_gives_no_room():
+    "A mode a pane cannot have is a mode it never heard of."
+    screen, stream, answers = refusing_screen(lambda: False)
+    stream.feed("\x1b[?95h\x1b[?95$p")
+    assert answers == ["\x1b[?95;0$y"]
+    assert not screen._keeps_the_page_through_a_width_change()
+
+
+def test_decncsm_comes_back_when_the_embedder_changes_its_mind():
+    """
+    The answer is read at the time of the ask and never cached.
+
+    A person turns `allow-program-resize` on while a pane runs, and the
+    next program to ask gets the mode.
+    """
+    allowed = [False]
+    screen, stream, answers = refusing_screen(lambda: allowed[0])
+    stream.feed("\x1b[?95$p")
+    assert answers == ["\x1b[?95;0$y"]
+
+    allowed[0] = True
+    answers.clear()
+    stream.feed("\x1b[?95h\x1b[?95$p")
+    assert answers == ["\x1b[?95;1$y"]
+
+
+def test_the_embedder_does_not_gate_the_other_page_modes():
+    """
+    Mode 40 is still taken, and DECCOLM still clears the page.
+
+    esctest2 says so: its
+    `DECSCLTests.test_DECSCL_Level4_SupportsDECSLRMDoesntSupportDECNCSM`
+    carries no marker for the resource, so xterm takes mode 40 whatever
+    the resource says. The ask for the width still goes out, and the
+    embedder still refuses it.
+    """
+    screen, stream, answers = refusing_screen(lambda: False)
+    stream.feed(ALLOW + "\x1b[?40$p")
+    assert answers == ["\x1b[?40;1$y"]
+
+    stream.feed("abc" + WIDE)
+    assert screen.data_buffer[0].get(0) is None
+
+
+# ----------------------------------------------------------------------
 # RIS.
 
 

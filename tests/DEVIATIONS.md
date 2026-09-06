@@ -568,25 +568,37 @@ before the next draw. That is the whole of what they proved.
 `tests/test_page_width.py` covers the same steps by reading the ask
 rather than the width.
 
-**DECNCSM.** A fourth test fails for the other reason: ptterm carries
-more than xterm here, not less.
+**DECNCSM.** A fourth test used to fail here, and it passes in a pane
+now.
 
 DECNCSM ("?95") tells DECCOLM to keep the page instead of clearing it.
 ptterm carries it, from conformance level 5 up, because the VT510
 brought it. xterm keeps it behind the `allowWindowOps` resource, and
 the suite is told that resource is off, so it expects a terminal to
-refuse the mode. `DECRQMTests.test_DECRQM_DEC_DECNCSM` therefore
-fails: ptterm answers that the mode is set, and the suite wanted no
-answer at all.
-
-Turning the resource on in the driver costs more than it gives. Five
-other tests then expect a pass that a pane cannot give, so the list
-grows by four. The one honest entry is cheaper.
+refuse the mode. `DECRQMTests.test_DECRQM_DEC_DECNCSM` failed: ptterm
+answered that the mode was set, and the suite wanted no answer at all.
 
 A pane has its own version of that resource, `allow-program-resize`,
-and ptterm cannot see it: the screen only holds `resize_func` and
-learns nothing about what the embedder will allow. See
-Lillecarl/pymux#31.
+and ptterm could not see it: the screen held `resize_func` and learned
+nothing about what the embedder would allow. It holds `may_resize`
+beside it now (Lillecarl/pymux#31), read at the time of the ask and
+never cached, because a person can change the option while a pane runs.
+DECNCSM goes away when the answer is no, so the mode cannot be set and
+DECRQM reports it unknown.
+
+That is why the test passes in a pane and still fails on ptterm's own
+pty: with no embedder there is nothing in the way, and every ask is
+granted. `pymux/tests/esctest-failures.txt` is one line shorter than
+`ptterm/tests/esctest-failures.txt` for exactly this reason, which is
+the kind of difference the two runs exist to show.
+
+**Mode 40 is not gated, and the suite is why.**
+`DECSCLTests.test_DECSCL_Level4_SupportsDECSLRMDoesntSupportDECNCSM`
+carries no `optionRequired` marker, so xterm takes mode 40 whatever
+`allowWindowOps` says, and DECCOLM still clears the page. Refusing the
+mode would stop the clear as well, and that test would fail. So the ask
+for the width still goes out and is still refused, and the three
+failures above stand.
 
 **As a setting:** it already is one. `allow-program-resize` decides,
 and it decides for every sequence that asks for room, not for DECCOLM

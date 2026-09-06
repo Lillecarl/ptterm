@@ -894,6 +894,7 @@ class BetterScreen:
         get_history_limit: Callable[[], int] | None = None,
         osc_func: Callable[[str, str], None] | None = None,
         resize_func: Callable[[int | None, int | None], None] | None = None,
+        may_resize: Callable[[], bool] | None = None,
     ) -> None:
         bell_func = bell_func or (lambda: None)
         get_history_limit = get_history_limit or (lambda: 2000)
@@ -902,6 +903,11 @@ class BetterScreen:
         # else owns. So the ask goes out, and the embedder decides. With
         # no embedder the ask goes nowhere, which is the old answer.
         resize_func = resize_func or (lambda lines, columns: None)
+        # Whether the embedder would grant such an ask, read at the time
+        # of the ask and never cached: a person can turn it on and off
+        # while a pane runs. With no embedder every ask is granted,
+        # because nothing is in the way.
+        may_resize = may_resize or (lambda: True)
 
         self._history_cleanup_counter = 0
 
@@ -913,6 +919,7 @@ class BetterScreen:
         self.get_history_limit = get_history_limit
         self.osc_func = osc_func
         self.resize_func = resize_func
+        self.may_resize = may_resize
 
         # Stack of kitty keyboard protocol flags. ("CSI > flags u" pushes,
         # "CSI < number u" pops. See `report_kitty_keyboard`.)
@@ -1385,6 +1392,48 @@ class BetterScreen:
         needed = self._MODE_LEVELS.get(number)
         return needed is None or self.conformance_level >= needed
 
+    #: The private modes that exist only where the embedder will give a
+    #: pane room. They are not features of the emulator: they are ways
+    #: for a program to ask for a different page, and a pane that cannot
+    #: have one has no honest answer but "I do not know that mode".
+    #:
+    #: xterm keeps DECNCSM behind its `allowWindowOps` resource, and
+    #: esctest2 marks `DECRQMTests.test_DECRQM_DEC_DECNCSM`
+    #: `optionRequired` on it. A pane's version of that resource is
+    #: `allow-program-resize`.
+    #:
+    #: **DECCOLM and its mode 40 are not in here, and the suite is why.**
+    #: `DECSCLTests.test_DECSCL_Level4_SupportsDECSLRMDoesntSupportDECNCSM`
+    #: carries no such marker, so xterm takes mode 40 whatever the
+    #: resource says, and DECCOLM still clears the page. Refusing the
+    #: mode would stop the clear as well, and that test would fail.
+    _MODES_THE_EMBEDDER_GATES = frozenset([PrivateMode.NO_CLEAR_ON_COLUMN_CHANGE])
+
+    def _embedder_carries(self, number: int) -> bool:
+        """
+        Will the embedder let this screen carry this private mode?
+
+        Read every time and never cached: a person can turn
+        `allow-program-resize` on and off while a pane runs, and a
+        program that asks twice deserves the answer that holds now.
+
+        Only the modes in `_MODES_THE_EMBEDDER_GATES` can be refused.
+        Everything else the embedder has no opinion about.
+        """
+        if number not in self._MODES_THE_EMBEDDER_GATES:
+            return True
+        return self.may_resize()
+
+    def _carries(self, number: int) -> bool:
+        """
+        Does this screen carry this private mode at all, right now?
+
+        Two things can take a mode away. DECSCL names a terminal that
+        never had it, and the embedder refuses the room that the mode is
+        about.
+        """
+        return self._level_carries(number) and self._embedder_carries(number)
+
     def _may_change_the_page_width(self) -> bool:
         """
         May DECCOLM take the page between 80 and 132 columns?
@@ -1680,9 +1729,7 @@ class BetterScreen:
         # Private mode codes are shifted, to be distingiushed from non
         # private ones.
         if kwargs.get("private"):
-            modes = tuple(
-                flag_of(mode) for mode in modes if self._level_carries(mode)
-            )
+            modes = tuple(flag_of(mode) for mode in modes if self._carries(mode))
 
         self.mode.update(modes)
 
@@ -4315,7 +4362,7 @@ class BetterScreen:
             known = (
                 number in self._known_private_modes
                 or number in self._remembered_private_modes
-            )
+            ) and self._embedder_carries(number)
             if number == PrivateMode.CURSOR_BLINK:
                 # DECSCUSR writes this one as well, and the alternate
                 # screen carries a `mode` of its own. So the answer
