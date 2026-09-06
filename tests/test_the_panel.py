@@ -1199,3 +1199,36 @@ def test_a_narrower_width_that_needs_no_reflow_moves_nothing():
     found = rows_of("one\r\ntwo\r\nthree\r\nfour\r\nfive", 3, 8, (3, 16))
     for name in found:
         assert found[name] == ["three", "four", "five"], name
+
+
+def test_an_erase_at_the_end_of_a_line_ends_the_wrap_out_of_it():
+    """
+    Every judge agrees, and so does ptterm: an erase that clears the end
+    of a line ends the join, and a later widening does not put the two
+    rows back together.
+
+    Fifteen characters on ten columns wrap onto row 1. Go back up a row,
+    to column 9, and erase to the end. Nothing wraps out of row 0 any
+    more. Widening to twenty columns leaves two rows.
+
+    libvterm asks for this in `32state_flow.test`, and until
+    Lillecarl/pymux#64 it was the only thing that could: the mark that
+    decides a join is not a cell, so no judge reports it, and it shows
+    from outside only through a resize. The panel can ask now, and the
+    answer is six to nothing.
+
+    Lillecarl/pymux#58 worried that the mark would put the rows back
+    together. `_end_the_wrap_out_of_this_line` in `ptterm/screen.py`
+    takes it off, and this is that fix seen from outside.
+    """
+    erased = rows_of("D" * 15 + "\x1bM\x1b[9G\x1b[K", 3, 10, (3, 20))
+    for name in erased:
+        assert erased[name] == ["DDDDDDDD", "DDDDD", ""], name
+
+    # Without the erase the same widening joins them, so the test above
+    # is not passing because nothing ever joins.
+    kept = rows_of("D" * 15, 3, 10, (3, 20))
+    for name in ("ptterm", "alacritty", "ghostty", "kitty", "libvterm", "wezterm"):
+        assert kept[name] == ["D" * 15, "", ""], name
+    # xterm.js leaves the row the cursor sits on, as the test above says.
+    assert kept["xterm"] == ["DDDDDDDDDD", "DDDDD", ""]
