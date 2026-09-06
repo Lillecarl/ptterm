@@ -105,6 +105,7 @@ let
       judges
       esctest2
       vtermSuite
+      alacrittySuite
       ;
   };
 in

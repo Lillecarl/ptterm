@@ -27,6 +27,7 @@
   judges,
   esctest2,
   vtermSuite,
+  alacrittySuite,
 }:
 let
   inherit (callPackage ./suite.nix { }) suite;
@@ -97,6 +98,13 @@ let
       value = builtins.getEnv "PTTERM_VTERM_INCLUDE";
     in
     if value == "" then ".*" else value;
+
+  # Which recordings the instruction count measures, and how far a count may
+  # move before the check fails. Both are for narrowing a hunt, for instance
+  # `PTTERM_INSTRUCTIONS_INCLUDE=vim nix build --file . checks.ptterm-instructions`.
+  # A narrowed run makes no claim about the recordings it did not choose.
+  instructionsInclude = builtins.getEnv "PTTERM_INSTRUCTIONS_INCLUDE";
+  instructionsTolerance = builtins.getEnv "PTTERM_INSTRUCTIONS_TOLERANCE";
 
   prepare = ''
     cp -r ${testSources}/tests .
@@ -232,6 +240,32 @@ in
       export PTTERM_VTERM_OUT="$out"
     '';
   } "python tests/drive_with_vterm.py";
+
+  # What it costs to parse a recording, in bytecode instructions.
+  #
+  # Nothing else here measures cost. A change that makes the parser ten times
+  # slower passes every other check, and nobody notices until pymux feels
+  # wrong under a hand.
+  #
+  # The unit is not a second. A second belongs to the machine that counted it,
+  # and this sandbox runs beside other jobs. An instruction count is the same
+  # on every machine and under any load, so a budget file can hold it the way
+  # the conformance lists hold a failure.
+  #
+  # `PYTHONHASHSEED` is pinned because the order of a set decides a branch,
+  # and a branch decides a count.
+  instructions = suite {
+    name = "ptterm-instructions";
+    inputs = [ pythonWithTests ];
+    env = { inherit instructionsInclude instructionsTolerance; };
+    setup = prepare + ''
+      export PTTERM_INSTRUCTIONS=${alacrittySuite}/share/alacritty-ref
+      export PTTERM_INSTRUCTIONS_INCLUDE="$instructionsInclude"
+      export PTTERM_INSTRUCTIONS_TOLERANCE="$instructionsTolerance"
+      export PTTERM_INSTRUCTIONS_OUT="$out"
+      export PYTHONHASHSEED=0
+    '';
+  } "python tests/measure_instructions.py";
 
   # The hunt for deviations between ptterm and kitty. This is not a gate:
   # it finds them faster than they get fixed, and each one needs a
