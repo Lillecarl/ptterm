@@ -14,7 +14,7 @@ from typing import Callable, DefaultDict, Dict, List, NamedTuple, Set, Tuple
 
 from prompt_toolkit.cache import FastDictCache
 from prompt_toolkit.layout.screen import Char, Screen
-from prompt_toolkit.output.vt100 import BG_ANSI_COLORS, FG_ANSI_COLORS
+from prompt_toolkit.output.vt100_colors import BG_ANSI_COLORS, FG_ANSI_COLORS
 from prompt_toolkit.styles import Attrs, palette_color_number
 from pyte import charsets as cs
 from pyte import modes as mo
