@@ -107,18 +107,19 @@ class PlaceholderRun(NamedTuple):
     rows: int = 1
 
 
-def foreground_id(style: str) -> int:
+def foreground_id(color) -> int:
     """
     The image id that the foreground colour of a cell holds, or zero
-    when the cell has no foreground colour.
+    when the cell carries no such id.
+
+    kitty writes the id into the twenty-four bits of a colour that the
+    program named itself. A colour of the palette carries none: it has
+    eight bits, and the terminal of the user decides what they paint.
     """
-    for token in style.split():
-        if token.startswith("#") and len(token) == 7:
-            try:
-                return int(token[1:], 16)
-            except ValueError:
-                return 0
-    return 0
+    if color is None or color.rgb is None:
+        return 0
+    red, green, blue = color.rgb
+    return (red << 16) | (green << 8) | blue
 
 
 def _number(text: str, index: int) -> int:
@@ -153,7 +154,7 @@ def runs_in_line(line, columns: int, row: int) -> List[PlaceholderRun]:
         cell = line.get(x) if x < columns else None
         if cell is not None and cell.char.startswith(PLACEHOLDER):
             is_placeholder = True
-            current_id = foreground_id(cell.style)
+            current_id = foreground_id(cell.appearance.rendition.color)
             marks = cell.char[1:]
             current_row = _number(marks, 0)
             current_column = _number(marks, 1)

@@ -20,6 +20,7 @@ from prompt_toolkit.styles import palette_color_number
 
 from ptterm.screen import BetterScreen
 from ptterm.stream import BetterStream
+from ptterm.style import style_of
 
 __all__ = [
     "as_seen",
@@ -313,8 +314,9 @@ def ptterm_cells_in_pieces(
         cells = []
         for x in range(columns):
             cell = row[x]
-            target, name = _link_of_style(cell.style)
-            style = _HYPERLINK.sub("", cell.style)
+            spelled = style_of(cell.appearance)
+            target, name = _link_of_style(spelled)
+            style = _HYPERLINK.sub("", spelled)
             char = cell.char
             cells.append(
                 Cell(

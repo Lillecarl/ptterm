@@ -20,6 +20,7 @@ from ptterm.osc import (
 )
 from ptterm.screen import BetterScreen
 from ptterm.stream import BetterStream
+from ptterm.style import style_of
 
 LINK = "https://example.com/a"
 
@@ -31,7 +32,7 @@ def _screen(lines=3, columns=12):
 
 
 def _style(screen, column, row=0):
-    return screen.page.data_buffer[row][column].style
+    return style_of(screen.page.data_buffer[row][column].appearance)
 
 
 def _token(target):

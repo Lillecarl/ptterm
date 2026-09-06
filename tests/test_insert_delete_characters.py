@@ -6,6 +6,7 @@ same way an erased cell does.
 """
 from ptterm.screen import BetterScreen
 from ptterm.stream import BetterStream
+from ptterm.style import style_of
 
 
 def _screen(lines=4, columns=8):
@@ -23,13 +24,18 @@ def _rows(screen):
     ]
 
 
+def _background(row, column):
+    "The colour that one cell of a row is painted with, or None."
+    return row[column].appearance.rendition.bgcolor
+
+
 def test_inserted_characters_take_the_background():
     screen, stream = _screen()
     stream.feed("abcdef\x1b[1;3H\x1b[42m\x1b[2@")
     row = screen.page.data_buffer[screen.line_offset]
     assert row[0].char == "a"
-    assert "bg:" in row[2].style and row[2].char == " "
-    assert "bg:" in row[3].style
+    assert _background(row, 2) is not None and row[2].char == " "
+    assert _background(row, 3) is not None
     assert row[4].char == "c"
 
 
@@ -44,5 +50,5 @@ def test_deleted_characters_take_the_background_at_the_edge():
     stream.feed("abcdef\x1b[1;1H\x1b[41m\x1b[2P")
     row = screen.page.data_buffer[screen.line_offset]
     assert row[0].char == "c"
-    assert "bg:" in row[4].style and row[4].char == " "
-    assert "bg:" in row[5].style
+    assert _background(row, 4) is not None and row[4].char == " "
+    assert _background(row, 5) is not None

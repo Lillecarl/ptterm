@@ -448,7 +448,7 @@ def blinks(screen) -> bool:
         line = buffer[offset + row]
         for column in range(screen.columns):
             cell = line[column]
-            if isinstance(cell, WrittenCell) and "blink" in cell.style:
+            if isinstance(cell, WrittenCell) and cell.appearance.rendition.blink:
                 return True
     return False
 

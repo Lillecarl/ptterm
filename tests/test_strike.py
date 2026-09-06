@@ -12,6 +12,7 @@ import pytest
 
 from ptterm.screen import BetterScreen
 from ptterm.stream import BetterStream
+from ptterm.style import style_of as spell
 
 
 def screen(lines=2, columns=20):
@@ -20,7 +21,8 @@ def screen(lines=2, columns=20):
 
 
 def style_of(made, row=0, column=0):
-    return made.page.data_buffer[made.line_offset + row][column].style
+    cell = made.page.data_buffer[made.line_offset + row][column]
+    return spell(cell.appearance)
 
 
 def test_a_crossed_out_cell_says_so():

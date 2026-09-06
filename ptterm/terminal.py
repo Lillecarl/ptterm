@@ -43,6 +43,7 @@ from .backends import Backend
 from .placeholders import PLACEHOLDER
 from .process import Process
 from .screen import Cell, DoubleHeight, WrittenCell
+from .style import style_of
 
 __all__ = ["Terminal"]
 
@@ -209,8 +210,8 @@ class _TerminalControl(UIControl):
             their column.
             """
             char = _visible_char(cell.char)
-            style = cell.style
-            if reverse_video and "reverse" in style.split():
+            style = style_of(cell.appearance)
+            if reverse_video and cell.appearance.rendition.reverse:
                 style += " noreverse"
             if char == " " and isinstance(cell, WrittenCell):
                 style += " " + KeepWhitespace
@@ -612,8 +613,8 @@ class Terminal:
         Copy mode shows the screen of the pane stopped, so it holds the
         same columns the pane holds.
         """
-        style = char.style
-        if self.copy_reverse_video and "reverse" in style.split():
+        style = style_of(char.appearance)
+        if self.copy_reverse_video and char.appearance.rendition.reverse:
             style += " noreverse"
         if char.char == " " and isinstance(char, WrittenCell):
             style += " " + KeepWhitespace

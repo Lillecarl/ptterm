@@ -130,7 +130,7 @@ def test_the_comparison_notices_a_wrong_erase(monkeypatch):
 
     # This is what ptterm did before: an erased cell went away, so the
     # background of the moment was lost.
-    monkeypatch.setattr(BetterScreen, "erase_style", lambda self: "")
+    monkeypatch.setattr(BetterScreen, "erase_appearance", lambda self: None)
 
     found = differences("\x1b[42mhi\x1b[K")
     assert found, "the comparison did not see the background go missing"

@@ -18,6 +18,7 @@ import pytest
 
 from ptterm.screen import BetterScreen
 from ptterm.stream import BetterStream
+from ptterm.colors import SgrColor
 
 #: The three ways to save, and to bring back what was saved.
 PAIRS = [
@@ -48,7 +49,8 @@ def test_a_restore_brings_the_place_back(save, restore):
 def test_a_restore_brings_the_rendition_back(save, restore):
     screen, stream = _screen()
     stream.feed("\x1b[31m" + save + "\x1b[0m" + restore + "x")
-    assert "ansired" in screen.page.data_buffer[0][0].style
+    cell = screen.page.data_buffer[0][0]
+    assert cell.appearance.rendition.color == SgrColor(index=1)
 
 
 @pytest.mark.parametrize("save, restore", PAIRS)

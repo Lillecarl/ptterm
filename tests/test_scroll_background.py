@@ -14,6 +14,7 @@ writes again, so those eight cells hold what the scroll left there.
 """
 from ptterm.screen import BetterScreen
 from ptterm.stream import BetterStream
+from ptterm.style import style_of
 
 
 def row_style(data, row=3, lines=4, columns=6):
@@ -21,7 +22,8 @@ def row_style(data, row=3, lines=4, columns=6):
     screen = BetterScreen(lines, columns, write_process_input=lambda answer: None)
     stream = BetterStream(screen)
     stream.feed(data)
-    return screen.page.data_buffer[screen.line_offset + row][0].style
+    cell = screen.page.data_buffer[screen.line_offset + row][0]
+    return style_of(cell.appearance)
 
 
 def test_a_scroll_up_paints_the_line_it_brings_in():

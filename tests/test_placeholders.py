@@ -10,6 +10,7 @@ import base64
 
 import pytest
 
+from ptterm.colors import Color, SgrColor
 from ptterm.placeholders import DIACRITICS, PLACEHOLDER, foreground_id
 from ptterm.screen import BetterScreen
 from ptterm.stream import BetterStream
@@ -59,10 +60,10 @@ def transmit_virtual(stream, image_id, width, height):
 
 
 def test_the_id_comes_from_the_foreground_colour():
-    assert foreground_id("#010203") == 0x010203
-    assert foreground_id("#010203 bg:#ffffff bold") == 0x010203
-    assert foreground_id("bg:#ffffff") == 0
-    assert foreground_id("") == 0
+    assert foreground_id(SgrColor(rgb=Color(0x01, 0x02, 0x03))) == 0x010203
+    # A colour of the palette has eight bits and no id in them.
+    assert foreground_id(SgrColor(index=3)) == 0
+    assert foreground_id(None) == 0
 
 
 def test_the_first_diacritic_means_zero():

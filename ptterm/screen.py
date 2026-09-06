@@ -7,7 +7,6 @@ Changes compared to the original `Screen` class:
     - 256 colour and true color support.
     - CPR support and device attributes.
 """
-import base64
 from collections import defaultdict, namedtuple
 from enum import IntEnum, IntFlag, StrEnum
 from functools import lru_cache
@@ -50,7 +49,6 @@ from .osc import (
 )
 from .placeholders import PlaceholderRun, merge_runs, runs_in_line
 from .sixel import decode_sixel
-from .style import style_word
 
 __all__ = ("BetterScreen",)
 
@@ -598,7 +596,7 @@ CAPABILITIES: Dict[str, object] = {
 
 #: The shape of the line that each sub-parameter of "SGR 4" draws.
 #: Zero draws none. An empty name is the single line that a plain
-#: "SGR 4" draws, and prompt_toolkit reads it as such.
+#: "SGR 4" draws.
 UNDERLINE_SHAPES = {
     0: "",
     1: "",
@@ -606,15 +604,6 @@ UNDERLINE_SHAPES = {
     3: "curly",
     4: "dotted",
     5: "dashed",
-}
-
-#: The word that a style string gives each shape.
-UNDERLINE_WORDS = {
-    "": "underline",
-    "double": "underdouble",
-    "curly": "undercurl",
-    "dotted": "underdotted",
-    "dashed": "underdashed",
 }
 
 #: The sub-parameter of "SGR 4" that each shape answers with.
@@ -633,16 +622,6 @@ BASELINE_PARAMETERS = {
     "superscript": "73",
     "subscript": "74",
 }
-
-
-def _encoded(text: str) -> str:
-    """
-    One piece of a hyperlink, as it travels in a style string.
-
-    A style string is split on whitespace, and a target or an id can
-    hold anything, so both travel as base64.
-    """
-    return base64.b64encode(text.encode("utf-8")).decode("ascii")
 
 
 def _reads_the_clipboard(param: str) -> bool:
@@ -672,20 +651,6 @@ class CursorPosition:
         return f"pymux.CursorPosition(x={self.x!r}, y={self.y!r})"
 
 
-class _UnicodeInternDict(Dict[str, str]):
-    """
-    Intern dictionary for interning unicode strings. This should save memory
-    and make our cache faster.
-    """
-
-    def __missing__(self, value: str) -> str:
-        self[value] = value
-        return value
-
-
-_unicode_intern_dict = _UnicodeInternDict()
-
-
 @lru_cache(maxsize=4096)
 def character_width(text: str) -> int:
     """
@@ -703,11 +668,18 @@ def character_width(text: str) -> int:
 
 class Cell:
     """
-    One cell of a screen: what a program wrote there, and the style
-    that draws it.
+    One cell of a screen: what a program wrote there, and how it asked
+    for it to be drawn.
 
     It is immutable, and `_CHAR_CACHE` hands out one object for each
     pair, so a screen full of spaces holds one cell many times.
+
+    **The appearance is a model and not a spelling.** A cell held a
+    prompt_toolkit style string before this, so a second front end
+    could only read it by parsing one toolkit's words back into the
+    fields they came from. `ptterm/style.py` spells one for
+    prompt_toolkit, and a Textual widget spells a `rich.style.Style`
+    from the same object. Lillecarl/pymux#11 and Lillecarl/pymux#82.
 
     This was `prompt_toolkit.layout.screen.Char`, without that class's
     `display_mappings`. The table swaps a control character for "^A"
@@ -715,14 +687,13 @@ class Cell:
     prompt that a person types into and wrong for a screen: the
     program that wrote the screen already chose what it says.
     `WrittenCell` existed to undo one entry of that table.
-    Lillecarl/pymux#11.
     """
 
-    __slots__ = ("char", "style", "width")
+    __slots__ = ("char", "appearance", "width")
 
-    def __init__(self, char: str = " ", style: str = "") -> None:
+    def __init__(self, char: str, appearance: "Appearance") -> None:
         self.char = char
-        self.style = style
+        self.appearance = appearance
 
         # Every caller needs it, so it is a field and not a method.
         self.width = character_width(char)
@@ -730,7 +701,7 @@ class Cell:
     def __eq__(self, other: object) -> bool:
         return (
             self.char == other.char  # type: ignore[attr-defined]
-            and self.style == other.style  # type: ignore[attr-defined]
+            and self.appearance == other.appearance  # type: ignore[attr-defined]
         )
 
     def __ne__(self, other: object) -> bool:
@@ -738,11 +709,11 @@ class Cell:
         # frame, and one call is cheaper than two.
         return (
             self.char != other.char  # type: ignore[attr-defined]
-            or self.style != other.style  # type: ignore[attr-defined]
+            or self.appearance != other.appearance  # type: ignore[attr-defined]
         )
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self.char!r}, {self.style!r})"
+        return f"{self.__class__.__name__}({self.char!r}, {self.appearance!r})"
 
 
 class ErasedCell(Cell):
@@ -839,9 +810,9 @@ class ProtectedCell(WrittenCell):
     __slots__ = ("protection",)
 
     def __init__(
-        self, char: str = " ", style: str = "", protection: int = 0
+        self, char: str, appearance: "Appearance", protection: int = 0
     ) -> None:
-        super().__init__(char, style)
+        super().__init__(char, appearance)
         self.protection = protection
 
 
@@ -863,15 +834,15 @@ def _four(params: Tuple[int, ...], first: int) -> Tuple[int, int, int, int]:
 
 
 # Cache for Cell objects.
-_CHAR_CACHE: FastDictCache[Tuple[str, str], Cell] = FastDictCache(
+_CHAR_CACHE: FastDictCache[Tuple[str, "Appearance"], Cell] = FastDictCache(
     WrittenCell, size=1000 * 1000
 )
 
 #: The same for the cells that carry a mark. Nearly no program marks
 #: one, so this one stays small.
-_PROTECTED_CHAR_CACHE: FastDictCache[Tuple[str, str, int], Cell] = FastDictCache(
-    ProtectedCell, size=10 * 1000
-)
+_PROTECTED_CHAR_CACHE: FastDictCache[
+    Tuple[str, "Appearance", int], Cell
+] = FastDictCache(ProtectedCell, size=10 * 1000)
 
 
 class Rendition(NamedTuple):
@@ -920,6 +891,68 @@ class Rendition(NamedTuple):
 PLAIN = Rendition()
 
 
+class Appearance:
+    """
+    Everything about how one cell looks: the rendition, and the
+    hyperlink that the cell sits inside.
+
+    The two are apart because they arrive apart. SGR sets a rendition
+    and says nothing about a link; "OSC 8" opens a link and says
+    nothing about a rendition. They are together because a cell has one
+    of these and a front end wants both at once.
+
+    **Every one of these is interned**, by `appearance_of`. A screen
+    holds one object for each way of drawing that a program has asked
+    for, so a cell keeps a reference and a comparison is nearly always
+    an identity. The hash is taken once, when the object is made, and
+    a screen makes one of these per SGR sequence rather than per cell.
+    """
+
+    __slots__ = ("rendition", "hyperlink", "hyperlink_id", "_hash")
+
+    def __init__(
+        self, rendition: Rendition, hyperlink: str = "", hyperlink_id: str = ""
+    ) -> None:
+        self.rendition = rendition
+        #: The target of the link that is open ("OSC 8"), and the id
+        #: that joins its pieces. Both are empty outside a link.
+        self.hyperlink = hyperlink
+        self.hyperlink_id = hyperlink_id
+        self._hash = hash((rendition, hyperlink, hyperlink_id))
+
+    def __hash__(self) -> int:
+        return self._hash
+
+    def __eq__(self, other: object) -> bool:
+        # Interned, so the first test answers nearly every call.
+        if self is other:
+            return True
+        return (
+            self._hash == other._hash  # type: ignore[attr-defined]
+            and self.rendition == other.rendition  # type: ignore[attr-defined]
+            and self.hyperlink == other.hyperlink  # type: ignore[attr-defined]
+            and self.hyperlink_id == other.hyperlink_id  # type: ignore[attr-defined]
+        )
+
+    def __repr__(self) -> str:
+        if not self.hyperlink:
+            return "Appearance(%r)" % (self.rendition,)
+        return "Appearance(%r, %r, %r)" % (
+            self.rendition, self.hyperlink, self.hyperlink_id
+        )
+
+
+#: One `Appearance` for each way of drawing that a program has asked
+#: for. A screen reaches this once per SGR sequence.
+appearance_of: FastDictCache[
+    Tuple[Rendition, str, str], Appearance
+] = FastDictCache(Appearance, size=10 * 1000)
+
+#: How a screen draws before any program has asked for anything, and
+#: what an untouched cell carries.
+PLAIN_APPEARANCE = appearance_of[PLAIN, "", ""]
+
+
 class Page:
     """
     One screen of cells, and whether the cursor shows on it.
@@ -964,7 +997,6 @@ _Savepoint = namedtuple(
         "charset",
         "origin",
         "rendition",
-        "style_str",
         # The marks that SPA and DECSCA set. They belong to the cursor,
         # the way the rendition does, so a save remembers them.
         "protection",
@@ -1453,22 +1485,18 @@ class BetterScreen:
         the last visit left.
         """
         self._rendition = PLAIN
-        self._style_str = ""
-        # The rendition alone, without the hyperlink. The two change
-        # apart from each other, so the style of a cell is built from
-        # both.
-        self._rendition_str = ""
-        # The target of the hyperlink that is open ("OSC 8"), the id
-        # that joins its pieces, and the piece of style that carries
-        # both.
+        # The target of the hyperlink that is open ("OSC 8"), and the
+        # id that joins its pieces.
         self.hyperlink = ""
         self.hyperlink_id = ""
-        self._hyperlink_str = ""
+        # The two together, which is what a cell carries. They change
+        # apart from each other, so this is rebuilt from both.
+        self._appearance = PLAIN_APPEARANCE
 
     def _reset_screen(self) -> None:
         """Reset the Screen content. (also called when switching from/to
         alternate buffer."""
-        self.page = Page(default_char=Cell(" ", ""))
+        self.page = Page(default_char=Cell(" ", PLAIN_APPEARANCE))
 
         self.data_buffer = self.page.data_buffer
         self.pt_cursor_position = CursorPosition(0, 0)
@@ -2145,10 +2173,10 @@ class BetterScreen:
         protection = self.protection
         if protection:
             char_cache = _PROTECTED_CHAR_CACHE
-            key_tail = (self._style_str, protection)
+            key_tail = (self._appearance, protection)
             self._protected_chars = True
         else:
-            key_tail = (self._style_str,)
+            key_tail = (self._appearance,)
 
         # What REP repeats. It is kept before the translation, so that
         # a repeat travels the same road the character did.
@@ -2160,8 +2188,6 @@ class BetterScreen:
             chars = chars.translate(self.g1_charset)
         else:
             chars = chars.translate(self.g0_charset)
-
-        style = self._style_str
 
         # The column after the last one a character may take. The loop
         # works it out for each character it draws.
@@ -2274,11 +2300,11 @@ class BetterScreen:
                     marks = protection_of(cell)
                     if marks:
                         row[previous] = _PROTECTED_CHAR_CACHE[
-                            cell.char + pt_char.char, cell.style, marks
+                            cell.char + pt_char.char, cell.appearance, marks
                         ]
                     else:
                         row[previous] = _CHAR_CACHE[
-                            cell.char + pt_char.char, cell.style
+                            cell.char + pt_char.char, cell.appearance
                         ]
             else:  # char_width < 0
                 # (Should not happen.)
@@ -2520,10 +2546,10 @@ class BetterScreen:
         erased cell does.
         """
         left, right = horizontal
-        style = self.erase_style()
+        appearance = self.erase_appearance()
 
-        if style:
-            blank = ErasedCell(" ", style)
+        if appearance:
+            blank = ErasedCell(" ", appearance)
             for column in range(left, right + 1):
                 row[column] = blank
         else:
@@ -2775,10 +2801,9 @@ class BetterScreen:
                 # back on a restore, and its own suite asks for that:
                 # a save with the wrap on, a reset, and a restore
                 # leaves the wrap off.
-                self._rendition,
                 # The rendition alone. A hyperlink is not part of the
                 # cursor that "ESC 7" remembers.
-                self._rendition_str,
+                self._rendition,
                 self.protection,
             )
         ]
@@ -2797,9 +2822,8 @@ class BetterScreen:
             self.g1_charset = savepoint.g1_charset
             self.charset = savepoint.charset
             self._rendition = savepoint.rendition
-            self._rendition_str = savepoint.style_str
             self.protection = savepoint.protection
-            self._rebuild_style()
+            self._rebuild_appearance()
 
             # Origin mode is part of the cursor, so it comes back the
             # way it was saved. Both ways: a save with the mode off
@@ -2841,14 +2865,16 @@ class BetterScreen:
         which keeps the screen sparse.
         """
         data_buffer = self.data_buffer
-        style = self.erase_style()
+        appearance = self.erase_appearance()
 
-        if not style:
+        if appearance is None:
             data_buffer.pop(row, None)
             return
 
-        line: DefaultDict[int, Cell] = defaultdict(lambda: Cell(" "))
-        erased = ErasedCell(" ", style)
+        line: DefaultDict[int, Cell] = defaultdict(
+            lambda: Cell(" ", PLAIN_APPEARANCE)
+        )
+        erased = ErasedCell(" ", appearance)
         for column in range(self.columns):
             line[column] = erased
         data_buffer[row] = line
@@ -2929,9 +2955,9 @@ class BetterScreen:
                 moved[column + count] = cell
         line.update(moved)
 
-        style = self.erase_style()
-        if style:
-            blank = ErasedCell(" ", style)
+        appearance = self.erase_appearance()
+        if appearance:
+            blank = ErasedCell(" ", appearance)
             for column in range(cursor_x, min(cursor_x + count, edge)):
                 line[column] = blank
 
@@ -2966,9 +2992,9 @@ class BetterScreen:
                 moved[column - count] = cell
         line.update(moved)
 
-        style = self.erase_style()
-        if style:
-            blank = ErasedCell(" ", style)
+        appearance = self.erase_appearance()
+        if appearance:
+            blank = ErasedCell(" ", appearance)
             for column in range(max(cursor_x, edge - count), edge):
                 line[column] = blank
 
@@ -3213,9 +3239,9 @@ class BetterScreen:
         cursor_position.x = min(right, cursor_position.x + (count or 1))
         self.ensure_bounds()
 
-    def erase_style(self) -> str:
+    def erase_appearance(self) -> "Appearance | None":
         """
-        The style that an erased cell takes.
+        How an erased cell is drawn.
 
         A terminal paints an erased cell with the background that is set
         now. xterm, kitty and tmux all do this, and programs count on
@@ -3242,22 +3268,28 @@ class BetterScreen:
         that difference and nothing else: twelve cells at the end of one
         row.
 
-        An empty answer means that the cell can go away instead, which
-        keeps the screen sparse.
+        `None` means that nothing paints the cell, so the cell can go
+        away instead, which keeps the screen sparse.
+
+        A hyperlink is never part of it. An erase takes the content of
+        a cell away, and a link that covers nothing is not a link.
         """
         rendition = self._rendition
-        style = ""
 
-        if rendition.reverse:
-            # Reverse video paints the cell with the foreground.
-            style += "reverse "
-            if rendition.color:
-                style += "%s " % style_word(rendition.color)
+        if not rendition.reverse and not rendition.bgcolor:
+            return None
 
-        if rendition.bgcolor:
-            style += "bg:%s " % style_word(rendition.bgcolor)
-
-        return style
+        return appearance_of[
+            PLAIN._replace(
+                reverse=rendition.reverse,
+                # Reverse video paints the cell with the foreground, so
+                # that colour is part of an erase only then.
+                color=rendition.color if rendition.reverse else None,
+                bgcolor=rendition.bgcolor,
+            ),
+            "",
+            "",
+        ]
 
     def erase_characters(self, count: int | None = None) -> None:
         """Erases the indicated # of characters, starting with the
@@ -3276,8 +3308,9 @@ class BetterScreen:
         count = count or 1
         cursor_position = self.pt_cursor_position
         row = self.data_buffer[cursor_position.y]
-        style = self.erase_style()
-        erased = ErasedCell(" ", style)
+        # ECH writes a cell even when nothing paints it: the erase has
+        # to take the content away whether or not it has a colour.
+        erased = ErasedCell(" ", self.erase_appearance() or PLAIN_APPEARANCE)
 
         end = min(cursor_position.x + count, self.columns)
         for column in range(cursor_position.x, end):
@@ -3314,8 +3347,8 @@ class BetterScreen:
 
         line_offset = self.line_offset
         data_buffer = self.data_buffer
-        style = self.erase_style()
-        blank = ErasedCell(" ", style) if style else None
+        appearance = self.erase_appearance()
+        blank = ErasedCell(" ", appearance) if appearance else None
 
         for row in range(top, bottom + 1):
             line = data_buffer[row + line_offset]
@@ -3435,7 +3468,7 @@ class BetterScreen:
         """
         data_buffer = self.data_buffer
         pt_cursor_position = self.pt_cursor_position
-        style = self.erase_style()
+        appearance = self.erase_appearance()
 
         if type_of == 0:
             columns = range(pt_cursor_position.x, self.columns)
@@ -3446,7 +3479,7 @@ class BetterScreen:
 
         line = data_buffer[pt_cursor_position.y]
         holds = self._erase_holds
-        erased = ErasedCell(" ", style) if style else None
+        erased = ErasedCell(" ", appearance) if appearance else None
 
         for column in columns:
             cell = line.get(column)
@@ -3530,12 +3563,16 @@ class BetterScreen:
             # wants the screen cleared as well sends "CSI 2 J" first.
             self.clear_history()
         else:
-            style = self.erase_style()
+            appearance = self.erase_appearance()
 
             # A line that holds nothing needs no cell, so the erasing
             # stops at the last line in use. A background has to reach
             # the bottom of the screen, though.
-            last_line = max(max_line, line_offset + self.lines - 1) if style else max_line
+            last_line = (
+                max(max_line, line_offset + self.lines - 1)
+                if appearance
+                else max_line
+            )
 
             try:
                 interval = (
@@ -3552,7 +3589,7 @@ class BetterScreen:
                 return
 
             data_buffer = self.data_buffer
-            erased = ErasedCell(" ", style) if style else None
+            erased = ErasedCell(" ", appearance) if appearance else None
 
             # "CSI 2 J" takes the whole screen, marks and all. Only
             # the two that erase a part of it read the marks, and the
@@ -3591,7 +3628,9 @@ class BetterScreen:
                     )
                     continue
 
-                data_buffer[line] = defaultdict(lambda: Cell(" "))
+                data_buffer[line] = defaultdict(
+                    lambda: Cell(" ", PLAIN_APPEARANCE)
+                )
                 if erased is not None:
                     # A background is set, so the erased cells take it.
                     row = data_buffer[line]
@@ -3703,10 +3742,10 @@ class BetterScreen:
 
         protection = self.protection
         if protection:
-            cell = _PROTECTED_CHAR_CACHE[(chr(code), self._style_str, protection)]
+            cell = _PROTECTED_CHAR_CACHE[(chr(code), self._appearance, protection)]
             self._protected_chars = True
         else:
-            cell = _CHAR_CACHE[(chr(code), self._style_str)]
+            cell = _CHAR_CACHE[(chr(code), self._appearance)]
 
         data_buffer = self.data_buffer
         line_offset = self.line_offset
@@ -3751,8 +3790,8 @@ class BetterScreen:
             return
         top, left, bottom, right = corners
 
-        style = self.erase_style()
-        erased = ErasedCell(" ", style) if style else None
+        appearance = self.erase_appearance()
+        erased = ErasedCell(" ", appearance) if appearance else None
         reads_the_marks = selective and self._protected_chars
 
         data_buffer = self.data_buffer
@@ -3953,7 +3992,7 @@ class BetterScreen:
         for y in range(0, self.lines):
             line = self.data_buffer[y + self.line_offset]
             for x in range(0, self.columns):
-                line[x] = _CHAR_CACHE["E", ""]
+                line[x] = _CHAR_CACHE["E", PLAIN_APPEARANCE]
         self.margins = None
         self.horizontal_margins = None
         self.cursor_position()
@@ -4113,51 +4152,26 @@ class BetterScreen:
                     parameters.append(attrs.pop())
                 replace["underline_color"] = sgr_color(parameters)
 
-        rendition = self._rendition._replace(**replace)  # type:ignore
+        self._rendition = self._rendition._replace(**replace)  # type:ignore
+        self._rebuild_appearance()
 
-        # Build style string.
-        style_str = ""
-        if rendition.color:
-            style_str += "%s " % style_word(rendition.color)
-        if rendition.bgcolor:
-            style_str += "bg:%s " % style_word(rendition.bgcolor)
-        if rendition.bold:
-            style_str += "bold "
-        if rendition.dim:
-            style_str += "dim "
-        if rendition.italic:
-            style_str += "italic "
-        if rendition.underline:
-            style_str += UNDERLINE_WORDS[rendition.underline_style or ""] + " "
-            # The colour of a line that nobody draws would travel with
-            # every cell for nothing.
-            if rendition.underline_color:
-                style_str += "ul:%s " % style_word(rendition.underline_color)
-        if rendition.blink:
-            style_str += "blink "
-        if rendition.reverse:
-            style_str += "reverse "
-        if rendition.hidden:
-            style_str += "hidden "
-        if rendition.strike:
-            style_str += "strike "
-        if rendition.baseline:
-            style_str += rendition.baseline + " "
-
-        self._rendition_str = _unicode_intern_dict[style_str]
-        self._rendition = rendition
-        self._rebuild_style()
-
-    def _rebuild_style(self) -> None:
+    def _rebuild_appearance(self) -> None:
         """
-        The style that a cell takes: the rendition and the hyperlink.
+        What a cell drawn now carries: the rendition and the hyperlink.
 
         A hyperlink is not a rendition. "OSC 8" opens one and "CSI m"
         says nothing about it, so the two are kept apart and joined
         here.
+
+        This runs once per SGR sequence and once per "OSC 8", and never
+        per cell. `draw` reaches for the answer.
         """
-        self._style_str = _unicode_intern_dict[
-            self._rendition_str + self._hyperlink_str
+        target = self.hyperlink
+        self._appearance = appearance_of[
+            self._rendition,
+            target,
+            # An id outside a link joins nothing to nothing.
+            self.hyperlink_id if target else "",
         ]
 
     def set_hyperlink(self, target: str, link_id: str = "") -> None:
@@ -4177,13 +4191,7 @@ class BetterScreen:
             return
         self.hyperlink = target
         self.hyperlink_id = link_id
-        if target:
-            self._hyperlink_str = "[hyperlink:%s] " % _encoded(target)
-            if link_id:
-                self._hyperlink_str += "[hyperlink-id:%s] " % _encoded(link_id)
-        else:
-            self._hyperlink_str = ""
-        self._rebuild_style()
+        self._rebuild_appearance()
 
     # Colour scheme that a pane is told about ("CSI ? 996 n"). pymux
     # renders a dark background, so a pane that asks gets the dark
@@ -5427,7 +5435,7 @@ class BetterScreen:
         width = self.columns
 
         data_buffer = self.page.data_buffer
-        new_data_buffer = Page(default_char=Cell(" ", "")).data_buffer
+        new_data_buffer = Page(default_char=Cell(" ", PLAIN_APPEARANCE)).data_buffer
         cursor_position = self.pt_cursor_position
         cy, cx = (cursor_position.y, cursor_position.x)
 
@@ -5484,7 +5492,7 @@ class BetterScreen:
             while (
                 len(line) > 1
                 and not isinstance(line[-1], WrittenCell)
-                and not line[-1].style
+                and line[-1].appearance == PLAIN_APPEARANCE
             ):
                 if row_index == cy and len(line) - 1 == cx:
                     break

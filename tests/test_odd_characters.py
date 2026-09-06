@@ -11,6 +11,7 @@ import pytest
 from kitty_oracle import differences, kitty_is_available, ptterm_cells
 from ptterm.screen import BetterScreen
 from ptterm.stream import BetterStream
+from ptterm.style import style_of
 
 NBSP = "\xa0"
 
@@ -28,7 +29,7 @@ def test_a_no_break_space_carries_no_style_of_its_own():
     stream.feed("\x1b[31m" + NBSP)
     cell = screen.page.data_buffer[screen.line_offset][0]
     assert cell.char == NBSP
-    assert "nbsp" not in cell.style
+    assert "nbsp" not in style_of(cell.appearance)
 
 
 @pytest.mark.skipif(

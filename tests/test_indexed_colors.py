@@ -11,6 +11,7 @@ the other 240 are written "ansi16" up to "ansi255".
 """
 from ptterm.screen import BetterScreen
 from ptterm.stream import BetterStream
+from ptterm.style import style_of as spell
 
 
 def style_of(data, column=0):
@@ -18,7 +19,8 @@ def style_of(data, column=0):
     screen = BetterScreen(2, 8, write_process_input=lambda answer: None)
     stream = BetterStream(screen)
     stream.feed(data)
-    return screen.page.data_buffer[screen.line_offset][column].style
+    cell = screen.page.data_buffer[screen.line_offset][column]
+    return spell(cell.appearance)
 
 
 def test_the_first_sixteen_keep_their_name():

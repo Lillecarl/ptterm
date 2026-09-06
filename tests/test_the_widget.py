@@ -41,6 +41,7 @@ from prompt_toolkit.token import KeepWhitespace
 from prompt_toolkit.layout.layout import Layout
 
 from no_backend import NoBackend
+from ptterm.screen import PLAIN_APPEARANCE, Cell
 from ptterm.terminal import Terminal, _TerminalControl, _Window
 
 
@@ -382,11 +383,10 @@ def test_a_control_character_in_a_cell_is_drawn_as_a_blank():
     """
     control = _TerminalControl(backend=_NoBackend())
     control.create_content(6, 3)
-    # prompt_toolkit's own `Char` swaps a control for "^A" as it is
-    # built, so a cell can only hold one when that is turned off. This
-    # is the cell the guard in `_visible_char` is there for.
-    control.process.screen.page.data_buffer[0][0] = Char(
-        "\x01", "", apply_display_mappings=False
+    # A `Cell` holds what it is given, so the cell is written here. The
+    # guard in `_visible_char` is what keeps it off the terminal.
+    control.process.screen.page.data_buffer[0][0] = Cell(
+        "\x01", PLAIN_APPEARANCE
     )
     content = control.create_content(6, 3)
     assert "".join(text for _, text in content.get_line(0))[0] == " "

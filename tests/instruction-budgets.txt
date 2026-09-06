@@ -6,49 +6,49 @@
 # This is what the run saw. To make it what the check expects:
 #     nix build --file . checks.ptterm-instructions.run
 #     cp result/instruction-budgets.txt ptterm/tests/instruction-budgets.txt
-alt_reset                                2145027
-alt_reset (render)                       2191
-delete_lines                             218435
-delete_lines (render)                    37434
-fish_cc                                  347704
-fish_cc (render)                         14319
-grid_reset                               272429
-grid_reset (render)                      15235
-indexed_256_colors                       914449
-indexed_256_colors (render)              39610
-issue_855                                1419077
-issue_855 (render)                       63364
-ll                                       236687
-ll (render)                              72865
-region_scroll_down                       750865
-region_scroll_down (render)              6089
-row_reset                                4674523
-row_reset (render)                       128949
-scroll_in_region_up_preserves_history    518668
-scroll_in_region_up_preserves_history (render) 84770
-scroll_up_reset                          566896
-scroll_up_reset (render)                 51792
-tmux_git_log                             1821037
-tmux_git_log (render)                    59023
-tmux_htop                                5037971
-tmux_htop (render)                       80237
-vim_24bitcolors_bce                      38574595
-vim_24bitcolors_bce (render)             853166
-vim_large_window_scroll                  33681125
-vim_large_window_scroll (render)         408632
-vim_simple_edit                          493694
-vim_simple_edit (render)                 111477
-vttest_cursor_movement_1                 771789
-vttest_cursor_movement_1 (render)        111784
-vttest_insert                            589829
-vttest_insert (render)                   9987
-vttest_origin_mode_1                     3453610
-vttest_origin_mode_1 (render)            8422
-vttest_origin_mode_2                     1604045
-vttest_origin_mode_2 (render)            7502
-vttest_scroll                            1581404
-vttest_scroll (render)                   52441
-vttest_tab_clear_set                     233207
-vttest_tab_clear_set (render)            14520
-wrapline_alt_toggle                      287220
-wrapline_alt_toggle (render)             17827
+alt_reset                                2046053
+alt_reset (render)                       2381
+delete_lines                             222678
+delete_lines (render)                    41289
+fish_cc                                  324501
+fish_cc (render)                         16077
+grid_reset                               268556
+grid_reset (render)                      16585
+indexed_256_colors                       898630
+indexed_256_colors (render)              64509
+issue_855                                1418600
+issue_855 (render)                       70116
+ll                                       234786
+ll (render)                              80365
+region_scroll_down                       728294
+region_scroll_down (render)              6773
+row_reset                                4530048
+row_reset (render)                       143172
+scroll_in_region_up_preserves_history    527253
+scroll_in_region_up_preserves_history (render) 93520
+scroll_up_reset                          578667
+scroll_up_reset (render)                 57318
+tmux_git_log                             1795721
+tmux_git_log (render)                    65068
+tmux_htop                                4904155
+tmux_htop (render)                       90542
+vim_24bitcolors_bce                      37357506
+vim_24bitcolors_bce (render)             937504
+vim_large_window_scroll                  32734645
+vim_large_window_scroll (render)         450061
+vim_simple_edit                          493951
+vim_simple_edit (render)                 121077
+vttest_cursor_movement_1                 785467
+vttest_cursor_movement_1 (render)        122412
+vttest_insert                            591274
+vttest_insert (render)                   10898
+vttest_origin_mode_1                     3513464
+vttest_origin_mode_1 (render)            9123
+vttest_origin_mode_2                     1630532
+vttest_origin_mode_2 (render)            8133
+vttest_scroll                            1607375
+vttest_scroll (render)                   57901
+vttest_tab_clear_set                     234582
+vttest_tab_clear_set (render)            15788
+wrapline_alt_toggle                      276371
+wrapline_alt_toggle (render)             19722

@@ -57,8 +57,14 @@ from kitty_oracle import (  # noqa: E402
     _underline_of_style,
 )
 
-from ptterm.screen import BetterScreen, DoubleHeight, WrittenCell  # noqa: E402
+from ptterm.screen import (  # noqa: E402
+    BetterScreen,
+    DoubleHeight,
+    WrittenCell,
+    appearance_of,
+)
 from ptterm.stream import BetterStream  # noqa: E402
+from ptterm.style import style_of  # noqa: E402
 
 #: The screen that libvterm's `INIT` makes.
 ROWS, COLUMNS = 25, 80
@@ -253,7 +259,9 @@ class Harness:
         if argument == "reverse":
             return _switch(attrs.reverse)
         if argument == "underline":
-            return str(_underline_of_style(screen._rendition_str))
+            return str(
+                _underline_of_style(style_of(appearance_of[attrs, "", ""]))
+            )
         if argument == "foreground":
             return self._colour(attrs.color, self.default_foreground, "fg")
         if argument == "background":
@@ -512,7 +520,9 @@ def _baseline_of_style(style: str) -> str:
 def _rendition_of(cell) -> str:
     "The style of a cell, without the hyperlink that is not a style."
     return " ".join(
-        part for part in cell.style.split() if not part.startswith(_LINK)
+        part
+        for part in style_of(cell.appearance).split()
+        if not part.startswith(_LINK)
     )
 
 

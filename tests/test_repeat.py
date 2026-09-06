@@ -83,4 +83,4 @@ def test_a_repeat_carries_the_rendition_that_is_set(pane):
     stream.feed("\x1b[31ma\x1b[2b")
     line = screen.data_buffer[0]
     assert row(screen, 0) == "aaa" + " " * (COLUMNS - 3)
-    assert line[0].style == line[2].style
+    assert line[0].appearance == line[2].appearance

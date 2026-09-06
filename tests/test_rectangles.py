@@ -12,6 +12,7 @@ the rectangle in. None of the four moves the cursor.
 """
 from ptterm.screen import BetterScreen
 from ptterm.stream import BetterStream
+from ptterm.style import style_of
 
 #: The screen that esctest draws before it takes a rectangle.
 DATA = [
@@ -142,13 +143,18 @@ def test_a_fill_drops_a_character_that_a_latin_1_terminal_has_no_cell_for():
     assert _lines(screen) == DATA
 
 
+def _background(row, column):
+    "The colour that one cell of a row is painted with, or None."
+    return row[column].appearance.rendition.bgcolor
+
+
 def test_a_filled_cell_takes_the_rendition_that_is_set_now():
     screen, stream = _screen()
     stream.feed("\x1b[42m\x1b[37;1;1;1;2$x")
     row = screen.page.data_buffer[0]
     assert row[0].char == "%"
-    assert "bg:" in row[0].style
-    assert "bg:" in row[1].style
+    assert _background(row, 0) is not None
+    assert _background(row, 1) is not None
 
 
 def test_a_filled_cell_carries_the_mark_of_decsca():
@@ -199,7 +205,7 @@ def test_an_erased_rectangle_keeps_the_background():
     row = screen.page.data_buffer[0]
     for column in range(3):
         assert row[column].char == " "
-        assert "bg:" in row[column].style
+        assert _background(row, column) is not None
     assert row[3].char == "d"
 
 

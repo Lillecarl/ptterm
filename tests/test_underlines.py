@@ -11,6 +11,7 @@ import pytest
 
 from ptterm.screen import BetterScreen
 from ptterm.stream import BetterStream
+from ptterm.style import style_of
 
 
 def screen_of(data, lines=2, columns=20):
@@ -25,7 +26,7 @@ def styles(data, count):
     "The style of the first `count` cells of the first line."
     screen = screen_of(data)
     row = screen.page.data_buffer[screen.line_offset]
-    return [row[x].style for x in range(count)]
+    return [style_of(row[x].appearance) for x in range(count)]
 
 
 @pytest.mark.parametrize(

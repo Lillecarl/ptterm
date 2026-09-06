@@ -1,21 +1,37 @@
 """
-How prompt_toolkit spells a colour.
+How prompt_toolkit spells what a cell carries.
 
-A screen holds a colour as a number: a place in the palette, or three
-components a program named itself. `colors.py` says why. What a
-renderer writes for that number is the renderer's own answer, and this
-file is prompt_toolkit's.
+A screen holds an `Appearance`: the rendition that SGR set, and the
+hyperlink that "OSC 8" opened. Both are a model, and neither is a
+spelling. What a renderer writes for them is the renderer's own
+answer, and this file is prompt_toolkit's.
 
 A second front end has a second answer. Textual draws through Rich, so
-its cell carries a `rich.style.Style` and not a word at all
-(Lillecarl/pymux#82). Nothing here is shared with it, which is the
-reason this is a file of its own.
+it builds a `rich.style.Style` from the same object and reads no word
+written here (Lillecarl/pymux#82). Nothing in this file is shared with
+it, which is the reason it is a file of its own.
+
+`ptterm/terminal.py` is the only thing that calls `style_of`, once per
+cell of a frame, so the answer is remembered. A screen makes one
+appearance per SGR sequence, and a frame draws thousands of cells
+carrying a handful of them.
 """
-from typing import List
+import base64
+from functools import lru_cache
+from typing import TYPE_CHECKING, Dict, List
 
 from .colors import SgrColor
 
-__all__ = ("PALETTE_NAMES", "DEFAULT_COLOR_NAME", "style_word")
+if TYPE_CHECKING:
+    from .screen import Appearance
+
+__all__ = (
+    "PALETTE_NAMES",
+    "DEFAULT_COLOR_NAME",
+    "UNDERLINE_WORDS",
+    "style_of",
+    "style_word",
+)
 
 #: The names that prompt_toolkit gives the first sixteen colours of the
 #: palette, in the order that "CSI 38 ; 5 ; n m" numbers them.
@@ -67,3 +83,82 @@ def style_word(color: SgrColor) -> str:
     if color.index < len(PALETTE_NAMES):
         return "#" + PALETTE_NAMES[color.index]
     return "#ansi%d" % color.index
+
+
+#: The word that prompt_toolkit reads for each shape of underline.
+UNDERLINE_WORDS: Dict[str, str] = {
+    "": "underline",
+    "double": "underdouble",
+    "curly": "undercurl",
+    "dotted": "underdotted",
+    "dashed": "underdashed",
+}
+
+
+def _encoded(text: str) -> str:
+    """
+    One piece of a hyperlink, as it travels in a style string.
+
+    prompt_toolkit splits a style string on whitespace, and a target or
+    an id can hold anything, so both travel as base64.
+    """
+    return base64.b64encode(text.encode("utf-8")).decode("ascii")
+
+
+def _spelled(appearance: "Appearance") -> str:
+    """
+    The prompt_toolkit style string that draws one cell.
+
+    `style_of` is this function with the answers remembered. Nothing
+    calls this one directly.
+    """
+    rendition = appearance.rendition
+    style = ""
+
+    if rendition.color:
+        style += "%s " % style_word(rendition.color)
+    if rendition.bgcolor:
+        style += "bg:%s " % style_word(rendition.bgcolor)
+    if rendition.bold:
+        style += "bold "
+    if rendition.dim:
+        style += "dim "
+    if rendition.italic:
+        style += "italic "
+    if rendition.underline:
+        style += UNDERLINE_WORDS[rendition.underline_style or ""] + " "
+        # The colour of a line that nobody draws would travel with
+        # every cell for nothing.
+        if rendition.underline_color:
+            style += "ul:%s " % style_word(rendition.underline_color)
+    if rendition.blink:
+        style += "blink "
+    if rendition.reverse:
+        style += "reverse "
+    if rendition.hidden:
+        style += "hidden "
+    if rendition.strike:
+        style += "strike "
+    if rendition.baseline:
+        style += rendition.baseline + " "
+
+    if appearance.hyperlink:
+        style += "[hyperlink:%s] " % _encoded(appearance.hyperlink)
+        if appearance.hyperlink_id:
+            style += "[hyperlink-id:%s] " % _encoded(appearance.hyperlink_id)
+
+    return style
+
+
+#: The prompt_toolkit style string that draws one cell.
+#:
+#: A frame asks this once per cell, so it is the hot path of drawing,
+#: and a screen holds a handful of appearances. `lru_cache` answers a
+#: hit without running any bytecode at all, which a dictionary of our
+#: own cannot: that one costs a Python call for every cell, and
+#: `checks.ptterm-instructions` measured the difference at seven points
+#: of a frame.
+#:
+#: The size holds every appearance that a screen can hand out, because
+#: `appearance_of` keeps ten thousand.
+style_of = lru_cache(maxsize=10 * 1000)(_spelled)
