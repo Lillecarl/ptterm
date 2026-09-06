@@ -353,10 +353,22 @@ class Shutter:
         #: It is not the walk's own time, so the budget leaves it out.
         self.spent = 0.0
 
-    async def picture_of(self, identity: str) -> None:
-        "Ask for a picture of the screen, and wait until it is taken."
+    async def picture_of(self, identity: str, blinking: bool) -> None:
+        """
+        Ask for a picture of the screen, and wait until it is taken.
+
+        `blinking` says the screen holds a cell that blinks, and the
+        camera is told because it cannot find out. The phase of a blink
+        is made inside the terminal, on the terminal's own clock, and
+        no byte of it is on the wire. So one picture of such a screen
+        is a coin toss, and two pictures of one are two coin tosses:
+        measured on "2 Test of screen features", where the graphic
+        rendition pattern came out 6108 pixels apart because one side
+        was caught lit and the other dark.
+        """
         started = time.monotonic()
-        os.write(self.ready, (identity + "\n").encode())
+        line = identity + ("\tblinks" if blinking else "")
+        os.write(self.ready, (line + "\n").encode())
         while True:
             try:
                 if os.read(self.go, 4096):
@@ -414,6 +426,31 @@ def rows_of(screen) -> list[str]:
         out.append("".join(_text_of(line[column])
                            for column in range(screen.columns)))
     return out
+
+
+def blinks(screen) -> bool:
+    """
+    Whether any cell of the visible screen blinks.
+
+    A blinking cell is the one thing a picture cannot be taken of. The
+    terminal turns it on and off on a clock of its own, and nothing
+    about that phase is on the wire, so two terminals drawing the same
+    bytes are lit and dark at moments nobody can line up. `keep` passes
+    this on, and the camera outside takes several pictures rather than
+    one.
+
+    ptterm writes "blink" into the style of a cell for SGR 5 and SGR 6
+    alike, and the style is what the renderer reads.
+    """
+    buffer = screen.pt_screen.data_buffer
+    offset = screen.line_offset
+    for row in range(screen.lines):
+        line = buffer[offset + row]
+        for column in range(screen.columns):
+            cell = line[column]
+            if isinstance(cell, TerminalChar) and "blink" in cell.style:
+                return True
+    return False
 
 
 def attributes_of(screen) -> list[str]:
@@ -889,6 +926,10 @@ class Walk:
         ]
         if attributes:
             out.append("line attributes: %s" % ", ".join(attributes))
+        blinking = blinks(screen)
+        if blinking:
+            out.append("this screen blinks, so a still picture of it says "
+                       "nothing")
         out.append("-" * 72)
         for number, row in enumerate(rows):
             out.append("%2d |%s|" % (number, row))
@@ -914,7 +955,7 @@ class Walk:
         # that order. A screen dropped above as a repeat is the same
         # picture, so it gets none.
         if self.shutter is not None:
-            await self.shutter.picture_of(identity)
+            await self.shutter.picture_of(identity, blinking)
 
     def excluded(self, path: str) -> str | None:
         "The reason `NOT_OURS` keeps the walker out of a path, or None."
