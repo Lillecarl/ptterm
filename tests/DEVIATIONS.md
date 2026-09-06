@@ -1304,7 +1304,10 @@ The line still holds every column it held. libvterm alone halves a
 double width line, and kitty, WezTerm, Alacritty, Ghostty and xterm.js
 all keep it whole. Five to one, and `test_the_panel.py` holds the vote.
 ptterm draws nothing with the attribute: how wide a line looks is the
-renderer's decision. Emitting it is Lillecarl/pymux#65.
+renderer's decision. The widget hands it to that renderer now, and only
+where the embedder says the pane holds whole rows of the terminal
+(Lillecarl/pymux#65), so `checks.pymux-vterm` answers these five as
+well.
 
 DECALN filled the screen with a plain `Char`, which reads as a cell
 nobody wrote, so eight assertions in `90vttest_01-movement-1` saw an
