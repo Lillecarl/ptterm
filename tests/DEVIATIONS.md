@@ -58,6 +58,10 @@ of them without asking a person.
   reference tests found it. A number above fifteen became the colour that
   xterm paints, so the theme of the user reached only sixteen cells out of
   256. Every judge of the panel keeps the number.
+- The id of a hyperlink ("OSC 8") was read and dropped, and Alacritty's
+  reference tests found it. The id joins the pieces of one link, so a
+  link that a line break cuts in two is one link. Without it a terminal
+  gives each run one of its own, and the link becomes two.
 - SU and SD ("CSI S" and "CSI T") did nothing. pyte has neither.
 - "CSI 2 L" dragged the lines above the cursor down with it.
 - The blanks that "CSI @" and "CSI P" leave took no background, and an
@@ -919,10 +923,14 @@ only through a resize.
 
 ## Not compared yet
 
-- A hyperlink (OSC 8) belongs to a cell. ptterm carries one now, in
-  the style of the cell, but the comparison cannot see it: kitty holds
-  an identifier that names the link and not the target itself.
-  `test_hyperlinks.py` covers it against the screen instead.
+- A hyperlink (OSC 8) belongs to a cell. ptterm carries the target and
+  the id now, in the style of the cell, but no judge on the panel can
+  see either: `kitty_oracle.Cell` has no field for a link, and it takes
+  the link off the style before a comparison. So the sequence has no
+  vote, and Alacritty's reference tests are the only judge of it.
+  `test_hyperlinks.py` covers it against the screen instead. Every
+  emulator on the panel models a link, so the seat is fillable:
+  Lillecarl/pymux#76.
 - Sixel and the graphics protocol of kitty. Both draw pixels, which
   asks for a comparison of images and not of cells.
 
