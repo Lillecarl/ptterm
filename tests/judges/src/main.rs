@@ -15,12 +15,18 @@
 //! for every emulator. A cell is an array, to keep the answer small:
 //!
 //! ```json
-//! [char, fg, bg, bold, italic, underline, reverse, underline_color]
+//! [char, fg, bg, bold, italic, underline, reverse, underline_color,
+//!  hyperlink, hyperlink_name]
 //! ```
 //!
 //! A colour is `null` for the default, `["index", n]` for a number of
 //! the palette or `["rgb", r, g, b]`. The python side resolves a
 //! number above fifteen, so that every judge resolves it the same way.
+//!
+//! `hyperlink` is the target of an "OSC 8", and `hyperlink_name` is
+//! what this emulator calls that one link. The two names do not compare
+//! across emulators, so the python side turns each into a number of the
+//! screen and compares the shape: which runs of cells are one link.
 //!
 //! The process stays open and answers one request after another,
 //! because the hunt asks tens of thousands of times.
@@ -80,11 +86,17 @@ fn wezterm_screen(data: &str, lines: usize, columns: usize) -> Value {
         let mut row = Vec::with_capacity(columns);
         for x in 0..columns {
             row.push(match screen.get_cell(x, y as i64) {
-                None => json!([" ", null, null, false, false, 0, false, null]),
+                None => {
+                    json!([" ", null, null, false, false, 0, false, null, null, null])
+                }
                 Some(cell) => {
                     let attrs = cell.attrs();
                     let text = cell.str();
                     let underline = attrs.underline() as u8;
+                    // WezTerm holds the link itself and mints no name
+                    // for it, so the target and the parameters together
+                    // are what it calls one link.
+                    let link = attrs.hyperlink();
                     json!([
                         if text.is_empty() { " " } else { text },
                         wez_color(attrs.foreground()),
@@ -99,6 +111,18 @@ fn wezterm_screen(data: &str, lines: usize, columns: usize) -> Value {
                             Value::Null
                         } else {
                             wez_color(attrs.underline_color())
+                        },
+                        match link {
+                            None => Value::Null,
+                            Some(link) => json!(link.uri()),
+                        },
+                        match link {
+                            None => Value::Null,
+                            Some(link) => json!(format!(
+                                "{}\u{0}{}",
+                                link.params().get("id").map(String::as_str).unwrap_or(""),
+                                link.uri()
+                            )),
                         },
                     ])
                 }
@@ -186,6 +210,10 @@ fn alacritty_screen(data: &str, lines: usize, columns: usize) -> Value {
         for x in 0..columns {
             let cell = &grid[Point::new(Line(y as i32), Column(x))];
             let underline = alacritty_underline(cell.flags);
+            // Alacritty mints a name for a link that the program left
+            // without an id, out of a counter of the process. So the
+            // name is not the same twice and only its shape travels.
+            let link = cell.hyperlink();
             row.push(json!([
                 // The second half of a double width character holds no
                 // character of its own.
@@ -213,6 +241,14 @@ fn alacritty_screen(data: &str, lines: usize, columns: usize) -> Value {
                     Value::Null
                 } else {
                     cell.underline_color().map_or(Value::Null, alacritty_color)
+                },
+                match &link {
+                    None => Value::Null,
+                    Some(link) => json!(link.uri()),
+                },
+                match &link {
+                    None => Value::Null,
+                    Some(link) => json!(format!("{}\u{0}{}", link.id(), link.uri())),
                 },
             ]));
         }

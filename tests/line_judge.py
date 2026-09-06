@@ -10,9 +10,13 @@ cost more than the comparison.
 The protocol is one line in and one line out:
 
     {"data": "...", "lines": 6, "columns": 20}
-    {"<name>": [[[char, fg, bg, bold, italic, ul, rev, ulcol], ...]]}
+    {"<name>": [[[char, fg, bg, bold, italic, ul, rev, ulcol,
+                  link, link_name], ...]]}
 
-A colour is null, ["index", n] or ["rgb", r, g, b].
+A colour is null, ["index", n] or ["rgb", r, g, b]. `link` is the
+target of an "OSC 8" and `link_name` is what that emulator calls the
+one link; `number_the_links` turns the name into a number of the
+screen, because no two emulators name a link alike.
 """
 import atexit
 import json
@@ -20,7 +24,7 @@ import os
 import subprocess
 from typing import Dict, List, Optional, Sequence, Tuple
 
-from kitty_oracle import Cell
+from kitty_oracle import Cell, number_the_links
 
 __all__ = ["LineJudge", "color_of"]
 
@@ -103,22 +107,26 @@ class LineJudge:
         raw = json.loads(answer)
 
         return {
-            name: [
+            name: number_the_links(
                 [
-                    Cell(
-                        char=cell[0] or " ",
-                        fg=color_of(cell[1]),
-                        bg=color_of(cell[2]),
-                        bold=cell[3],
-                        italic=cell[4],
-                        underline=cell[5],
-                        reverse=cell[6],
-                        underline_color=color_of(cell[7]),
-                    )
-                    for cell in row
+                    [
+                        Cell(
+                            char=cell[0] or " ",
+                            fg=color_of(cell[1]),
+                            bg=color_of(cell[2]),
+                            bold=cell[3],
+                            italic=cell[4],
+                            underline=cell[5],
+                            reverse=cell[6],
+                            underline_color=color_of(cell[7]),
+                            hyperlink=cell[8],
+                            hyperlink_id=cell[9],
+                        )
+                        for cell in row
+                    ]
+                    for row in raw[name]
                 ]
-                for row in raw[name]
-            ]
+            )
             for name in self.names
             if name in raw
         }

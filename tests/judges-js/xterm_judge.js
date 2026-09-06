@@ -7,7 +7,8 @@
 //
 // The answer is one line holding the screen, as rows of cells:
 //
-//     {"xterm": [[[char, fg, bg, bold, italic, ul, rev, ulcol], ...]]}
+//     {"xterm": [[[char, fg, bg, bold, italic, ul, rev, ulcol,
+//                  link, link_name], ...]]}
 //
 // A colour is null, ["index", n] or ["rgb", r, g, b]. That is the
 // shape every other judge speaks.
@@ -39,12 +40,12 @@ function screenOf(terminal, lines, columns) {
     const cells = [];
     for (let x = 0; x < columns; x++) {
       if (!line) {
-        cells.push([" ", null, null, false, false, 0, false, null]);
+        cells.push([" ", null, null, false, false, 0, false, null, null, null]);
         continue;
       }
       const cell = line.getCell(x);
       if (!cell) {
-        cells.push([" ", null, null, false, false, 0, false, null]);
+        cells.push([" ", null, null, false, false, 0, false, null, null, null]);
         continue;
       }
 
@@ -67,6 +68,14 @@ function screenOf(terminal, lines, columns) {
         // it compares.
         cell.isUnderline() !== 0 ? 1 : 0,
         cell.isInverse() !== 0,
+        null,
+        // The target of an "OSC 8", and what xterm.js calls that one
+        // link. `IBufferCell` reports neither. xterm.js holds a link
+        // out of sight, behind its own link service, and reaching for
+        // that would tie the judge to a private path that the next
+        // version moves. So this judge says nothing about a link, and
+        // `_as_xterm_sees` drops it from both sides.
+        null,
         null,
       ]);
     }

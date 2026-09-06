@@ -9,11 +9,12 @@ reference: what it shows is what the user sees outside pymux.
 `PTTERM_KITTY` names the directory that holds the `kitty` package. The
 tests skip when it is not set.
 """
+import base64
 import os
 import re
 import sys
 import unicodedata
-from typing import List, NamedTuple, Optional, Tuple
+from typing import Dict, List, NamedTuple, Optional, Tuple
 
 from prompt_toolkit.styles import palette_color_number
 
@@ -25,6 +26,7 @@ __all__ = [
     "as_text",
     "Cell",
     "kitty_is_available",
+    "number_the_links",
     "ptterm_cells",
     "kitty_cells",
     "differences",
@@ -67,6 +69,18 @@ class Cell(NamedTuple):
     #: The colour of the underline itself, or None for the colour of
     #: the text.
     underline_color: Optional[Tuple] = None
+    #: The target of the link that this cell belongs to, or None. It is
+    #: the text that the program wrote, so it compares as it stands.
+    hyperlink: Optional[str] = None
+    #: Which link this cell belongs to, as a number of this screen: 1
+    #: for the first link the reader meets, 2 for the next.
+    #:
+    #: An emulator names a link its own way and no two of those names
+    #: compare. What compares is the shape: which runs of cells are one
+    #: link. `number_the_links` writes the numbers, as the last step of
+    #: every reader. Until it runs the field holds the name that the
+    #: emulator gave.
+    hyperlink_id: Optional[int] = None
 
 
 #: The word that a style string of prompt_toolkit gives each shape,
@@ -125,7 +139,58 @@ _settings_are_given = False
 #: The pieces of style that carry a hyperlink: its target and its id.
 #: Both are base64, which can hold the letters of a rendition, so they
 #: go away before the style is read.
-_HYPERLINK = re.compile(r"\[hyperlink(?:-id)?:[^\]]*\]")
+_HYPERLINK = re.compile(r"\[hyperlink(-id)?:([^\]]*)\]")
+
+
+def _link_of_style(style: str) -> Tuple[Optional[str], str]:
+    """
+    The target of the link that a style string carries, and its name.
+
+    ptterm writes the target and the id of the link into the style, each
+    in base64. The two together are what ptterm calls one link: a
+    program that opens the same target under a second id opens a second
+    link.
+    """
+    target = None
+    link_id = ""
+    for is_id, value in _HYPERLINK.findall(style):
+        text = base64.b64decode(value).decode("utf-8", "replace")
+        if is_id:
+            link_id = text
+        else:
+            target = text
+    if target is None:
+        return None, ""
+    return target, "%s\x00%s" % (link_id, target)
+
+
+def number_the_links(rows: List[List[Cell]]) -> List[List[Cell]]:
+    """
+    Turn the name that an emulator gives a link into a number.
+
+    Every emulator names a link its own way. kitty numbers it out of a
+    pool that it keeps, Alacritty mints a name from a counter of the
+    process, WezTerm holds the target and the parameters, and ptterm
+    carries the target and the id that the program wrote. No two of
+    those compare, and Alacritty's is not even the same twice.
+
+    What compares is the shape: which runs of cells are one link. So
+    each distinct name of a screen becomes 1, 2, 3, in the order the
+    reader meets it. Two judges then agree when they group the cells
+    the same way.
+    """
+    numbers: Dict[str, int] = {}
+    return [
+        [
+            cell
+            if cell.hyperlink_id is None
+            else cell._replace(
+                hyperlink_id=numbers.setdefault(cell.hyperlink_id, len(numbers) + 1)
+            )
+            for cell in row
+        ]
+        for row in rows
+    ]
 
 
 def _color_of_style(style: str, prefix: str) -> Optional[Tuple]:
@@ -192,6 +257,7 @@ def ptterm_cells_in_pieces(
         cells = []
         for x in range(columns):
             cell = row[x]
+            target, name = _link_of_style(cell.style)
             style = _HYPERLINK.sub("", cell.style)
             char = cell.char
             cells.append(
@@ -204,10 +270,12 @@ def ptterm_cells_in_pieces(
                     underline=_underline_of_style(style),
                     reverse="reverse" in style,
                     underline_color=_color_of_style(style, "ul:"),
+                    hyperlink=target,
+                    hyperlink_id=name or None,
                 )
             )
         rows.append(cells)
-    return rows
+    return number_the_links(rows)
 
 
 def _kitty_color(value: int) -> Optional[Tuple]:
@@ -244,6 +312,9 @@ def kitty_cells(data: str, lines: int, columns: int) -> List[List[Cell]]:
     for y in range(lines):
         line = screen.line(y)
         texts = screen.cpu_cells(y)
+        # kitty numbers a link out of a pool that it keeps, and the pool
+        # is keyed on the id and the target together. Zero is no link.
+        link_numbers = line.hyperlink_ids()
         cells = []
         for x in range(columns):
             cursor = line.cursor_from(x)
@@ -268,11 +339,15 @@ def kitty_cells(data: str, lines: int, columns: int) -> List[List[Cell]]:
                         if cursor.decoration
                         else None
                     ),
+                    hyperlink=(
+                        screen.hyperlink_at(x, y) if link_numbers[x] else None
+                    ),
+                    hyperlink_id=str(link_numbers[x]) if link_numbers[x] else None,
                 )
             )
         _split_a_double_cell(cells)
         rows.append(cells)
-    return rows
+    return number_the_links(rows)
 
 
 def _is_a_mark(char: str) -> bool:
@@ -340,7 +415,7 @@ def as_seen(cell: Cell) -> Cell:
 def as_text(cell: Cell) -> Cell:
     "Only the character of a blank cell, with every style dropped."
     if cell.char == " ":
-        return Cell(" ", None, None, False, False, 0, False, None)
+        return Cell(" ", None, None, False, False, 0, False, None, None, None)
     return cell
 
 

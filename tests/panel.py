@@ -17,8 +17,10 @@ answer.
 
 A judge that cannot hold something says nothing about it. libvterm
 knows three shapes of underline and no colour for the line, and
-xterm.js says only whether a line is there. Their answers are read
-through a projection that drops what they cannot hold.
+xterm.js says only whether a line is there. libvterm, Ghostty and
+xterm.js hold no hyperlink: the two libraries name none in their
+headers, and the buffer API of xterm.js reports none. Their answers are
+read through a projection that drops what they cannot hold.
 
 A judge that cannot hold the difference in front of it does not vote.
 It **abstains**, which is not the same as agreeing: `abstained()` tells
@@ -85,12 +87,16 @@ def judges() -> List[Judge]:
             found.append(Judge("libvterm", vterm_cells, _as_libvterm_sees))
 
     try:
-        from ghostty_oracle import ghostty_cells, ghostty_is_available
+        from ghostty_oracle import (
+            _as_ghostty_sees,
+            ghostty_cells,
+            ghostty_is_available,
+        )
     except ImportError:
         pass
     else:
         if ghostty_is_available():
-            found.append(Judge("ghostty", ghostty_cells, None))
+            found.append(Judge("ghostty", ghostty_cells, _as_ghostty_sees))
 
     try:
         from xterm_oracle import _as_xterm_sees, xterm_cells, xterm_is_available

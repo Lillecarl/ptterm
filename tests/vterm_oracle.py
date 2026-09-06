@@ -199,12 +199,15 @@ def _as_libvterm_sees(cell: Cell) -> Cell:
     The cell with everything dropped that libvterm cannot hold.
 
     It knows a single, a double and a curly line, and it paints the
-    line like the text. A comparison that keeps more than that reports
-    a limit of the reference as a difference.
+    line like the text. It holds no hyperlink at all: `vterm.h` names
+    none. A comparison that keeps more than that reports a limit of the
+    reference as a difference.
     """
     return cell._replace(
         underline=_SHAPES_OF_LIBVTERM.get(cell.underline, cell.underline),
         underline_color=None,
+        hyperlink=None,
+        hyperlink_id=None,
     )
 
 

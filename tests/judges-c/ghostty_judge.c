@@ -9,7 +9,8 @@
  *
  * The answer is one line holding the screen, as rows of cells:
  *
- *     {"ghostty": [[[char, fg, bg, bold, italic, ul, rev, ulcol], ...]]}
+ *     {"ghostty": [[[char, fg, bg, bold, italic, ul, rev, ulcol,
+ *                    link, link_name], ...]]}
  *
  * A colour is null, ["index", n] or ["rgb", r, g, b]. That is the shape
  * every other judge speaks, so `rust_oracle` reads this one too.
@@ -192,7 +193,7 @@ static long read_int_field(const char *line, const char *name, long fallback) {
 static void write_cell(Buffer *out, const GhosttyGridRef *ref) {
   GhosttyCell cell;
   if (ghostty_grid_ref_cell(ref, &cell) != GHOSTTY_SUCCESS) {
-    put(out, "[\" \",null,null,false,false,0,false,null]");
+    put(out, "[\" \",null,null,false,false,0,false,null,null,null]");
     return;
   }
 
@@ -245,6 +246,13 @@ static void write_cell(Buffer *out, const GhosttyGridRef *ref) {
   } else {
     put_color(out, style.underline_color);
   }
+
+  /* The target of an "OSC 8", and what this emulator calls that one
+   * link. libghostty-vt carries neither: `ghostty/vt.h` holds no
+   * hyperlink symbol at all, so the judge says nothing about a link and
+   * `_as_ghostty_sees` drops it from both sides. Ghostty itself keeps
+   * one; the library that it hands out does not report it yet. */
+  put(out, ",null,null");
   put(out, "]");
 }
 
@@ -290,7 +298,7 @@ static void answer(const char *line, Buffer *out) {
       };
       if (ghostty_terminal_grid_ref(terminal, point, &ref) !=
           GHOSTTY_SUCCESS) {
-        put(out, "[\" \",null,null,false,false,0,false,null]");
+        put(out, "[\" \",null,null,false,false,0,false,null,null,null]");
         continue;
       }
       write_cell(out, &ref);

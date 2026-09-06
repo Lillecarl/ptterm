@@ -5,17 +5,25 @@ Ghostty keeps its terminal in libghostty-vt, a library with a C API
 that is meant to be embedded. `tests/judges-c` reads a screen back
 through it, and `PTTERM_GHOSTTY` names that program.
 
-Ghostty holds everything a cell of ours holds: the shape of an
-underline and the colour of the line included. So nothing is dropped
-before the comparison, and this judge answers every question the panel
-asks.
+Ghostty holds the rendition of a cell whole: the shape of an underline
+and the colour of the line included.
+
+**It cannot answer about a hyperlink.** Ghostty itself keeps one, but
+the library it hands out does not report it: `ghostty/vt.h` holds no
+hyperlink symbol at all. So this judge says nothing about an "OSC 8",
+and `_as_ghostty_sees` drops the link from both sides before the
+comparison.
+
+A judge that cannot hold something has to say so. One that answers
+anyway is worse than one that abstains, because the panel counts its
+vote.
 """
 from typing import List
 
 from kitty_oracle import Cell
 from line_judge import LineJudge
 
-__all__ = ["ghostty_is_available", "ghostty_cells"]
+__all__ = ["ghostty_is_available", "ghostty_cells", "_as_ghostty_sees"]
 
 _JUDGE = LineJudge("PTTERM_GHOSTTY", ("ghostty",))
 
@@ -28,3 +36,10 @@ def ghostty_is_available() -> bool:
 def ghostty_cells(data: str, lines: int, columns: int) -> List[List[Cell]]:
     "Feed `data` to Ghostty and read the screen back."
     return _JUDGE.cells("ghostty", data, lines, columns)
+
+
+def _as_ghostty_sees(cell: Cell) -> Cell:
+    "The part of a cell that libghostty-vt reports."
+    if cell.hyperlink is None and cell.hyperlink_id is None:
+        return cell
+    return cell._replace(hyperlink=None, hyperlink_id=None)

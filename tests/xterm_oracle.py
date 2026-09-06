@@ -11,6 +11,18 @@ the line, and not its colour. So this judge reports a line as a plain
 single one, and `_as_xterm_sees` drops the shape and the colour from
 both sides before the comparison.
 
+**It cannot answer about a hyperlink either.** `IBufferCell` reports
+none. xterm.js holds a link out of sight, behind a link service of its
+own, and reaching for that would tie the judge to a private path that
+the next version moves. So the link goes the same way as the shape of
+the line.
+
+What it does report is an underline on every cell of a link. That is
+how xterm.js marks one, and its API cannot tell that line from one that
+a program drew. So through this judge a linked cell and an underlined
+cell are one cell, and `_as_xterm_sees` reads a link on either side as
+a line.
+
 A judge that cannot hold something has to say so. One that answers
 anyway is worse than one that abstains, because the panel counts its
 vote.
@@ -36,10 +48,19 @@ def xterm_cells(data: str, lines: int, columns: int) -> List[List[Cell]]:
 
 
 def _as_xterm_sees(cell: Cell) -> Cell:
-    "The part of a cell that xterm.js can hold."
-    if cell.underline == 0 and cell.underline_color is None:
-        return cell
+    """
+    The part of a cell that xterm.js can hold.
+
+    A cell of a link reads as an underlined cell, on both sides. That is
+    not a guess about what ptterm should draw: it is what this judge
+    reports either way, and a comparison that kept the two apart would
+    report the mark of xterm.js as a difference in the rendition.
+    `test_the_panel.py::test_xterm_js_marks_a_link_with_an_underline`
+    holds the raw answer.
+    """
     return cell._replace(
-        underline=1 if cell.underline else 0,
+        underline=1 if (cell.underline or cell.hyperlink is not None) else 0,
         underline_color=None,
+        hyperlink=None,
+        hyperlink_id=None,
     )
