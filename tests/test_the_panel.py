@@ -604,6 +604,46 @@ def test_what_a_tab_leaves_in_the_cell_it_moves_from():
         assert held[name][:9] == "a       b", name
 
 
+def test_what_a_delete_leaves_at_the_right_edge():
+    """
+    DCH shifts a line left and blanks the right edge. Those blanks take
+    the background that is set now, and the panel splits over what else
+    they take.
+
+    With a background alone, five keep it: Alacritty, kitty, libvterm,
+    xterm and ptterm. Ghostty and WezTerm blank the cell outright, so
+    they do no colour on a delete at all.
+
+    With reverse video set and no background, kitty and ptterm paint the
+    cell with the foreground, libvterm keeps the foreground and not the
+    reverse, and Alacritty and xterm keep nothing. Two, one and two
+    among the judges that colour a delete at all. `erase_style` in
+    `ptterm/screen.py` holds the reason ptterm paints it.
+
+    This is the whole of `delete_chars_reset` in
+    `checks.pymux-alacritty`: twelve cells at the end of one row.
+    """
+    keeps_background = _cells("\x1b[41mabcdef\x1b[1;1H\x1b[1P")
+    for name in ("ptterm", "alacritty", "kitty", "libvterm", "xterm"):
+        assert keeps_background[name][0][7].bg == ("index", 1), name
+    for name in ("ghostty", "wezterm"):
+        assert keeps_background[name][0][7].bg is None, name
+
+    reversed_cells = _cells("\x1b[31;1;7;4;9mabcdef\x1b[1;1H\x1b[1P")
+    for name in ("ptterm", "kitty"):
+        assert reversed_cells[name][0][7].reverse, name
+    for name in ("alacritty", "ghostty", "libvterm", "wezterm", "xterm"):
+        assert not reversed_cells[name][0][7].reverse, name
+
+
+def _cells(data, lines=3, columns=8):
+    "Every judge's whole screen, and ptterm's."
+    found = {"ptterm": ptterm_cells(data, lines, columns)}
+    for judge in judges():
+        found[judge.name] = judge.cells(data, lines, columns)
+    return found
+
+
 def test_what_the_line_drawing_set_draws_for_h():
     """
     Position 0x68 of the DEC special graphics set is the newline

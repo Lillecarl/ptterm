@@ -3048,6 +3048,15 @@ class BetterScreen:
         two is a choice and not a rule, and a program that reverses and
         then erases means the block to be seen.
 
+        DCH and ICH read this style as well, and the panel splits there
+        too. Ghostty and WezTerm colour a delete with nothing at all,
+        not even the background, so they take no side. Of the five that
+        do colour it, kitty and ptterm paint the reverse, libvterm keeps
+        the foreground without it, and Alacritty and xterm keep only the
+        background. Alacritty's `delete_chars_reset` reference test is
+        that difference and nothing else: twelve cells at the end of one
+        row.
+
         An empty answer means that the cell can go away instead, which
         keeps the screen sparse.
         """

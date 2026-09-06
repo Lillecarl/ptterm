@@ -161,7 +161,7 @@ of them without asking a person.
 
 ## The deviations that stand
 
-**The user has decided seven of these ten, and ptterm keeps what it
+**The user has decided seven of these eleven, and ptterm keeps what it
 does in each.** Do not reopen one of those without a new reason. The
 tally is what the decision rested on, so it stands beside each entry.
 
@@ -192,10 +192,14 @@ the panel is three against three. It is number 9, and it is open.
 | 8 | A combining mark on a cell an erase left | kitty, WezTerm, xterm.js | Alacritty, Ghostty, libvterm |
 | 9 | CBT and CHT over the tab stops | kitty, libvterm, WezTerm | Alacritty, Ghostty, xterm.js |
 | 20 | The blank of the line drawing set | kitty | Alacritty, Ghostty, libvterm, WezTerm, xterm.js |
+| 21 | Reverse video on a cell an erase leaves | kitty, WezTerm | Alacritty, Ghostty, libvterm, xterm.js |
 
 Number 20 is the newest, and it is open. The five judges against ptterm
 do not agree with each other either: one draws a space and four draw
 the underscore, so there is no answer to follow.
+
+Number 21 was decided in the code and never written down here. The
+tally moved it: `erase_style` in `ptterm/screen.py` carried it alone.
 
 ### 1. A tab in the last column of the last row
 
@@ -711,6 +715,35 @@ prompt drawn in the line drawing set.
 
 **As a setting:** no. A blank is a blank on the screen, and the choice
 only shows to a reader of the buffer.
+
+### 21. Reverse video on a cell that an erase or a delete leaves
+
+`\x1b[31;1;7;4;9mabcdef\x1b[1;1H\x1b[1P` on 3 lines and 8 columns, and
+the same rendition with "CSI K" and "CSI J".
+
+An erased cell takes the background that is set now. That much is a
+rule, and five judges keep it. Reverse video paints the cell with the
+foreground instead, and there the panel splits: ptterm, kitty and
+WezTerm paint it; Alacritty, Ghostty, libvterm and xterm do not.
+
+`erase_style` in `ptterm/screen.py` keeps it. A program that turns
+reverse video on and then erases means the block to be seen, and
+dropping the reverse leaves the block invisible.
+
+DCH and ICH read the same style, and the tally there is not the same.
+Ghostty and WezTerm colour a delete with nothing at all, not even the
+background, so neither takes a side on this question. Of the five that
+do colour it, kitty and ptterm paint the reverse, libvterm keeps the
+foreground without it, and Alacritty and xterm keep only the
+background.
+
+This is the whole of `delete_chars_reset` that
+`checks.pymux-alacritty` reports: twelve cells at the end of one row,
+each one a blank with our red foreground and the reverse flag where
+Alacritty holds a plain blank.
+
+**As a setting:** it could be, and it is the same shape as entry 2. A
+pane paints its own cells, so the choice belongs to the pane.
 
 ## Where kitty looks wrong
 
