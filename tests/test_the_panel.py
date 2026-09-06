@@ -602,3 +602,56 @@ def test_what_a_tab_leaves_in_the_cell_it_moves_from():
     assert held["alacritty"][:9] == "a\t      b"
     for name in ("ptterm", "ghostty", "kitty", "libvterm", "wezterm", "xterm"):
         assert held[name][:9] == "a       b", name
+
+
+def test_what_the_line_drawing_set_draws_for_h():
+    """
+    Position 0x68 of the DEC special graphics set is the newline
+    symbol, U+2424. kitty draws U+2591 LIGHT SHADE there, and it is
+    alone: five judges draw the symbol.
+
+    pyte took its table from the linux kernel, which draws the shade,
+    so ptterm drew it too. Alacritty's `saved_cursor` reference test
+    found it, in the "h" of a shell prompt.
+    """
+    held = characters_in_row("\x1b(0h", lines=3, columns=6)
+    assert held["kitty"][0] == "░"
+    for name in ("ptterm", "alacritty", "ghostty", "libvterm", "wezterm", "xterm"):
+        assert held[name][0] == "␤", name
+
+
+def test_what_the_line_drawing_set_draws_for_the_blank():
+    """
+    Position 0x5F of the same set is a blank, and the panel gives
+    three answers for it.
+
+    ptterm and kitty draw U+00A0, which is the mapping the table
+    names. Alacritty draws a space. The other four leave the
+    underscore alone: their tables start at 0x60.
+
+    Nothing a reader sees changes, because all three are blank. This
+    is the whole of `saved_cursor` in `checks.pymux-alacritty`: one
+    cell. Entry 20 of `DEVIATIONS.md` holds it.
+    """
+    held = characters_in_row("\x1b(0_", lines=3, columns=6)
+    assert held["ptterm"][0] == " "
+    assert held["kitty"][0] == " "
+    assert held["alacritty"][0] == " "
+    for name in ("ghostty", "libvterm", "wezterm", "xterm"):
+        assert held[name][0] == "_", name
+
+
+def test_the_alternate_screen_gives_back_what_it_saved():
+    """
+    A save made on the alternate screen is still there the next time a
+    program takes that screen. The whole panel agrees, six to nothing.
+
+    "?1049h" clears the content and leaves the saved cursor alone.
+    xterm holds one saved cursor per screen for the life of the
+    terminal. ptterm emptied the list on the way in, so the restore
+    sent the cursor home and dropped the character sets with it.
+    """
+    data = "\x1b[?1049h\x1b[3;5H\x1b7\x1b[?1049l\x1b[?1049h\x1b8z"
+    held = characters_in_row(data, row=2, lines=6, columns=10)
+    for name in ("ptterm", "alacritty", "ghostty", "kitty", "libvterm", "wezterm", "xterm"):
+        assert held[name][:5] == "    z", name

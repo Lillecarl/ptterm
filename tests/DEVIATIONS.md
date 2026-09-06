@@ -84,6 +84,13 @@ of them without asking a person.
 - "ESC ( 0" names the line drawing set of the DEC terminals, which is
   how ncurses draws a box. pyte dropped it in UTF-8 mode and the screen
   had no handler for it either, so a box came out as the letters "lqk".
+- The line drawing set drew "h" as U+2591 LIGHT SHADE. The DEC special
+  graphics set puts the newline symbol there. Alacritty, WezTerm,
+  libvterm, Ghostty and xterm.js all draw U+2424 SYMBOL FOR NEWLINE,
+  and kitty alone keeps the shade, so the vote is five to one. pyte
+  took the table from the linux kernel, which draws the shade.
+  Alacritty's `saved_cursor` found it: a shell prompt that holds an
+  "h" comes out wrong in every box that ncurses draws around it.
 - A tab found a stop past the last column, put the cursor there, and
   the next character wrapped to the line below.
 - Only "?1049" took the alternate screen. A program that sends "?47" or
@@ -101,6 +108,14 @@ of them without asking a person.
 - The scrolling region and the saved cursor sat on the wrong side of
   the switch: the region belongs to the terminal and survives it, and
   the saved cursor belongs to one screen and does not.
+- The saved cursor of the alternate screen went away when a program
+  took that screen again. "?1049h" clears the content and leaves the
+  save alone: xterm holds one saved cursor per screen for the life of
+  the terminal. So a program that takes the alternate screen, saves,
+  leaves and comes back finds its own save. ptterm sent the cursor
+  home instead, and dropped the character sets with it. The whole
+  panel was against ptterm here, six to nothing. Alacritty's
+  `saved_cursor_alt` found it.
 - A restore with nothing saved kept the character set that "ESC ( 0"
   had picked, instead of the one a terminal starts with.
 - G1 held the line drawing set before any program named it, so a stray
@@ -146,7 +161,7 @@ of them without asking a person.
 
 ## The deviations that stand
 
-**The user has decided seven of these nine, and ptterm keeps what it
+**The user has decided seven of these ten, and ptterm keeps what it
 does in each.** Do not reopen one of those without a new reason. The
 tally is what the decision rested on, so it stands beside each entry.
 
@@ -176,6 +191,11 @@ the panel is three against three. It is number 9, and it is open.
 | 7 | The background of the line a scroll brings in | Alacritty, libvterm, WezTerm, xterm.js | Ghostty, kitty |
 | 8 | A combining mark on a cell an erase left | kitty, WezTerm, xterm.js | Alacritty, Ghostty, libvterm |
 | 9 | CBT and CHT over the tab stops | kitty, libvterm, WezTerm | Alacritty, Ghostty, xterm.js |
+| 20 | The blank of the line drawing set | kitty | Alacritty, Ghostty, libvterm, WezTerm, xterm.js |
+
+Number 20 is the newest, and it is open. The five judges against ptterm
+do not agree with each other either: one draws a space and four draw
+the underscore, so there is no answer to follow.
 
 ### 1. A tab in the last column of the last row
 
@@ -665,6 +685,32 @@ report timeout and fails. That is the one test it costs.
 **As a setting:** it could be. A person who wants a pane to read the
 clipboard could say so, the way `allow-program-resize` lets a program
 take room. Nobody has asked, and the default stays no either way.
+
+### 20. The blank of the line drawing set
+
+`\x1b[(0_` on 3 lines and 6 columns.
+
+Position 0x5F of the DEC special graphics set is a blank, and the panel
+gives three answers for it. ptterm and kitty draw U+00A0 NO-BREAK
+SPACE, which is the mapping that Markus Kuhn's table of the set names
+and that xterm's own documentation carries. Alacritty draws U+0020
+SPACE. Ghostty, libvterm, WezTerm and xterm.js draw the underscore
+itself: their tables start at 0x60 and leave this one alone.
+
+Nobody draws anything a reader can see, because all three are blank.
+The difference reaches a program that reads the screen back, and a
+comparison against a recorded grid.
+
+Three answers is not a rule, so ptterm keeps the one the table names.
+It sits with kitty, so the standing rule above sends this to the user
+rather than settling it.
+
+This is the whole of the `saved_cursor` difference that
+`checks.pymux-alacritty` reports: one cell, the underscore of a shell
+prompt drawn in the line drawing set.
+
+**As a setting:** no. A blank is a blank on the screen, and the choice
+only shows to a reader of the buffer.
 
 ## Where kitty looks wrong
 
