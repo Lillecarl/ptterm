@@ -69,8 +69,9 @@ DEFAULT_FOREGROUND = (240, 240, 240)
 DEFAULT_BACKGROUND = (0, 0, 0)
 
 #: The style that a hyperlink adds. It is not a rendition, and libvterm
-#: has no cell attribute for it, so it comes off before a comparison.
-_LINK = "class:hyperlink"
+#: has no cell attribute for a link, so it comes off before a
+#: comparison.
+_LINK = "[hyperlink"
 
 
 class Harness:
