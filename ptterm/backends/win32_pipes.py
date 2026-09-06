@@ -177,7 +177,10 @@ class PipeWriter:
 
     def write(self, text):
         "Write text to the stdin of the process."
-        data = text.encode("utf-8")
+        # "surrogateescape" for the same reason as the posix backend:
+        # a reply with eight bit controls carries a byte that is not
+        # text, and UTF-8 would spell it as two.
+        data = text.encode("utf-8", "surrogateescape")
         c_written = DWORD()
 
         windll.kernel32.WriteFile(

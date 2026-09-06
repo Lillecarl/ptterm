@@ -79,7 +79,14 @@ class PosixBackend(Backend):
         return self._reader.read(amount)
 
     def write_text(self, text):
-        self.write_bytes(text.encode("utf-8"))
+        # "surrogateescape" carries a byte that is not text. Two things
+        # need it. A reply with eight bit controls holds a C1 byte such
+        # as 0x9b, which UTF-8 would spell as two bytes and no program
+        # would read. And prompt_toolkit's own stdin reader decodes with
+        # the same handler, so a byte the user's terminal sent that is
+        # not UTF-8 arrives here as a surrogate; without this it raises
+        # and the keystroke is lost.
+        self.write_bytes(text.encode("utf-8", "surrogateescape"))
 
     def write_bytes(self, data):
         while self.master is not None:
