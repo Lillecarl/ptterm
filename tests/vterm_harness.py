@@ -29,6 +29,13 @@ screen, so there is nothing to report and no honest thing to say. A test
 file that expects those lines is left out by name in
 `drive_with_vterm.py`, with the reason written down.
 
+**It does report what the terminal writes back.** A program asks and a
+terminal answers, and that answer is not a callback: it is bytes on the
+pty, which ptterm hands to `write_process_input`. libvterm's own
+harness reads its output buffer after each command and prints one
+`output` line of comma separated hex. This does the same, so the files
+that read a reply can run.
+
 What it does answer is the state: the nine `?` forms, which is what
 ptterm holds. `drive_with_vterm.py` says which files that covers.
 
@@ -40,6 +47,7 @@ import codecs
 import sys
 import traceback
 from pathlib import Path
+from typing import List
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -88,19 +96,39 @@ class Harness:
         self.decoder = codecs.getincrementaldecoder("utf-8")("replace")
         self.default_foreground = DEFAULT_FOREGROUND
         self.default_background = DEFAULT_BACKGROUND
+        #: What the terminal has written back since the last command.
+        self.written: List[str] = []
 
     # -- the screen -----------------------------------------------------
 
     def make(self, rows: int, columns: int) -> None:
         "Build a screen of this size, with nothing on it."
-        # A pane cannot resize itself and writes its answers to a pty.
-        # Neither has anywhere to go here: the runner drives the screen
-        # directly, and the suite reads it back through this harness.
+        # A pane cannot resize itself here: the runner drives the screen
+        # directly and reads it back through this harness. What the
+        # terminal writes back does have somewhere to go, because the
+        # suite reads it: `output_line` hands it to the runner.
         self.screen = BetterScreen(
-            rows, columns, write_process_input=lambda answer: None
+            rows, columns, write_process_input=self.written.append
         )
         self.stream = BetterStream(self.screen)
         self.decoder = codecs.getincrementaldecoder("utf-8")("replace")
+
+    def output_line(self) -> str | None:
+        """
+        One `output` line for everything written back, or None.
+
+        libvterm's harness reads its whole output buffer after a
+        command and prints one line, so several answers to one `PUSH`
+        are one line. `run-test.pl` writes each byte as lowercase hex
+        with no padding, separated by commas, which is what it compares
+        against.
+        """
+        answers, self.written[:] = "".join(self.written), []
+        if not answers:
+            return None
+        return "output " + ",".join(
+            "%x" % byte for byte in answers.encode("utf-8")
+        )
 
     def cell(self, row: int, column: int):
         "The cell at a place on the visible screen."
@@ -553,6 +581,11 @@ def main() -> int:
         except Exception:
             traceback.print_exc(file=sys.stderr)
             known = False
+        # What the terminal wrote back comes before "DONE", the way
+        # libvterm's harness reads its output buffer after a command.
+        written = harness.output_line()
+        if written is not None:
+            sys.stdout.write(written + "\n")
         sys.stdout.write("DONE\n" if known else "?\n")
         sys.stdout.flush()
 

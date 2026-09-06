@@ -112,13 +112,26 @@ NOT_OURS = (
         "the keys of a pane.",
     ),
     (
-        r"^(17state_mouse|18state_termprops|22state_save|25state_input"
-        r"|26state_query|64screen_pen|68screen_termprops"
-        r"|92lp1640917)\.test$",
-        "the file reads what libvterm writes back to the program and "
-        "which terminal properties it changed. ptterm does write "
-        "replies, so a later harness could report them; it reports "
-        "nothing today.",
+        r"^(18state_termprops|22state_save|68screen_termprops)\.test$",
+        "the file reads which terminal properties libvterm changed: the "
+        "title, whether the cursor is visible, which shape it takes. "
+        "Those go to an embedder as callbacks. ptterm holds them on the "
+        "screen and pymux reads them, so there is no report to make. "
+        "22state_save is here for the same reason: it saves and restores "
+        "the cursor, and every line it reads is a `settermprop`.",
+    ),
+    (
+        r"^25state_input\.test$",
+        "the file reads libvterm's own encoder, which turns a key press "
+        "into bytes. ptterm has no such thing: prompt_toolkit encodes "
+        "the keys of a pane. It is the same reason as 03encoding_utf8.",
+    ),
+    (
+        r"^(17state_mouse|92lp1640917)\.test$",
+        "the file drives libvterm's `vterm_mouse_move` and "
+        "`vterm_mouse_button` and reads what they write. ptterm takes a "
+        "mouse event from prompt_toolkit and has no such entry point, "
+        "so the file has nothing to drive.",
     ),
     (
         r"^40state_selection\.test$",
@@ -193,8 +206,12 @@ def run_one(directory: Path, name: str):
 _ASSERT = re.compile(r"^# line (\d+): Assert (.+) failed:$", re.MULTILINE)
 
 #: What it prints when the lines a harness emitted are not the lines the
-#: file expected. Every file that reaches this driver expects none, so
-#: one of these is a fault in the harness and not a deviation.
+#: file expected. That is what ptterm wrote back to the program, so it
+#: is a difference like any other and it goes in the list.
+#:
+#: It carries no name of its own, only the line, because the runner
+#: compares a whole block of lines at once and does not say which one
+#: differed. The log holds both blocks.
 _EMITTED = re.compile(r"^# line (\d+): Test failed$", re.MULTILINE)
 
 #: What python writes when the harness raises. The runner writes to the
@@ -207,7 +224,12 @@ def failures_in(name: str, output: str) -> Counter:
     "The assertions of one file that failed, counted."
     found: Counter = Counter()
     for line, assertion in _ASSERT.findall(output):
-        found["%s:%s %s" % (name, line, assertion)] += 1
+        # The runner pads a name so that a column of them lines up, and
+        # `read_baseline` strips what it reads. Without the same strip
+        # here, an entry with a trailing space never matches itself.
+        found["%s:%s %s" % (name, line, assertion.strip())] += 1
+    for line in _EMITTED.findall(output):
+        found["%s:%s what the terminal wrote back" % (name, line)] += 1
     return found
 
 
@@ -349,8 +371,6 @@ def main() -> int:
             pieces.append("--- what the run wrote to stderr ---\n" + errors)
             if _RAISED in errors:
                 broken.append(name)
-        if _EMITTED.search(output):
-            broken.append(name)
 
     log = "\n".join(pieces)
 
@@ -371,9 +391,8 @@ def main() -> int:
     status = check_the_exclusions(names, include)
 
     for name in sorted(set(broken)):
-        print("vterm: %s expected lines the harness cannot emit, or the "
-              "harness raised. Read the log: this is a fault here and not "
-              "a deviation." % name)
+        print("vterm: the harness raised while %s ran. Read the log: this "
+              "is a fault here and not a deviation." % name)
         status = 1
 
     return report(failed, ran, include) or status

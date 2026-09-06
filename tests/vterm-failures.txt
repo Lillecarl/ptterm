@@ -8,6 +8,15 @@
 # This is what the run saw. To make it what the check expects:
 #     nix build --file . checks.ptterm-vterm.run
 #     cp result/failures.txt ptterm/tests/vterm-failures.txt
+26state_query.test:14 what the terminal wrote back
+26state_query.test:29 what the terminal wrote back
+26state_query.test:39 what the terminal wrote back
+26state_query.test:44 what the terminal wrote back
+26state_query.test:49 what the terminal wrote back
+26state_query.test:54 what the terminal wrote back
+26state_query.test:59 what the terminal wrote back
+26state_query.test:63 what the terminal wrote back
+26state_query.test:9 what the terminal wrote back
 30state_pen.test:111 pen foreground
 30state_pen.test:114 pen foreground
 30state_pen.test:118 pen small
@@ -18,6 +27,13 @@
 30state_pen.test:70 pen font
 61screen_unicode.test:35 screen_cell 0,0
 61screen_unicode.test:41 screen_cell 0,0
+64screen_pen.test:28 screen_cell 0,5
+64screen_pen.test:41 screen_cell 0,9
+64screen_pen.test:42 screen_cell 0,10
+64screen_pen.test:46 screen_cell 0,0
+64screen_pen.test:47 screen_cell 0,79
+64screen_pen.test:51 screen_cell 0,0
+64screen_pen.test:52 screen_cell 1,0
 69screen_reflow.test:74 ?screen_row 0
 69screen_reflow.test:75 ?screen_row 1
 69screen_reflow.test:76 ?screen_row 2
