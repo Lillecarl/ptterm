@@ -185,6 +185,84 @@ def test_a_colour_by_index_comes_back_as_its_index():
     assert answers == ["\x1bP1$r0;48;5;196m\x1b\\"]
 
 
+@pytest.mark.parametrize(
+    "parameter",
+    [30, 31, 32, 33, 34, 35, 36, 37, 90, 91, 92, 93, 94, 95, 96, 97],
+)
+def test_one_of_the_first_sixteen_comes_back_as_the_parameter_that_sets_it(
+    parameter,
+):
+    """
+    "CSI 31 m" comes back as "31" and not as "38;5;1".
+
+    The answer used to drop the colour: the screen holds it as the name
+    "ansired", and neither the number of the palette nor the three
+    components read a name. So a program that saved the rendition and
+    put it back painted its text in the default colour.
+
+    libvterm answers the same way. Its own test file says so:
+    "t/26state_query.test", "DECRQSS on SGR ANSI colours".
+    """
+    _screen, stream, answers = make_screen()
+    stream.feed("\x1b[%im" % parameter)
+    request_setting(stream, "m")
+    assert answers == ["\x1bP1$r0;%im\x1b\\" % parameter]
+
+
+@pytest.mark.parametrize("parameter", [40, 47, 100, 107])
+def test_a_background_of_the_first_sixteen_comes_back_the_same_way(parameter):
+    _screen, stream, answers = make_screen()
+    stream.feed("\x1b[%im" % parameter)
+    request_setting(stream, "m")
+    assert answers == ["\x1bP1$r0;%im\x1b\\" % parameter]
+
+
+def test_the_two_ways_of_naming_one_of_the_sixteen_give_one_answer():
+    """
+    A pane cannot tell "CSI 31 m" from "CSI 38;5;1 m" afterwards. Both
+    leave the same colour, and either answer sets it back.
+    """
+    _screen, stream, answers = make_screen()
+    stream.feed("\x1b[38;5;1m")
+    request_setting(stream, "m")
+    assert answers == ["\x1bP1$r0;31m\x1b\\"]
+
+
+def test_a_foreground_and_a_background_come_back_together():
+    "What libvterm answers for the same program: '0;31;42'."
+    _screen, stream, answers = make_screen()
+    stream.feed("\x1b[0;31;42m")
+    request_setting(stream, "m")
+    assert answers == ["\x1bP1$r0;31;42m\x1b\\"]
+
+
+def test_the_default_colour_is_what_the_zero_already_says():
+    "'CSI 39 m' takes the colour off, and '0' says the pen is plain."
+    _screen, stream, answers = make_screen()
+    stream.feed("\x1b[31m\x1b[39m")
+    request_setting(stream, "m")
+    assert answers == ["\x1bP1$r0m\x1b\\"]
+
+
+def test_the_colour_of_an_underline_is_a_number_of_the_palette():
+    """
+    "SGR 58" has no short form for the first sixteen, so a name comes
+    back as its number. It came back as nothing before.
+    """
+    _screen, stream, answers = make_screen()
+    stream.feed("\x1b[4m\x1b[58;5;1m")
+    request_setting(stream, "m")
+    assert answers == ["\x1bP1$r0;4;58:5:1m\x1b\\"]
+
+
+def test_a_colour_above_fifteen_still_comes_back_as_a_number():
+    "Only the sixteen have a parameter of their own."
+    _screen, stream, answers = make_screen()
+    stream.feed("\x1b[38;5;16m")
+    request_setting(stream, "m")
+    assert answers == ["\x1bP1$r0;38;5;16m\x1b\\"]
+
+
 def test_a_reset_clears_the_rendition():
     _screen, stream, answers = make_screen()
     stream.feed("\x1b[1;38;2;1;2;3m\x1b[0m")

@@ -655,11 +655,26 @@ def _encoded(text: str) -> str:
     return base64.b64encode(text.encode("utf-8")).decode("ascii")
 
 
+#: What prompt_toolkit calls the colour of the terminal itself. It is
+#: in `FG_ANSI_COLORS` beside the sixteen, as 39 and 49.
+DEFAULT_COLOR_NAME = "ansidefault"
+
+#: The number of the palette that each of the sixteen names stands for.
+#: prompt_toolkit writes the first sixteen by name and the rest as
+#: "ansi16" upwards, so a number has to come from one table or the
+#: other.
+NUMBER_OF_A_PALETTE_NAME = {name: number for number, name in enumerate(PALETTE_NAMES)}
+
+
 def _palette_number(color: str | None) -> int | None:
-    "The number of the palette that a '#ansi234' colour names, or None."
+    "The number of the palette that a '#ansired' or '#ansi234' colour names."
     if not color:
         return None
-    return palette_color_number(color.lstrip("#"))
+    name = color.lstrip("#")
+    number = NUMBER_OF_A_PALETTE_NAME.get(name)
+    if number is not None:
+        return number
+    return palette_color_number(name)
 
 
 def _reads_the_clipboard(param: str) -> bool:
@@ -4483,6 +4498,17 @@ class BetterScreen:
         the palette is a number, and a colour of its own is its three
         components. A program that probes for 24 bit colour reads its
         own colour back, which is the answer it looks for.
+
+        One of the first sixteen comes back as the parameter that sets
+        it: "31" and not "38;5;1". That is what libvterm answers, and
+        its own test file says so ("t/26state_query.test", "DECRQSS on
+        SGR ANSI colours"). A pane cannot tell "CSI 31 m" from
+        "CSI 38;5;1 m" afterwards, because both leave the same colour,
+        and either answer sets the colour back. So the shorter one, and
+        the one the references write.
+
+        "SGR 58" has no short form, so the colour of the underline is
+        always a number or three components.
         """
         attrs = self._attrs
         parts = ["0"]
@@ -4500,10 +4526,18 @@ class BetterScreen:
             if flag:
                 parts.append(parameter)
 
-        for color, code in ((attrs.color, 38), (attrs.bgcolor, 48)):
+        for color, code, parameters in (
+            (attrs.color, 38, FG_ANSI_COLORS),
+            (attrs.bgcolor, 48, BG_ANSI_COLORS),
+        ):
+            # The default is what the "0" at the front already says.
+            name = (color or "").lstrip("#")
+            named = parameters.get(name) if name != DEFAULT_COLOR_NAME else None
             index = _palette_number(color)
             components = rgb_components(color)
-            if index is not None:
+            if named is not None:
+                parts.append("%i" % named)
+            elif index is not None:
                 parts.append("%i;5;%i" % (code, index))
             elif components is not None:
                 parts.append("%i;2;%i;%i;%i" % ((code,) + components))
