@@ -242,7 +242,7 @@ class Harness:
         "One attribute of the style that the next character takes."
         screen = self.screen
         assert screen is not None
-        attrs = screen._attrs
+        attrs = screen._rendition
 
         if argument == "bold":
             return _switch(attrs.bold)

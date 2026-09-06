@@ -113,7 +113,7 @@ def test_decrqss_reports_the_baseline_back(code):
 def test_a_saved_cursor_brings_the_baseline_back():
     """
     DECSC saves the pen with the position, so DECRC gives the baseline
-    back with it. The savepoint holds the whole of `_attrs`.
+    back with it. The savepoint holds the whole of `_rendition`.
     """
     made, stream = screen()
     stream.feed("\x1b[73m\x1b7\x1b[75m\x1b8x")

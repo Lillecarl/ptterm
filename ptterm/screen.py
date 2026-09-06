@@ -13,7 +13,6 @@ from enum import IntEnum, IntFlag, StrEnum
 from typing import Callable, DefaultDict, Dict, List, NamedTuple, Set, Tuple
 
 from prompt_toolkit.layout.screen import Char
-from prompt_toolkit.styles import Attrs
 from pyte import charsets as cs
 from pyte import modes as mo
 from pyte.screens import Margins
@@ -823,6 +822,52 @@ _PROTECTED_CHAR_CACHE: FastDictCache[Tuple[str, str, int], Char] = FastDictCache
 )
 
 
+class Rendition(NamedTuple):
+    """
+    How a program asked for the next characters to be drawn.
+
+    SGR sets it, "ESC 7" saves it, and every cell keeps the one that
+    drew it. The fields are the ones SGR names, so nothing here is a
+    decision: a terminal that draws none of them still has to hold
+    them, because a program can ask for them back.
+
+    A colour is a style word that `colors.py` made, so it is
+    prompt_toolkit's spelling of a colour today. That is the last
+    coupling in this file and it goes next: two front ends want two
+    different style objects out of one cell.
+
+    This was `prompt_toolkit.styles.Attrs`, with the two hyperlink
+    fields left out. A hyperlink is not a rendition: it comes from OSC
+    8 and not from SGR, and the screen already holds it apart.
+    Lillecarl/pymux#11.
+    """
+
+    color: str | None = None
+    bgcolor: str | None = None
+    bold: bool = False
+    dim: bool = False
+    underline: bool = False
+    strike: bool = False
+    italic: bool = False
+    blink: bool = False
+    reverse: bool = False
+    hidden: bool = False
+    #: The shape of the line: "double", "curly", "dotted" or "dashed".
+    #: An empty string is a single line, and it only shows when
+    #: `underline` is true.
+    underline_style: str = ""
+    #: The colour of that line, when a program named one apart from the
+    #: colour of the text.
+    underline_color: str = ""
+    #: Where the glyph sits: "superscript", "subscript", or an empty
+    #: string for on the line.
+    baseline: str = ""
+
+
+#: What a screen draws with when no program has asked for anything.
+PLAIN = Rendition()
+
+
 class Page:
     """
     One screen of cells, and whether the cursor shows on it.
@@ -855,7 +900,7 @@ class Page:
         self.show_cursor = True
 
 
-# Custom Savepoint that also stores the Attrs.
+# Custom Savepoint that also stores the rendition.
 _Savepoint = namedtuple(
     "_Savepoint",
     [
@@ -866,7 +911,7 @@ _Savepoint = namedtuple(
         "g1_charset",
         "charset",
         "origin",
-        "attrs",
+        "rendition",
         "style_str",
         # The marks that SPA and DECSCA set. They belong to the cursor,
         # the way the rendition does, so a save remembers them.
@@ -1355,21 +1400,7 @@ class BetterScreen:
         starts plain, whether the screen is a new one or the one that
         the last visit left.
         """
-        self._attrs = Attrs(
-            color=None,
-            bgcolor=None,
-            bold=False,
-            dim=False,
-            underline=False,
-            strike=False,
-            italic=False,
-            blink=False,
-            reverse=False,
-            hidden=False,
-            underline_style="",
-            underline_color="",
-            baseline="",
-        )
+        self._rendition = PLAIN
         self._style_str = ""
         # The rendition alone, without the hyperlink. The two change
         # apart from each other, so the style of a cell is built from
@@ -2692,7 +2723,7 @@ class BetterScreen:
                 # back on a restore, and its own suite asks for that:
                 # a save with the wrap on, a reset, and a restore
                 # leaves the wrap off.
-                self._attrs,
+                self._rendition,
                 # The rendition alone. A hyperlink is not part of the
                 # cursor that "ESC 7" remembers.
                 self._rendition_str,
@@ -2713,7 +2744,7 @@ class BetterScreen:
             self.g0_charset = savepoint.g0_charset
             self.g1_charset = savepoint.g1_charset
             self.charset = savepoint.charset
-            self._attrs = savepoint.attrs
+            self._rendition = savepoint.rendition
             self._rendition_str = savepoint.style_str
             self.protection = savepoint.protection
             self._rebuild_style()
@@ -3162,17 +3193,17 @@ class BetterScreen:
         An empty answer means that the cell can go away instead, which
         keeps the screen sparse.
         """
-        attrs = self._attrs
+        rendition = self._rendition
         style = ""
 
-        if attrs.reverse:
+        if rendition.reverse:
             # Reverse video paints the cell with the foreground.
             style += "reverse "
-            if attrs.color:
-                style += "%s " % attrs.color
+            if rendition.color:
+                style += "%s " % rendition.color
 
-        if attrs.bgcolor:
-            style += "bg:%s " % attrs.bgcolor
+        if rendition.bgcolor:
+            style += "bg:%s " % rendition.bgcolor
 
         return style
 
@@ -4013,21 +4044,7 @@ class BetterScreen:
                 replace["reverse"] = False
             elif not attr:
                 replace = {}
-                self._attrs = Attrs(
-                    color=None,
-                    bgcolor=None,
-                    bold=False,
-                    dim=False,
-                    underline=False,
-                    strike=False,
-                    italic=False,
-                    blink=False,
-                    reverse=False,
-                    hidden=False,
-                    underline_style="",
-                    underline_color="",
-                    baseline="",
-                )
+                self._rendition = PLAIN
 
             elif attr == 59:
                 replace["underline_color"] = ""
@@ -4048,39 +4065,39 @@ class BetterScreen:
                     style_of_sgr_color(parameters) or ""
                 )
 
-        attrs_obj = self._attrs._replace(**replace)  # type:ignore
+        rendition = self._rendition._replace(**replace)  # type:ignore
 
         # Build style string.
         style_str = ""
-        if attrs_obj.color:
-            style_str += "%s " % attrs_obj.color
-        if attrs_obj.bgcolor:
-            style_str += "bg:%s " % attrs_obj.bgcolor
-        if attrs_obj.bold:
+        if rendition.color:
+            style_str += "%s " % rendition.color
+        if rendition.bgcolor:
+            style_str += "bg:%s " % rendition.bgcolor
+        if rendition.bold:
             style_str += "bold "
-        if attrs_obj.dim:
+        if rendition.dim:
             style_str += "dim "
-        if attrs_obj.italic:
+        if rendition.italic:
             style_str += "italic "
-        if attrs_obj.underline:
-            style_str += UNDERLINE_WORDS[attrs_obj.underline_style or ""] + " "
+        if rendition.underline:
+            style_str += UNDERLINE_WORDS[rendition.underline_style or ""] + " "
             # The colour of a line that nobody draws would travel with
             # every cell for nothing.
-            if attrs_obj.underline_color:
-                style_str += "ul:%s " % attrs_obj.underline_color
-        if attrs_obj.blink:
+            if rendition.underline_color:
+                style_str += "ul:%s " % rendition.underline_color
+        if rendition.blink:
             style_str += "blink "
-        if attrs_obj.reverse:
+        if rendition.reverse:
             style_str += "reverse "
-        if attrs_obj.hidden:
+        if rendition.hidden:
             style_str += "hidden "
-        if attrs_obj.strike:
+        if rendition.strike:
             style_str += "strike "
-        if attrs_obj.baseline:
-            style_str += attrs_obj.baseline + " "
+        if rendition.baseline:
+            style_str += rendition.baseline + " "
 
         self._rendition_str = _unicode_intern_dict[style_str]
-        self._attrs = attrs_obj
+        self._rendition = rendition
         self._rebuild_style()
 
     def _rebuild_style(self) -> None:
@@ -4582,29 +4599,29 @@ class BetterScreen:
         "SGR 58" has no short form, so the colour of the underline is
         always a number or three components.
         """
-        attrs = self._attrs
+        rendition = self._rendition
         parts = ["0"]
 
         for flag, parameter in (
-            (attrs.bold, "1"),
-            (attrs.dim, "2"),
-            (attrs.italic, "3"),
-            (attrs.underline, UNDERLINE_PARAMETERS[attrs.underline_style or ""]),
-            (attrs.blink, "5"),
-            (attrs.reverse, "7"),
-            (attrs.hidden, "8"),
-            (attrs.strike, "9"),
+            (rendition.bold, "1"),
+            (rendition.dim, "2"),
+            (rendition.italic, "3"),
+            (rendition.underline, UNDERLINE_PARAMETERS[rendition.underline_style or ""]),
+            (rendition.blink, "5"),
+            (rendition.reverse, "7"),
+            (rendition.hidden, "8"),
+            (rendition.strike, "9"),
             (
-                attrs.baseline,
-                BASELINE_PARAMETERS.get(attrs.baseline or "", ""),
+                rendition.baseline,
+                BASELINE_PARAMETERS.get(rendition.baseline or "", ""),
             ),
         ):
             if flag:
                 parts.append(parameter)
 
         for color, code, background in (
-            (attrs.color, 38, False),
-            (attrs.bgcolor, 48, True),
+            (rendition.color, 38, False),
+            (rendition.bgcolor, 48, True),
         ):
             named = ansi_code(color, background)
             index = palette_number(color)
@@ -4616,9 +4633,9 @@ class BetterScreen:
             elif components is not None:
                 parts.append("%i;2;%i;%i;%i" % ((code,) + components))
 
-        if attrs.underline:
-            index = palette_number(attrs.underline_color)
-            components = rgb_components(attrs.underline_color)
+        if rendition.underline:
+            index = palette_number(rendition.underline_color)
+            components = rgb_components(rendition.underline_color)
             if index is not None:
                 parts.append("58:5:%i" % index)
             elif components is not None:
