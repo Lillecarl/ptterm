@@ -14,6 +14,7 @@
 {
   python,
   pytest,
+  anyio,
   hypothesis,
   callPackage,
   kitty,
@@ -33,9 +34,13 @@ let
   inherit (callPackage ./suite.nix { }) suite;
 
 
+  # anyio carries the pytest plugin that runs a coroutine test. Without
+  # it pytest fails one with "async def functions are not natively
+  # supported", so no async test in this repository runs at all.
   pythonWithTests = python.withPackages (ps: [
     package
     pytest
+    anyio
     hypothesis
   ]);
 
@@ -108,6 +113,7 @@ let
 
   prepare = ''
     cp -r ${testSources}/tests .
+    cp ${testSources}/pyproject.toml .
     chmod -R +w .
     export HOME="$TMPDIR"
     export LANG=C.UTF-8

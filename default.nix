@@ -57,9 +57,17 @@ let
   #
   # These are built here and not under `nix`, because `./.` there is the
   # `nix` directory and these need the root of the repository.
+  # `pyproject.toml` comes with them. A suite runs pytest in a directory
+  # that holds what this names, so the settings have to be in it: pytest
+  # reads them from the root it finds, and a root with no config file is
+  # a root with no settings. Without it `anyio_mode` is not set in the
+  # sandbox and every coroutine test fails there while passing here.
   testSources = lib.fileset.toSource {
     root = ./.;
-    fileset = ./tests;
+    fileset = lib.fileset.unions [
+      ./tests
+      ./pyproject.toml
+    ];
   };
 
   # Each judge is built from its own directory alone. Otherwise every change
