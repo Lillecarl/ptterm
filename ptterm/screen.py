@@ -25,6 +25,7 @@ from .graphics import (
     ASSUMED_CELL_WIDTH,
     GraphicsState,
 )
+from . import kitty_keys
 from .colors import DEFAULT_COLORS, PALETTE, Color, parse_color
 from .osc import (
     DYNAMIC_COLOR_CODES,
@@ -1005,31 +1006,16 @@ class BetterScreen:
         The currently effective kitty keyboard protocol flags. (The top of
         the flag stack, or zero when the stack is empty.)
         """
-        return self.kitty_flags_stack[-1] if self.kitty_flags_stack else 0
-
-    #: The kitty keyboard protocol flags that need a terminal that
-    #: speaks the protocol. The event type of a key needs a key
-    #: release, and the other codes of a key need the layout of the
-    #: user. The legacy encoding carries neither of them by itself.
-    #: The other three flags are a form to write a key in, so any
-    #: terminal serves them.
-    kitty_flags_that_need_a_source = 0b110
+        return kitty_keys.current_flags(self.kitty_flags_stack)
 
     @property
     def deliverable_kitty_keyboard_flags(self) -> int:
-        """
-        The flags that this pane really gets, of the ones it asked for.
-
-        A pane asks the terminal what it does, and the answer has to
-        hold. With `synthesize_key_events`, every flag holds: a key
-        release that the keyboard never sends is made up, and the
-        shifted key of a letter is known. Without it, the answer drops
-        what the keyboard cannot serve on its own.
-        """
-        if self.synthesize_key_events:
-            return self.kitty_keyboard_flags
-        missing = self.kitty_flags_that_need_a_source & ~self.keyboard_source_flags
-        return self.kitty_keyboard_flags & ~missing
+        "The flags that this pane really gets, of the ones it asked for."
+        return kitty_keys.deliverable_flags(
+            self.kitty_keyboard_flags,
+            self.keyboard_source_flags,
+            self.synthesize_key_events,
+        )
 
     @property
     def has_reverse_video(self) -> bool:
@@ -4854,11 +4840,6 @@ class BetterScreen:
                 )
             )
 
-    # The kitty keyboard protocol spec says terminals should limit the size
-    # of the flag stack to prevent denial-of-service. When the stack is
-    # full, pushing evicts the oldest entry.
-    kitty_max_flags_stack_size = 64
-
     def report_kitty_keyboard(self, *params, private=False) -> None:
         """
         Handle the ``CSI u`` sequences of the kitty keyboard protocol:
@@ -4878,49 +4859,26 @@ class BetterScreen:
             )
 
         elif private == ">":
-            # Push flags onto the stack. (Spec: if flags is omitted, it
-            # defaults to zero.)
-            flags = params[0] if params else 0
-            stack = self.kitty_flags_stack + (flags,)
-            if len(stack) > self.kitty_max_flags_stack_size:
-                stack = stack[-self.kitty_max_flags_stack_size :]
-            self.kitty_flags_stack = stack
+            # Push. The flags default to none.
+            self.kitty_flags_stack = kitty_keys.pushed(
+                self.kitty_flags_stack, params[0] if params else 0
+            )
 
         elif private == "<":
-            # Pop entries off the stack. (Spec: the count defaults to 1.
-            # Popping more entries than the stack holds, or popping from
-            # an empty stack, resets all flags.)
-            count = params[0] if params else 1
-            count = max(1, count)
-            if self.kitty_flags_stack:
-                self.kitty_flags_stack = self.kitty_flags_stack[:-count]
+            # Pop. The count defaults to one.
+            self.kitty_flags_stack = kitty_keys.popped(
+                self.kitty_flags_stack, params[0] if params else 1
+            )
 
         elif private == "=":
-            # Set the current flags. Mode 1 (the default) sets them
-            # exactly, mode 2 sets the given bits (OR), and mode 3 resets
-            # the given bits (AND NOT).
-            flags = params[0] if params else 0
-            mode = params[1] if len(params) > 1 else 1
-
-            current = self.kitty_keyboard_flags
-            if mode == 1:
-                new_flags = flags
-            elif mode == 2:
-                new_flags = current | flags
-            elif mode == 3:
-                new_flags = current & ~flags
-            else:
-                return  # Unknown mode. Ignore.
-
-            if self.kitty_flags_stack:
-                # Replace the top of the stack.
-                self.kitty_flags_stack = (
-                    self.kitty_flags_stack[:-1] + (new_flags,)
-                )
-            else:
-                # No stack: setting acts like a push. (kitty behaves the
-                # same way.)
-                self.kitty_flags_stack = (new_flags,)
+            # Set. The mode defaults to setting the flags exactly.
+            stack = kitty_keys.with_flags_set(
+                self.kitty_flags_stack,
+                params[0] if params else 0,
+                params[1] if len(params) > 1 else kitty_keys.SET_EXACTLY,
+            )
+            if stack is not None:
+                self.kitty_flags_stack = stack
 
         else:
             # A plain "CSI u" carries no private marker, so it is not

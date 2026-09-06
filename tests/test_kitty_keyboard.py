@@ -1,6 +1,7 @@
 """Tests for the kitty keyboard protocol flag stack in BetterScreen."""
 import pyte
 
+from ptterm import kitty_keys
 from ptterm.screen import BetterScreen
 from ptterm.stream import BetterStream
 
@@ -166,9 +167,9 @@ def test_reset_clears_stack():
 
 def test_stack_size_is_limited():
     screen, stream, responses = make_screen()
-    for i in range(screen.kitty_max_flags_stack_size + 10):
+    for i in range(kitty_keys.MAX_FLAGS_STACK + 10):
         stream.feed("\x1b[>1u")
-    assert len(screen.kitty_flags_stack) == screen.kitty_max_flags_stack_size
+    assert len(screen.kitty_flags_stack) == kitty_keys.MAX_FLAGS_STACK
 
 
 def test_plain_csi_u_is_ignored():
