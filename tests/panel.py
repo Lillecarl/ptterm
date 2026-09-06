@@ -20,8 +20,9 @@ knows three shapes of underline, no colour for the line and no
 hyperlink. Ghostty holds a link and reports its target only, so it says
 nothing about which cells are one link. xterm.js marks a link with a
 dashed line and writes it over the shape a program asked for, so it
-says nothing about the line of a linked cell. Their answers are read
-through a projection that drops what they cannot hold.
+says nothing about the line of a linked cell. Four of them hold no
+baseline: only libvterm and WezTerm know "SGR 73". Their answers are
+read through a projection that drops what they cannot hold.
 
 A judge that cannot hold the difference in front of it does not vote.
 It **abstains**, which is not the same as agreeing: `abstained()` tells
@@ -57,6 +58,18 @@ class Judge(NamedTuple):
     projection: Optional[Callable[[Cell], Cell]]
 
 
+#: The judges that hold no baseline. Neither kitty nor Alacritty knows
+#: "SGR 73", so every glyph of theirs sits on the line. A judge that
+#: answered 0 with no projection would agree with a screen that raised
+#: a glyph, which is a vote it cannot cast.
+_NO_BASELINE = frozenset(["kitty", "alacritty"])
+
+
+def _without_a_baseline(cell: Cell) -> Cell:
+    "The cell, with the baseline dropped."
+    return cell._replace(baseline=0)
+
+
 def judges() -> List[Judge]:
     "Every judge that this machine can run, in a stable order."
     found = []
@@ -64,7 +77,7 @@ def judges() -> List[Judge]:
     if kitty_is_available():
         from kitty_oracle import kitty_cells
 
-        found.append(Judge("kitty", kitty_cells, None))
+        found.append(Judge("kitty", kitty_cells, _without_a_baseline))
 
     try:
         from rust_oracle import JUDGE_NAMES, judge_cells, judges_are_available
@@ -79,7 +92,7 @@ def judges() -> List[Judge]:
                         lambda data, lines, columns, resize=None, name=name: (
                             judge_cells(name, data, lines, columns, resize)
                         ),
-                        None,
+                        _without_a_baseline if name in _NO_BASELINE else None,
                     )
                 )
 

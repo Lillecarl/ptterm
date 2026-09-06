@@ -20,8 +20,12 @@
 //!
 //! ```json
 //! [char, fg, bg, bold, italic, underline, reverse, underline_color,
-//!  hyperlink, hyperlink_name]
+//!  hyperlink, hyperlink_name, baseline]
 //! ```
+//!
+//! `baseline` is where the glyph sits: 0 on the line, 1 raised
+//! ("SGR 73"), 2 lowered ("SGR 74"). Alacritty holds none of that and
+//! always answers 0.
 //!
 //! A colour is `null` for the default, `["index", n]` for a number of
 //! the palette or `["rgb", r, g, b]`. The python side resolves a
@@ -67,7 +71,7 @@ fn sizes_of(request: &Value) -> ((usize, usize), Option<(usize, usize)>) {
 // WezTerm.
 
 use wezterm_term::color::{ColorAttribute, ColorPalette};
-use wezterm_term::{Intensity, Terminal, TerminalConfiguration, TerminalSize};
+use wezterm_term::{Intensity, Terminal, TerminalConfiguration, TerminalSize, VerticalAlign};
 
 #[derive(Debug)]
 struct WezConfig;
@@ -130,7 +134,7 @@ fn wezterm_screen(
         for x in 0..columns {
             row.push(match screen.get_cell(x, y as i64) {
                 None => {
-                    json!([" ", null, null, false, false, 0, false, null, null, null])
+                    json!([" ", null, null, false, false, 0, false, null, null, null, 0])
                 }
                 Some(cell) => {
                     let attrs = cell.attrs();
@@ -166,6 +170,11 @@ fn wezterm_screen(
                                 link.params().get("id").map(String::as_str).unwrap_or(""),
                                 link.uri()
                             )),
+                        },
+                        match attrs.vertical_align() {
+                            VerticalAlign::SuperScript => 1,
+                            VerticalAlign::SubScript => 2,
+                            _ => 0,
                         },
                     ])
                 }
@@ -309,6 +318,9 @@ fn alacritty_screen(
                     None => Value::Null,
                     Some(link) => json!(format!("{}\u{0}{}", link.id(), link.uri())),
                 },
+                // Alacritty has no "SGR 73": every glyph sits on the
+                // line, and the projection drops this for it.
+                0,
             ]));
         }
         rows.push(Value::Array(row));

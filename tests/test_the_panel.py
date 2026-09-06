@@ -1232,3 +1232,62 @@ def test_an_erase_at_the_end_of_a_line_ends_the_wrap_out_of_it():
         assert kept[name] == ["D" * 15, "", ""], name
     # xterm.js leaves the row the cursor sits on, as the test above says.
     assert kept["xterm"] == ["DDDDDDDDDD", "DDDDD", ""]
+
+
+# ----------------------------------------------------------------------
+# The baseline: "SGR 73" raises a glyph, "SGR 74" lowers it and
+# "SGR 75" puts it back.
+#
+# Two judges hold it. libvterm keeps a `baseline` of two bits beside a
+# `small` bit (`vterm.h` lines 514 and 515), and WezTerm keeps a
+# `VerticalAlign` of the same three values. The other four hold nothing:
+# `ghostty/vt/sgr.h` names no superscript, xterm.js has no such
+# attribute, and neither kitty nor Alacritty reads the codes at all.
+#
+# So the panel here is two, and the projection of the other four drops
+# the field. Lillecarl/pymux#59.
+
+RAISED = 1
+LOWERED = 2
+
+#: Every judge that can say where a glyph sits, and ptterm.
+BASELINE_HOLDERS = ("libvterm", "ptterm", "wezterm")
+
+#: Every judge that holds no baseline at all.
+BASELINE_BLIND = ("alacritty", "ghostty", "kitty", "xterm")
+
+
+def baseline_of(data, lines=1, columns=4):
+    "Where each judge puts the glyph of the first cell, and ptterm."
+    return {
+        name: rows[0][0].baseline
+        for name, rows in _cells(data, lines, columns).items()
+    }
+
+
+def test_two_judges_raise_a_glyph_for_sgr_73():
+    found = baseline_of("\x1b[73mx")
+    assert found["libvterm"] == RAISED
+    assert found["wezterm"] == RAISED
+    for name in BASELINE_BLIND:
+        assert found[name] == 0, name
+
+
+def test_the_same_two_judges_lower_a_glyph_for_sgr_74():
+    found = baseline_of("\x1b[74mx")
+    assert found["libvterm"] == LOWERED
+    assert found["wezterm"] == LOWERED
+    for name in BASELINE_BLIND:
+        assert found[name] == 0, name
+
+
+def test_sgr_75_puts_the_glyph_back_on_the_line():
+    found = baseline_of("\x1b[73m\x1b[75mx")
+    for name in found:
+        assert found[name] == 0, name
+
+
+def test_sgr_0_puts_the_glyph_back_on_the_line():
+    found = baseline_of("\x1b[74m\x1b[0mx")
+    for name in found:
+        assert found[name] == 0, name

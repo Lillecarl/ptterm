@@ -11,12 +11,16 @@ The protocol is one line in and one line out:
 
     {"data": "...", "lines": 6, "columns": 20}
     {"<name>": [[[char, fg, bg, bold, italic, ul, rev, ulcol,
-                  link, link_name], ...]]}
+                  link, link_name, baseline], ...]]}
 
 A colour is null, ["index", n] or ["rgb", r, g, b]. `link` is the
 target of an "OSC 8" and `link_name` is what that emulator calls the
 one link; `number_the_links` turns the name into a number of the
 screen, because no two emulators name a link alike.
+
+`baseline` is where the glyph sits: 0 on the line, 1 raised
+("SGR 73"), 2 lowered ("SGR 74"). A judge that holds none of that
+answers 0, and the projection of that judge drops the field.
 
 A request may carry one more field:
 
@@ -146,6 +150,7 @@ class LineJudge:
                             underline_color=color_of(cell[7]),
                             hyperlink=cell[8],
                             hyperlink_id=cell[9],
+                            baseline=cell[10],
                         )
                         for cell in row
                     ]

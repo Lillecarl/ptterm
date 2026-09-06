@@ -44,7 +44,10 @@ def ghostty_cells(
 
 
 def _as_ghostty_sees(cell: Cell) -> Cell:
-    "The part of a cell that libghostty-vt reports."
-    if cell.hyperlink_id is None:
-        return cell
-    return cell._replace(hyperlink_id=None)
+    """
+    The part of a cell that libghostty-vt reports.
+
+    It names no baseline: `ghostty/vt/sgr.h` holds no superscript and
+    no subscript, so "SGR 73" leaves the glyph where it was.
+    """
+    return cell._replace(hyperlink_id=None, baseline=0)

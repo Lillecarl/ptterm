@@ -60,7 +60,10 @@ def _as_xterm_sees(cell: Cell) -> Cell:
     not a reading of the program.
     `test_the_panel.py::test_a_link_overwrites_the_shape_of_a_line`
     holds the raw answer.
+
+    It holds no baseline either. xterm.js has no "SGR 73", so every
+    glyph sits on the line.
     """
     if cell.hyperlink is not None:
-        return cell._replace(underline=0, underline_color=None)
-    return cell
+        return cell._replace(underline=0, underline_color=None, baseline=0)
+    return cell._replace(baseline=0)

@@ -94,6 +94,14 @@ class Cell(NamedTuple):
     #: every reader. Until it runs the field holds the name that the
     #: emulator gave.
     hyperlink_id: Optional[int] = None
+    #: Where the glyph sits, as libvterm numbers it: 0 on the baseline,
+    #: 1 raised ("SGR 73"), 2 lowered ("SGR 74"). WezTerm numbers its
+    #: own enum the same way.
+    #:
+    #: A judge that does not hold it answers 0, the way libvterm
+    #: answers no hyperlink. The projection of such a judge drops the
+    #: field, so a raised glyph makes it abstain rather than agree.
+    baseline: int = 0
 
 
 #: The word that a style string of prompt_toolkit gives each shape,
@@ -242,6 +250,23 @@ def _underline_of_style(style: str) -> int:
     return 0
 
 
+#: The word that a style string of prompt_toolkit gives each baseline,
+#: against the number that libvterm gives it.
+BASELINE_NUMBERS = {
+    "superscript": 1,
+    "subscript": 2,
+}
+
+
+def _baseline_of_style(style: str) -> int:
+    "Where the glyph sits, as the style string names it."
+    for part in style.split():
+        number = BASELINE_NUMBERS.get(part)
+        if number is not None:
+            return number
+    return 0
+
+
 def ptterm_cells(
     data: str, lines: int, columns: int, resize: Optional[Tuple[int, int]] = None
 ) -> List[List[Cell]]:
@@ -302,6 +327,7 @@ def ptterm_cells_in_pieces(
                     underline_color=_color_of_style(style, "ul:"),
                     hyperlink=target,
                     hyperlink_id=name or None,
+                    baseline=_baseline_of_style(style),
                 )
             )
         rows.append(cells)
@@ -443,7 +469,7 @@ def as_seen(cell: Cell) -> Cell:
     colours of the moment on it. Both draw the same thing.
     """
     if cell.char == " " and not cell.reverse and not cell.underline:
-        return cell._replace(fg=None, bold=False, italic=False)
+        return cell._replace(fg=None, bold=False, italic=False, baseline=0)
     return cell
 
 

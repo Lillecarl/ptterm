@@ -13,7 +13,7 @@
  * The answer is one line holding the screen, as rows of cells:
  *
  *     {"ghostty": [[[char, fg, bg, bold, italic, ul, rev, ulcol,
- *                    link, link_name], ...]]}
+ *                    link, link_name, baseline], ...]]}
  *
  * A colour is null, ["index", n] or ["rgb", r, g, b]. That is the shape
  * every other judge speaks, so `rust_oracle` reads this one too.
@@ -246,7 +246,7 @@ static long read_int_field(const char *line, const char *name, long fallback) {
 static void write_cell(Buffer *out, const GhosttyGridRef *ref) {
   GhosttyCell cell;
   if (ghostty_grid_ref_cell(ref, &cell) != GHOSTTY_SUCCESS) {
-    put(out, "[\" \",null,null,false,false,0,false,null,null,null]");
+    put(out, "[\" \",null,null,false,false,0,false,null,null,null,0]");
     return;
   }
 
@@ -351,6 +351,11 @@ static void write_cell(Buffer *out, const GhosttyGridRef *ref) {
     if (uri != small_uri) free(uri);
   }
   put(out, ",null");
+
+  /* Where the glyph sits. libghostty-vt names no "SGR 73": there is no
+   * superscript and no subscript in `ghostty/vt/sgr.h`, so every glyph
+   * sits on the line. `_as_ghostty_sees` drops the field. */
+  put(out, ",0");
   put(out, "]");
 }
 
@@ -411,7 +416,7 @@ static void answer(const char *line, Buffer *out) {
       };
       if (ghostty_terminal_grid_ref(terminal, point, &ref) !=
           GHOSTTY_SUCCESS) {
-        put(out, "[\" \",null,null,false,false,0,false,null,null,null]");
+        put(out, "[\" \",null,null,false,false,0,false,null,null,null,0]");
         continue;
       }
       write_cell(out, &ref);

@@ -11,7 +11,7 @@
 // The answer is one line holding the screen, as rows of cells:
 //
 //     {"xterm": [[[char, fg, bg, bold, italic, ul, rev, ulcol,
-//                  link, link_name], ...]]}
+//                  link, link_name, baseline], ...]]}
 //
 // A colour is null, ["index", n] or ["rgb", r, g, b]. That is the
 // shape every other judge speaks.
@@ -62,12 +62,12 @@ function screenOf(terminal, lines, columns) {
     const cells = [];
     for (let x = 0; x < columns; x++) {
       if (!line) {
-        cells.push([" ", null, null, false, false, 0, false, null, null, null]);
+        cells.push([" ", null, null, false, false, 0, false, null, null, null, 0]);
         continue;
       }
       const cell = line.getCell(x);
       if (!cell) {
-        cells.push([" ", null, null, false, false, 0, false, null, null, null]);
+        cells.push([" ", null, null, false, false, 0, false, null, null, null, 0]);
         continue;
       }
 
@@ -124,6 +124,9 @@ function screenOf(terminal, lines, columns) {
         // because `number_the_links` wants a name and not an index.
         link ? link.uri : null,
         urlId ? String(urlId) : null,
+        // Where the glyph sits. xterm.js has no "SGR 73", so every
+        // glyph sits on the line and the projection drops this.
+        0,
       ]);
     }
     rows.push(cells);

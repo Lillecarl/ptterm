@@ -289,6 +289,11 @@ def vterm_cells(
                         # colour for the line itself.
                         underline=int(cell.attrs.underline),
                         reverse=bool(cell.attrs.reverse),
+                        # "SGR 73" and "SGR 74". libvterm carries a
+                        # `small` bit beside this one, and it is the
+                        # same answer: a raised or a lowered glyph is
+                        # the small one.
+                        baseline=int(cell.attrs.baseline),
                     )
                 )
             rows.append(cells)
