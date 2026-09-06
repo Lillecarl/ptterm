@@ -639,6 +639,16 @@ UNDERLINE_PARAMETERS = {
 }
 
 
+def _encoded(text: str) -> str:
+    """
+    One piece of a hyperlink, as it travels in a style string.
+
+    A style string is split on whitespace, and a target or an id can
+    hold anything, so both travel as base64.
+    """
+    return base64.b64encode(text.encode("utf-8")).decode("ascii")
+
+
 def _palette_number(color: str | None) -> int | None:
     "The number of the palette that a '#ansi234' colour names, or None."
     if not color:
@@ -1302,9 +1312,11 @@ class BetterScreen:
         # apart from each other, so the style of a cell is built from
         # both.
         self._rendition_str = ""
-        # The target of the hyperlink that is open ("OSC 8"), and the
-        # piece of style that carries it.
+        # The target of the hyperlink that is open ("OSC 8"), the id
+        # that joins its pieces, and the piece of style that carries
+        # both.
         self.hyperlink = ""
+        self.hyperlink_id = ""
         self._hyperlink_str = ""
 
     def _reset_screen(self) -> None:
@@ -4010,19 +4022,27 @@ class BetterScreen:
             self._rendition_str + self._hyperlink_str
         ]
 
-    def set_hyperlink(self, target: str) -> None:
+    def set_hyperlink(self, target: str, link_id: str = "") -> None:
         """
         Open a hyperlink, or close the one that is open.
 
-        Every cell that a program draws from here on carries the
-        target, until it sends an empty one.
+        Every cell that a program draws from here on carries the target
+        and the id, until the program sends an empty target.
+
+        The id joins the pieces of one link. A program that writes a
+        link across two lines gives both pieces one id, and the
+        terminal of the user then highlights both when a pointer rests
+        on either. So a new id opens a new link, even when the target
+        does not change.
         """
-        if target == self.hyperlink:
+        if (target, link_id) == (self.hyperlink, self.hyperlink_id):
             return
         self.hyperlink = target
+        self.hyperlink_id = link_id
         if target:
-            encoded = base64.b64encode(target.encode("utf-8")).decode("ascii")
-            self._hyperlink_str = "[hyperlink:%s] " % encoded
+            self._hyperlink_str = "[hyperlink:%s] " % _encoded(target)
+            if link_id:
+                self._hyperlink_str += "[hyperlink-id:%s] " % _encoded(link_id)
         else:
             self._hyperlink_str = ""
         self._rebuild_style()
@@ -4892,9 +4912,10 @@ class BetterScreen:
         may not stop the pane.
         """
         if code == Osc.HYPERLINK:
-            target = parse_hyperlink(param)
-            if target is not None:
-                self.set_hyperlink(target)
+            link = parse_hyperlink(param)
+            if link is not None:
+                link_id, target = link
+                self.set_hyperlink(target, link_id)
         elif code == Osc.POINTER_SHAPE:
             if self._set_pointer_shape(param):
                 self._forward_osc(code, param)

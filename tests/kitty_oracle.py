@@ -93,10 +93,10 @@ def kitty_is_available() -> bool:
     return True
 
 
-#: The piece of style that carries a hyperlink. Its target is base64,
-#: which can hold the letters of a rendition, so it goes away before
-#: the style is read.
-_HYPERLINK = re.compile(r"\[hyperlink:[^\]]*\]")
+#: The pieces of style that carry a hyperlink: its target and its id.
+#: Both are base64, which can hold the letters of a rendition, so they
+#: go away before the style is read.
+_HYPERLINK = re.compile(r"\[hyperlink(?:-id)?:[^\]]*\]")
 
 
 def _color_of_style(style: str, prefix: str) -> Optional[Tuple]:

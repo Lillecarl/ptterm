@@ -23,6 +23,7 @@ __all__ = [
     "DYNAMIC_COLOR_CODES",
     "DYNAMIC_COLOR_RESET_OFFSET",
     "FIRST_SPECIAL_COLOR",
+    "MAX_HYPERLINK_ID_LENGTH",
     "MAX_HYPERLINK_LENGTH",
     "MAX_POINTER_SHAPES",
     "PALETTE",
@@ -324,15 +325,48 @@ def parse_kitty_color_query(param: str) -> List[Tuple[str, bool]] | None:
 #: this is not a link that anybody follows; it is a way to fill memory.
 MAX_HYPERLINK_LENGTH = 2083
 
+#: The longest id that a hyperlink may carry. The specification of the
+#: sequence gives this number.
+MAX_HYPERLINK_ID_LENGTH = 250
 
-def parse_hyperlink(param: str) -> str | None:
+#: The characters that an id may not hold. Three of them separate the
+#: parts of the sequence, and a control character ends it early. The id
+#: goes back out on the wire, so an id with one of these in it would
+#: change what the sequence means there.
+_UNSAFE_IN_HYPERLINK_ID = frozenset(";:=\x1b\x07")
+
+
+def _hyperlink_id(params: str) -> str:
     """
-    The target that an "OSC 8" names, or `None` when there is none.
+    The id that the parameter field of an "OSC 8" names, or "".
 
-    The payload is "params ; target". The parameters carry an "id" that
-    joins the pieces of one link across lines; nothing here needs it, so
-    they are read and dropped. An empty target closes the link that is
-    open.
+    The field is "key=value : key=value", and the specification gives
+    one key: "id". A pane keeps the id, because it joins the pieces of
+    one link, so a link that a line break cuts in two stays one link.
+    """
+    for part in params.split(":"):
+        key, _, value = part.partition("=")
+        if key != "id":
+            continue
+        if not value or len(value) > MAX_HYPERLINK_ID_LENGTH:
+            return ""
+        if any(
+            character < " "
+            or character == "\x7f"
+            or character in _UNSAFE_IN_HYPERLINK_ID
+            for character in value
+        ):
+            return ""
+        return value
+    return ""
+
+
+def parse_hyperlink(param: str) -> tuple[str, str] | None:
+    """
+    The id and the target of an "OSC 8", or `None` when there is none.
+
+    The payload is "params ; target". An empty target closes the link
+    that is open, and it comes back as a pair of empty strings.
 
     A control character would end the sequence early on the terminal of
     the user, and what follows would run as a command of its own, so a
@@ -340,14 +374,14 @@ def parse_hyperlink(param: str) -> str | None:
     """
     if ";" not in param:
         return None
-    _params, target = param.split(";", 1)
+    params, target = param.split(";", 1)
     if not target:
-        return ""  # Close the link that is open.
+        return "", ""  # Close the link that is open.
     if len(target) > MAX_HYPERLINK_LENGTH:
         return None
     if any(character < " " or character == "\x7f" for character in target):
         return None
-    return target
+    return _hyperlink_id(params), target
 
 
 #: The stack of pointer shapes that a terminal keeps. kitty asks for a

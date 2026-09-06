@@ -4,12 +4,20 @@ Hyperlinks (OSC 8).
 A link belongs to the cells that a program draws while it is open, not
 to the terminal. The screen keeps the target and every cell carries it,
 so the renderer can open the link again on the terminal of the user.
+
+A link also has an id. The id joins the pieces of one link, so a link
+that a line break cuts in two is one link and not two. A cell carries
+the id the same way it carries the target.
 """
 import base64
 
 import pytest
 
-from ptterm.osc import MAX_HYPERLINK_LENGTH, parse_hyperlink
+from ptterm.osc import (
+    MAX_HYPERLINK_ID_LENGTH,
+    MAX_HYPERLINK_LENGTH,
+    parse_hyperlink,
+)
 from ptterm.screen import BetterScreen
 from ptterm.stream import BetterStream
 
@@ -30,6 +38,10 @@ def _token(target):
     return "[hyperlink:%s]" % base64.b64encode(target.encode()).decode()
 
 
+def _id_token(link_id):
+    return "[hyperlink-id:%s]" % base64.b64encode(link_id.encode()).decode()
+
+
 def open_link(target=LINK, params=""):
     return "\x1b]8;%s;%s\x1b\\" % (params, target)
 
@@ -42,16 +54,22 @@ CLOSE = "\x1b]8;;\x1b\\"
 
 
 def test_a_target_is_read():
-    assert parse_hyperlink(";" + LINK) == LINK
+    assert parse_hyperlink(";" + LINK) == ("", LINK)
 
 
-def test_the_parameters_are_read_and_dropped():
-    assert parse_hyperlink("id=1;" + LINK) == LINK
+def test_an_id_is_read():
+    assert parse_hyperlink("id=1;" + LINK) == ("1", LINK)
+
+
+def test_an_id_among_other_parameters_is_read():
+    "The field is 'key=value : key=value', and 'id' is the only key."
+    assert parse_hyperlink("a=b:id=1:c=d;" + LINK) == ("1", LINK)
+    assert parse_hyperlink("a=b;" + LINK) == ("", LINK)
 
 
 def test_an_empty_target_closes_the_link():
-    assert parse_hyperlink(";") == ""
-    assert parse_hyperlink("id=1;") == ""
+    assert parse_hyperlink(";") == ("", "")
+    assert parse_hyperlink("id=1;") == ("", "")
 
 
 def test_a_payload_without_a_semicolon_is_no_link():
@@ -70,6 +88,18 @@ def test_a_target_that_is_too_long_is_dropped():
 
 def test_a_target_with_text_of_a_user_survives():
     assert parse_hyperlink(";https://example.com/är") is not None
+
+
+@pytest.mark.parametrize("link_id", ["a\x1bb", "a\x07b", "a\nb", "a\x7fb", "a=b"])
+def test_an_id_that_would_break_the_sequence_is_dropped(link_id):
+    "The link still opens. Only the id goes."
+    assert parse_hyperlink("id=%s;%s" % (link_id, LINK)) == ("", LINK)
+
+
+def test_an_id_that_is_too_long_is_dropped():
+    longest = "i" * MAX_HYPERLINK_ID_LENGTH
+    assert parse_hyperlink("id=%s;%s" % (longest, LINK)) == (longest, LINK)
+    assert parse_hyperlink("id=%si;%s" % (longest, LINK)) == ("", LINK)
 
 
 # ----------------------------------------------------------------------
@@ -115,10 +145,33 @@ def test_a_second_link_replaces_the_first():
     assert _token("https://b") in _style(screen, 1)
 
 
-def test_a_link_with_an_identifier():
+def test_the_cells_of_a_link_carry_its_id():
     screen, stream = _screen()
     stream.feed(open_link(params="id=7") + "x")
     assert _token(LINK) in _style(screen, 0)
+    assert _id_token("7") in _style(screen, 0)
+
+
+def test_a_link_with_no_id_carries_none():
+    screen, stream = _screen()
+    stream.feed(open_link() + "x")
+    assert "hyperlink-id" not in _style(screen, 0)
+
+
+def test_a_new_id_opens_the_same_target_again():
+    "Two ids are two links, whatever the target says."
+    screen, stream = _screen()
+    stream.feed(open_link(params="id=1") + "x" + open_link(params="id=2") + "y")
+    assert _id_token("1") in _style(screen, 0)
+    assert _id_token("2") in _style(screen, 1)
+
+
+def test_the_screen_holds_the_id():
+    screen, stream = _screen()
+    stream.feed(open_link(params="id=7"))
+    assert screen.hyperlink_id == "7"
+    stream.feed(CLOSE)
+    assert screen.hyperlink_id == ""
 
 
 def test_a_target_that_is_dropped_leaves_the_link_alone():
