@@ -18,7 +18,11 @@ __all__ = [
     "Color",
     "DEFAULT_COLORS",
     "PALETTE",
+    "SgrColor",
     "parse_color",
+    "rgb_components",
+    "sgr_color",
+    "sgr_color_parameters",
 ]
 
 #: The width of one colour component that a pane keeps, in bits.
@@ -252,4 +256,89 @@ def parse_color(spec: str) -> Color | None:
     name, colon, rest = spec.partition(":")
     if colon and name in SPACES:
         return _parse_space(name, rest)
+    return None
+
+
+def rgb_components(text: str | None) -> Color | None:
+    "The three components of a '#rrggbb' colour, or None for anything else."
+    if not text:
+        return None
+    digits = text.lstrip("#")
+    if len(digits) != _HASH_DIGITS:
+        return None
+    try:
+        return Color(
+            int(digits[0:2], 16), int(digits[2:4], 16), int(digits[4:6], 16)
+        )
+    except ValueError:
+        return None
+
+
+#: How many hexadecimal digits "#rrggbb" carries.
+_HASH_DIGITS = 6
+
+#: What the second parameter of "SGR 38", "48" and "58" says the rest
+#: of them are.
+_A_NUMBER_OF_THE_PALETTE = 5
+_A_COLOUR_OF_ITS_OWN = 2
+
+#: How many parameters each of those two forms takes, counting the "38"
+#: itself.
+_PALETTE_PARAMETERS = 3
+_OWN_PARAMETERS = 5
+
+
+class SgrColor(NamedTuple):
+    """
+    The colour that "SGR 38", "48" or "58" names. One of the two.
+
+    `index` is a number of the palette. It stays a number: a program
+    that asks for one asks the terminal of the user to paint it, and
+    that terminal has a theme. `rgb` is a colour a program named itself,
+    which no theme has an opinion about.
+    """
+
+    index: int | None = None
+    rgb: Color | None = None
+
+
+def sgr_color_parameters(parameters: List[int]) -> int:
+    """
+    How many parameters a colour of "38", "48" or "58" takes.
+
+    Two name a colour of the palette and five name one of its own. The
+    count is one more, for the "38" itself.
+    """
+    if len(parameters) < 2:
+        return _PALETTE_PARAMETERS
+    if parameters[1] == _A_NUMBER_OF_THE_PALETTE:
+        return _PALETTE_PARAMETERS
+    if parameters[1] == _A_COLOUR_OF_ITS_OWN:
+        return _OWN_PARAMETERS
+    return len(parameters)
+
+
+def sgr_color(parameters: List[int]) -> SgrColor | None:
+    """
+    The colour that "38", "48" or "58" names, or None for nonsense.
+
+    The parameters arrive with semicolons between them or with colons;
+    both forms end up here. The form with colons may name the colour
+    space first, which nobody uses, so an extra number goes away.
+    """
+    if len(parameters) < _PALETTE_PARAMETERS:
+        return None
+    kind = parameters[1]
+    values = parameters[2:]
+
+    if kind == _A_NUMBER_OF_THE_PALETTE:
+        return SgrColor(index=values[0])
+
+    if kind == _A_COLOUR_OF_ITS_OWN:
+        if len(values) > len(Color._fields):
+            values = values[1:]
+        if len(values) < len(Color._fields):
+            return None
+        return SgrColor(rgb=Color(*values[: len(Color._fields)]))
+
     return None

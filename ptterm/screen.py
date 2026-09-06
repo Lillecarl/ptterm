@@ -26,7 +26,15 @@ from .graphics import (
     GraphicsState,
 )
 from . import kitty_keys
-from .colors import DEFAULT_COLORS, PALETTE, Color, parse_color
+from .colors import (
+    DEFAULT_COLORS,
+    PALETTE,
+    Color,
+    parse_color,
+    rgb_components,
+    sgr_color,
+    sgr_color_parameters,
+)
 from .osc import (
     DYNAMIC_COLOR_CODES,
     DYNAMIC_COLOR_RESET_OFFSET,
@@ -652,19 +660,6 @@ def _palette_number(color: str | None) -> int | None:
     if not color:
         return None
     return palette_color_number(color.lstrip("#"))
-
-
-def _rgb_components(color: str | None) -> Tuple[int, int, int] | None:
-    "The three components of a '#rrggbb' colour, or None for anything else."
-    if not color:
-        return None
-    text = color.lstrip("#")
-    if len(text) != 6:
-        return None
-    try:
-        return (int(text[0:2], 16), int(text[2:4], 16), int(text[4:6], 16))
-    except ValueError:
-        return None
 
 
 def _reads_the_clipboard(param: str) -> bool:
@@ -3837,47 +3832,23 @@ class BetterScreen:
         else:
             _256_colors[1024 + i] = "#ansi%d" % i
 
-    @staticmethod
-    def _color_parameters(parameters: List[int]) -> int:
-        """
-        How many parameters a colour of "38", "48" or "58" takes.
-
-        Two parameters name a colour of the palette and five name one
-        of its own. The count is one more, for the "38" itself.
-        """
-        if len(parameters) < 2:
-            return 3
-        if parameters[1] == 5:
-            return 3
-        if parameters[1] == 2:
-            return 5
-        return len(parameters)
+    #: How many parameters a colour of "38", "48" or "58" takes.
+    _color_parameters = staticmethod(sgr_color_parameters)
 
     def _color_of_parameters(self, parameters: List[int]) -> str | None:
         """
-        The colour that "38", "48" or "58" names.
+        How this screen spells the colour that "38", "48" or "58" names.
 
-        The parameters arrive with semicolons between them or with
-        colons; both forms end up here. The form with colons may name
-        the colour space first, which nobody uses, so an extra number
-        goes away.
+        `colors.sgr_color` reads the parameters, and this puts the
+        answer into a style string. The reading is arithmetic and the
+        spelling is prompt_toolkit's, so they live apart.
         """
-        if len(parameters) < 3:
+        named = sgr_color(parameters)
+        if named is None:
             return None
-        kind = parameters[1]
-        values = parameters[2:]
-
-        if kind == 5:
-            return self._256_colors.get(1024 + values[0])
-
-        if kind == 2:
-            if len(values) > 3:
-                values = values[1:]
-            if len(values) < 3:
-                return None
-            return "#{:02x}{:02x}{:02x}".format(*values[:3])
-
-        return None
+        if named.index is not None:
+            return self._256_colors.get(1024 + named.index)
+        return "#{:02x}{:02x}{:02x}".format(*named.rgb)
 
     def select_graphic_rendition(self, *attrs_tuple: int, private: bool = False) -> None:
         """
@@ -4531,7 +4502,7 @@ class BetterScreen:
 
         for color, code in ((attrs.color, 38), (attrs.bgcolor, 48)):
             index = _palette_number(color)
-            components = _rgb_components(color)
+            components = rgb_components(color)
             if index is not None:
                 parts.append("%i;5;%i" % (code, index))
             elif components is not None:
@@ -4539,7 +4510,7 @@ class BetterScreen:
 
         if attrs.underline:
             index = _palette_number(attrs.underline_color)
-            components = _rgb_components(attrs.underline_color)
+            components = rgb_components(attrs.underline_color)
             if index is not None:
                 parts.append("58:5:%i" % index)
             elif components is not None:
