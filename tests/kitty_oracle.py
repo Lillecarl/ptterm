@@ -80,6 +80,26 @@ UNDERLINE_NUMBERS = {
 }
 
 
+def _give_kitty_its_settings() -> None:
+    """
+    Hand kitty the settings that it ships with.
+
+    kitty keeps one settings struct for the whole process, and a screen
+    reads it. Nothing fills it in until somebody calls `set_options`, so
+    a screen made without that call runs on a struct of zeros: every
+    setting off, whatever the shipped value is.
+
+    `allow_hyperlinks` is one of them, and it is on by default. With the
+    struct of zeros kitty drops every "OSC 8", so it holds no link and
+    cannot vote on one. The rest of the panel runs its emulator as it
+    comes, so kitty runs as it comes too.
+    """
+    from kitty.fast_data_types import set_options
+    from kitty.options.types import defaults
+
+    set_options(defaults)
+
+
 def kitty_is_available() -> bool:
     path = os.environ.get("PTTERM_KITTY")
     if not path:
@@ -90,7 +110,16 @@ def kitty_is_available() -> bool:
         import kitty.fast_data_types  # noqa: F401
     except Exception:
         return False
+    global _settings_are_given
+    if not _settings_are_given:
+        _give_kitty_its_settings()
+        _settings_are_given = True
     return True
+
+
+#: The settings go in once. A second call would build them again for
+#: nothing, and this runs before every comparison.
+_settings_are_given = False
 
 
 #: The pieces of style that carry a hyperlink: its target and its id.
