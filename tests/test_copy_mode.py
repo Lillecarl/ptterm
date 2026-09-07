@@ -133,6 +133,28 @@ def test_a_line_that_is_not_there_is_empty():
     assert terminal.styled_line(1000) == []
 
 
+def test_copy_mode_on_the_alternate_screen_shows_the_screen():
+    """
+    A full-screen program draws on a screen of its own, and what
+    scrolls off the top of it is gone. So copy mode there offers that
+    screen and nothing above it.
+
+    It offered a hundred rows more: the alternate screen kept its rows
+    to `history-limit`, which is the depth a person chose for the
+    scrollback of their shell, and pruned once every hundred lines.
+    Lillecarl/pymux#132.
+    """
+    terminal = a_terminal(
+        "\x1b[?1049h"
+        + "".join("row %d\r\n" % number for number in range(60))
+    )
+    document = terminal.copy_buffer.document
+
+    # Six rows of screen, and the last one holds nothing yet.
+    assert document.line_count <= LINES
+    assert document.lines[0] == "row 55"
+
+
 async def press(terminal, *keys):
     """
     Open copy mode, press these keys, and give the terminal back.
