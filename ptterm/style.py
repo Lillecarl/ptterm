@@ -20,6 +20,7 @@ import base64
 from functools import lru_cache
 from typing import TYPE_CHECKING, Dict, List
 
+from pyte.cells import appearance_of
 from pyte.colors import SgrColor
 
 if TYPE_CHECKING:
@@ -159,6 +160,8 @@ def _spelled(appearance: "Appearance") -> str:
 #: `checks.ptterm-instructions` measured the difference at seven points
 #: of a frame.
 #:
-#: The size holds every appearance that a screen can hand out, because
-#: `appearance_of` keeps ten thousand.
-style_of = lru_cache(maxsize=10 * 1000)(_spelled)
+#: The size holds every appearance that a screen can hand out, so it is
+#: read off the cache that hands them out rather than written again
+#: here. A key of this cache is an `Appearance`, and `pyte.cells` keeps
+#: only that many of those alive.
+style_of = lru_cache(maxsize=appearance_of.size)(_spelled)

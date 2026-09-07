@@ -196,6 +196,14 @@ class _TerminalControl(UIControl):
     #: and every row they pass is a row that was drawn. Emptying the
     #: whole of it costs one frame, and a frame is what this saves
     #: thousands of.
+    #:
+    #: Ten thousand is a scrollback depth that people configure: tmux
+    #: keeps two thousand by default and kitty is commonly set to fifty
+    #: thousand, so `tests/measure_instructions.py` measures at 2000,
+    #: 10000 and 50000. Under this depth the map holds a whole history
+    #: and is never emptied. Over it, a person who scrolls the whole
+    #: way pays one frame each time it fills, which is the trade this
+    #: number picks.
     _REMEMBER_AT_MOST = 10 * 1000
 
     def __init__(
