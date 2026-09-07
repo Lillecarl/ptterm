@@ -1,6 +1,7 @@
 """
 The layout engine. This builds the prompt_toolkit layout.
 """
+import os
 from typing import Callable, Iterable, List
 
 from prompt_toolkit.application.current import get_app, get_app_or_none
@@ -42,6 +43,7 @@ from prompt_toolkit.widgets.toolbars import SearchToolbar
 from ptyhost import Process
 from ptyhost.backends import Backend
 
+from pyte.environment import prepare
 from pyte.images import ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH
 from pyte.placeholders import PLACEHOLDER
 from pyte.screen import Screen, Cell, DoubleHeight, WrittenCell
@@ -447,6 +449,31 @@ class _Window(Window):
         super().write_to_screen(*a, **kw)
 
 
+def _in_the_child(
+    before_exec_func: Callable[[], None] | None,
+) -> Callable[[], None]:
+    """
+    What runs in the child, between the fork and the exec.
+
+    The program runs on the screen of this widget and not in the
+    terminal that the application itself runs in, so the environment
+    has to say which one it is. Nothing else knows both: `pyte` has no
+    child to set an environment for, and `ptyhost` runs a program and
+    has no opinion on what parses the bytes. This widget owns a screen
+    and a `Process`, so this is the layer. Lillecarl/pymux#125.
+
+    The hook of the caller runs last, so an embedder can still say
+    something different. pymux does: it has an option for the name.
+    """
+
+    def hook() -> None:
+        prepare(os.environ)
+        if before_exec_func is not None:
+            before_exec_func()
+
+    return hook
+
+
 def create_backend(
     command: List[str], before_exec_func: Callable[[], None] | None
 ) -> Backend:
@@ -462,7 +489,7 @@ def create_backend(
         # "CSI 16 t" gives it.
         return PosixBackend.from_command(
             command,
-            before_exec_func=before_exec_func,
+            before_exec_func=_in_the_child(before_exec_func),
             cell=(ASSUMED_CELL_WIDTH, ASSUMED_CELL_HEIGHT),
         )
 

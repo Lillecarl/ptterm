@@ -30,13 +30,20 @@ import ptterm
 #: A check runs the tests against what it built.
 PACKAGE = Path(ptterm.__file__).parent
 
-#: What this package takes from the pure layer.
+#: What this package takes from `pyte`, and `txterm` takes almost the
+#: same six.
 #:
-#: Four modules, and `txterm` takes almost the same four. A front end
-#: draws cells and sends keys, so what it needs is the screen, the
-#: parser that feeds it, and the two tables that say what a cell holds.
-PURE_LAYER = {
+#: Five of them are the pure layer. A front end draws cells and sends
+#: keys, so what it needs is the screen, the parser that feeds it, and
+#: the tables that say what a cell holds.
+#:
+#: `pyte.environment` is the sixth and is not pure: it says what a
+#: program run on this screen sees. A widget owns both a screen and a
+#: `Process`, so a widget is the only layer that can say it.
+#: Lillecarl/pymux#125.
+FROM_PYTE = {
     "pyte.colors",
+    "pyte.environment",
     "pyte.images",
     "pyte.placeholders",
     "pyte.screen",
@@ -102,18 +109,18 @@ def test_nothing_imports_the_other_front_end(name):
 
 
 @pytest.mark.parametrize("name", sorted(MODULES))
-def test_only_the_pure_layer_of_pyte_is_used(name):
+def test_only_the_named_modules_of_pyte_are_used(name):
     """
-    A module of `pyte` that is not in `PURE_LAYER` is either something
+    A module of `pyte` that is not in `FROM_PYTE` is either something
     upstream left behind, or a piece of the screen that nobody wrote
     down here.
     """
     taken = {
         module for module in _imports(MODULES[name]) if _root(module) == "pyte"
     }
-    assert taken <= PURE_LAYER, (
-        "%s imports %s from pyte; add it to PURE_LAYER"
-        % (name, sorted(taken - PURE_LAYER))
+    assert taken <= FROM_PYTE, (
+        "%s imports %s from pyte; add it to FROM_PYTE"
+        % (name, sorted(taken - FROM_PYTE))
     )
 
 
@@ -130,7 +137,7 @@ def test_the_list_is_what_the_package_really_needs():
         taken |= {
             module for module in _imports(path) if _root(module) == "pyte"
         }
-    assert taken == PURE_LAYER
+    assert taken == FROM_PYTE
 
 
 def test_the_widget_draws_with_prompt_toolkit():
