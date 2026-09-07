@@ -127,9 +127,19 @@ let
   # pane in the chain and once without one. The two pictures are then
   # subtracted, which is the only way to see what a terminal really paints.
   #
-  # It is one file and not `testSources`, so an edit to any other test of
+  # It is two files and not `testSources`, so an edit to any other test of
   # this repository does not rebuild the pymux check that photographs it.
-  vttestWalker = ./tests/drive_with_vttest.py;
+  # The walker adds its own directory to `sys.path` and imports the host
+  # that pairs a screen with a program, so that file comes along. Alone,
+  # the walker raised "No module named 'pty_host'" the moment pymux ran
+  # it, and the check has not run since. Lillecarl/pymux#149.
+  vttestWalker = lib.fileset.toSource {
+    root = ./tests;
+    fileset = lib.fileset.unions [
+      ./tests/drive_with_vttest.py
+      ./tests/pty_host.py
+    ];
+  };
 
   checks = callPackage ./nix/checks.nix {
     inherit
