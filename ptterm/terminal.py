@@ -136,6 +136,14 @@ def _visible_char(char: str) -> str:
 
 
 class _TerminalControl(UIControl):
+    #: How many rows this control remembers having drawn.
+    #:
+    #: A pane of a hundred rows with a history of two thousand needs
+    #: about that many. The number is far above either, so the whole of
+    #: it is emptied only when a session has scrolled a long way, and
+    #: emptying it costs one frame.
+    _REMEMBER_AT_MOST = 10 * 1000
+
     def __init__(
         self,
         backend: Backend,
@@ -185,6 +193,15 @@ class _TerminalControl(UIControl):
         self.on_content_changed = Event(self)
         self._running = False
 
+        # What this control drew for each row, and the write count of
+        # the screen that it drew it at. A row whose count has not
+        # moved is a row it does not build again. The state is here and
+        # not on the screen, because a screen has more than one reader
+        # and no way to know how many. Lillecarl/pymux#126.
+        self._drawn: dict[int, StyleAndTextTuples] = {}
+        self._drawn_at: dict[int, int] = {}
+        self._drawn_reversed = False
+
     def set_size(self, width: int, height: int) -> None:
         "Tell the pty and the screen how big the pane is."
         self.process.set_size(width, height)
@@ -217,6 +234,26 @@ class _TerminalControl(UIControl):
         # turns the other way, so the two cancel out. libvterm calls this
         # an xor, and it is the same answer.
         reverse_video = self.screen.has_reverse_video
+
+        # DECSCNM belongs to the whole screen and not to a row, so a
+        # line built under one answer says nothing about the other.
+        # Nothing else outside a row reaches `get_line`.
+        if reverse_video != self._drawn_reversed:
+            self._drawn.clear()
+            self._drawn_at.clear()
+            self._drawn_reversed = reverse_video
+
+        # The history grows and the rows that leave it never come back,
+        # so what is remembered of them is dead weight. Emptying the
+        # whole of it costs one frame, and a frame is what this saves
+        # thousands of.
+        if len(self._drawn) > self._REMEMBER_AT_MOST:
+            self._drawn.clear()
+            self._drawn_at.clear()
+
+        written_at = self.screen.written_at
+        drawn = self._drawn
+        drawn_at = self._drawn_at
 
         def fragment(cell: Cell) -> tuple[str, str]:
             """
@@ -251,7 +288,7 @@ class _TerminalControl(UIControl):
         else:
             line_attributes = {}
 
-        def get_line(number: int) -> StyleAndTextTuples:
+        def build(number: int) -> StyleAndTextTuples:
             row = data_buffer[number]
             empty = True
             if row:
@@ -269,6 +306,37 @@ class _TerminalControl(UIControl):
             else:
                 cells = [row[i] for i in range(max_column + 1)]
                 return [fragment(cell) for cell in cells]
+
+        def get_line(number: int) -> StyleAndTextTuples:
+            """
+            One row, built once and kept until the screen writes it
+            again. Lillecarl/pymux#126.
+
+            The screen counts every write it makes to a row, and this
+            keeps the count it built each row at. A count that has not
+            moved is a row that has not changed, and a frame after a
+            program wrote one line then builds one line.
+
+            **The row the cursor stands on is never kept.** It is the
+            one row whose answer depends on something outside it: the
+            cursor pads it out to the column the cursor stands in, so
+            that prompt_toolkit places the cursor on the line rather
+            than scrolling the pane sideways to reach it.
+
+            The list is handed over as it is and not copied.
+            prompt_toolkit reads it, and the one place that changes a
+            line -- the horizontal scroll in `Window._copy_body` --
+            calls `explode_text_fragments` first, which builds a list
+            of its own.
+            """
+            if number == cursor_y:
+                return build(number)
+
+            version = written_at.get(number, 0)
+            if drawn_at.get(number) != version:
+                drawn[number] = build(number)
+                drawn_at[number] = version
+            return drawn[number]
 
         def get_line_attribute(number: int) -> LineAttribute | None:
             "How big the terminal draws this row, or None for a plain one."
