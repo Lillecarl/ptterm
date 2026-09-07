@@ -42,9 +42,11 @@ PACKAGE = Path(ptterm.__file__).parent
 #: `Process`, so a widget is the only layer that can say it.
 #: Lillecarl/pymux#125.
 FROM_PYTE = {
+    "pyte.cells",
     "pyte.colors",
     "pyte.environment",
     "pyte.images",
+    "pyte.page",
     "pyte.placeholders",
     "pyte.screen",
     "pyte.streams",

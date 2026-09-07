@@ -91,7 +91,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 from pty_host import Host  # noqa: E402
 
 from ptyhost import Process  # noqa: E402
-from pyte.screen import DoubleHeight, WrittenCell  # noqa: E402
+from pyte.cells import WrittenCell  # noqa: E402
+from pyte.page import DoubleHeight  # noqa: E402
 
 #: The screen vttest draws on. Its own default is 24 by 80, with 132
 #: as the wide setting, and it prints the size in the title when it is

@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING, Dict, List
 from pyte.colors import SgrColor
 
 if TYPE_CHECKING:
-    from pyte.screen import Appearance
+    from pyte.cells import Appearance
 
 __all__ = (
     "PALETTE_NAMES",

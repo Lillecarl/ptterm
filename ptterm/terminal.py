@@ -46,7 +46,9 @@ from ptyhost.backends import Backend
 from pyte.environment import prepare
 from pyte.images import ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH
 from pyte.placeholders import PLACEHOLDER
-from pyte.screen import Screen, Cell, DoubleHeight, WrittenCell
+from pyte.cells import Cell, WrittenCell
+from pyte.page import DoubleHeight
+from pyte.screen import Screen
 from pyte.streams import Stream
 
 from .style import style_of

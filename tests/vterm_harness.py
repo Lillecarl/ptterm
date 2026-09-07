@@ -57,12 +57,9 @@ from kitty_oracle import (  # noqa: E402
     _underline_of_style,
 )
 
-from pyte.screen import (  # noqa: E402
-    Screen,
-    DoubleHeight,
-    WrittenCell,
-    appearance_of,
-)
+from pyte.cells import WrittenCell, appearance_of  # noqa: E402
+from pyte.page import DoubleHeight  # noqa: E402
+from pyte.screen import Screen  # noqa: E402
 from pyte.streams import Stream  # noqa: E402
 from ptterm.style import style_of  # noqa: E402
 

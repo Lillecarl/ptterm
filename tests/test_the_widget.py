@@ -41,7 +41,7 @@ from prompt_toolkit.token import KeepWhitespace
 from prompt_toolkit.layout.layout import Layout
 
 from no_backend import NoBackend
-from pyte.screen import PLAIN_APPEARANCE, Cell
+from pyte.cells import PLAIN_APPEARANCE, Cell
 from ptterm.terminal import Terminal, _TerminalControl, _Window
 
 
