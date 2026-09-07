@@ -153,6 +153,7 @@ class _TerminalControl(UIControl):
         resize_func: Callable[[int | None, int | None], None] | None = None,
         may_resize: Callable[[], bool] | None = None,
         owns_whole_lines: FilterOrBool = False,
+        get_history_limit: Callable[[], int] | None = None,
     ) -> None:
         self.owns_whole_lines = to_filter(owns_whole_lines)
 
@@ -178,6 +179,12 @@ class _TerminalControl(UIControl):
             osc_func=osc_func,
             resize_func=resize_func,
             may_resize=may_resize,
+            # How deep the scrollback goes. The embedder decides, because
+            # it is the embedder that offers the option: tmux and pymux
+            # both call it `history-limit`. A pane that keeps the answer
+            # in a function reads it again on every cleanup, so a change
+            # to the option reaches a pane that is already running.
+            get_history_limit=get_history_limit,
         )
         self.stream = Stream(self.screen)
         self.stream.attach(self.screen)
@@ -588,6 +595,10 @@ class Terminal:
         drawn twice as wide is a line of that terminal, and a pane beside
         another one holds half of it. It is a filter, because a layout
         changes while the pane runs.
+    :param get_history_limit: Returns how many rows of scrollback this
+        pane keeps. The default is two thousand, which is what tmux
+        keeps. It is a function and not a number, so the option can
+        change while the pane runs.
     """
 
     def __init__(
@@ -604,6 +615,7 @@ class Terminal:
         resize_func: Callable[[int | None, int | None], None] | None = None,
         may_resize: Callable[[], bool] | None = None,
         owns_whole_lines: FilterOrBool = False,
+        get_history_limit: Callable[[], int] | None = None,
     ) -> None:
         if backend is None:
             backend = create_backend(command, before_exec_func)
@@ -616,6 +628,7 @@ class Terminal:
             may_resize=may_resize,
             done_callback=done_callback,
             owns_whole_lines=owns_whole_lines,
+            get_history_limit=get_history_limit,
         )
 
         self.terminal_window = _Window(
