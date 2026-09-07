@@ -20,10 +20,10 @@ import base64
 from functools import lru_cache
 from typing import TYPE_CHECKING, Dict, List
 
-from .colors import SgrColor
+from pyte.colors import SgrColor
 
 if TYPE_CHECKING:
-    from .screen import Appearance
+    from pyte.screen import Appearance
 
 __all__ = (
     "PALETTE_NAMES",

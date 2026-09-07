@@ -9,8 +9,8 @@ what the cell holds, and every emulator agrees.
 import pytest
 
 from kitty_oracle import differences, kitty_is_available, ptterm_cells
-from ptterm.screen import BetterScreen
-from ptterm.stream import BetterStream
+from pyte.screen import Screen
+from pyte.streams import Stream
 from ptterm.style import style_of
 
 NBSP = "\xa0"
@@ -24,8 +24,8 @@ def test_a_no_break_space_stays_a_no_break_space():
 
 def test_a_no_break_space_carries_no_style_of_its_own():
     "The class of the widget would underline it in yellow."
-    screen = BetterScreen(2, 6, write_process_input=lambda answer: None)
-    stream = BetterStream(screen)
+    screen = Screen(2, 6, write_process_input=lambda answer: None)
+    stream = Stream(screen)
     stream.feed("\x1b[31m" + NBSP)
     cell = screen.page.data_buffer[screen.line_offset][0]
     assert cell.char == NBSP

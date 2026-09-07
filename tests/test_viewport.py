@@ -8,15 +8,15 @@ screen back into the history and hide the last line.
 """
 import pytest
 
-from ptterm.screen import BetterScreen
-from ptterm.stream import BetterStream
+from pyte.screen import Screen
+from pyte.streams import Stream
 
 from kitty_oracle import differences, kitty_is_available
 
 
 def _screen(lines=4, columns=8):
-    screen = BetterScreen(lines, columns, write_process_input=lambda data: None)
-    stream = BetterStream(screen)
+    screen = Screen(lines, columns, write_process_input=lambda data: None)
+    stream = Stream(screen)
     return screen, stream
 
 

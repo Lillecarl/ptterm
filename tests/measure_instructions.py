@@ -21,8 +21,8 @@ the largest and most honest workload in the repository.
 
 Each recording is measured twice.
 
-**The parse** is the recording fed to a fresh `BetterScreen` through
-`BetterStream`, on the screen that Alacritty recorded it at. That is
+**The parse** is the recording fed to a fresh `Screen` through
+`Stream`, on the screen that Alacritty recorded it at. That is
 the parser and the screen and nothing else: no pty, no client, no
 render.
 
@@ -66,8 +66,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 from instructions import count_instructions  # noqa: E402
 from no_backend import NoBackend  # noqa: E402
 
-from ptterm.screen import BetterScreen  # noqa: E402
-from ptterm.stream import BetterStream  # noqa: E402
+from pyte.screen import Screen  # noqa: E402
+from pyte.streams import Stream  # noqa: E402
 from ptterm.terminal import _TerminalControl  # noqa: E402
 
 HERE = Path(__file__).parent
@@ -110,8 +110,8 @@ def cost(data: bytes, lines: int, columns: int) -> int:
     text = data.decode("utf-8", "replace")
 
     def work():
-        screen = BetterScreen(lines, columns, write_process_input=lambda answer: None)
-        BetterStream(screen).feed(text)
+        screen = Screen(lines, columns, write_process_input=lambda answer: None)
+        Stream(screen).feed(text)
 
     return count_instructions(work)
 

@@ -42,10 +42,11 @@ from prompt_toolkit.widgets.toolbars import SearchToolbar
 from ptyhost import Process
 from ptyhost.backends import Backend
 
-from .graphics import ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH
-from .placeholders import PLACEHOLDER
-from .screen import BetterScreen, Cell, DoubleHeight, WrittenCell
-from .stream import BetterStream
+from pyte.images import ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH
+from pyte.placeholders import PLACEHOLDER
+from pyte.screen import Screen, Cell, DoubleHeight, WrittenCell
+from pyte.streams import Stream
+
 from .style import style_of
 
 __all__ = ["Terminal"]
@@ -159,7 +160,7 @@ class _TerminalControl(UIControl):
         # The screen belongs to the front end and not to the pty: a
         # `Process` runs a program and pumps its bytes, and what those
         # bytes mean is decided here. Lillecarl/pymux#85.
-        self.screen = BetterScreen(
+        self.screen = Screen(
             0,
             0,
             write_process_input=lambda data: self.process.write_input(data),
@@ -168,7 +169,7 @@ class _TerminalControl(UIControl):
             resize_func=resize_func,
             may_resize=may_resize,
         )
-        self.stream = BetterStream(self.screen)
+        self.stream = Stream(self.screen)
         self.stream.attach(self.screen)
 
         self.process = Process(
@@ -711,7 +712,7 @@ class Terminal:
         return self.terminal_control.process
 
     @property
-    def screen(self) -> BetterScreen:
+    def screen(self) -> Screen:
         "What the program in this pane has drawn."
         return self.terminal_control.screen
 

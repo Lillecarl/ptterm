@@ -16,7 +16,7 @@ failure says which half is wrong.
 """
 import pytest
 
-from ptterm.colors import Color, sgr_color, sgr_color_parameters
+from pyte.colors import Color, sgr_color, sgr_color_parameters
 
 
 #: How many parameters each form takes, counting the "38" itself.

@@ -1,24 +1,23 @@
 """
 Which module may import what.
 
-ptterm is three layers, and nothing but a habit kept them apart.
-Lillecarl/pymux#11 holds the split, #82 the second front end that
-proves it, and #85 the pty layer that has no home yet.
+**ptterm is one layer now: the prompt_toolkit front end.** Everything
+under it belongs to another package, and getting there is the whole of
+Lillecarl/pymux#11:
 
-1. **Pure.** The parser, the screen, the colours, the images. No I/O
-   and no toolkit. This is what belongs in `pyte`.
-2. **The front end.** The prompt_toolkit widget, and the key table it
-   needs. `txterm` is the same layer for Textual (#82).
+- `pyte` parses and holds the screen. That was `ptterm.screen` and
+  eleven modules beside it, and it left so that a second front end can
+  use it without taking prompt_toolkit on behind it.
+- `ptyhost` runs the program on a pty. That was `ptterm.process` and
+  `ptterm.backends`, and it left for the same reason (#85).
+- `txterm` is this layer again, for Textual (#82). It has a copy of this
+  file, and neither package may reach the other.
 
-The layer between them, which runs a program on a pty, has left: it is
-`ptyhost` now, and its own suite holds it to importing nothing (#85).
-
-A layer may reach the layers under it and never the ones above.
-
-**This file is the boundary, and grep is not.** Every count in those
-issues was a grep somebody ran once, and a single `from prompt_toolkit
-import ...` in `screen.py` would put it back where it started with
-nothing to say so. The import that breaks a layer fails here instead.
+**This file is the boundary, and grep is not.** A single
+`from prompt_toolkit import ...` back in the screen would put the split
+where it started with nothing to say so. The import that breaks a layer
+fails here instead. `pyte/tests/test_the_layers.py` is the other half:
+it holds the pure layer to importing no toolkit at all.
 """
 import ast
 from pathlib import Path
@@ -31,51 +30,22 @@ import ptterm
 #: A check runs the tests against what it built.
 PACKAGE = Path(ptterm.__file__).parent
 
-#: No I/O and no toolkit. `pyte` is where this goes.
-PURE = {
-    "cache",
-    "colors",
-    "graphics",
-    "kitty_keys",
-    "osc",
-    "placeholders",
-    "png",
-    "screen",
-    "sixel",
-    "stream",
-    "terminfo",
-    "xcms",
-}
-
-#: Draws with prompt_toolkit, and turns its keys into bytes.
-FRONT_END = {"key_mappings", "style", "terminal"}
-
-#: What the pure layer may take from outside. Data, arithmetic and
-#: tables, and the parser that `pyte` already holds.
+#: What this package takes from the pure layer.
 #:
-#: `sys` is here for `sys.maxsize` and `sys.platform`, which say
-#: nothing about a file.
-PURE_MAY_IMPORT = {
-    "array",
-    "base64",
-    "collections",
-    "colorsys",
-    "enum",
-    "functools",
-    "math",
-    "re",
-    "string",
-    "struct",
-    "sys",
-    "typing",
-    "zlib",
-    "pyte",
-    "wcwidth",
+#: Four modules, and `txterm` takes almost the same four. A front end
+#: draws cells and sends keys, so what it needs is the screen, the
+#: parser that feeds it, and the two tables that say what a cell holds.
+PURE_LAYER = {
+    "pyte.colors",
+    "pyte.images",
+    "pyte.placeholders",
+    "pyte.screen",
+    "pyte.streams",
 }
 
-#: The toolkits. A layer that may not draw may not import one, and the
-#: two front ends may never import each other's.
-TOOLKITS = {"prompt_toolkit", "textual", "rich"}
+#: The toolkit this package draws with, and the one it may never touch.
+DRAWS_WITH = "prompt_toolkit"
+NEVER = "textual"
 
 
 def _name_of(path: Path) -> str:
@@ -84,7 +54,7 @@ def _name_of(path: Path) -> str:
     parts = list(relative.parts)
     if parts[-1] == "__init__":
         parts.pop()
-    return ".".join(parts)
+    return ".".join(parts) or "__init__"
 
 
 def _modules():
@@ -93,9 +63,7 @@ def _modules():
     for path in sorted(PACKAGE.rglob("*.py")):
         if "__pycache__" in path.parts:
             continue
-        name = _name_of(path)
-        if name:
-            found[name] = path
+        found[_name_of(path)] = path
     return found
 
 
@@ -104,150 +72,83 @@ MODULES = _modules()
 
 def _imports(path: Path):
     """
-    What one module imports: the outside packages by their first name,
-    and the modules of this package by their own name.
+    The outside modules that one file imports, by their full name.
 
-    A relative import counts from the module that writes it, so
-    "from .colors import" inside "backends/posix.py" is "backends" and
-    not "colors". Nothing here does that, and the arithmetic is the
-    same either way.
+    A relative import names something inside this package, and the rules
+    here are about what comes from outside it.
     """
     outside = set()
-    inside = set()
-    tree = ast.parse(path.read_text())
-
-    name = _name_of(path)
-    if path.name == "__init__.py":
-        # The module of a package is that package, so one dot in it
-        # means the package itself and not the one above.
-        package = name
-    elif "." in name:
-        package = name.rsplit(".", 1)[0]
-    else:
-        package = ""
-
-    for node in ast.walk(tree):
+    for node in ast.walk(ast.parse(path.read_text())):
         if isinstance(node, ast.Import):
             for alias in node.names:
-                outside.add(alias.name.split(".")[0])
-        elif isinstance(node, ast.ImportFrom):
-            if not node.level:
-                outside.add((node.module or "").split(".")[0])
-                continue
-            # A relative import. One dot is the package this module is
-            # in, two is the one above it.
-            here = package.split(".") if package else []
-            up = node.level - 1
-            base = here[: len(here) - up] if up else here
-            if node.module:
-                # "from .backends import Backend" names the package,
-                # and "from ..graphics import X" names a module. Both
-                # are in `MODULES` under that name.
-                inside.add(".".join(base + [node.module]))
-            else:
-                # "from . import kitty_keys" names one module per
-                # alias.
-                for alias in node.names:
-                    inside.add(".".join(base + [alias.name]))
-    return outside, inside
+                outside.add(alias.name)
+        elif isinstance(node, ast.ImportFrom) and not node.level:
+            outside.add(node.module or "")
+    return outside
 
 
-def _layer_of(name: str) -> str:
-    if name in PURE:
-        return "pure"
-    if name in FRONT_END:
-        return "front end"
-    return "unplaced"
+def _root(name: str) -> str:
+    return name.split(".")[0]
 
 
-def test_every_module_has_a_layer():
+@pytest.mark.parametrize("name", sorted(MODULES))
+def test_nothing_imports_the_other_front_end(name):
     """
-    A new module has to say which layer it is in, here, before anything
-    else can hold it to a rule.
+    The two widgets draw the same screen and never reach each other. A
+    cell that carried one toolkit's spelling is what made a second front
+    end impossible in the first place.
     """
-    unplaced = sorted(
-        name for name in MODULES if name and _layer_of(name) == "unplaced"
-    )
-    assert unplaced == [], (
-        "these modules are in no layer: add each one to PURE or "
-        "FRONT_END in this file"
+    assert NEVER not in {_root(module) for module in _imports(MODULES[name])}
+
+
+@pytest.mark.parametrize("name", sorted(MODULES))
+def test_only_the_pure_layer_of_pyte_is_used(name):
+    """
+    A module of `pyte` that is not in `PURE_LAYER` is either something
+    upstream left behind, or a piece of the screen that nobody wrote
+    down here.
+    """
+    taken = {
+        module for module in _imports(MODULES[name]) if _root(module) == "pyte"
+    }
+    assert taken <= PURE_LAYER, (
+        "%s imports %s from pyte; add it to PURE_LAYER"
+        % (name, sorted(taken - PURE_LAYER))
     )
 
 
-@pytest.mark.parametrize("name", sorted(PURE))
-def test_only_a_front_end_imports_a_toolkit(name):
-    "The whole point of the split. Lillecarl/pymux#82."
-    outside, _inside = _imports(MODULES[name])
-    assert not (outside & TOOLKITS)
-
-
-@pytest.mark.parametrize("name", sorted(PURE))
-def test_the_pure_layer_reaches_no_pty(name):
+def test_the_list_is_what_the_package_really_needs():
     """
-    A screen parses bytes and holds cells. Where the bytes came from is
-    not its question, and `ptyhost` is a package it must never need.
+    And the other way round: a name in the list that nothing imports is
+    a name that says the front end is bigger than it is.
+
+    This is also the guard on the reading. A reader that found no import
+    anywhere would pass both tests above and say nothing at all.
     """
-    outside, _inside = _imports(MODULES[name])
-    assert "ptyhost" not in outside
+    taken = set()
+    for path in MODULES.values():
+        taken |= {
+            module for module in _imports(path) if _root(module) == "pyte"
+        }
+    assert taken == PURE_LAYER
 
 
-def test_the_reading_sees_a_toolkit_where_there_is_one():
+def test_the_widget_draws_with_prompt_toolkit():
+    "The guard on the reading, from the other side."
+    outside = {_root(module) for module in _imports(MODULES["terminal"])}
+    assert DRAWS_WITH in outside
+
+
+def test_only_the_widget_runs_a_program():
     """
-    The test above says nothing unless this one passes: a reader that
-    finds no import anywhere would pass every module.
-
-    `terminal.py` is the prompt_toolkit widget, and `key_mappings.py`
-    holds its key table. Both import it, and both should.
-    """
-    for name in ("terminal", "key_mappings"):
-        outside, _inside = _imports(MODULES[name])
-        assert "prompt_toolkit" in outside, name
-
-
-def test_the_reading_sees_a_module_of_this_package():
-    """
-    And the same for the layer tests, which read the imports inside the
-    package. `screen.py` reaches five modules under it.
-    """
-    _outside, inside = _imports(MODULES["screen"])
-    assert {"cache", "colors", "kitty_keys"} <= inside
-
-
-@pytest.mark.parametrize("name", sorted(PURE))
-def test_the_pure_layer_does_no_input_or_output(name):
-    """
-    `pyte` is worth having on its own because it opens nothing and
-    talks to nobody. A module that imports `os` has left that behind.
-    """
-    outside, _inside = _imports(MODULES[name])
-    assert outside <= PURE_MAY_IMPORT, (
-        "%s imports %s, which the pure layer may not"
-        % (name, sorted(outside - PURE_MAY_IMPORT))
-    )
-
-
-@pytest.mark.parametrize("name", sorted(PURE))
-def test_the_pure_layer_reaches_nothing_above_it(name):
-    _outside, inside = _imports(MODULES[name])
-    assert all(_layer_of(other) == "pure" for other in inside), (
-        "%s imports %s" % (name, sorted(inside))
-    )
-
-
-def test_only_the_front_end_runs_a_program():
-    """
-    `ptyhost` is a package now, and `terminal.py` is the only thing here
-    that reaches for it: it is the widget, so it is what starts a
-    program and hands the bytes to a screen. Lillecarl/pymux#85.
-
-    The size of a cell in pixels was the last thing the pty layer
-    borrowed on the way out. It is what a screen answers to "CSI 16 t",
-    so the screen passes it to the backend rather than the backend
-    reading it from the screen.
+    `ptyhost` is the package that starts a program on a pty, and
+    `terminal.py` is the only thing here that reaches for it: it is the
+    widget, so it is what starts the program and hands the bytes to a
+    screen. Lillecarl/pymux#85.
     """
     reaching = sorted(
         name
         for name in MODULES
-        if name and "ptyhost" in _imports(MODULES[name])[0]
+        if any(_root(module) == "ptyhost" for module in _imports(MODULES[name]))
     )
     assert reaching == ["terminal"]

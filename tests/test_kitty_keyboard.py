@@ -1,16 +1,16 @@
-"""Tests for the kitty keyboard protocol flag stack in BetterScreen."""
+"""Tests for the kitty keyboard protocol flag stack in Screen."""
 import pyte
 
-from ptterm import kitty_keys
-from ptterm.screen import BetterScreen
-from ptterm.stream import BetterStream
+from pyte import kitty_keys
+from pyte.screen import Screen
+from pyte.streams import Stream
 
 
 def make_screen():
     "Return (screen, stream, responses)."
     responses = []
-    screen = BetterScreen(24, 80, write_process_input=responses.append)
-    stream = BetterStream(screen)
+    screen = Screen(24, 80, write_process_input=responses.append)
+    stream = Stream(screen)
     return screen, stream, responses
 
 
@@ -198,15 +198,21 @@ def test_apc_and_dcs_are_consumed():
     assert "$q" not in row_text()
 
 
-def test_pyte_default_stream_does_not_dispatch_u():
-    # pyte's own Stream class has no "u" entry in its csi map, so the
-    # sequences don't reach the handler. (BetterStream adds the mapping.)
+def test_the_byte_parser_dispatches_it_too():
+    """
+    There is one parser now.
+
+    There were two: pyte's `Stream`, which had no "u" in its table, and
+    a `BetterStream` that added one. So a sequence reached the handler
+    or did not depending on which of the two a caller picked, and
+    `ByteStream`, which is the one `python -m pyte` disassembles with,
+    picked the wrong one.
+    """
     responses = []
-    screen = BetterScreen(24, 80, write_process_input=responses.append)
+    screen = Screen(24, 80, write_process_input=responses.append)
     stream = pyte.ByteStream(screen)
     stream.feed(b"\x1b[>1u")
-    assert screen.kitty_keyboard_flags == 0
-    assert responses == []
+    assert screen.kitty_keyboard_flags == 1
 
 
 # ----------------------------------------------------------------------

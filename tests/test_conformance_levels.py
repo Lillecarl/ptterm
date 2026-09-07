@@ -11,8 +11,8 @@ finds a VT520 has learned nothing from asking.
 """
 import pytest
 
-from ptterm.screen import BetterScreen
-from ptterm.stream import BetterStream
+from pyte.screen import Screen
+from pyte.streams import Stream
 
 #: DECSCL for each terminal, with seven bit controls.
 VT200 = '\x1b[62;1"p'
@@ -24,8 +24,8 @@ VT500 = '\x1b[65;1"p'
 def make_screen(lines=4, columns=10):
     "Return (screen, stream, what the screen answered)."
     answers = []
-    screen = BetterScreen(lines, columns, write_process_input=answers.append)
-    return screen, BetterStream(screen), answers
+    screen = Screen(lines, columns, write_process_input=answers.append)
+    return screen, Stream(screen), answers
 
 
 # ----------------------------------------------------------------------

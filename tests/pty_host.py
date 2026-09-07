@@ -12,9 +12,9 @@ This host owns its pty, so it answers a resize itself. A pane cannot:
 it would be taking room from the panes beside it, so ptterm hands the
 ask to the embedder instead.
 """
-from ptterm.graphics import ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH
-from ptterm.screen import BetterScreen
-from ptterm.stream import BetterStream
+from pyte.images import ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH
+from pyte.screen import Screen
+from pyte.streams import Stream
 from ptyhost import Process
 from ptyhost.backends.posix import PosixBackend
 
@@ -56,13 +56,13 @@ class Host:
         if prepare is not None:
             prepare(self.backend)
 
-        self.screen = BetterScreen(
+        self.screen = Screen(
             lines,
             columns,
             write_process_input=lambda data: self.process.write_input(data),
             resize_func=self.resize,
         )
-        self.stream = BetterStream(self.screen)
+        self.stream = Stream(self.screen)
         self.stream.attach(self.screen)
 
         self.process = Process(

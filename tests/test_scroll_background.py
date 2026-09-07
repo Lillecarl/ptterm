@@ -12,15 +12,15 @@ set a region. Alacritty's `vim_large_window_scroll` reference test
 found it: vim writes a line, moves over eight cells with `CSI 8 C` and
 writes again, so those eight cells hold what the scroll left there.
 """
-from ptterm.screen import BetterScreen
-from ptterm.stream import BetterStream
+from pyte.screen import Screen
+from pyte.streams import Stream
 from ptterm.style import style_of
 
 
 def row_style(data, row=3, lines=4, columns=6):
     "The style of the first cell of one visible row, after `data`."
-    screen = BetterScreen(lines, columns, write_process_input=lambda answer: None)
-    stream = BetterStream(screen)
+    screen = Screen(lines, columns, write_process_input=lambda answer: None)
+    stream = Stream(screen)
     stream.feed(data)
     cell = screen.page.data_buffer[screen.line_offset + row][0]
     return style_of(cell.appearance)
@@ -46,16 +46,16 @@ def test_an_index_in_a_region_paints_the_line_it_brings_in():
 
 def test_a_linefeed_with_no_background_leaves_the_row_out():
     "A row that carries nothing is absent, which keeps the screen sparse."
-    screen = BetterScreen(4, 6, write_process_input=lambda answer: None)
-    stream = BetterStream(screen)
+    screen = Screen(4, 6, write_process_input=lambda answer: None)
+    stream = Stream(screen)
     stream.feed("\x1b[4;1H\n")
     assert screen.line_offset + 3 not in screen.data_buffer
 
 
 def test_a_linefeed_over_a_row_that_holds_text_keeps_it():
     "A linefeed in the middle of a screen brings no line in."
-    screen = BetterScreen(4, 6, write_process_input=lambda answer: None)
-    stream = BetterStream(screen)
+    screen = Screen(4, 6, write_process_input=lambda answer: None)
+    stream = Stream(screen)
     stream.feed("\x1b[3;1Hkeep\x1b[1;1H\x1b[42m\n")
     row = screen.page.data_buffer[screen.line_offset + 2]
     assert "".join(row[column].char for column in range(4)) == "keep"

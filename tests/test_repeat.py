@@ -7,16 +7,16 @@ have, so it wraps at the right margin and scrolls at the bottom one.
 """
 import pytest
 
-from ptterm.screen import BetterScreen
-from ptterm.stream import BetterStream
+from pyte.screen import Screen
+from pyte.streams import Stream
 
 LINES, COLUMNS = 5, 10
 
 
 @pytest.fixture
 def pane():
-    screen = BetterScreen(LINES, COLUMNS, write_process_input=lambda data: None)
-    return screen, BetterStream(screen)
+    screen = Screen(LINES, COLUMNS, write_process_input=lambda data: None)
+    return screen, Stream(screen)
 
 
 def row(screen, index):

@@ -12,15 +12,15 @@ libvterm's `32state_flow.test` is the only thing that asks. No judge on
 the panel reports the mark, and it is visible from the outside only
 through a resize. Lillecarl/pymux#58.
 """
-from ptterm.screen import BetterScreen
-from ptterm.stream import BetterStream
+from pyte.screen import Screen
+from pyte.streams import Stream
 
 COLUMNS = 8
 
 
 def _screen(data, lines=4, columns=COLUMNS):
-    screen = BetterScreen(lines, columns, write_process_input=lambda answer: None)
-    BetterStream(screen).feed(data)
+    screen = Screen(lines, columns, write_process_input=lambda answer: None)
+    Stream(screen).feed(data)
     return screen
 
 

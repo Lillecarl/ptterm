@@ -126,11 +126,11 @@ def test_lines_and_characters_that_move(data):
 
 
 def test_the_comparison_notices_a_wrong_erase(monkeypatch):
-    from ptterm.screen import BetterScreen
+    from pyte.screen import Screen
 
     # This is what ptterm did before: an erased cell went away, so the
     # background of the moment was lost.
-    monkeypatch.setattr(BetterScreen, "erase_appearance", lambda self: None)
+    monkeypatch.setattr(Screen, "erase_appearance", lambda self: None)
 
     found = differences("\x1b[42mhi\x1b[K")
     assert found, "the comparison did not see the background go missing"

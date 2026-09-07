@@ -18,7 +18,7 @@ pixels, in xterm and in foot alike.
 import pytest
 from prompt_toolkit.layout.screen import Char
 
-from ptterm.placeholders import PLACEHOLDER
+from pyte.placeholders import PLACEHOLDER
 from ptterm.terminal import _visible_char
 
 

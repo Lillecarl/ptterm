@@ -8,15 +8,15 @@ characters.
 """
 import re
 
-from ptterm.screen import BetterScreen
-from ptterm.stream import BetterStream
+from pyte.screen import Screen
+from pyte.streams import Stream
 
 
 def make_screen(lines=24, columns=80):
     "Return (screen, stream, responses)."
     responses = []
-    screen = BetterScreen(lines, columns, write_process_input=responses.append)
-    stream = BetterStream(screen)
+    screen = Screen(lines, columns, write_process_input=responses.append)
+    stream = Stream(screen)
     return screen, stream, responses
 
 

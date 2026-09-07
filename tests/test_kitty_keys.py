@@ -1,11 +1,11 @@
 """
-Tests for the key data translation in ptterm.kitty_keys.
+Tests for the key data translation in pyte.kitty_keys.
 
 `translate_key_data` converts raw key data (as produced by the terminal
 feeding the pane) into the encoding that the pane expects, given its
 kitty keyboard protocol flags.
 """
-from ptterm.kitty_keys import translate_key_data
+from pyte.kitty_keys import translate_key_data
 
 DISAMBIGUATE = 0b1
 EVENT_TYPES = 0b10

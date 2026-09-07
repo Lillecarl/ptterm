@@ -10,20 +10,20 @@ owns, and making one pane taller makes another shorter. So the ask
 goes to `resize_func` and the embedder decides. With no embedder the
 ask goes nowhere.
 """
-from ptterm.graphics import ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH
-from ptterm.screen import BetterScreen
-from ptterm.stream import BetterStream
+from pyte.images import ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH
+from pyte.screen import Screen
+from pyte.streams import Stream
 
 
 def _screen(lines=24, columns=80):
     asks = []
-    screen = BetterScreen(
+    screen = Screen(
         lines,
         columns,
         write_process_input=lambda data: None,
         resize_func=lambda rows, cols: asks.append((rows, cols)),
     )
-    stream = BetterStream(screen)
+    stream = Stream(screen)
     return screen, stream, asks
 
 
@@ -79,8 +79,8 @@ def test_a_resize_in_pixels_keeps_at_least_one_cell():
 
 
 def test_a_pane_with_no_embedder_changes_nothing():
-    screen = BetterScreen(24, 80, write_process_input=lambda data: None)
-    stream = BetterStream(screen)
+    screen = Screen(24, 80, write_process_input=lambda data: None)
+    stream = Stream(screen)
     stream.feed("\x1b[27t\x1b[8;30;100t")
     assert (screen.lines, screen.columns) == (24, 80)
 
@@ -99,8 +99,8 @@ def test_a_report_is_not_a_resize():
 def _answers(sequence):
     "What a pane writes back for one sequence."
     answers = []
-    screen = BetterScreen(25, 80, write_process_input=answers.append)
-    BetterStream(screen).feed(sequence)
+    screen = Screen(25, 80, write_process_input=answers.append)
+    Stream(screen).feed(sequence)
     return answers
 
 

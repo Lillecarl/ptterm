@@ -9,8 +9,8 @@ sets DECCOLM by accident would otherwise throw the screen away. ptterm
 does the same, and asks the embedder for the room rather than taking
 it: a pane sits in a layout and cannot decide its own size.
 """
-from ptterm.screen import BetterScreen
-from ptterm.stream import BetterStream
+from pyte.screen import Screen
+from pyte.streams import Stream
 
 ALLOW = "\x1b[?40h"
 DENY = "\x1b[?40l"
@@ -21,13 +21,13 @@ NARROW = "\x1b[?3l"
 def make_screen(lines=4, columns=80):
     "Return (screen, stream, the resize asks it made)."
     asks = []
-    screen = BetterScreen(
+    screen = Screen(
         lines,
         columns,
         write_process_input=lambda data: None,
         resize_func=lambda lines, columns: asks.append((lines, columns)),
     )
-    return screen, BetterStream(screen), asks
+    return screen, Stream(screen), asks
 
 
 def test_the_mode_is_off_until_a_program_asks():
@@ -88,12 +88,12 @@ def test_decncsm_keeps_the_screen_through_a_width_change():
 def test_the_page_width_modes_answer_decrqm():
     "A mode this screen acts on has to be one it can report."
     answers = []
-    screen = BetterScreen(
+    screen = Screen(
         4, 80,
         write_process_input=answers.append,
         resize_func=lambda lines, columns: None,
     )
-    stream = BetterStream(screen)
+    stream = Stream(screen)
     stream.feed(ALLOW + "\x1b[?40$p")
     assert answers == ["\x1b[?40;1$y"]
     answers.clear()
@@ -124,14 +124,14 @@ def test_decncsm_needs_the_level_that_brought_it():
 def refusing_screen(allowed):
     "A screen whose embedder answers `allowed()` to every ask for room."
     answers = []
-    screen = BetterScreen(
+    screen = Screen(
         4,
         80,
         write_process_input=answers.append,
         resize_func=lambda lines, columns: None,
         may_resize=allowed,
     )
-    return screen, BetterStream(screen), answers
+    return screen, Stream(screen), answers
 
 
 def test_decncsm_is_unknown_where_the_embedder_gives_no_room():

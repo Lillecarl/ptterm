@@ -10,8 +10,8 @@ The line keeps every column it had. libvterm alone halves it, and the
 other five judges keep it whole; `test_the_panel.py` holds that vote.
 Lillecarl/pymux#55.
 """
-from ptterm.screen import BetterScreen, DoubleHeight, LineAttribute
-from ptterm.stream import BetterStream
+from pyte.screen import Screen, DoubleHeight, LineAttribute
+from pyte.streams import Stream
 
 LINES, COLUMNS = 5, 10
 
@@ -21,8 +21,8 @@ BOTTOM_HALF = LineAttribute(True, DoubleHeight.BOTTOM)
 
 
 def _screen(data, lines=LINES, columns=COLUMNS):
-    screen = BetterScreen(lines, columns, write_process_input=lambda answer: None)
-    BetterStream(screen).feed(data)
+    screen = Screen(lines, columns, write_process_input=lambda answer: None)
+    Stream(screen).feed(data)
     return screen
 
 

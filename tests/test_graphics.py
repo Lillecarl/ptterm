@@ -1,18 +1,18 @@
 """
-Tests for the kitty graphics protocol state in BetterScreen.
+Tests for the kitty graphics protocol state in Screen.
 """
 import base64
 import zlib
 
-from ptterm.screen import BetterScreen
-from ptterm.stream import BetterStream
+from pyte.screen import Screen
+from pyte.streams import Stream
 
 
 def make_screen():
     "Return (screen, stream, responses)."
     responses = []
-    screen = BetterScreen(24, 80, write_process_input=responses.append)
-    stream = BetterStream(screen)
+    screen = Screen(24, 80, write_process_input=responses.append)
+    stream = Stream(screen)
     return screen, stream, responses
 
 

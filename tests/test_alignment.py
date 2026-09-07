@@ -7,15 +7,15 @@ the cursor ends up is the part that the emulators disagree on.
 """
 import pytest
 
-from ptterm.screen import BetterScreen
-from ptterm.stream import BetterStream
+from pyte.screen import Screen
+from pyte.streams import Stream
 
 from kitty_oracle import differences, kitty_is_available
 
 
 def _screen(lines=4, columns=6):
-    screen = BetterScreen(lines, columns, write_process_input=lambda data: None)
-    stream = BetterStream(screen)
+    screen = Screen(lines, columns, write_process_input=lambda data: None)
+    stream = Stream(screen)
     return screen, stream
 
 

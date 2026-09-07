@@ -6,22 +6,22 @@ answers. A program tells them apart by the prefix of the reply.
 """
 import pytest
 
-from ptterm.screen import (
+from pyte.screen import (
     DEVICE_EXTENSIONS,
     XTERM_PATCH_LEVEL,
     XTERM_TYPE,
-    BetterScreen,
+    Screen,
     ConformanceLevel,
     DeviceExtension,
 )
-from ptterm.stream import BetterStream
+from pyte.streams import Stream
 
 
 @pytest.fixture
 def pane():
     responses = []
-    screen = BetterScreen(24, 80, write_process_input=responses.append)
-    return screen, BetterStream(screen), responses
+    screen = Screen(24, 80, write_process_input=responses.append)
+    return screen, Stream(screen), responses
 
 
 # ----------------------------------------------------------------------

@@ -4,13 +4,13 @@ Inserting and deleting lines.
 An empty line that one of these leaves takes the background that is
 set, the same way an erased cell does.
 """
-from ptterm.screen import BetterScreen
-from ptterm.stream import BetterStream
+from pyte.screen import Screen
+from pyte.streams import Stream
 
 
 def _screen(lines=4, columns=8):
-    screen = BetterScreen(lines, columns, write_process_input=lambda data: None)
-    stream = BetterStream(screen)
+    screen = Screen(lines, columns, write_process_input=lambda data: None)
+    stream = Stream(screen)
     return screen, stream
 
 

@@ -12,7 +12,7 @@ a failure says which half is wrong.
 """
 import pytest
 
-from ptterm.colors import DEFAULT_COLOR, PALETTE, Color, SgrColor
+from pyte.colors import DEFAULT_COLOR, PALETTE, Color, SgrColor
 from ptterm.style import style_word
 
 

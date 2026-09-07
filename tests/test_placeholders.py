@@ -10,16 +10,16 @@ import base64
 
 import pytest
 
-from ptterm.colors import Color, SgrColor
-from ptterm.placeholders import DIACRITICS, PLACEHOLDER, foreground_id
-from ptterm.screen import BetterScreen
-from ptterm.stream import BetterStream
+from pyte.colors import Color, SgrColor
+from pyte.placeholders import DIACRITICS, PLACEHOLDER, foreground_id
+from pyte.screen import Screen
+from pyte.streams import Stream
 
 
 def make_screen(lines=24, columns=80):
     responses = []
-    screen = BetterScreen(lines, columns, write_process_input=responses.append)
-    stream = BetterStream(screen)
+    screen = Screen(lines, columns, write_process_input=responses.append)
+    stream = Stream(screen)
     return screen, stream, responses
 
 

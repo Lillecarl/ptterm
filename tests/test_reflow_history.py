@@ -17,8 +17,8 @@ harness `WANTSCREEN rb` and the same bytes, and it pops a line, fills
 the top row and puts the cursor at `4,2`, which is what these tests
 assert. Lillecarl/pymux#57.
 """
-from ptterm.screen import BetterScreen, WrittenCell
-from ptterm.stream import BetterStream
+from pyte.screen import Screen, WrittenCell
+from pyte.streams import Stream
 
 # The prompt of libvterm's "Shell wrapped prompt behaviour" case. On ten
 # columns it takes seven rows, so two of them scroll off a five row
@@ -27,8 +27,8 @@ PROMPT = "PROMPT GOES HERE\r\n> \r\n\r\nPROMPT GOES HERE\r\n> "
 
 
 def _screen(rows=5, columns=10):
-    screen = BetterScreen(rows, columns, write_process_input=lambda answer: None)
-    BetterStream(screen).feed(PROMPT)
+    screen = Screen(rows, columns, write_process_input=lambda answer: None)
+    Stream(screen).feed(PROMPT)
     return screen
 
 

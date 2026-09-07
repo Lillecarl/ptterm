@@ -15,16 +15,16 @@ the whole pane.
 and only a terminal reading what pymux emitted disagreed.
 Lillecarl/pymux#62.
 """
-from ptterm.screen import BetterScreen
-from ptterm.stream import BetterStream
+from pyte.screen import Screen
+from pyte.streams import Stream
 from ptterm.terminal import cursor_offset
 
 COLUMNS = 8
 
 
 def _screen(data, lines=4, columns=COLUMNS):
-    screen = BetterScreen(lines, columns, write_process_input=lambda answer: None)
-    BetterStream(screen).feed(data)
+    screen = Screen(lines, columns, write_process_input=lambda answer: None)
+    Stream(screen).feed(data)
     return screen
 
 

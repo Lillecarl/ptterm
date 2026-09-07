@@ -13,22 +13,22 @@ import sys
 
 import pytest
 
-from ptterm.osc import (
+from pyte.osc import (
     MAX_POINTER_SHAPES,
     POINTER_SHAPES,
     POINTER_SHAPE_ALIASES,
     pointer_shape_name,
 )
-from ptterm.screen import BetterScreen
-from ptterm.stream import BetterStream
+from pyte.screen import Screen
+from pyte.streams import Stream
 
 from kitty_oracle import kitty_is_available
 
 
 def _screen(lines=4, columns=8):
     answers = []
-    screen = BetterScreen(lines, columns, write_process_input=answers.append)
-    stream = BetterStream(screen)
+    screen = Screen(lines, columns, write_process_input=answers.append)
+    stream = Stream(screen)
     return screen, stream, answers
 
 
@@ -225,13 +225,13 @@ def test_a_query_changes_no_shape():
 
 def _forwarded(steps):
     forwarded = []
-    screen = BetterScreen(
+    screen = Screen(
         4,
         8,
         write_process_input=lambda data: None,
         osc_func=lambda code, param: forwarded.append((code, param)),
     )
-    stream = BetterStream(screen)
+    stream = Stream(screen)
     for payload in steps:
         stream.feed("\x1b]22;%s\x1b\\" % payload)
     return forwarded

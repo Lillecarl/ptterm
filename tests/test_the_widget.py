@@ -7,7 +7,7 @@ unit test. That is the model, and it is right; it is not what a person
 sees.
 
 Between the two sits a projection: `_TerminalControl.create_content`
-turns a `BetterScreen` into a `UIContent`, and `_Window` picks the rows
+turns a `Screen` into a `UIContent`, and `_Window` picks the rows
 of it that the pane shows. Nothing tested that, and a fault lived there.
 An erase with no background drops the row it clears, so "CSI 1000 M"
 near the top of a full screen took every row below it out of the
@@ -41,7 +41,7 @@ from prompt_toolkit.token import KeepWhitespace
 from prompt_toolkit.layout.layout import Layout
 
 from no_backend import NoBackend
-from ptterm.screen import PLAIN_APPEARANCE, Cell
+from pyte.screen import PLAIN_APPEARANCE, Cell
 from ptterm.terminal import Terminal, _TerminalControl, _Window
 
 
@@ -370,7 +370,7 @@ def test_a_placeholder_of_an_image_never_reaches_the_screen():
     character paints a box, and the marks that carry the row and the
     column pile up on it.
     """
-    from ptterm.placeholders import PLACEHOLDER
+    from pyte.placeholders import PLACEHOLDER
 
     assert drawn(PLACEHOLDER + "x")[0] == " x"
 
@@ -437,7 +437,7 @@ def test_a_cell_nobody_wrote_asks_for_nothing():
 
 def test_the_stand_in_for_a_cell_of_an_image_asks_to_stay():
     "The cell is drawn as a blank, and the image covers it."
-    from ptterm.placeholders import PLACEHOLDER
+    from pyte.placeholders import PLACEHOLDER
 
     assert keeps_a_blank_at(PLACEHOLDER)[0][0] is True
 

@@ -13,15 +13,15 @@ program stops asking and draws what the terminal cannot draw.
 """
 import pytest
 
-from ptterm.screen import CAPABILITIES, TERMINAL_NAME, BetterScreen
-from ptterm.stream import BetterStream
+from pyte.screen import CAPABILITIES, TERMINAL_NAME, Screen
+from pyte.streams import Stream
 
 
 def ask(names):
     "Ask for capabilities by name, and read the answers back."
     answers = []
-    screen = BetterScreen(2, 10, write_process_input=answers.append)
-    stream = BetterStream(screen)
+    screen = Screen(2, 10, write_process_input=answers.append)
+    stream = Stream(screen)
     query = ";".join(name.encode("ascii").hex() for name in names)
     stream.feed("\x1bP+q" + query + "\x1b\\")
     return answers
@@ -72,8 +72,8 @@ def test_one_answer_for_every_name_that_is_asked():
 def test_a_name_that_is_not_hexadecimal():
     "Nothing is claimed for something that cannot be read."
     answers = []
-    screen = BetterScreen(2, 10, write_process_input=answers.append)
-    stream = BetterStream(screen)
+    screen = Screen(2, 10, write_process_input=answers.append)
+    stream = Stream(screen)
     stream.feed("\x1bP+qzzzz\x1b\\")
     assert answers == ["\x1bP0+rzzzz\x1b\\"]
 

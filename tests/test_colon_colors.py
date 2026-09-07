@@ -6,15 +6,15 @@ and a program that follows it sends the colour that way. The parts
 reach the screen as one tuple, so the screen has to read a tuple as
 well as a row of numbers.
 """
-from ptterm.screen import BetterScreen
-from ptterm.stream import BetterStream
+from pyte.screen import Screen
+from pyte.streams import Stream
 from ptterm.style import style_of as spell
 
 
 def style_of(data, column=0):
     "The style of one cell, after `data`."
-    screen = BetterScreen(2, 8, write_process_input=lambda answer: None)
-    stream = BetterStream(screen)
+    screen = Screen(2, 8, write_process_input=lambda answer: None)
+    stream = Stream(screen)
     stream.feed(data)
     cell = screen.page.data_buffer[screen.line_offset][column]
     return spell(cell.appearance)

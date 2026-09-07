@@ -13,21 +13,21 @@ import base64
 
 import pytest
 
-from ptterm.osc import (
+from pyte.osc import (
     MAX_HYPERLINK_ID_LENGTH,
     MAX_HYPERLINK_LENGTH,
     parse_hyperlink,
 )
-from ptterm.screen import BetterScreen
-from ptterm.stream import BetterStream
+from pyte.screen import Screen
+from pyte.streams import Stream
 from ptterm.style import style_of
 
 LINK = "https://example.com/a"
 
 
 def _screen(lines=3, columns=12):
-    screen = BetterScreen(lines, columns, write_process_input=lambda data: None)
-    stream = BetterStream(screen)
+    screen = Screen(lines, columns, write_process_input=lambda data: None)
+    stream = Stream(screen)
     return screen, stream
 
 

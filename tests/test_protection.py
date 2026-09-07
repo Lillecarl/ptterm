@@ -9,14 +9,14 @@ sets the mark of the DEC terminals, and the selective erases, DECSED
 A selective erase reads both marks. xterm does the same, for the
 programs that came before DECSCA.
 """
-from ptterm.screen import BetterScreen
-from ptterm.stream import BetterStream
+from pyte.screen import Screen
+from pyte.streams import Stream
 
 
 def _screen(lines=4, columns=10):
     answers = []
-    screen = BetterScreen(lines, columns, write_process_input=answers.append)
-    stream = BetterStream(screen)
+    screen = Screen(lines, columns, write_process_input=answers.append)
+    stream = Stream(screen)
     return screen, stream, answers
 
 

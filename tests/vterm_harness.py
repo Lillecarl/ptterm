@@ -57,13 +57,13 @@ from kitty_oracle import (  # noqa: E402
     _underline_of_style,
 )
 
-from ptterm.screen import (  # noqa: E402
-    BetterScreen,
+from pyte.screen import (  # noqa: E402
+    Screen,
     DoubleHeight,
     WrittenCell,
     appearance_of,
 )
-from ptterm.stream import BetterStream  # noqa: E402
+from pyte.streams import Stream  # noqa: E402
 from ptterm.style import style_of  # noqa: E402
 
 #: The screen that libvterm's `INIT` makes.
@@ -97,8 +97,8 @@ class Harness:
     """
 
     def __init__(self) -> None:
-        self.screen: BetterScreen | None = None
-        self.stream: BetterStream | None = None
+        self.screen: Screen | None = None
+        self.stream: Stream | None = None
         self.decoder = codecs.getincrementaldecoder("utf-8")("replace")
         self.default_foreground = DEFAULT_FOREGROUND
         self.default_background = DEFAULT_BACKGROUND
@@ -113,10 +113,10 @@ class Harness:
         # directly and reads it back through this harness. What the
         # terminal writes back does have somewhere to go, because the
         # suite reads it: `output_line` hands it to the runner.
-        self.screen = BetterScreen(
+        self.screen = Screen(
             rows, columns, write_process_input=self.written.append
         )
-        self.stream = BetterStream(self.screen)
+        self.stream = Stream(self.screen)
         self.decoder = codecs.getincrementaldecoder("utf-8")("replace")
 
     def output_line(self) -> str | None:

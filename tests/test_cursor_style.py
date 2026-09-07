@@ -10,15 +10,15 @@ a pair is the number after it.
 The pane keeps this, and what draws the pane puts it on the terminal of
 the user.
 """
-from ptterm.screen import BetterScreen
-from ptterm.stream import BetterStream
+from pyte.screen import Screen
+from pyte.streams import Stream
 
 
 def make_screen():
     "Return (screen, stream, responses)."
     responses = []
-    screen = BetterScreen(24, 80, write_process_input=responses.append)
-    stream = BetterStream(screen)
+    screen = Screen(24, 80, write_process_input=responses.append)
+    stream = Stream(screen)
     return screen, stream, responses
 
 

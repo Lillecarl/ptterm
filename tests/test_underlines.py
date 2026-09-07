@@ -9,15 +9,15 @@ again on the terminal of the user.
 """
 import pytest
 
-from ptterm.screen import BetterScreen
-from ptterm.stream import BetterStream
+from pyte.screen import Screen
+from pyte.streams import Stream
 from ptterm.style import style_of
 
 
 def screen_of(data, lines=2, columns=20):
     "A screen that has read `data`."
-    screen = BetterScreen(lines, columns, write_process_input=lambda answer: None)
-    stream = BetterStream(screen)
+    screen = Screen(lines, columns, write_process_input=lambda answer: None)
+    stream = Stream(screen)
     stream.feed(data)
     return screen
 
@@ -98,8 +98,8 @@ def test_an_erased_cell_keeps_no_line():
 def test_the_screen_reports_the_shape_and_the_colour():
     "DECRQSS: a program reads back what it wrote."
     answers = []
-    screen = BetterScreen(2, 10, write_process_input=answers.append)
-    stream = BetterStream(screen)
+    screen = Screen(2, 10, write_process_input=answers.append)
+    stream = Stream(screen)
     stream.feed("\x1b[4:3;58:2::1:2:3m\x1bP$qm\x1b\\")
     assert answers == ["\x1bP1$r0;4:3;58:2::1:2:3m\x1b\\"]
 

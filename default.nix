@@ -20,7 +20,6 @@
   prompt-toolkit,
   ptyhost,
   pyte,
-  wcwidth,
   callPackage,
 }:
 let
@@ -40,8 +39,10 @@ let
       # use it without taking prompt_toolkit on behind it.
       # Lillecarl/pymux#85.
       ptyhost
+      # The screen, the parser and everything under them. That was here
+      # too, and it left for the same reason: `txterm` needs it and must
+      # not take prompt_toolkit on behind it. Lillecarl/pymux#11.
       pyte
-      wcwidth
     ];
 
     # The suites run as `checks.tests` and `checks.fuzz`, against the

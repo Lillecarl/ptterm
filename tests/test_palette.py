@@ -14,18 +14,18 @@ are only useful together.
 """
 import pytest
 
-from ptterm.colors import DEFAULT_COLORS, PALETTE, Color, parse_color
-from ptterm.osc import FIRST_SPECIAL_COLOR, SPECIAL_COLOR_NAMES
-from ptterm.screen import BetterScreen
-from ptterm.stream import BetterStream
+from pyte.colors import DEFAULT_COLORS, PALETTE, Color, parse_color
+from pyte.osc import FIRST_SPECIAL_COLOR, SPECIAL_COLOR_NAMES
+from pyte.screen import Screen
+from pyte.streams import Stream
 
 
 @pytest.fixture
 def pane():
     "A screen, the stream that feeds it, and what it writes back."
     responses = []
-    screen = BetterScreen(24, 80, write_process_input=responses.append)
-    stream = BetterStream(screen)
+    screen = Screen(24, 80, write_process_input=responses.append)
+    stream = Stream(screen)
     return screen, stream, responses
 
 

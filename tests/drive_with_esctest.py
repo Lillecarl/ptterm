@@ -12,7 +12,7 @@ So ptterm is the terminal on trial, and this file is the terminal
 program around it. There is no prompt_toolkit application, no layout
 and no client. A `Process` on a `PosixBackend` is the whole host: it
 opens a pty, forks the suite onto it, feeds what comes back into a
-`BetterScreen` through a `BetterStream`, and writes every answer of
+`Screen` through a `Stream`, and writes every answer of
 that screen to the pty. That is what a pane is, without the pane.
 
 The suite reads the screen with DECRQCRA, one cell at a time. That is

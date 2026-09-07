@@ -9,15 +9,15 @@ mode that makes the tab wrap first.
 The mode is off unless a program asks for it, so the ordinary tab is
 unchanged.
 """
-from ptterm.screen import BetterScreen
-from ptterm.stream import BetterStream
+from pyte.screen import Screen
+from pyte.streams import Stream
 
 MORE_FIX = "\x1b[?41h"
 
 
 def make_screen(lines=4, columns=16):
-    screen = BetterScreen(lines, columns, write_process_input=lambda data: None)
-    return screen, BetterStream(screen)
+    screen = Screen(lines, columns, write_process_input=lambda data: None)
+    return screen, Stream(screen)
 
 
 def fill_the_row_and_tab(stream, columns=16):

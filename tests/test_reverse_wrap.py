@@ -16,8 +16,8 @@ wrapped line did not want the cursor leaving the line it typed.
 """
 import pytest
 
-from ptterm.screen import BetterScreen
-from ptterm.stream import BetterStream
+from pyte.screen import Screen
+from pyte.streams import Stream
 
 #: A screen small enough to read, and wide enough to wrap on purpose.
 LINES, COLUMNS = 6, 10
@@ -31,8 +31,8 @@ BACKSPACE = "\x08"
 
 @pytest.fixture
 def pane():
-    screen = BetterScreen(LINES, COLUMNS, write_process_input=lambda data: None)
-    stream = BetterStream(screen)
+    screen = Screen(LINES, COLUMNS, write_process_input=lambda data: None)
+    stream = Stream(screen)
     return screen, stream
 
 

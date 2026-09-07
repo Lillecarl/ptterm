@@ -4,10 +4,10 @@ Tests for the OSC sequences that a pane sends.
 A pane has no palette of its own, but a program that asks for one needs
 an answer: without it, it waits forever.
 """
-from ptterm.colors import DEFAULT_COLORS, PALETTE, Color
-from ptterm.osc import parse_kitty_color_query
-from ptterm.screen import BetterScreen
-from ptterm.stream import BetterStream
+from pyte.colors import DEFAULT_COLORS, PALETTE, Color
+from pyte.osc import parse_kitty_color_query
+from pyte.screen import Screen
+from pyte.streams import Stream
 
 BLACK = "rgb:0000/0000/0000"
 WHITE = "rgb:ffff/ffff/ffff"
@@ -15,8 +15,8 @@ WHITE = "rgb:ffff/ffff/ffff"
 
 def make_screen():
     responses = []
-    screen = BetterScreen(24, 80, write_process_input=responses.append)
-    stream = BetterStream(screen)
+    screen = Screen(24, 80, write_process_input=responses.append)
+    stream = Stream(screen)
     return screen, stream, responses
 
 

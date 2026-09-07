@@ -4,14 +4,14 @@ An erased cell takes the background that is set now.
 A terminal that does not do this loses the colour bar that a program
 draws with "CSI K", which is how htop paints the header of its table.
 """
-from ptterm.colors import SgrColor
-from ptterm.screen import BetterScreen, WrittenCell
-from ptterm.stream import BetterStream
+from pyte.colors import SgrColor
+from pyte.screen import Screen, WrittenCell
+from pyte.streams import Stream
 
 
 def _screen(lines=5, columns=20):
-    screen = BetterScreen(lines, columns, write_process_input=lambda data: None)
-    stream = BetterStream(screen)
+    screen = Screen(lines, columns, write_process_input=lambda data: None)
+    stream = Stream(screen)
     return screen, stream
 
 

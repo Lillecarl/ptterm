@@ -7,15 +7,15 @@ DECSLRM and DECSTBM, and the private marker says which is meant.
 """
 import pytest
 
-from ptterm.screen import BetterScreen, flag_of
-from ptterm.stream import BetterStream
+from pyte.screen import Screen, flag_of
+from pyte.streams import Stream
 
 
 @pytest.fixture
 def pane():
     responses = []
-    screen = BetterScreen(24, 80, write_process_input=responses.append)
-    return screen, BetterStream(screen), responses
+    screen = Screen(24, 80, write_process_input=responses.append)
+    return screen, Stream(screen), responses
 
 
 def is_set(screen, number):

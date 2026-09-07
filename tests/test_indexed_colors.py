@@ -9,15 +9,15 @@ a number all the way through the screen.
 The first sixteen carry a name that prompt_toolkit already knows, and
 the other 240 are written "ansi16" up to "ansi255".
 """
-from ptterm.screen import BetterScreen
-from ptterm.stream import BetterStream
+from pyte.screen import Screen
+from pyte.streams import Stream
 from ptterm.style import style_of as spell
 
 
 def style_of(data, column=0):
     "The style of one cell, after `data`."
-    screen = BetterScreen(2, 8, write_process_input=lambda answer: None)
-    stream = BetterStream(screen)
+    screen = Screen(2, 8, write_process_input=lambda answer: None)
+    stream = Stream(screen)
     stream.feed(data)
     cell = screen.page.data_buffer[screen.line_offset][column]
     return spell(cell.appearance)

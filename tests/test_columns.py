@@ -6,13 +6,13 @@ cursor one column, and move the region when the cursor stands on a
 margin. All four carry a rectangle: every row of the region moves, and
 the cells outside the margins stay where they are.
 """
-from ptterm.screen import BetterScreen
-from ptterm.stream import BetterStream
+from pyte.screen import Screen
+from pyte.streams import Stream
 
 
 def _screen(lines=5, columns=10):
-    screen = BetterScreen(lines, columns, write_process_input=lambda data: None)
-    stream = BetterStream(screen)
+    screen = Screen(lines, columns, write_process_input=lambda data: None)
+    stream = Stream(screen)
     return screen, stream
 
 

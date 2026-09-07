@@ -7,14 +7,14 @@ understand gets the answer that says so.
 """
 import pytest
 
-from ptterm.screen import TERMINAL_VERSION, BetterScreen
-from ptterm.stream import BetterStream
+from pyte.screen import TERMINAL_VERSION, Screen
+from pyte.streams import Stream
 
 
 def make_screen(lines=24, columns=80):
     answers = []
-    screen = BetterScreen(lines, columns, write_process_input=answers.append)
-    stream = BetterStream(screen)
+    screen = Screen(lines, columns, write_process_input=answers.append)
+    stream = Stream(screen)
     return screen, stream, answers
 
 
@@ -319,7 +319,7 @@ def test_a_sixel_image_is_still_decoded():
 # The size in band (private mode 2048).
 
 
-from ptterm.graphics import ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH  # noqa: E402
+from pyte.images import ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH  # noqa: E402
 
 
 def resize_report(lines, columns):

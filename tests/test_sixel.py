@@ -2,9 +2,9 @@
 Tests for the sixel decoder and for the sixel images that a pane
 stores.
 """
-from ptterm.screen import BetterScreen
-from ptterm.sixel import DEFAULT_PALETTE, decode_sixel
-from ptterm.stream import BetterStream
+from pyte.screen import Screen
+from pyte.sixel import DEFAULT_PALETTE, decode_sixel
+from pyte.streams import Stream
 
 RED = (255, 0, 0)
 GREEN = (0, 255, 0)
@@ -179,8 +179,8 @@ def test_an_image_past_the_pixel_bound_is_refused():
 
 def make_screen():
     responses = []
-    screen = BetterScreen(24, 80, write_process_input=responses.append)
-    stream = BetterStream(screen)
+    screen = Screen(24, 80, write_process_input=responses.append)
+    stream = Stream(screen)
     return screen, stream, responses
 
 

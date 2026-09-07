@@ -12,8 +12,8 @@ where the gap was found.
 """
 import pytest
 
-from ptterm.screen import BetterScreen, TitleMode
-from ptterm.stream import BetterStream
+from pyte.screen import Screen, TitleMode
+from pyte.streams import Stream
 
 #: "CSI > Ps t": set a title mode. "CSI > Ps T": take it away.
 SET = "\x1b[>%st"
@@ -31,8 +31,8 @@ ASK_FOR_ICON = "\x1b[20t"
 def make_screen():
     "Return (screen, stream, the answers it wrote back)."
     answers = []
-    screen = BetterScreen(4, 20, write_process_input=answers.append)
-    return screen, BetterStream(screen), answers
+    screen = Screen(4, 20, write_process_input=answers.append)
+    return screen, Stream(screen), answers
 
 
 # ----------------------------------------------------------------------
@@ -89,12 +89,12 @@ def test_the_marker_is_what_makes_it_a_title_mode():
     scrolls the region down.
     """
     asks = []
-    screen = BetterScreen(
+    screen = Screen(
         4, 20,
         write_process_input=lambda data: None,
         resize_func=lambda lines, columns: asks.append((lines, columns)),
     )
-    stream = BetterStream(screen)
+    stream = Stream(screen)
     stream.feed("\x1b[>4t")
     assert asks == []
     assert screen.title_modes == set()

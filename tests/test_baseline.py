@@ -14,14 +14,14 @@ cannot see a baseline abstain. Lillecarl/pymux#59.
 """
 import pytest
 
-from ptterm.screen import BetterScreen
-from ptterm.stream import BetterStream
+from pyte.screen import Screen
+from pyte.streams import Stream
 from ptterm.style import style_of as spell
 
 
 def screen(lines=2, columns=20):
-    made = BetterScreen(lines, columns, write_process_input=lambda answer: None)
-    return made, BetterStream(made)
+    made = Screen(lines, columns, write_process_input=lambda answer: None)
+    return made, Stream(made)
 
 
 def style_of(made, row=0, column=0):
@@ -105,8 +105,8 @@ def test_every_way_a_program_writes_it(sequence, word):
 @pytest.mark.parametrize("code", ["73", "74"])
 def test_decrqss_reports_the_baseline_back(code):
     answers = []
-    made = BetterScreen(2, 20, write_process_input=answers.append)
-    stream = BetterStream(made)
+    made = Screen(2, 20, write_process_input=answers.append)
+    stream = Stream(made)
     stream.feed("\x1b[%sm\x1bP$qm\x1b\\" % code)
     assert answers, "the screen answered nothing"
     assert answers[-1].split("$r")[-1].startswith("0;%sm" % code), answers[-1]

@@ -5,14 +5,14 @@ The window title and the icon label, and the stack that holds them.
 "CSI 23 t" brings them back, which is what a program does around a
 title of its own. A pane has both, so it answers all four.
 """
-from ptterm.screen import BetterScreen
-from ptterm.stream import BetterStream
+from pyte.screen import Screen
+from pyte.streams import Stream
 
 
 def _screen(lines=5, columns=10):
     answers = []
-    screen = BetterScreen(lines, columns, write_process_input=answers.append)
-    stream = BetterStream(screen)
+    screen = Screen(lines, columns, write_process_input=answers.append)
+    stream = Stream(screen)
     return screen, stream, answers
 
 

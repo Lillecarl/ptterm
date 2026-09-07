@@ -10,8 +10,8 @@ All four read the corners the same way. The numbers count from one,
 origin mode counts them from the margins, and a margin does not hold
 the rectangle in. None of the four moves the cursor.
 """
-from ptterm.screen import BetterScreen
-from ptterm.stream import BetterStream
+from pyte.screen import Screen
+from pyte.streams import Stream
 from ptterm.style import style_of
 
 #: The screen that esctest draws before it takes a rectangle.
@@ -28,8 +28,8 @@ DATA = [
 
 
 def _screen(lines=8, columns=8):
-    screen = BetterScreen(lines, columns, write_process_input=lambda data: None)
-    stream = BetterStream(screen)
+    screen = Screen(lines, columns, write_process_input=lambda data: None)
+    stream = Stream(screen)
     return screen, stream
 
 

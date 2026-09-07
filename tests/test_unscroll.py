@@ -5,15 +5,15 @@ A shell uses it when a full-screen program ends: instead of leaving
 blank space under the prompt, the lines that the program covered come
 back from the scroll buffer.
 """
-from ptterm.screen import BetterScreen
-from ptterm.stream import BetterStream
+from pyte.screen import Screen
+from pyte.streams import Stream
 
 LINES = 5
 
 
 def make_screen(lines=LINES, columns=20):
-    screen = BetterScreen(lines, columns, write_process_input=lambda d: None)
-    stream = BetterStream(screen)
+    screen = Screen(lines, columns, write_process_input=lambda d: None)
+    stream = Stream(screen)
     return screen, stream
 
 

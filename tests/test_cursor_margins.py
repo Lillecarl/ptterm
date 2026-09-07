@@ -5,13 +5,13 @@ A cursor above the top margin moves up to the top of the screen, and
 one below the bottom margin moves down to the bottom of it. Anything
 else turns a move up into a move down, which is what pyte did.
 """
-from ptterm.screen import BetterScreen
-from ptterm.stream import BetterStream
+from pyte.screen import Screen
+from pyte.streams import Stream
 
 
 def _screen(lines=5, columns=8):
-    screen = BetterScreen(lines, columns, write_process_input=lambda data: None)
-    stream = BetterStream(screen)
+    screen = Screen(lines, columns, write_process_input=lambda data: None)
+    stream = Stream(screen)
     return screen, stream
 
 

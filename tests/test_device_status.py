@@ -13,14 +13,14 @@ were missing.
 """
 import pytest
 
-from ptterm.screen import BetterScreen
-from ptterm.stream import BetterStream
+from pyte.screen import Screen
+from pyte.streams import Stream
 
 
 def _screen(lines=8, columns=20):
     answers = []
-    screen = BetterScreen(lines, columns, write_process_input=answers.append)
-    stream = BetterStream(screen)
+    screen = Screen(lines, columns, write_process_input=answers.append)
+    stream = Stream(screen)
     return screen, stream, answers
 
 

@@ -18,8 +18,8 @@ from typing import Dict, List, NamedTuple, Optional, Tuple
 
 from prompt_toolkit.styles import palette_color_number
 
-from ptterm.screen import BetterScreen
-from ptterm.stream import BetterStream
+from pyte.screen import Screen
+from pyte.streams import Stream
 from ptterm.style import style_of
 
 __all__ = [
@@ -293,13 +293,13 @@ def ptterm_cells_in_pieces(
     comes back is that size, and the rows it holds are what the reflow
     made of the ones before.
     """
-    screen = BetterScreen(
+    screen = Screen(
         lines,
         columns,
         write_process_input=lambda answer: None,
         get_history_limit=lambda: HISTORY,
     )
-    stream = BetterStream(screen)
+    stream = Stream(screen)
     for piece in pieces:
         stream.feed(piece)
     if resize is not None:

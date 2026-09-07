@@ -7,21 +7,21 @@ therefore leave the pane through `osc_func`.
 """
 import pytest
 
-from ptterm.screen import FORWARDED_OSC, BetterScreen
-from ptterm.stream import BetterStream
+from pyte.screen import FORWARDED_OSC, Screen
+from pyte.streams import Stream
 
 
 def make_screen():
     "Return (stream, list of forwarded sequences, list of answers)."
     forwarded = []
     answers = []
-    screen = BetterScreen(
+    screen = Screen(
         24,
         80,
         write_process_input=answers.append,
         osc_func=lambda code, param: forwarded.append((code, param)),
     )
-    stream = BetterStream(screen)
+    stream = Stream(screen)
     return stream, forwarded, answers
 
 
@@ -105,8 +105,8 @@ def test_the_title_does_not_leave_the_pane():
 def test_a_screen_without_a_function_consumes_the_sequence():
     "A plain ptterm has nowhere to send it, and must not raise."
     answers = []
-    screen = BetterScreen(24, 80, write_process_input=answers.append)
-    stream = BetterStream(screen)
+    screen = Screen(24, 80, write_process_input=answers.append)
+    stream = Stream(screen)
     stream.feed("\x1b]52;c;aGVsbG8=\x1b\\")
     stream.feed("\x1b]99;i=1;done\x1b\\")
     assert answers == []

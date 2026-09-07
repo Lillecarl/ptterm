@@ -5,14 +5,14 @@ DECSLRM ("CSI Pl ; Pr s") names a left and a right margin, and private
 mode 69 (DECLRMM) says whether it may. The margins are the edges of the
 line for everything that draws or moves the cursor along it.
 """
-from ptterm.screen import BetterScreen
-from ptterm.stream import BetterStream
+from pyte.screen import Screen
+from pyte.streams import Stream
 
 
 def _screen(lines=5, columns=10):
     answers = []
-    screen = BetterScreen(lines, columns, write_process_input=answers.append)
-    stream = BetterStream(screen)
+    screen = Screen(lines, columns, write_process_input=answers.append)
+    stream = Stream(screen)
     return screen, stream, answers
 
 

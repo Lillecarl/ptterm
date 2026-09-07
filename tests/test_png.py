@@ -12,7 +12,7 @@ import zlib
 
 import pytest
 
-from ptterm.png import decode_png
+from pyte.png import decode_png
 
 # ----------------------------------------------------------------------
 # Golden images.

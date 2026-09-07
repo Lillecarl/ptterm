@@ -19,8 +19,8 @@ Lillecarl/pymux#94.
 """
 import pytest
 
-from ptterm.screen import TERMINAL_VERSION, BetterScreen
-from ptterm.stream import BetterStream
+from pyte.screen import TERMINAL_VERSION, Screen
+from pyte.streams import Stream
 
 #: "ESC SP G", which turns eight bit controls on.
 S8C1T = "\x1b G"
@@ -31,8 +31,8 @@ S7C1T = "\x1b F"
 
 def make_screen(lines=24, columns=80):
     answers = []
-    screen = BetterScreen(lines, columns, write_process_input=answers.append)
-    stream = BetterStream(screen)
+    screen = Screen(lines, columns, write_process_input=answers.append)
+    stream = Stream(screen)
     return screen, stream, answers
 
 
