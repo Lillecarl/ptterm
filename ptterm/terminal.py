@@ -292,14 +292,11 @@ class _TerminalControl(UIControl):
                 style += " " + KeepWhitespace
             return style, char
 
-        #: The DEC line attribute of each row, when this pane may ask for
-        #: one. The attribute belongs to a line of the terminal, so a
-        #: pane that shares its rows with another pane holds it and says
+        #: Whether this pane may ask for a DEC line attribute at all.
+        #: The attribute belongs to a line of the terminal, so a pane
+        #: that shares its rows with another pane holds it and says
         #: nothing. `owns_whole_lines` is the embedder answering that.
-        if self.owns_whole_lines():
-            line_attributes = self.screen.line_attributes
-        else:
-            line_attributes = {}
+        owns_whole_lines = self.owns_whole_lines()
 
         def build(number: int) -> StyleAndTextTuples:
             row = data_buffer[number]
@@ -353,7 +350,10 @@ class _TerminalControl(UIControl):
 
         def get_line_attribute(number: int) -> LineAttribute | None:
             "How big the terminal draws this row, or None for a plain one."
-            attribute = line_attributes.get(number)
+            if not owns_whole_lines:
+                return None
+            line = data_buffer.get(number)
+            attribute = None if line is None else line.attribute
             if attribute is None:
                 return None
             return _LINE_ATTRIBUTES[attribute.double_height]

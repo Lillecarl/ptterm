@@ -284,7 +284,7 @@ class Harness:
         "The DEC line attribute of one row of the visible screen, or None."
         screen = self.screen
         assert screen is not None
-        return screen.line_attributes.get(screen.line_offset + row)
+        return screen.attribute_of(screen.line_offset + row)
 
     def lineinfo(self, argument: str) -> str:
         """
@@ -294,8 +294,8 @@ class Harness:
         double height without saying which half. `?screen_cell` is the
         one that says the half.
 
-        `wrapped_lines` holds the index of each line that a wrap
-        started, which is libvterm's `continuation` for the same line.
+        A row says whether a wrap brought it into being, which is
+        libvterm's `continuation` for the same line.
         """
         screen = self.screen
         assert screen is not None
@@ -308,7 +308,7 @@ class Harness:
                 words.append("dwl")
             if attribute.double_height:
                 words.append("dhl")
-        if screen.line_offset + row in screen.wrapped_lines:
+        if screen.is_wrapped(screen.line_offset + row):
             words.append("cont")
         return " ".join(words)
 

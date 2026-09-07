@@ -461,7 +461,7 @@ def attributes_of(screen) -> list[str]:
     offset = screen.line_offset
     out = []
     for row in range(screen.lines):
-        attribute = screen.line_attributes.get(offset + row)
+        attribute = screen.attribute_of(offset + row)
         if attribute is None:
             continue
         out.append("%d %s" % (row, _DOUBLE_HEIGHT_WORDS[attribute.double_height]))
