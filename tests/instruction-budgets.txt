@@ -25,23 +25,23 @@ grid_reset                               273287
 grid_reset (redraw)                      9732
 grid_reset (render)                      16910
 history 10000 (alternate)                2565
-history 10000 (copy)                     1179798
+history 10000 (copy)                     1550696
 history 10000 (linefeed)                 147871
 history 10000 (redraw)                   1780
-history 10000 (resize)                   4758087
-history 10000 (wrapped resize)           19671297
+history 10000 (resize)                   4808166
+history 10000 (wrapped resize)           19706340
 history 2000 (alternate)                 2565
-history 2000 (copy)                      232882
+history 2000 (copy)                      307780
 history 2000 (linefeed)                  147871
 history 2000 (redraw)                    1731
-history 2000 (resize)                    938099
-history 2000 (wrapped resize)            3947297
+history 2000 (resize)                    948178
+history 2000 (wrapped resize)            3954340
 history 50000 (alternate)                2565
-history 50000 (copy)                     6259798
+history 50000 (copy)                     8110696
 history 50000 (linefeed)                 147871
 history 50000 (redraw)                   1780
-history 50000 (resize)                   25278087
-history 50000 (wrapped resize)           98852291
+history 50000 (resize)                   25528166
+history 50000 (wrapped resize)           99027334
 indexed_256_colors                       906853
 indexed_256_colors (redraw)              5726
 indexed_256_colors (render)              65161
