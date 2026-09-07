@@ -1167,6 +1167,42 @@ class BetterScreen:
         "The whole screen is set to reverse video."
         return mo.DECSCNM in self.mode
 
+    def encode_key(self, data: str) -> str:
+        """
+        The bytes that one key press sends to the program on this
+        screen.
+
+        Two modes decide it, and the screen holds both: the kitty
+        keyboard protocol that the program turned on, and the
+        application cursor keys of DECCKM. Neither belongs to whoever
+        drew the keyboard, so a Textual widget and a prompt_toolkit
+        widget send the same bytes for the same key.
+
+        The kitty flags are the ones this pane really gets, and not the
+        ones it asked for. One value answers the query of the pane and
+        drives the encoding, so the answer holds.
+        """
+        return kitty_keys.translate_key_data(
+            data,
+            flags=self.deliverable_kitty_keyboard_flags,
+            application_mode=self.in_application_mode,
+            source_flags=self.keyboard_source_flags,
+            synthesize=self.synthesize_key_events,
+        )
+
+    def wrap_paste(self, text: str) -> str:
+        """
+        Text that a person pasted, as the program on this screen wants
+        it.
+
+        A program that turned bracketed paste on is told where the
+        paste starts and ends, so it can tell pasted text from typing.
+        A program that did not gets the text as it stands.
+        """
+        if self.bracketed_paste_enabled:
+            return "\x1b[200~" + text + "\x1b[201~"
+        return text
+
     def _control(self, final: str) -> str:
         """
         A C1 control, spelled the way the program asked for.

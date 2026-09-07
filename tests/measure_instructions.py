@@ -140,7 +140,7 @@ def render_cost(data: bytes, lines: int, columns: int) -> int:
     # program writes. A write before the size lands on a screen of no
     # columns.
     control.create_content(columns, lines)
-    control.process.stream.feed(text)
+    control.stream.feed(text)
 
     def work():
         content = control.create_content(columns, lines)

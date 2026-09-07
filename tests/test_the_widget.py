@@ -73,7 +73,7 @@ def rendered(
     # program writes. A write before the size lands on a screen of no
     # columns, which is not the question here.
     control.create_content(columns, lines)
-    control.process.stream.feed(data)
+    control.stream.feed(data)
 
     screen = Screen(default_char=None, initial_width=columns, initial_height=lines)
     with set_app(DummyApplication()):
@@ -179,8 +179,8 @@ def clicked(modes: str, lines: int = 8, columns: int = 12) -> bytes:
     control = _TerminalControl(backend=_NoBackend())
     control.create_content(columns, lines)
     control.process.write_input = written.append
-    control.process.screen.write_process_input = written.append
-    control.process.stream.feed(modes)
+    control.screen.write_process_input = written.append
+    control.stream.feed(modes)
 
     app = DummyApplication()
     app.layout = _FocusedLayout(control)
@@ -212,7 +212,7 @@ def copy_mode_reversed_at(data: str, lines: int = 4, columns: int = 8):
     terminal = Terminal(backend=_NoBackend())
     control = terminal.terminal_control
     control.create_content(columns, lines)
-    control.process.stream.feed(data)
+    control.stream.feed(data)
 
     app = DummyApplication()
     app.layout = Layout(terminal.container)
@@ -328,9 +328,9 @@ def test_the_line_count_covers_the_screen_and_not_the_buffer():
     """
     control = _TerminalControl(backend=_NoBackend())
     control.create_content(12, 8)
-    control.process.stream.feed(FILLED + "\x1b[3H\x1b[1000M")
+    control.stream.feed(FILLED + "\x1b[3H\x1b[1000M")
 
-    screen = control.process.screen
+    screen = control.screen
     content = control.create_content(12, 8)
     assert content.line_count >= screen.line_offset + screen.lines
     assert content.line_count == screen.max_y + 1
@@ -344,7 +344,7 @@ def test_the_cursor_is_drawn_where_a_program_is_told_it_stands():
     """
     control = _TerminalControl(backend=_NoBackend())
     control.create_content(12, 8)
-    control.process.stream.feed("中中x")
+    control.stream.feed("中中x")
     content = control.create_content(12, 8)
     assert content.cursor_position.x == 3
 
@@ -358,7 +358,7 @@ def test_the_cursor_does_not_leave_the_line_while_it_waits_to_wrap():
     """
     control = _TerminalControl(backend=_NoBackend())
     control.create_content(4, 3)
-    control.process.stream.feed("abcd")
+    control.stream.feed("abcd")
     content = control.create_content(4, 3)
     assert content.cursor_position.x == 3
 
@@ -385,7 +385,7 @@ def test_a_control_character_in_a_cell_is_drawn_as_a_blank():
     control.create_content(6, 3)
     # A `Cell` holds what it is given, so the cell is written here. The
     # guard in `_visible_char` is what keeps it off the terminal.
-    control.process.screen.page.data_buffer[0][0] = Cell(
+    control.screen.page.data_buffer[0][0] = Cell(
         "\x01", PLAIN_APPEARANCE
     )
     content = control.create_content(6, 3)
@@ -455,7 +455,7 @@ def test_the_first_render_sizes_the_pane_before_it_starts_the_program():
     backend = _NoBackend()
     control = _TerminalControl(backend=backend)
     control.create_content(12, 8)
-    assert (control.process.screen.columns, control.process.screen.lines) == (12, 8)
+    assert (control.screen.columns, control.screen.lines) == (12, 8)
     assert backend.sizes == [(12, 8)]
 
 

@@ -7,9 +7,6 @@ from asyncio import get_event_loop
 from typing import Callable
 
 from .backends import Backend
-from .kitty_keys import translate_key_data
-from .screen import BetterScreen
-from .stream import BetterStream
 
 __all__ = ["Process"]
 
@@ -51,48 +48,37 @@ def _when_the_loop_is_free(work: Callable[[], None], deadline: float) -> None:
 
 class Process:
     """
-    Child process.
-    Functionality for parsing the vt100 output (the Pyte screen and stream), as
-    well as sending input to the process.
+    A program on a pty: start it, size it, pump its bytes, stop it.
+
+    **It parses nothing and draws nothing.** What the program writes
+    goes to `receive`, and whoever built this decides what that means.
+    A screen is one answer, and it is not this layer's.
 
     Usage:
 
-        p = Process(loop, ...):
+        p = Process(backend, receive=screen_of_mine.feed, ...)
         p.start()
 
-    :param invalidate: When the screen content changes, and the renderer needs
-        to redraw the output, this callback is called.
-    :param bell_func: Called when the process does a `bell`.
-    :param osc_func: Called with the code and the payload of an OSC
-        sequence that only the terminal of the user can serve. (The
-        clipboard, a notification, the shape of the pointer.)
-    :param resize_func: Called with the lines and the columns that the
-        program asks for, when it sends DECSLPP or a window resize.
-        Either one is None when the program leaves that side alone. A
-        pane cannot resize itself, so the embedder decides.
-    :param may_resize: Returns whether the embedder would grant such an
-        ask. The modes that only exist where a program can have a
-        different page go away when it says no, so a program learns at
-        once instead of laying its output out for room it will not get.
-    :param done_callback: Called when the process terminates.
-    :param has_priority: Callable that returns True when this Process should
-        get priority in the event loop. (When this pane has the focus.)
-        Otherwise output can be delayed.
+    :param receive: Called with the text that the program wrote.
+    :param invalidate: Called after `receive`, when there may be
+        something new to draw.
+    :param done_callback: Called when the program ends.
+    :param has_priority: Returns True when this program's output should
+        be read at once. Otherwise it waits for a turn of the event
+        loop that nothing else wants.
     """
 
     def __init__(
         self,
-        invalidate: Callable[[], None],
         backend: Backend,
-        bell_func: Callable[[], None] | None = None,
+        receive: Callable[[str], None],
+        invalidate: Callable[[], None] | None = None,
         done_callback: Callable[[], None] | None = None,
         has_priority: Callable[[], bool] | None = None,
-        osc_func: Callable[[str, str], None] | None = None,
-        resize_func: Callable[[int | None, int | None], None] | None = None,
-        may_resize: Callable[[], bool] | None = None,
     ) -> None:
         self.loop = get_event_loop()
-        self.invalidate = invalidate
+        self.receive = receive
+        self.invalidate = invalidate or (lambda: None)
         self.backend = backend
         self.done_callback = done_callback
         self.has_priority = has_priority or (lambda: True)
@@ -106,22 +92,10 @@ class Process:
         if done_callback is not None:
             self.backend.ready_f.add_done_callback(lambda _: done_callback())
 
-        # Create output stream and attach to screen
+        #: The size of the pty, in columns and rows. Nothing has said
+        #: yet, and `start` picks a size if nothing ever does.
         self.sx = 0
         self.sy = 0
-
-        self.screen = BetterScreen(
-            self.sx,
-            self.sy,
-            write_process_input=self.write_input,
-            bell_func=bell_func,
-            osc_func=osc_func,
-            resize_func=resize_func,
-            may_resize=may_resize,
-        )
-
-        self.stream = BetterStream(self.screen)
-        self.stream.attach(self.screen)
 
     def start(self) -> None:
         """
@@ -146,51 +120,28 @@ class Process:
 
     def set_size(self, width: int, height: int) -> None:
         """
-        Set terminal size.
+        Tell the pty how big it is.
+
+        Whatever reads this program is a size behind until it hears the
+        same number, and that is the caller's to do: a screen is not
+        this layer's.
         """
         if (self.sx, self.sy) != (width, height):
             self.backend.set_size(width, height)
-        self.screen.resize(lines=height, columns=width)
-
-        self.screen.lines = height
-        self.screen.columns = width
 
         self.sx = width
         self.sy = height
 
-    def write_input(self, data: str, paste: bool = False) -> None:
+    def write_input(self, data: str) -> None:
         """
-        Write user key strokes to the input.
+        Write text to the program.
 
-        :param data: (text, not bytes.) The input.
-        :param paste: When True, and the process running here understands
-            bracketed paste. Send as pasted text.
+        It goes as it stands. A key that a mode encodes and a paste
+        that brackets ask for are both decided by the screen, which
+        knows the modes; `BetterScreen.encode_key` and `wrap_paste` are
+        those two.
         """
-        # send as bracketed paste?
-        if paste and self.screen.bracketed_paste_enabled:
-            data = "\x1b[200~" + data + "\x1b[201~"
-
         self.backend.write_text(data)
-
-    def write_key_data(self, data: str) -> None:
-        """
-        Write raw key data, encoding it for this pane's keyboard mode.
-        (The pane can request the kitty keyboard protocol; see
-        `BetterScreen.kitty_keyboard_flags`.)
-
-        The flags of the encoding are the ones that this pane really
-        gets, not the ones it asked for. One value answers the query of
-        the pane and drives the encoding, so the answer holds.
-        """
-        self.write_input(
-            translate_key_data(
-                data,
-                flags=self.screen.deliverable_kitty_keyboard_flags,
-                application_mode=self.screen.in_application_mode,
-                source_flags=self.screen.keyboard_source_flags,
-                synthesize=self.screen.synthesize_key_events,
-            )
-        )
 
     def _read(self) -> None:
         """
@@ -205,7 +156,7 @@ class Process:
 
             def process() -> None:
                 try:
-                    self.stream.feed(d)
+                    self.receive(d)
                 except Exception:
                     # One sequence that the emulator cannot handle must
                     # not stop the pane: the program would then wait

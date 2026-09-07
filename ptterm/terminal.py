@@ -42,7 +42,8 @@ from prompt_toolkit.widgets.toolbars import SearchToolbar
 from .backends import Backend
 from .placeholders import PLACEHOLDER
 from .process import Process
-from .screen import Cell, DoubleHeight, WrittenCell
+from .screen import BetterScreen, Cell, DoubleHeight, WrittenCell
+from .stream import BetterStream
 from .style import style_of
 
 __all__ = ["Terminal"]
@@ -153,23 +154,42 @@ class _TerminalControl(UIControl):
 
             return app_or_none.layout.has_focus(self)
 
-        self.process = Process(
-            lambda: self.on_content_changed.fire(),
-            backend=backend,
-            done_callback=done_callback,
+        # The screen belongs to the front end and not to the pty: a
+        # `Process` runs a program and pumps its bytes, and what those
+        # bytes mean is decided here. Lillecarl/pymux#85.
+        self.screen = BetterScreen(
+            0,
+            0,
+            write_process_input=lambda data: self.process.write_input(data),
             bell_func=bell_func,
             osc_func=osc_func,
             resize_func=resize_func,
             may_resize=may_resize,
+        )
+        self.stream = BetterStream(self.screen)
+        self.stream.attach(self.screen)
+
+        self.process = Process(
+            backend=backend,
+            receive=self.stream.feed,
+            invalidate=lambda: self.on_content_changed.fire(),
+            done_callback=done_callback,
             has_priority=has_priority,
         )
 
         self.on_content_changed = Event(self)
         self._running = False
 
+    def set_size(self, width: int, height: int) -> None:
+        "Tell the pty and the screen how big the pane is."
+        self.process.set_size(width, height)
+        self.screen.resize(lines=height, columns=width)
+        self.screen.lines = height
+        self.screen.columns = width
+
     def create_content(self, width: int, height: int) -> UIContent:
         # Report dimensions to the process.
-        self.process.set_size(width, height)
+        self.set_size(width, height)
 
         # The first time that this user control is rendered. Keep track of the
         # 'app' object and start the process.
@@ -177,21 +197,21 @@ class _TerminalControl(UIControl):
             self.process.start()
             self._running = True
 
-        if not self.process.screen:
+        if not self.screen:
             return UIContent()
 
-        page = self.process.screen.page
-        pt_cursor_position = self.process.screen.pt_cursor_position
+        page = self.screen.page
+        pt_cursor_position = self.screen.pt_cursor_position
         data_buffer = page.data_buffer
         cursor_y = pt_cursor_position.y
 
-        cursor_x = cursor_offset(self.process.screen)
+        cursor_x = cursor_offset(self.screen)
 
         # DECSCNM reverses the screen, and `_Window` paints that over the
         # whole pane. A cell that a program already reversed with "SGR 7"
         # turns the other way, so the two cancel out. libvterm calls this
         # an xor, and it is the same answer.
-        reverse_video = self.process.screen.has_reverse_video
+        reverse_video = self.screen.has_reverse_video
 
         def fragment(cell: Cell) -> tuple[str, str]:
             """
@@ -222,7 +242,7 @@ class _TerminalControl(UIControl):
         #: pane that shares its rows with another pane holds it and says
         #: nothing. `owns_whole_lines` is the embedder answering that.
         if self.owns_whole_lines():
-            line_attributes = self.process.screen.line_attributes
+            line_attributes = self.screen.line_attributes
         else:
             line_attributes = {}
 
@@ -263,7 +283,7 @@ class _TerminalControl(UIControl):
             # scroll past the end. Lines that had left the screen come
             # back. So the count is what the screen occupies, and never
             # what is left in the buffer.
-            line_count = max(max(data_buffer) + 1, self.process.screen.max_y + 1)
+            line_count = max(max(data_buffer) + 1, self.screen.max_y + 1)
         else:
             line_count = 1
 
@@ -297,11 +317,11 @@ class _TerminalControl(UIControl):
                 # alt+char), so that they can be re-encoded for the
                 # keyboard mode of this pane. (The empty-data presses
                 # are the remainders of such split sequences.)
-                self.process.write_key_data(key_press.data)
+                self.process.write_input(self.screen.encode_key(key_press.data))
 
         @bindings.add(Keys.BracketedPaste)
         def _(event):
-            self.process.write_input(event.data, paste=True)
+            self.process.write_input(self.screen.wrap_paste(event.data))
 
         return bindings
 
@@ -323,7 +343,7 @@ class _TerminalControl(UIControl):
         # The containing Window translates coordinates to the absolute position
         # of the whole screen, but in this case, we need the relative
         # coordinates of the visible area.
-        y -= self.process.screen.line_offset
+        y -= self.screen.line_offset
 
         if not app.layout.has_focus(self):
             # Focus this process when the mouse has been clicked.
@@ -332,7 +352,7 @@ class _TerminalControl(UIControl):
         else:
             # Already focussed, send event to application when it requested
             # mouse support.
-            if process.screen.sgr_mouse_support_enabled:
+            if self.screen.sgr_mouse_support_enabled:
                 # Xterm SGR mode.
                 try:
                     ev, m = {
@@ -349,9 +369,9 @@ class _TerminalControl(UIControl):
                     # its own, and S8C1T asks for one byte in front of
                     # it. xterm writes every one of them through
                     # `unparseputc1`, which is not a query only path.
-                    process.screen.reply_csi(f"<{ev};{x + 1};{y + 1}{m}")
+                    self.screen.reply_csi(f"<{ev};{x + 1};{y + 1}{m}")
 
-            elif process.screen.urxvt_mouse_support_enabled:
+            elif self.screen.urxvt_mouse_support_enabled:
                 # Urxvt mode.
                 try:
                     ev = {
@@ -363,9 +383,9 @@ class _TerminalControl(UIControl):
                 except KeyError:
                     pass
                 else:
-                    process.screen.reply_csi(f"{ev};{x + 1};{y + 1}M")
+                    self.screen.reply_csi(f"{ev};{x + 1};{y + 1}M")
 
-            elif process.screen.mouse_support_enabled:
+            elif self.screen.mouse_support_enabled:
                 # Fall back to old mode.
                 if x < 96 and y < 96:
                     try:
@@ -378,7 +398,7 @@ class _TerminalControl(UIControl):
                     except KeyError:
                         pass
                     else:
-                        process.screen.reply_csi(
+                        self.screen.reply_csi(
                             f"M{chr(ev)}{chr(x + 33)}{chr(y + 33)}"
                         )
 
@@ -408,14 +428,14 @@ class _Window(Window):
         `create_content` takes the reverse off a cell that already
         carries one, which is the other half. Lillecarl/pymux#95.
         """
-        screen = self.terminal_control.process.screen
+        screen = self.terminal_control.screen
         if screen is not None and screen.has_reverse_video:
             return "reverse"
         return ""
 
     def write_to_screen(self, *a, **kw) -> None:
         # Make sure that the bottom of the terminal is always visible.
-        screen = self.terminal_control.process.screen
+        screen = self.terminal_control.screen
 
         # NOTE: the +1 is required because max_y starts counting at 0, while
         #       lines counts the numbers of lines, starting at 1 for one line.
@@ -625,7 +645,7 @@ class Terminal:
         self.terminal_control.process.suspend()
 
         # Copy content into copy buffer.
-        screen = self.terminal_control.process.screen
+        screen = self.terminal_control.screen
         data_buffer = screen.page.data_buffer
 
         # DECSCNM reverses the whole screen, and copy mode shows the
@@ -680,6 +700,11 @@ class Terminal:
     @property
     def process(self):
         return self.terminal_control.process
+
+    @property
+    def screen(self) -> BetterScreen:
+        "What the program in this pane has drawn."
+        return self.terminal_control.screen
 
 
 class _UseStyledTextProcessor(Processor):

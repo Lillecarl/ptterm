@@ -86,9 +86,12 @@ import termios
 import time
 from pathlib import Path
 
-from ptterm.backends.posix import PosixBackend
-from ptterm.process import Process
-from ptterm.screen import DoubleHeight, WrittenCell
+sys.path.insert(0, str(Path(__file__).parent))
+
+from pty_host import Host  # noqa: E402
+
+from ptterm.process import Process  # noqa: E402
+from ptterm.screen import DoubleHeight, WrittenCell  # noqa: E402
 
 #: The screen vttest draws on. Its own default is 24 by 80, with 132
 #: as the wide setting, and it prints the size in the title when it is
@@ -593,7 +596,9 @@ class Walk:
         #: How long the walk itself has taken, with the time it stood
         #: still for a picture left out. `RUN_TIMEOUT` judges this.
         self.awake = 0.0
+        self.host: Host | None = None
         self.process: Process | None = None
+        self.screen = None
         self.ended = False
         #: The number of the `read` call on this machine. `main`
         #: refuses to walk without it, so it is never None here.
@@ -644,24 +649,6 @@ class Walk:
 
     def done(self) -> None:
         self.ended = True
-
-    def resize(self, lines, columns) -> None:
-        """
-        Take the size vttest asks for.
-
-        It switches between 80 and 132 columns in several tests, and a
-        screen drawn at the width it did not ask for is a screen that
-        says nothing. A side it leaves alone arrives as None.
-        """
-        process = self.process
-        assert process is not None
-        width = process.sx if columns is None else columns
-        height = process.sy if lines is None else lines
-        if not SMALLEST <= width <= LARGEST:
-            return
-        if not SMALLEST <= height <= LARGEST:
-            return
-        process.set_size(width, height)
 
     def hush(self, backend) -> None:
         """
@@ -749,21 +736,27 @@ class Walk:
             return
 
     def start(self, command: list[str]) -> None:
-        backend = PosixBackend.from_command(command)
-        self.hush(backend)
-        if self.through:
-            self.pass_through(backend)
-        self.process = Process(
-            invalidate=lambda: None,
-            backend=backend,
+        def prepare(backend) -> None:
+            self.hush(backend)
+            if self.through:
+                self.pass_through(backend)
+
+        # vttest switches between 80 and 132 columns in several tests,
+        # and a screen drawn at the width it did not ask for is a
+        # screen that says nothing. `Host` owns the pty, so it takes
+        # the ask.
+        self.host = Host(
+            command,
+            columns=COLUMNS,
+            lines=ROWS,
+            smallest=SMALLEST,
+            largest=LARGEST,
             done_callback=self.done,
-            resize_func=self.resize,
+            prepare=prepare,
         )
-        # The size first, so the child forks onto a pty of the size it
-        # will really have. `Process.start` would set 120 by 24.
-        self.process.set_size(COLUMNS, ROWS)
-        backend.start()
-        backend.connect_reader()
+        self.process = self.host.process
+        self.screen = self.host.screen
+        self.host.start()
 
     def answer(self, text: str) -> None:
         "Send one line to vttest. `readnl` waits for the newline."
@@ -870,13 +863,13 @@ class Walk:
         assert self.process is not None
         deadline = time.monotonic() + timeout
         while not self.ended:
-            rows = rows_of(self.process.screen)
+            rows = rows_of(self.screen)
             if rows != anchor and self.waiting() and prompted(rows):
                 return rows
             if time.monotonic() > deadline:
                 return rows
             await asyncio.sleep(TICK)
-        return rows_of(self.process.screen)
+        return rows_of(self.screen)
 
     # -- what a screen means --------------------------------------------
 
@@ -897,7 +890,7 @@ class Walk:
         long as the picture takes.
         """
         assert self.process is not None
-        screen = self.process.screen
+        screen = self.screen
         attributes = attributes_of(screen)
         path = self.path_of() or "(the main menu)"
 

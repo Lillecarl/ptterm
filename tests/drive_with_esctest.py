@@ -61,8 +61,9 @@ import tempfile
 import time
 from pathlib import Path
 
-from ptterm.backends.posix import PosixBackend
-from ptterm.process import Process
+sys.path.insert(0, str(Path(__file__).parent))
+
+from pty_host import Host  # noqa: E402
 
 HERE = Path(__file__).parent
 
@@ -277,42 +278,25 @@ async def drive(runner: Path) -> None:
         nonlocal ended
         ended = True
 
-    def resize(lines, columns) -> None:
-        """
-        Take the size the program asks for.
-
-        ptterm hands the ask on rather than answering it, because a pane
-        cannot take room from the panes beside it. This host owns the
-        pty, so it can. A side the program leaves alone arrives as None
-        and keeps the size it has.
-        """
-        width = process.sx if columns is None else columns
-        height = process.sy if lines is None else lines
-        if not SMALLEST <= width <= LARGEST or not SMALLEST <= height <= LARGEST:
-            return
-        process.set_size(width, height)
-
-    backend = PosixBackend.from_command([sys.executable, str(runner)])
-    process = Process(
-        invalidate=lambda: None,
-        backend=backend,
+    # `Host` answers a resize itself, because it owns the pty. ptterm
+    # hands the ask on instead, because a pane cannot take room from
+    # the panes beside it.
+    host = Host(
+        [sys.executable, str(runner)],
+        columns=COLUMNS,
+        lines=ROWS,
+        smallest=SMALLEST,
+        largest=LARGEST,
         done_callback=done,
-        resize_func=resize,
     )
-
-    # What `Process.start` does, with a size of our own. It sets 120 by
-    # 24, and the child reads the size of the pty before the first
-    # sequence reaches this side.
-    process.set_size(COLUMNS, ROWS)
-    backend.start()
-    backend.connect_reader()
+    host.start()
 
     # The loop has to keep turning: it is what reads the pty, and the
     # end of the child is reported by a call that does not wake it.
     deadline = time.monotonic() + RUN_TIMEOUT
     while not ended:
         if time.monotonic() > deadline:
-            backend.kill()
+            host.kill()
             raise Failed("the suite did not end in %g seconds" % RUN_TIMEOUT)
         await asyncio.sleep(TICK)
 
