@@ -16,6 +16,9 @@ and says they match.
 The text of the document is still built in full. `Document` holds a
 string and prompt_toolkit counts lines in it, so there is nothing to be
 lazy about there.
+
+**A line of the document is a line a program wrote**, not a row of the
+pane. The window wraps it again for the eye. Lillecarl/pymux#135.
 """
 import asyncio
 
@@ -54,32 +57,38 @@ def a_terminal(data: str) -> Terminal:
 
 def every_line_the_eager_way(terminal):
     """
-    What copy mode used to build when it opened: every row of the
-    buffer, styled, in one list.
+    Every line of the buffer, styled, in one list.
+
+    **It walks the rows itself** rather than asking `Page.unwrap`, so
+    that it judges the answer and does not repeat it. A run of rows
+    that a wrap made is one line, because that is one line a program
+    wrote. Lillecarl/pymux#135.
     """
     buffer = terminal.terminal_control.screen.page.data_buffer
     lines = []
     if buffer:
         for index in range(min(buffer), max(buffer) + 1):
             row = buffer[index]
-            line = []
+            if not (row is not None and row.wrapped) or not lines:
+                lines.append([])
             if row:
                 for column in range(0, max(row) + 1):
                     char = row[column]
-                    line.append(
+                    lines[-1].append(
                         (terminal._copy_cell_style(char), char.char)
                     )
-            lines.append(line)
     return lines
 
 
-#: What a program writes, in the shapes that give a cell a style. The
-#: last one scrolls the screen, so the buffer holds history as well.
+#: What a program writes, in the shapes that give a cell a style. One
+#: of them is longer than the pane, so a line takes two rows. The last
+#: one scrolls the screen, so the buffer holds history as well.
 CHUNKS = [
     "plain text",
     "\r\n\x1b[31;44mcoloured\x1b[0m and not",
     "\r\n\x1b[1;4;7mbold underlined reversed\x1b[0m",
     "\r\n\x1b[?5hunder reverse video",
+    "\r\na line that is longer than the pane is wide",
     "\r\n" + "".join("scrolled row %d\r\n" % number for number in range(20)),
 ]
 
@@ -92,10 +101,20 @@ def test_every_line_is_what_the_eager_build_said(upto):
     assert lazy == eager
 
 
-def test_the_document_has_one_line_for_each_row_of_the_buffer():
+def test_the_document_has_one_line_for_each_line_of_the_buffer():
     terminal = a_terminal("".join(CHUNKS))
     eager = every_line_the_eager_way(terminal)
     assert terminal.copy_buffer.document.text.count("\n") + 1 == len(eager)
+
+
+def test_a_line_the_pane_wrapped_is_one_line_of_the_document():
+    """
+    The pane cut the line to fit. A person copying wants the line the
+    program wrote, so the cut is not in the document at all.
+    """
+    text = "a line that is longer than the pane is wide"
+    terminal = a_terminal(text)
+    assert terminal.copy_buffer.document.text.rstrip() == text
 
 
 def test_a_line_is_built_once():

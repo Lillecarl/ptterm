@@ -47,7 +47,7 @@ from pyte.environment import prepare
 from pyte.images import ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH
 from pyte.placeholders import PLACEHOLDER
 from pyte.cells import Cell, WrittenCell
-from pyte.page import DoubleHeight
+from pyte.page import DoubleHeight, TextLine
 from pyte.screen import Screen
 from pyte.streams import Stream
 
@@ -739,18 +739,23 @@ class Terminal:
         #: after that and the mode cannot change.
         self.copy_reverse_video = False
 
+        # The document holds the lines a program wrote, so a line that
+        # the pane wrapped is one line here. The window wraps it again
+        # at the width it has, which is what the pane did, so a person
+        # sees the same shape and the copy holds no break that the
+        # program did not write. Lillecarl/pymux#135.
         self.copy_window = Window(
             content=self.copy_buffer_control,
-            wrap_lines=False,
+            wrap_lines=True,
             style=self._copy_style,
         )
 
         self.is_copying = False
 
-        #: Which row of the buffer the first line of the copy document
-        #: is, and the lines of it that have been styled. `styled_line`
-        #: says why they are built one at a time.
-        self._copy_first_row = 0
+        #: The lines of the buffer that copy mode is showing, and the
+        #: ones of them that have been styled. `styled_line` says why
+        #: they are built one at a time.
+        self._copy_lines: list[TextLine] = []
         self._styled_lines: dict[int, StyleAndTextTuples] = {}
 
         @Condition
@@ -838,6 +843,12 @@ class Terminal:
         mode is a suspend, this, and a focus, and this is the part that
         grows with the history. `tests/measure_instructions.py` measures
         it under "history <depth> (copy)". Lillecarl/pymux#131.
+
+        **It reads lines and not rows.** A row is a line cut to fit the
+        pane, and a person copying wants the line. So a search crosses
+        a wrap, a selection of one line is one line, and the width the
+        history was laid out at does not reach the document at all.
+        Lillecarl/pymux#135.
         """
         screen = self.terminal_control.screen
         data_buffer = screen.page.data_buffer
@@ -850,31 +861,19 @@ class Terminal:
         # open and reading it once is enough. Lillecarl/pymux#96.
         self.copy_reverse_video = screen.has_reverse_video
 
-        rows = []
-        first_row = 0
-
+        lines: list[TextLine] = []
         if data_buffer:
-            first_row = min(data_buffer)
-            for line_index in range(first_row, max(data_buffer) + 1):
-                line = data_buffer[line_index]
-                if line:
-                    rows.append(
-                        "".join(
-                            line[column].char
-                            for column in range(0, max(line) + 1)
-                        )
-                    )
-                else:
-                    rows.append("")
+            lines = screen.page.text_lines(
+                min(data_buffer), max(data_buffer)
+            )
 
-        text_str = "\n".join(rows)
+        text_str = "\n".join(line.text for line in lines)
 
         self.copy_buffer.set_document(
             Document(text=text_str, cursor_position=len(text_str)), bypass_readonly=True
         )
 
-        #: Which row of the buffer the first line of the document is.
-        self._copy_first_row = first_row
+        self._copy_lines = lines
         self._styled_lines: dict[int, StyleAndTextTuples] = {}
 
     def styled_line(self, number: int) -> StyleAndTextTuples:
@@ -894,14 +893,15 @@ class Terminal:
         if line is not None:
             return line
 
-        row = self.terminal_control.screen.page.data_buffer.get(
-            self._copy_first_row + number
-        )
         line = []
-        if row:
-            for column in range(0, max(row) + 1):
-                char = row[column]
-                line.append((self._copy_cell_style(char), char.char))
+        if 0 <= number < len(self._copy_lines):
+            shown = self._copy_lines[number]
+            # The rows of one line hold one line, so the answer does.
+            lines, _ = self.terminal_control.screen.page.unwrap(
+                shown.first, shown.last
+            )
+            for cell in lines[0].cells:
+                line.append((self._copy_cell_style(cell), cell.char))
         self._styled_lines[number] = line
         return line
 
@@ -912,6 +912,7 @@ class Terminal:
         # The lines that were styled belong to the screen that copy mode
         # stopped. The process runs again from here, so they are wrong
         # the moment it writes.
+        self._copy_lines = []
         self._styled_lines = {}
 
         # focus terminal again.
