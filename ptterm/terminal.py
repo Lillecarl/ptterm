@@ -39,10 +39,11 @@ from prompt_toolkit.token import KeepWhitespace
 from prompt_toolkit.utils import Event, is_windows
 from prompt_toolkit.widgets.toolbars import SearchToolbar
 
-from .backends import Backend
+from ptyhost import Process
+from ptyhost.backends import Backend
+
 from .graphics import ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH
 from .placeholders import PLACEHOLDER
-from .process import Process
 from .screen import BetterScreen, Cell, DoubleHeight, WrittenCell
 from .stream import BetterStream
 from .style import style_of
@@ -449,11 +450,11 @@ def create_backend(
     command: List[str], before_exec_func: Callable[[], None] | None
 ) -> Backend:
     if is_windows():
-        from .backends.win32 import Win32Backend
+        from ptyhost.backends.win32 import Win32Backend
 
         return Win32Backend()
     else:
-        from .backends.posix import PosixBackend
+        from ptyhost.backends.posix import PosixBackend
 
         # The size of a cell goes into the size of the pty, so that a
         # program that draws images reads the same answer there as

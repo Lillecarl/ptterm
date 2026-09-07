@@ -10,14 +10,15 @@
 # Nothing else belongs in this repository: the dev shell and the collection
 # that assembles this with its siblings live in pyterm.
 #
-# prompt-toolkit and pyte arrive as arguments, so nixpkgs supplies them when
-# this repository is built on its own, and pyterm supplies the sibling
-# checkouts when it builds the collection.
+# prompt-toolkit, ptyhost and pyte arrive as arguments, so nixpkgs supplies
+# them when this repository is built on its own, and pyterm supplies the
+# sibling checkouts when it builds the collection.
 {
   lib,
   buildPythonPackage,
   setuptools,
   prompt-toolkit,
+  ptyhost,
   pyte,
   wcwidth,
   callPackage,
@@ -34,6 +35,11 @@ let
     build-system = [ setuptools ];
     dependencies = [
       prompt-toolkit
+      # The layer that runs a program on a pty. It was `ptterm.process`
+      # and `ptterm.backends`, and it left so that a Textual widget can
+      # use it without taking prompt_toolkit on behind it.
+      # Lillecarl/pymux#85.
+      ptyhost
       pyte
       wcwidth
     ];

@@ -7,10 +7,11 @@ proves it, and #85 the pty layer that has no home yet.
 
 1. **Pure.** The parser, the screen, the colours, the images. No I/O
    and no toolkit. This is what belongs in `pyte`.
-2. **The pty.** Runs a program, sizes it, pumps its bytes, records
-   them. I/O, and no toolkit. This is `ptyhost` (#85).
-3. **The front end.** The prompt_toolkit widget, and the key table it
+2. **The front end.** The prompt_toolkit widget, and the key table it
    needs. `txterm` is the same layer for Textual (#82).
+
+The layer between them, which runs a program on a pty, has left: it is
+`ptyhost` now, and its own suite holds it to importing nothing (#85).
 
 A layer may reach the layers under it and never the ones above.
 
@@ -44,21 +45,6 @@ PURE = {
     "stream",
     "terminfo",
     "xcms",
-}
-
-#: Runs a program on a pty. I/O, and no toolkit.
-PTY = {
-    "process",
-    "record",
-    "utils",
-    "backends",
-    "backends.asyncssh",
-    "backends.base",
-    "backends.darwin",
-    "backends.posix",
-    "backends.posix_utils",
-    "backends.win32",
-    "backends.win32_pipes",
 }
 
 #: Draws with prompt_toolkit, and turns its keys into bytes.
@@ -169,8 +155,6 @@ def _imports(path: Path):
 def _layer_of(name: str) -> str:
     if name in PURE:
         return "pure"
-    if name in PTY:
-        return "pty"
     if name in FRONT_END:
         return "front end"
     return "unplaced"
@@ -185,16 +169,26 @@ def test_every_module_has_a_layer():
         name for name in MODULES if name and _layer_of(name) == "unplaced"
     )
     assert unplaced == [], (
-        "these modules are in no layer: add each one to PURE, PTY or "
+        "these modules are in no layer: add each one to PURE or "
         "FRONT_END in this file"
     )
 
 
-@pytest.mark.parametrize("name", sorted(PURE | PTY))
+@pytest.mark.parametrize("name", sorted(PURE))
 def test_only_a_front_end_imports_a_toolkit(name):
     "The whole point of the split. Lillecarl/pymux#82."
     outside, _inside = _imports(MODULES[name])
     assert not (outside & TOOLKITS)
+
+
+@pytest.mark.parametrize("name", sorted(PURE))
+def test_the_pure_layer_reaches_no_pty(name):
+    """
+    A screen parses bytes and holds cells. Where the bytes came from is
+    not its question, and `ptyhost` is a package it must never need.
+    """
+    outside, _inside = _imports(MODULES[name])
+    assert "ptyhost" not in outside
 
 
 def test_the_reading_sees_a_toolkit_where_there_is_one():
@@ -240,19 +234,20 @@ def test_the_pure_layer_reaches_nothing_above_it(name):
     )
 
 
-@pytest.mark.parametrize("name", sorted(PTY))
-def test_the_pty_layer_stands_alone(name):
+def test_only_the_front_end_runs_a_program():
     """
-    It reaches nothing outside itself, not even the pure layer.
+    `ptyhost` is a package now, and `terminal.py` is the only thing here
+    that reaches for it: it is the widget, so it is what starts a
+    program and hands the bytes to a screen. Lillecarl/pymux#85.
 
-    That is stronger than the split asks for, and it is what makes the
-    layer a package of its own: `ptyhost` runs a program on a pty and
-    depends on neither widget and neither screen. Lillecarl/pymux#85.
-
-    The size of a cell in pixels was the last thing it borrowed. It is
-    what a screen answers to "CSI 16 t", so the screen passes it to the
-    backend rather than the backend reading it from the screen.
+    The size of a cell in pixels was the last thing the pty layer
+    borrowed on the way out. It is what a screen answers to "CSI 16 t",
+    so the screen passes it to the backend rather than the backend
+    reading it from the screen.
     """
-    _outside, inside = _imports(MODULES[name])
-    elsewhere = sorted(other for other in inside if _layer_of(other) != "pty")
-    assert elsewhere == [], "%s imports %s" % (name, elsewhere)
+    reaching = sorted(
+        name
+        for name in MODULES
+        if name and "ptyhost" in _imports(MODULES[name])[0]
+    )
+    assert reaching == ["terminal"]

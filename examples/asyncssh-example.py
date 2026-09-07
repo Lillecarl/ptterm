@@ -10,7 +10,7 @@ from prompt_toolkit.layout.controls import FormattedTextControl
 from prompt_toolkit.styles import Style
 
 from ptterm import Terminal
-from ptterm.backends.asyncssh import AsyncSSHBackend
+from ptyhost.backends.asyncssh import AsyncSSHBackend
 
 
 async def main():

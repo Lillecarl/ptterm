@@ -12,11 +12,11 @@ This host owns its pty, so it answers a resize itself. A pane cannot:
 it would be taking room from the panes beside it, so ptterm hands the
 ask to the embedder instead.
 """
-from ptterm.backends.posix import PosixBackend
 from ptterm.graphics import ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH
-from ptterm.process import Process
 from ptterm.screen import BetterScreen
 from ptterm.stream import BetterStream
+from ptyhost import Process
+from ptyhost.backends.posix import PosixBackend
 
 __all__ = ("Host",)
 

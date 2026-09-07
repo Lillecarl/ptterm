@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 import os
-import sys
 
 from setuptools import find_packages, setup
 
@@ -10,11 +9,11 @@ with open(os.path.join(os.path.dirname(__file__), "README.rst")) as f:
 requirements = [
     "prompt_toolkit>=3.0.52,<3.1.0",
     "pyte>=0.5.1",
+    # The pty layer. It used to be `ptterm.process` and
+    # `ptterm.backends`, and it left so that a second widget could use
+    # it without taking prompt_toolkit on. Lillecarl/pymux#85.
+    "ptyhost",
 ]
-
-# Install yawinpty on Windows only.
-if sys.platform.startswith("win"):
-    requirements.append("yawinpty")
 
 
 setup(
@@ -27,12 +26,6 @@ setup(
     long_description=long_description,
     packages=find_packages("."),
     install_requires=requirements,
-    # A recorder, not a test. A fault that only a real program shows, on
-    # the machine of the person who hit it, can only reach a check by
-    # being recorded there first, so the recorder has to run anywhere.
-    entry_points={
-        "console_scripts": ["ptterm-record = ptterm.record:main"],
-    },
     # pyte needs 3.10, so ptterm has needed 3.10 for a while. Nothing
     # said so.
     python_requires=">=3.10",
