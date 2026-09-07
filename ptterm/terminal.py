@@ -259,6 +259,10 @@ class _TerminalControl(UIControl):
             self._drawn_at.clear()
 
         written_at = self.screen.written_at
+        # A row with no count of its own carries the one that
+        # `touch_everything` last set, so a reset or a page swap moves
+        # every row at once and costs nothing to say.
+        everything_at = self.screen.everything_at
         drawn = self._drawn
         drawn_at = self._drawn_at
 
@@ -339,7 +343,7 @@ class _TerminalControl(UIControl):
             if number == cursor_y:
                 return build(number)
 
-            version = written_at.get(number, 0)
+            version = written_at.get(number, everything_at)
             if drawn_at.get(number) != version:
                 drawn[number] = build(number)
                 drawn_at[number] = version
