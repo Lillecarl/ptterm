@@ -693,6 +693,12 @@ class Terminal:
 
         self.is_copying = False
 
+        #: Which row of the buffer the first line of the copy document
+        #: is, and the lines of it that have been styled. `styled_line`
+        #: says why they are built one at a time.
+        self._copy_first_row = 0
+        self._styled_lines: dict[int, StyleAndTextTuples] = {}
+
         @Condition
         def is_copying() -> bool:
             return self.is_copying
@@ -790,35 +796,69 @@ class Terminal:
         # open and reading it once is enough. Lillecarl/pymux#96.
         self.copy_reverse_video = screen.has_reverse_video
 
-        text = []
-        styled_lines = []
+        rows = []
+        first_row = 0
 
         if data_buffer:
-            for line_index in range(min(data_buffer), max(data_buffer) + 1):
+            first_row = min(data_buffer)
+            for line_index in range(first_row, max(data_buffer) + 1):
                 line = data_buffer[line_index]
-                styled_line = []
-
                 if line:
-                    for column_index in range(0, max(line) + 1):
-                        char = line[column_index]
-                        text.append(char.char)
-                        styled_line.append((self._copy_cell_style(char), char.char))
+                    rows.append(
+                        "".join(
+                            line[column].char
+                            for column in range(0, max(line) + 1)
+                        )
+                    )
+                else:
+                    rows.append("")
 
-                text.append("\n")
-                styled_lines.append(styled_line)
-            text.pop()  # Drop last line ending.
-
-        text_str = "".join(text)
+        text_str = "\n".join(rows)
 
         self.copy_buffer.set_document(
             Document(text=text_str, cursor_position=len(text_str)), bypass_readonly=True
         )
 
-        self.styled_lines = styled_lines
+        #: Which row of the buffer the first line of the document is.
+        self._copy_first_row = first_row
+        self._styled_lines: dict[int, StyleAndTextTuples] = {}
+
+    def styled_line(self, number: int) -> StyleAndTextTuples:
+        """
+        One line of the copy buffer, as the styles a person sees.
+
+        **It is built when it is asked for, and not before.** A window
+        shows a screenful, and the history behind it can be fifty
+        thousand rows: styling all of them cost 22,924,756 bytecode
+        instructions at that depth, and a person waited for it after
+        pressing a key. Lillecarl/pymux#131.
+
+        The answer is kept, because the process is suspended while copy
+        mode is open, so no row of the screen can change under it.
+        """
+        line = self._styled_lines.get(number)
+        if line is not None:
+            return line
+
+        row = self.terminal_control.screen.page.data_buffer.get(
+            self._copy_first_row + number
+        )
+        line = []
+        if row:
+            for column in range(0, max(row) + 1):
+                char = row[column]
+                line.append((self._copy_cell_style(char), char.char))
+        self._styled_lines[number] = line
+        return line
 
     def exit_copy_mode(self) -> None:
         # Resume process.
         self.terminal_control.process.resume()
+
+        # The lines that were styled belong to the screen that copy mode
+        # stopped. The process runs again from here, so they are wrong
+        # the moment it writes.
+        self._styled_lines = {}
 
         # focus terminal again.
         self.is_copying = False
@@ -851,8 +891,6 @@ class _UseStyledTextProcessor(Processor):
         self.terminal = terminal
 
     def apply_transformation(self, transformation_input) -> Transformation:
-        try:
-            line = self.terminal.styled_lines[transformation_input.lineno]
-        except IndexError:
-            line = []
-        return Transformation(line)
+        return Transformation(
+            self.terminal.styled_line(transformation_input.lineno)
+        )

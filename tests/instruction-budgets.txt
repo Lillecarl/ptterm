@@ -25,17 +25,17 @@ grid_reset                               272489
 grid_reset (redraw)                      9733
 grid_reset (render)                      16911
 history 10000 (alternate)                2947
-history 10000 (copy)                     4244756
+history 10000 (copy)                     1179797
 history 10000 (linefeed)                 146371
 history 10000 (redraw)                   1781
 history 10000 (resize)                   4955868
 history 2000 (alternate)                 2947
-history 2000 (copy)                      831148
+history 2000 (copy)                      232881
 history 2000 (linefeed)                  146371
 history 2000 (redraw)                    1732
 history 2000 (resize)                    991880
 history 50000 (alternate)                2947
-history 50000 (copy)                     22924756
+history 50000 (copy)                     6259797
 history 50000 (linefeed)                 146371
 history 50000 (redraw)                   1781
 history 50000 (resize)                   26195868
