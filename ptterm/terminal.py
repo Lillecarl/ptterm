@@ -138,10 +138,12 @@ def _visible_char(char: str) -> str:
 class _TerminalControl(UIControl):
     #: How many rows this control remembers having drawn.
     #:
-    #: A pane of a hundred rows with a history of two thousand needs
-    #: about that many. The number is far above either, so the whole of
-    #: it is emptied only when a session has scrolled a long way, and
-    #: emptying it costs one frame.
+    #: A pane draws the rows of the screen, so it remembers about a
+    #: hundred of them however deep the history goes. It fills this only
+    #: in copy mode, where a person scrolls through the history itself
+    #: and every row they pass is a row that was drawn. Emptying the
+    #: whole of it costs one frame, and a frame is what this saves
+    #: thousands of.
     _REMEMBER_AT_MOST = 10 * 1000
 
     def __init__(
