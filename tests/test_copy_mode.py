@@ -25,7 +25,10 @@ import asyncio
 import pytest
 from prompt_toolkit.application.current import set_app
 from prompt_toolkit.application.dummy import DummyApplication
+from prompt_toolkit.key_binding.key_processor import KeyPress, _Flush
+from prompt_toolkit.keys import Keys
 from prompt_toolkit.layout.layout import Layout
+from prompt_toolkit.selection import SelectionType
 
 from no_backend import NoBackend
 from ptterm.terminal import Terminal
@@ -128,6 +131,67 @@ def test_a_line_that_is_not_there_is_empty():
     "prompt_toolkit asks for the rows of the window, and a window is bigger."
     terminal = a_terminal("one line")
     assert terminal.styled_line(1000) == []
+
+
+async def press(terminal, *keys):
+    """
+    Open copy mode, press these keys, and give the terminal back.
+
+    The keys go through the key processor of a real application, which
+    is what decides which binding a key reaches. A test that called the
+    handler itself would pass with no binding at all, and that is the
+    fault these keys had. Lillecarl/pymux#133.
+    """
+    app = DummyApplication()
+    app.layout = Layout(terminal.container)
+
+    with set_app(app):
+        terminal.enter_copy_mode()
+        for key in keys:
+            app.key_processor.feed(KeyPress(key, ""))
+        app.key_processor.process_keys()
+
+    return terminal
+
+
+@pytest.mark.parametrize("key", ["q", Keys.ControlM, Keys.ControlC])
+async def test_a_key_that_leaves_copy_mode(key):
+    "tmux leaves copy mode on all of these, and pymux left on one."
+    assert not (await press(a_terminal("first\r\nsecond"), key)).is_copying
+
+
+async def test_escape_leaves_copy_mode():
+    """
+    Escape has its own test because the key processor holds one back:
+    it may be the start of a sequence, and only a flush says it is not.
+    """
+    terminal = a_terminal("first\r\nsecond")
+    app = DummyApplication()
+    app.layout = Layout(terminal.container)
+
+    with set_app(app):
+        terminal.enter_copy_mode()
+        app.key_processor.feed(KeyPress(Keys.Escape, "\x1b"))
+        app.key_processor.process_keys()
+        # The timeout feeds this when no key followed the escape.
+        app.key_processor.feed(_Flush)
+        app.key_processor.process_keys()
+
+    assert not terminal.is_copying
+
+
+async def test_space_starts_a_selection_and_enter_keeps_copy_mode():
+    "Enter copies the selection there, so it may not also leave."
+    terminal = await press(a_terminal("first\r\nsecond"), " ", Keys.ControlM)
+    assert terminal.is_copying
+
+
+async def test_v_swaps_what_a_selection_selects():
+    terminal = await press(a_terminal("first\r\nsecond"), " ", "v")
+    assert (
+        terminal.copy_buffer.selection_state.type == SelectionType.LINES
+    )
+    assert terminal.is_copying
 
 
 async def test_leaving_copy_mode_forgets_what_was_styled():

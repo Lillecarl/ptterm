@@ -36,6 +36,7 @@ from prompt_toolkit.layout.processors import (
 from prompt_toolkit.layout.screen import Char, Point
 from prompt_toolkit.line_attributes import LineAttribute
 from prompt_toolkit.mouse_events import MouseEventType
+from prompt_toolkit.selection import SelectionType
 from prompt_toolkit.token import KeepWhitespace
 from prompt_toolkit.utils import Event, is_windows
 from prompt_toolkit.widgets.toolbars import SearchToolbar
@@ -697,11 +698,21 @@ class Terminal:
             wrap_lines=False,
         )
 
-        # Key bindigns for copy buffer.
+        # The keys of copy mode.
+        #
+        # **They live with the copy buffer**, because the copy buffer is
+        # what they drive. pymux held four of them and read a flag that
+        # nothing had set since copy mode moved here, so `q`, `escape`
+        # and `v` did nothing at all and only ctrl-c left copy mode.
+        # Lillecarl/pymux#133.
         kb = KeyBindings()
 
         @kb.add("c-c")
+        @kb.add("q")
+        @kb.add("escape")
+        @kb.add("enter", filter=~has_selection)
         def _exit(event):
+            "Leave copy mode. tmux leaves on all four of these."
             self.exit_copy_mode()
 
         @kb.add("space")
@@ -714,6 +725,17 @@ class Terminal:
             "Copy selection."
             data = event.current_buffer.copy_selection()
             event.app.clipboard.set_data(data)
+
+        @kb.add("v", filter=has_selection)
+        def _toggle_selection_type(event):
+            "Swap between selecting characters and selecting lines."
+            selection_state = event.current_buffer.selection_state
+            if selection_state is None:
+                return
+            if selection_state.type == SelectionType.CHARACTERS:
+                selection_state.type = SelectionType.LINES
+            else:
+                selection_state.type = SelectionType.CHARACTERS
 
         self.search_toolbar = SearchToolbar(
             forward_search_prompt="Search down: ", backward_search_prompt="Search up: "
