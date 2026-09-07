@@ -94,56 +94,56 @@ def test_every_alias_names_a_shape():
 
 def test_a_bare_name_sets_the_shape():
     screen, _ = feed(["pointer"])
-    assert screen.pointer_shape == "pointer"
+    assert screen.pointer_shapes.shape == "pointer"
 
 
 def test_an_empty_payload_takes_the_shape_away():
     screen, _ = feed(["pointer", ""])
-    assert screen.pointer_shape == ""
+    assert screen.pointer_shapes.shape == ""
 
 
 def test_a_push_and_a_pop():
     screen, _ = feed(["pointer", ">wait"])
-    assert screen.pointer_shape == "wait"
+    assert screen.pointer_shapes.shape == "wait"
     screen, _ = feed(["pointer", ">wait", "<"])
-    assert screen.pointer_shape == "pointer"
+    assert screen.pointer_shapes.shape == "pointer"
 
 
 def test_a_pop_of_an_empty_stack_does_nothing():
     screen, _ = feed(["<", "<"])
-    assert screen.pointer_shape == ""
+    assert screen.pointer_shapes.shape == ""
 
 
 def test_a_push_of_several_names():
     screen, _ = feed([">wait,pointer"])
-    assert screen.pointer_shape == "pointer"
+    assert screen.pointer_shapes.shape == "pointer"
 
 
 def test_a_set_replaces_the_top_and_does_not_push():
     screen, _ = feed([">wait", "=pointer", "<"])
-    assert screen.pointer_shape == ""
+    assert screen.pointer_shapes.shape == ""
 
 
 def test_a_name_that_nobody_knows_changes_nothing():
     screen, _ = feed(["pointer", "nonsense"])
-    assert screen.pointer_shape == "pointer"
+    assert screen.pointer_shapes.shape == "pointer"
 
 
 def test_a_full_stack_drops_the_oldest():
     screen, _ = feed([">pointer"] + [">wait"] * MAX_POINTER_SHAPES)
-    assert len(screen.pointer_shapes) == MAX_POINTER_SHAPES
-    assert screen.pointer_shapes[0] == "wait"
+    assert len(screen.pointer_shapes.stack) == MAX_POINTER_SHAPES
+    assert screen.pointer_shapes.stack[0] == "wait"
 
 
 def test_each_screen_keeps_its_own_stack():
     screen, stream, _ = _screen()
     stream.feed("\x1b]22;pointer\x1b\\")
     stream.feed("\x1b[?1049h")
-    assert screen.pointer_shape == ""
+    assert screen.pointer_shapes.shape == ""
     stream.feed("\x1b]22;wait\x1b\\")
-    assert screen.pointer_shape == "wait"
+    assert screen.pointer_shapes.shape == "wait"
     stream.feed("\x1b[?1049l")
-    assert screen.pointer_shape == "pointer"
+    assert screen.pointer_shapes.shape == "pointer"
 
 
 #: Sequences of payloads that the comparison against kitty runs.
@@ -173,7 +173,7 @@ CASES = [
 @pytest.mark.parametrize("steps", CASES, ids=range(len(CASES)))
 def test_the_stack_of_kitty_agrees(steps):
     screen, _ = feed(steps)
-    assert (screen.pointer_shape or "0") == kitty_shape(steps)
+    assert (screen.pointer_shapes.shape or "0") == kitty_shape(steps)
 
 
 # ----------------------------------------------------------------------
@@ -216,7 +216,7 @@ def test_a_query_of_the_default_and_the_grabbed_shape():
 
 def test_a_query_changes_no_shape():
     screen, _ = feed(["pointer", "?wait"])
-    assert screen.pointer_shape == "pointer"
+    assert screen.pointer_shapes.shape == "pointer"
 
 
 # ----------------------------------------------------------------------
