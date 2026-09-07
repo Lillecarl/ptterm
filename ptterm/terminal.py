@@ -74,6 +74,56 @@ _LINE_ATTRIBUTES = {
 }
 
 
+#: Bit six of the button says the event came from the wheel, so the two
+#: wheel directions are the button numbers 64 and 65. kitty calls it
+#: `SCROLL_BUTTON_INDICATOR` in `kitty/mouse.c`.
+_WHEEL = 1 << 6
+
+#: A release is button three in every protocol older than SGR. kitty:
+#: "action == RELEASE && mouse_tracking_protocol < SGR_PROTOCOL".
+_RELEASE_BUTTON = 3
+
+#: X10 and urxvt shift the button by 32, so that X10 can write it as a
+#: printable byte. SGR does not: it writes the number as text, which is
+#: the reason that protocol exists. kitty adds the same 32 in
+#: `encode_mouse_event_impl`, for the urxvt and the X10 cases only.
+_BUTTON_OFFSET = 32
+
+#: X10 writes each coordinate as one byte as well, one based and
+#: shifted by the same 32. So a zero based column travels as `x + 33`.
+_COORDINATE_OFFSET = _BUTTON_OFFSET + 1
+
+#: How far to the right an X10 report reaches.
+#:
+#: This is not X10's own limit, which is 223: a byte holds `223 + 32`
+#: and no more, and kitty writes exactly that as
+#: "if (x > 223 || y > 223) return 0". It is also one column too
+#: generous for what a pane can spell, because column 95 becomes
+#: `chr(128)`, which UTF-8 writes as two bytes. Both halves of that are
+#: Lillecarl/pymux#139.
+_X10_LAST_COLUMN = 96
+
+#: The button that SGR writes, and the final byte that says whether the
+#: press went down or came up. SGR is the only protocol that tells them
+#: apart that way, and the only one that leaves the button unshifted.
+_SGR_BUTTONS = {
+    MouseEventType.MOUSE_DOWN: (0, "M"),
+    MouseEventType.MOUSE_UP: (0, "m"),
+    MouseEventType.SCROLL_UP: (_WHEEL, "M"),
+    MouseEventType.SCROLL_DOWN: (_WHEEL + 1, "M"),
+}
+
+#: The button that urxvt and X10 write. One table, because the two
+#: protocols encode the same number and differ only in how they spell
+#: it: urxvt as text, X10 as one byte.
+_SHIFTED_BUTTONS = {
+    MouseEventType.MOUSE_DOWN: _BUTTON_OFFSET,
+    MouseEventType.MOUSE_UP: _RELEASE_BUTTON + _BUTTON_OFFSET,
+    MouseEventType.SCROLL_UP: _WHEEL + _BUTTON_OFFSET,
+    MouseEventType.SCROLL_DOWN: _WHEEL + 1 + _BUTTON_OFFSET,
+}
+
+
 #: The characters that must not reach the terminal of the user as they
 #: stand. prompt_toolkit lists them because it draws them for a person
 #: who is typing; the reason here is different, and so is the answer.
@@ -441,14 +491,10 @@ class _TerminalControl(UIControl):
             # Already focussed, send event to application when it requested
             # mouse support.
             if self.screen.sgr_mouse_support_enabled:
-                # Xterm SGR mode.
+                # Xterm SGR mode: the button as text, and the final
+                # byte says press or release.
                 try:
-                    ev, m = {
-                        MouseEventType.MOUSE_DOWN: (0, "M"),
-                        MouseEventType.MOUSE_UP: (0, "m"),
-                        MouseEventType.SCROLL_UP: (64, "M"),
-                        MouseEventType.SCROLL_DOWN: (65, "M"),
-                    }[mouse_event.event_type]
+                    ev, m = _SGR_BUTTONS[mouse_event.event_type]
                 except KeyError:
                     pass
                 else:
@@ -460,34 +506,32 @@ class _TerminalControl(UIControl):
                     self.screen.reply_csi(f"<{ev};{x + 1};{y + 1}{m}")
 
             elif self.screen.urxvt_mouse_support_enabled:
-                # Urxvt mode.
+                # Urxvt mode: the shifted button as text, and always
+                # "M". A release is button three, so the two are told
+                # apart by the button and not by the final byte.
                 try:
-                    ev = {
-                        MouseEventType.MOUSE_DOWN: 32,
-                        MouseEventType.MOUSE_UP: 35,
-                        MouseEventType.SCROLL_UP: 96,
-                        MouseEventType.SCROLL_DOWN: 97,
-                    }[mouse_event.event_type]
+                    ev = _SHIFTED_BUTTONS[mouse_event.event_type]
                 except KeyError:
                     pass
                 else:
                     self.screen.reply_csi(f"{ev};{x + 1};{y + 1}M")
 
             elif self.screen.mouse_support_enabled:
-                # Fall back to old mode.
-                if x < 96 and y < 96:
+                # X10: the same shifted button, written as one byte,
+                # and the two coordinates after it.
+                if x < _X10_LAST_COLUMN and y < _X10_LAST_COLUMN:
                     try:
-                        ev = {
-                            MouseEventType.MOUSE_DOWN: 32,
-                            MouseEventType.MOUSE_UP: 35,
-                            MouseEventType.SCROLL_UP: 96,
-                            MouseEventType.SCROLL_DOWN: 97,
-                        }[mouse_event.event_type]
+                        ev = _SHIFTED_BUTTONS[mouse_event.event_type]
                     except KeyError:
                         pass
                     else:
                         self.screen.reply_csi(
-                            f"M{chr(ev)}{chr(x + 33)}{chr(y + 33)}"
+                            "M%s%s%s"
+                            % (
+                                chr(ev),
+                                chr(x + _COORDINATE_OFFSET),
+                                chr(y + _COORDINATE_OFFSET),
+                            )
                         )
 
     def is_focusable(self) -> bool:
