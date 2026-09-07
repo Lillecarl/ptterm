@@ -258,23 +258,38 @@ LINEFEED_ROWS = 100
 PAST_THE_DEPTH = 3 * LINEFEED_ROWS
 
 
-def _fill(control, depth: int):
+#: A line that is wider than the pane, so the screen wraps it. Two rows
+#: of the buffer hold one line of the program, and the second of them is
+#: in `wrapped_lines`.
+A_WRAPPING_LINE = "a line of output that is wider than eighty columns " \
+    "and so the screen wraps it onto a second row"
+
+
+def _fill(control, depth: int, wrapping: bool = False):
     "Write past the depth, so the history is full and not filling."
     control.create_content(HISTORY_COLUMNS, HISTORY_LINES)
-    control.stream.feed(
-        "".join(
-            "line %d\r\n" % number
-            for number in range(depth + HISTORY_LINES + PAST_THE_DEPTH)
+    rows = depth + HISTORY_LINES + PAST_THE_DEPTH
+    if wrapping:
+        # Each line takes two rows, so half as many lines fill the same
+        # history.
+        control.stream.feed(
+            "".join(
+                "%d %s\r\n" % (number, A_WRAPPING_LINE)
+                for number in range(rows // 2)
+            )
         )
-    )
+    else:
+        control.stream.feed(
+            "".join("line %d\r\n" % number for number in range(rows))
+        )
 
 
-def a_filled_pane(depth: int):
+def a_filled_pane(depth: int, wrapping: bool = False):
     "A widget whose history is full to `depth` rows."
     control = _TerminalControl(
         backend=NoBackend(), get_history_limit=lambda: depth
     )
-    _fill(control, depth)
+    _fill(control, depth, wrapping)
     return control
 
 
@@ -347,6 +362,21 @@ def resize_work(depth: int):
     )
 
 
+def wrapped_resize_work(depth: int):
+    """
+    The same resize, on a history where every line wrapped.
+
+    A person's history is full of lines that are wider than the pane: a
+    path, a compiler message, a line of a log. This is the same work as
+    `resize`, and the difference between the two numbers is what
+    wrapping costs a reflow.
+    """
+    control = a_filled_pane(depth, wrapping=True)
+    return lambda: control.screen.resize(
+        lines=HISTORY_LINES, columns=HISTORY_COLUMNS - 1
+    )
+
+
 def copy_work(depth: int):
     """
     Opening copy mode, which is what a person presses a key for.
@@ -382,6 +412,7 @@ HISTORY_WORK = (
     ("linefeed", linefeed_work),
     ("alternate", alternate_work),
     ("resize", resize_work),
+    ("wrapped resize", wrapped_resize_work),
     ("copy", copy_work),
     ("redraw", redraw_work),
 )

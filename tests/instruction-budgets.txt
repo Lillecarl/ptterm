@@ -29,16 +29,19 @@ history 10000 (copy)                     1179797
 history 10000 (linefeed)                 146371
 history 10000 (redraw)                   1781
 history 10000 (resize)                   4955868
+history 10000 (wrapped resize)           19894138
 history 2000 (alternate)                 2947
 history 2000 (copy)                      232881
 history 2000 (linefeed)                  146371
 history 2000 (redraw)                    1732
 history 2000 (resize)                    991880
+history 2000 (wrapped resize)            4006138
 history 50000 (alternate)                2947
 history 50000 (copy)                     6259797
 history 50000 (linefeed)                 146371
 history 50000 (redraw)                   1781
 history 50000 (resize)                   26195868
+history 50000 (wrapped resize)           99895132
 indexed_256_colors                       904921
 indexed_256_colors (redraw)              5727
 indexed_256_colors (render)              65147
