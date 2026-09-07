@@ -18,7 +18,8 @@ import os
 import pytest
 
 from pyte.environment import DEFAULT_DATABASE, terminal_name
-from pyte.screen import TERMINAL_NAME, Screen
+from pyte.screen import Screen
+from pyte.terminfo import TERMINAL_NAME
 from pyte.streams import Stream
 from ptyhost import Process
 
