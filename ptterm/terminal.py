@@ -358,20 +358,20 @@ class _TerminalControl(UIControl):
                 return None
             return _LINE_ATTRIBUTES[attribute.double_height]
 
-        if data_buffer:
-            # The screen is the rows from `line_offset` to `max_y`, and
-            # the buffer can end above `max_y`: an erase with no
-            # background drops the row it clears, so "CSI 1000 M" at the
-            # top of a full screen takes every row below it away.
-            #
-            # prompt_toolkit then reads a document shorter than the
-            # window and scrolls back to the top, because it does not
-            # scroll past the end. Lines that had left the screen come
-            # back. So the count is what the screen occupies, and never
-            # what is left in the buffer.
-            line_count = max(max(data_buffer) + 1, self.screen.max_y + 1)
-        else:
-            line_count = 1
+        # The screen is the rows from `line_offset` to `max_y`, and the
+        # buffer can end above `max_y`: an erase with no background
+        # drops the row it clears, so "CSI 1000 M" at the top of a full
+        # screen takes every row below it away.
+        #
+        # prompt_toolkit then reads a document shorter than the window
+        # and scrolls back to the top, because it does not scroll past
+        # the end. Lines that had left the screen come back. So the
+        # count is what the screen occupies, and never what is left in
+        # the buffer.
+        #
+        # `highest_row` says which of the two it is without reading the
+        # buffer, which holds the history. Lillecarl/pymux#130.
+        line_count = self.screen.highest_row() + 1
 
         return UIContent(
             get_line,
