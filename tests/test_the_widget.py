@@ -161,7 +161,9 @@ class _FocusedLayout:
         return True
 
 
-def clicked(modes: str, lines: int = 8, columns: int = 12) -> bytes:
+def clicked(
+    modes: str, lines: int = 8, columns: int = 12, x: int = 2, y: int = 1
+) -> bytes:
     """
     The bytes a mouse press writes back, after `modes` turns a mouse
     protocol on.
@@ -182,7 +184,7 @@ def clicked(modes: str, lines: int = 8, columns: int = 12) -> bytes:
     with set_app(app):
         control.mouse_handler(
             MouseEvent(
-                position=Point(x=2, y=1),
+                position=Point(x=x, y=y),
                 event_type=MouseEventType.MOUSE_DOWN,
                 button=MouseButton.LEFT,
                 modifiers=frozenset(),
@@ -263,6 +265,38 @@ def test_the_urxvt_mouse_report_takes_eight_bit_controls():
 
 def test_the_old_mouse_report_takes_eight_bit_controls():
     assert clicked("\x1b G\x1b[?1000h") == b"\x9bM \x23\x22"
+
+
+#: What turns the X10 report on, with nothing after it. The three tests
+#: below are about the coordinates, so they leave S8C1T alone.
+_X10 = "\x1b[?1000h"
+
+
+def test_the_old_mouse_report_writes_one_byte_for_a_column_under_128():
+    "Column 94 becomes `chr(127)`, the last one UTF-8 spells as itself."
+    assert clicked(_X10, columns=300, x=94) == b"\x1b[M \x7f\x22"
+
+
+def test_the_old_mouse_report_writes_one_byte_for_a_column_over_128():
+    """
+    Column 95 becomes `chr(128)`, which UTF-8 writes as two bytes.
+
+    The program then read the first of them as the column and the
+    second as the row. Lillecarl/pymux#139.
+    """
+    answer = clicked(_X10, columns=300, x=95)
+    assert answer == b"\x1b[M \x80\x22"
+    assert len(answer) == 6
+
+
+def test_the_old_mouse_report_reaches_past_column_96():
+    "It stopped at 96, which is narrower than a great many panes."
+    assert clicked(_X10, columns=300, x=200) == b"\x1b[M \xe9\x22"
+
+
+def test_the_old_mouse_report_says_nothing_past_its_own_limit():
+    "A coordinate byte holds `223 + 32`, and kitty stops there too."
+    assert clicked(_X10, columns=300, x=223) == b""
 
 
 #: Twelve lines on a screen of eight, so four scroll away.

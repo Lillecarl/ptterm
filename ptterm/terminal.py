@@ -77,15 +77,16 @@ _BUTTON_OFFSET = 32
 #: shifted by the same 32. So a zero based column travels as `x + 33`.
 _COORDINATE_OFFSET = _BUTTON_OFFSET + 1
 
-#: How far to the right an X10 report reaches.
+#: How far to the right and how far down an X10 report reaches.
 #:
-#: This is not X10's own limit, which is 223: a byte holds `223 + 32`
-#: and no more, and kitty writes exactly that as
-#: "if (x > 223 || y > 223) return 0". It is also one column too
-#: generous for what a pane can spell, because column 95 becomes
-#: `chr(128)`, which UTF-8 writes as two bytes. Both halves of that are
-#: Lillecarl/pymux#139.
-_X10_LAST_COLUMN = 96
+#: This is X10's own limit. A coordinate byte holds `223 + 32` and no
+#: more, and kitty writes the same bound as
+#: "if (x > 223 || y > 223) return 0", counting from one. A press
+#: further out sends nothing, which is what kitty does with it.
+#:
+#: It was 96, which is narrower than a great many panes: a press past
+#: column 96 went nowhere. Lillecarl/pymux#139.
+_X10_COLUMNS = 223
 
 #: The button that SGR writes, and the final byte that says whether the
 #: press went down or came up. SGR is the only protocol that tells them
@@ -106,6 +107,25 @@ _SHIFTED_BUTTONS = {
     MouseEventType.SCROLL_UP: _WHEEL + _BUTTON_OFFSET,
     MouseEventType.SCROLL_DOWN: _WHEEL + 1 + _BUTTON_OFFSET,
 }
+
+
+def _one_byte(value: int) -> str:
+    """
+    One byte of an X10 mouse report, as a character the backend writes
+    as that byte and nothing else.
+
+    A value above 127 is a byte and not a character, so UTF-8 has no
+    one byte spelling for it: `chr(128)` went out as two, and the
+    program read the first as the column and the second as the row.
+
+    It travels as a surrogate instead, which is Python's channel for a
+    byte that is not a character, and `ptyhost/backends/posix.py`
+    encodes it back with "surrogateescape". `Screen._control` spells the
+    eight bit C1 controls the same way. Lillecarl/pymux#139.
+    """
+    if value < 0x80:
+        return chr(value)
+    return chr(0xDC00 + value)
 
 
 #: The characters that must not reach the terminal of the user as they
@@ -492,7 +512,7 @@ class _TerminalControl(UIControl):
             elif self.screen.mouse_support_enabled:
                 # X10: the same shifted button, written as one byte,
                 # and the two coordinates after it.
-                if x < _X10_LAST_COLUMN and y < _X10_LAST_COLUMN:
+                if x < _X10_COLUMNS and y < _X10_COLUMNS:
                     try:
                         ev = _SHIFTED_BUTTONS[mouse_event.event_type]
                     except KeyError:
@@ -502,8 +522,8 @@ class _TerminalControl(UIControl):
                             "M%s%s%s"
                             % (
                                 chr(ev),
-                                chr(x + _COORDINATE_OFFSET),
-                                chr(y + _COORDINATE_OFFSET),
+                                _one_byte(x + _COORDINATE_OFFSET),
+                                _one_byte(y + _COORDINATE_OFFSET),
                             )
                         )
 
