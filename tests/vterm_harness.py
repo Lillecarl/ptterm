@@ -58,7 +58,6 @@ from kitty_oracle import (  # noqa: E402
 )
 
 from pyte.cells import WrittenCell, appearance_of  # noqa: E402
-from pyte.page import DoubleHeight  # noqa: E402
 from pyte.screen import Screen  # noqa: E402
 from pyte.streams import Stream  # noqa: E402
 from ptterm.style import style_of  # noqa: E402
@@ -277,19 +276,14 @@ class Harness:
             return _BASELINE_WORDS[attrs.baseline or ""]
         return "?"
 
-    def _line_attribute(self, row: int):
-        "The DEC line attribute of one row of the visible screen, or None."
-        screen = self.screen
-        assert screen is not None
-        return screen.attribute_of(screen.line_offset + row)
-
     def lineinfo(self, argument: str) -> str:
         """
-        What a whole line carries: a double size, and a continuation.
+        What a whole line carries: a continuation, and nothing else.
 
-        libvterm prints the three words in this order, and prints the
-        double height without saying which half. `?screen_cell` is the
-        one that says the half.
+        libvterm prints "dwl" and "dhl" here for a line that a DEC line
+        attribute made bigger. This screen draws every line the plain
+        way, so it never says either of them (Lillecarl/pymux#141), and
+        `vterm-failures.txt` records the assertions that costs.
 
         A row says whether a wrap brought it into being, which is
         libvterm's `continuation` for the same line.
@@ -298,16 +292,9 @@ class Harness:
         assert screen is not None
         row = int(argument.split(",")[0])
 
-        words = []
-        attribute = self._line_attribute(row)
-        if attribute is not None:
-            if attribute.double_width:
-                words.append("dwl")
-            if attribute.double_height:
-                words.append("dhl")
         if screen.is_wrapped(screen.line_offset + row):
-            words.append("cont")
-        return " ".join(words)
+            return "cont"
+        return ""
 
     def screen_chars(self, argument: str) -> str:
         "Every character in a rectangle, as comma separated hex."
@@ -352,18 +339,11 @@ class Harness:
         if baseline:
             attributes += "S" + baseline
 
-        # The DEC line attributes of the line the cell is on. libvterm
-        # copies them onto every cell of the line, and prints them
-        # between the attributes and the colours.
+        # libvterm prints the DEC line attributes of the line the cell
+        # is on between the attributes and the colours. This screen
+        # draws every line the plain way, so there is nothing to print.
+        # Lillecarl/pymux#141.
         size = ""
-        attribute = self._line_attribute(row)
-        if attribute is not None:
-            if attribute.double_width:
-                size += "dwl "
-            if attribute.double_height == DoubleHeight.TOP:
-                size += "dhl-top "
-            elif attribute.double_height == DoubleHeight.BOTTOM:
-                size += "dhl-bottom "
 
         foreground = self._rgb(_color_of_style(style, ""), self.default_foreground)
         background = self._rgb(_color_of_style(style, "bg:"), self.default_background)

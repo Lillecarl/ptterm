@@ -192,8 +192,9 @@ def test_a_double_width_line_still_holds_every_column():
     twenty column screen.
 
     kitty, WezTerm, Alacritty, Ghostty and xterm.js all keep the whole
-    line and let the renderer draw it twice as wide. Five to one, and
-    ptterm is with the five.
+    line. Five to one, and ptterm is with the five: it reads the four
+    DEC line attributes and draws every line the plain way, so every
+    column stays where a program put it. Lillecarl/pymux#141.
 
     The panel cannot be asked the question directly, because no judge
     reports a line attribute. It can be asked where the text wraps,

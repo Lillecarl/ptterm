@@ -92,7 +92,6 @@ from pty_host import Host  # noqa: E402
 
 from ptyhost import Process  # noqa: E402
 from pyte.cells import WrittenCell  # noqa: E402
-from pyte.page import DoubleHeight  # noqa: E402
 
 #: The screen vttest draws on. Its own default is 24 by 80, with 132
 #: as the wide setting, and it prints the size in the title when it is
@@ -312,16 +311,6 @@ MENU_ENTRY = re.compile(r"^\s+(\d+)[.*] (.+?)\s*$")
 #: What `holdit` writes when it waits for a return.
 HOLD = "Push <RETURN>"
 
-#: How a double sized row is written down. A text dump of one is blank
-#: information without it: item 4 of the main menu is entirely about
-#: rows that are twice as big, and every cell in them looks ordinary.
-_DOUBLE_HEIGHT_WORDS = {
-    DoubleHeight.NONE: "double-width",
-    DoubleHeight.TOP: "double-height-top",
-    DoubleHeight.BOTTOM: "double-height-bottom",
-}
-
-
 class Failed(AssertionError):
     pass
 
@@ -455,18 +444,6 @@ def blinks(screen) -> bool:
             if isinstance(cell, WrittenCell) and cell.appearance.rendition.blink:
                 return True
     return False
-
-
-def attributes_of(screen) -> list[str]:
-    "The rows that are drawn twice as big, and how."
-    offset = screen.line_offset
-    out = []
-    for row in range(screen.lines):
-        attribute = screen.attribute_of(offset + row)
-        if attribute is None:
-            continue
-        out.append("%d %s" % (row, _DOUBLE_HEIGHT_WORDS[attribute.double_height]))
-    return out
 
 
 def entries_of(rows: list[str]):
@@ -892,7 +869,6 @@ class Walk:
         """
         assert self.process is not None
         screen = self.screen
-        attributes = attributes_of(screen)
         path = self.path_of() or "(the main menu)"
 
         # A screen held twice is one screen. The report tests wait a
@@ -918,8 +894,6 @@ class Walk:
                 screen.pt_cursor_position.x,
             ),
         ]
-        if attributes:
-            out.append("line attributes: %s" % ", ".join(attributes))
         blinking = blinks(screen)
         if blinking:
             out.append("this screen blinks, so a still picture of it says "

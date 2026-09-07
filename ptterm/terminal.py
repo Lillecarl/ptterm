@@ -7,7 +7,7 @@ from typing import Callable, Iterable, List
 from prompt_toolkit.application.current import get_app, get_app_or_none
 from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.document import Document
-from prompt_toolkit.filters import Condition, FilterOrBool, has_selection, to_filter
+from prompt_toolkit.filters import Condition, has_selection
 from prompt_toolkit.formatted_text import StyleAndTextTuples
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.key_binding.key_processor import KeyPressEvent
@@ -34,7 +34,6 @@ from prompt_toolkit.layout.processors import (
     Transformation,
 )
 from prompt_toolkit.layout.screen import Char, Point
-from prompt_toolkit.line_attributes import LineAttribute
 from prompt_toolkit.mouse_events import MouseEventType
 from prompt_toolkit.selection import SelectionType
 from prompt_toolkit.token import KeepWhitespace
@@ -48,7 +47,7 @@ from pyte.environment import prepare
 from pyte.images import ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH
 from pyte.placeholders import PLACEHOLDER
 from pyte.cells import Cell, WrittenCell
-from pyte.page import DoubleHeight, TextLine
+from pyte.page import TextLine
 from pyte.screen import Screen
 from pyte.streams import Stream
 
@@ -57,22 +56,6 @@ from .style import style_of
 __all__ = ["Terminal"]
 
 E = KeyPressEvent
-
-
-#: How a DEC line attribute of the screen reads to prompt_toolkit.
-#:
-#: ptterm holds the two halves of the attribute apart, because a program
-#: sets them with one sequence and they mean two things. The renderer
-#: writes one sequence for a line, so it wants the four together.
-#:
-#: The half of the height is enough to tell them apart. A line that is
-#: twice as high is twice as wide as well, and a line that carries
-#: neither is not in the map of the screen at all.
-_LINE_ATTRIBUTES = {
-    DoubleHeight.NONE: LineAttribute.DOUBLE_WIDTH,
-    DoubleHeight.TOP: LineAttribute.DOUBLE_HEIGHT_TOP,
-    DoubleHeight.BOTTOM: LineAttribute.DOUBLE_HEIGHT_BOTTOM,
-}
 
 
 #: Bit six of the button says the event came from the wheel, so the two
@@ -215,10 +198,8 @@ class _TerminalControl(UIControl):
         osc_func: Callable[[str, str], None] | None = None,
         resize_func: Callable[[int | None, int | None], None] | None = None,
         may_resize: Callable[[], bool] | None = None,
-        owns_whole_lines: FilterOrBool = False,
         get_history_limit: Callable[[], int] | None = None,
     ) -> None:
-        self.owns_whole_lines = to_filter(owns_whole_lines)
 
         def has_priority() -> bool:
             # Give priority to the processing of this terminal output, if this
@@ -353,12 +334,6 @@ class _TerminalControl(UIControl):
                 style += " " + KeepWhitespace
             return style, char
 
-        #: Whether this pane may ask for a DEC line attribute at all.
-        #: The attribute belongs to a line of the terminal, so a pane
-        #: that shares its rows with another pane holds it and says
-        #: nothing. `owns_whole_lines` is the embedder answering that.
-        owns_whole_lines = self.owns_whole_lines()
-
         def build(number: int) -> StyleAndTextTuples:
             row = data_buffer[number]
             empty = True
@@ -409,16 +384,6 @@ class _TerminalControl(UIControl):
                 drawn_at[number] = version
             return drawn[number]
 
-        def get_line_attribute(number: int) -> LineAttribute | None:
-            "How big the terminal draws this row, or None for a plain one."
-            if not owns_whole_lines:
-                return None
-            line = data_buffer.get(number)
-            attribute = None if line is None else line.attribute
-            if attribute is None:
-                return None
-            return _LINE_ATTRIBUTES[attribute.double_height]
-
         # The screen is the rows from `line_offset` to `max_y`, and the
         # buffer can end above `max_y`: an erase with no background
         # drops the row it clears, so "CSI 1000 M" at the top of a full
@@ -436,7 +401,6 @@ class _TerminalControl(UIControl):
 
         return UIContent(
             get_line,
-            get_line_attribute=get_line_attribute,
             line_count=line_count,
             show_cursor=page.show_cursor,
             cursor_position=Point(x=cursor_x, y=cursor_y),
@@ -650,12 +614,6 @@ class Terminal:
         ask. The private modes that only exist where a program can have
         a different page go away when it says no, so a program learns at
         once instead of laying its output out for room it will not get.
-    :param owns_whole_lines: Whether every row this pane draws is a whole
-        row of the terminal of the user. Only then may the pane put the
-        DEC line attributes of the program on the wire: a line that is
-        drawn twice as wide is a line of that terminal, and a pane beside
-        another one holds half of it. It is a filter, because a layout
-        changes while the pane runs.
     :param get_history_limit: Returns how many rows of scrollback this
         pane keeps. The default is two thousand, which is what tmux
         keeps. It is a function and not a number, so the option can
@@ -675,7 +633,6 @@ class Terminal:
         osc_func: Callable[[str, str], None] | None = None,
         resize_func: Callable[[int | None, int | None], None] | None = None,
         may_resize: Callable[[], bool] | None = None,
-        owns_whole_lines: FilterOrBool = False,
         get_history_limit: Callable[[], int] | None = None,
     ) -> None:
         if backend is None:
@@ -688,7 +645,6 @@ class Terminal:
             resize_func=resize_func,
             may_resize=may_resize,
             done_callback=done_callback,
-            owns_whole_lines=owns_whole_lines,
             get_history_limit=get_history_limit,
         )
 

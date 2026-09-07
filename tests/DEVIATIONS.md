@@ -1293,21 +1293,23 @@ decide, and a terminal that draws bold plus colour seven as bright will
 still do so. Whether the server should carry enough to make that call
 per client is Lillecarl/pymux#53.
 
-**Five faults the suite found are already fixed.** The DEC line
-attributes reached no handler, so `67screen_dbl_wh` failed five times.
-`screen.py` holds one per line now, in `line_attributes`, next to
-`wrapped_lines` and counted the same way. An erase, a scroll and a
-reflow all carry it, and DECLRMM takes it off, because half a double
-width line is not a thing a terminal can draw.
+**The DEC line attributes are not implemented, and that is a decision.**
+"ESC # 3", "ESC # 4", "ESC # 5" and "ESC # 6" draw a line at twice the
+width or twice the height on a VT100. ptterm reads each of them and
+draws the line the plain way, so `67screen_dbl_wh` and `28state_dbl_wh`
+fail and `vterm-failures.txt` records what they cost.
 
-The line still holds every column it held. libvterm alone halves a
-double width line, and kitty, WezTerm, Alacritty, Ghostty and xterm.js
-all keep it whole. Five to one, and `test_the_panel.py` holds the vote.
-ptterm draws nothing with the attribute: how wide a line looks is the
-renderer's decision. The widget hands it to that renderer now, and only
-where the embedder says the pane holds whole rows of the terminal
-(Lillecarl/pymux#65), so `checks.pymux-vterm` answers these five as
-well.
+The vote is five to two the other way from most of this file. kitty,
+Ghostty and Alacritty implement none of the four; xterm and libvterm
+do; esctest has no test for any of them, and no recorded program in
+this repository sends one. The feature cost 119 references across four
+packages and a patch to prompt-toolkit that nothing else needed.
+Lillecarl/pymux#141 holds the reading, and the decision was the user's.
+
+The line holds every column it was given, which is what a terminal that
+ignores the attribute does. libvterm alone halves a double width line,
+and kitty, WezTerm, Alacritty, Ghostty and xterm.js all keep it whole;
+`test_the_panel.py` holds that vote.
 
 DECALN filled the screen with a plain `Char`, which reads as a cell
 nobody wrote, so eight assertions in `90vttest_01-movement-1` saw an

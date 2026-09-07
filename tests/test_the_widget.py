@@ -33,7 +33,6 @@ from prompt_toolkit.application.current import set_app
 from prompt_toolkit.application.dummy import DummyApplication
 from prompt_toolkit.layout.mouse_handlers import MouseHandlers
 from prompt_toolkit.layout.screen import Char, Point, Screen, WritePosition
-from prompt_toolkit.line_attributes import LineAttribute
 from prompt_toolkit.mouse_events import MouseButton, MouseEvent, MouseEventType
 from prompt_toolkit.styles import Style
 from prompt_toolkit.token import KeepWhitespace
@@ -60,13 +59,9 @@ def _a_loop():
     loop.close()
 
 
-def rendered(
-    data: str, lines: int = 8, columns: int = 12, owns_whole_lines: bool = False
-) -> Screen:
+def rendered(data: str, lines: int = 8, columns: int = 12) -> Screen:
     "Put `data` through the widget and give back what prompt_toolkit drew."
-    control = _TerminalControl(
-        backend=_NoBackend(), owns_whole_lines=owns_whole_lines
-    )
+    control = _TerminalControl(backend=_NoBackend())
     window = _Window(terminal_control=control, content=control, wrap_lines=False)
 
     # The size reaches the screen the way a render does, and then the
@@ -460,47 +455,14 @@ def test_the_first_render_sizes_the_pane_before_it_starts_the_program():
 
 
 # ----------------------------------------------------------------------
-# The DEC line attributes.
+# The DEC line attributes, which a pane draws the plain way.
 #
-# "ESC # 6" draws a line twice as wide, and the attribute belongs to the
-# line of the terminal the person runs. So a pane may only ask for one
-# when every row it draws is a whole row of that terminal, and
-# `owns_whole_lines` is the embedder saying that it is.
-# Lillecarl/pymux#65.
+# "ESC # 6" draws a line twice as wide on a VT100. kitty, Ghostty and
+# Alacritty implement none of the four, and a pane does not either:
+# it reads the sequence, drops it, and draws every column of the line.
+# Lillecarl/pymux#141.
 
 
-def line_attributes(data: str, owns_whole_lines: bool = True, lines: int = 8):
-    "How prompt_toolkit draws each row of the pane, for the rows that ask."
-    screen = rendered(data, lines=lines, owns_whole_lines=owns_whole_lines)
-    return screen.line_attributes
-
-
-def test_a_double_width_line_reaches_the_screen():
-    assert line_attributes("\x1b#6abcde") == {0: LineAttribute.DOUBLE_WIDTH}
-
-
-def test_the_two_halves_of_a_double_height_line_reach_the_screen():
-    assert line_attributes("\x1b#3abcde\r\n\x1b#4abcde") == {
-        0: LineAttribute.DOUBLE_HEIGHT_TOP,
-        1: LineAttribute.DOUBLE_HEIGHT_BOTTOM,
-    }
-
-
-def test_a_line_that_is_made_plain_again_asks_for_nothing():
-    "A row that names no attribute is a plain row, so it is absent."
-    assert line_attributes("\x1b#6abcde\x1b#5") == {}
-
-
-def test_a_pane_that_shares_its_rows_says_nothing():
-    """
-    A pane beside another pane holds half of a row of the terminal.
-
-    Half a row cannot be drawn twice as wide, so the widget keeps the
-    attribute and puts nothing on the screen.
-    """
-    assert line_attributes("\x1b#6abcde", owns_whole_lines=False) == {}
-
-
-def test_the_attribute_lands_on_the_row_and_costs_it_no_column():
-    "The fragment draws nothing, so the text of the row is unchanged."
-    assert drawn("\x1b#6abcde")[0] == "abcde"
+@pytest.mark.parametrize("sequence", ["\x1b#3", "\x1b#4", "\x1b#5", "\x1b#6"])
+def test_the_sequence_costs_the_row_no_column(sequence):
+    assert drawn(sequence + "abcde")[0] == "abcde"

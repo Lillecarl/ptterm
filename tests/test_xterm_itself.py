@@ -353,23 +353,6 @@ def test_where_xterm_draws_after_the_screen_goes_back_under_another_name():
     assert marks(what_xterm_draws(with_a_move, lines=8, columns=24)) == [(0, 22)]
 
 
-def test_what_xterm_keeps_past_the_half_of_a_double_width_line():
-    """
-    A line drawn twice as wide shows half its columns. Does it keep the
-    other half?
-
-    This is the question the renderer of pymux has to answer. It draws
-    a row and then hears that the row is twice as wide, and no cell of
-    it changed, so it writes nothing more. If xterm drops the columns
-    past the middle, the renderer holds a screen the terminal no longer
-    has. Lillecarl/pymux#65.
-    """
-    full = "x" * 80
-    wide = what_xterm_draws(full + "\x1b[1;1H\x1b#6", lines=3, columns=80)
-    back = what_xterm_draws(full + "\x1b[1;1H\x1b#6\x1b#5", lines=3, columns=80)
-    assert [wide[0][39], wide[0][79], back[0][79]] == ["x", "x", "x"]
-
-
 def test_what_xterm_draws_for_the_blank_of_the_line_drawing_set():
     """
     Entry 20 of `DEVIATIONS.md`, which is open.
