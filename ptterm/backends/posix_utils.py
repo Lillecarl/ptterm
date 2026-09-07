@@ -8,8 +8,6 @@ import select
 import termios
 from codecs import getincrementaldecoder
 
-from ..graphics import ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH
-
 #: The pixel fields of `struct winsize` are unsigned shorts, and the
 #: array that carries them is signed. Anything above this is not
 #: reported.
@@ -146,7 +144,7 @@ def pty_make_controlling_tty(tty_fd):
             os.close(fd)
 
 
-def set_terminal_size(stdout_fileno, rows, cols):
+def set_terminal_size(stdout_fileno, rows, cols, cell=(0, 0)):
     """
     Set terminal size.
 
@@ -156,12 +154,18 @@ def set_terminal_size(stdout_fileno, rows, cols):
     the output window are not the same, e.g. in case of a telnet connection, or
     unix domain socket, and then we have to sync the sizes by hand.)
 
-    The size in pixels goes with it. A program that draws images reads
-    it to work out how big a cell is, and a zero there says "I do not
-    know", which leaves the program with no size to draw. The pixels
-    follow the cell that `ptterm.graphics` assumes, so the answer
-    agrees with what "CSI 14 t" and "CSI 16 t" report.
+    `cell` is how many pixels wide and high one cell is, and the size in
+    pixels goes into the same structure. A program that draws images
+    reads it, and a zero there says "I do not know", which leaves the
+    program with no size to draw.
+
+    **The number is not this layer's.** How big a cell is, is what the
+    screen answers to "CSI 14 t" and "CSI 16 t", so whoever holds the
+    screen passes it and the two answers agree. Nothing said means
+    nothing claimed.
     """
+    cell_width, cell_height = cell
+
     # Buffer for the C call
     # (The first parameter of 'array.array' needs to be 'str' on both Python 2
     # and Python 3.)
@@ -170,8 +174,8 @@ def set_terminal_size(stdout_fileno, rows, cols):
         [
             rows,
             cols,
-            _pixels(cols, ASSUMED_CELL_WIDTH),
-            _pixels(rows, ASSUMED_CELL_HEIGHT),
+            _pixels(cols, cell_width),
+            _pixels(rows, cell_height),
         ],
     )
 

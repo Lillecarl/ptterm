@@ -40,6 +40,7 @@ from prompt_toolkit.utils import Event, is_windows
 from prompt_toolkit.widgets.toolbars import SearchToolbar
 
 from .backends import Backend
+from .graphics import ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH
 from .placeholders import PLACEHOLDER
 from .process import Process
 from .screen import BetterScreen, Cell, DoubleHeight, WrittenCell
@@ -454,7 +455,14 @@ def create_backend(
     else:
         from .backends.posix import PosixBackend
 
-        return PosixBackend.from_command(command, before_exec_func=before_exec_func)
+        # The size of a cell goes into the size of the pty, so that a
+        # program that draws images reads the same answer there as
+        # "CSI 16 t" gives it.
+        return PosixBackend.from_command(
+            command,
+            before_exec_func=before_exec_func,
+            cell=(ASSUMED_CELL_WIDTH, ASSUMED_CELL_HEIGHT),
+        )
 
 
 class Terminal:

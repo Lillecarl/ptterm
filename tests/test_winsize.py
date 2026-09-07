@@ -16,6 +16,11 @@ import pytest
 from ptterm.backends.posix_utils import MAX_WINSIZE_PIXELS, set_terminal_size
 from ptterm.graphics import ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH
 
+#: The cell that ptterm assumes. The pty layer has no opinion of its
+#: own: it is the screen that answers "CSI 16 t", so the screen passes
+#: the number down. `test_the_layers.py` holds that boundary.
+CELL = (ASSUMED_CELL_WIDTH, ASSUMED_CELL_HEIGHT)
+
 
 @pytest.fixture
 def pty_pair():
@@ -34,7 +39,7 @@ def read_size(fileno):
 
 def test_the_size_in_pixels_is_reported(pty_pair):
     master, slave = pty_pair
-    set_terminal_size(master, 24, 80)
+    set_terminal_size(master, 24, 80, CELL)
     assert read_size(slave) == (
         24,
         80,
@@ -49,7 +54,7 @@ def test_the_pixels_agree_with_the_window_report(pty_pair):
     so a program reads one answer whichever way it asks.
     """
     master, slave = pty_pair
-    set_terminal_size(master, 10, 40)
+    set_terminal_size(master, 10, 40, CELL)
     _rows, _columns, width, height = read_size(slave)
     assert (height, width) == (10 * ASSUMED_CELL_HEIGHT, 40 * ASSUMED_CELL_WIDTH)
 
@@ -58,7 +63,7 @@ def test_a_terminal_too_large_to_count_reports_no_pixels(pty_pair):
     "A wrong number is worse than none."
     master, slave = pty_pair
     columns = MAX_WINSIZE_PIXELS // ASSUMED_CELL_WIDTH + 1
-    set_terminal_size(master, 24, columns)
+    set_terminal_size(master, 24, columns, CELL)
     _rows, _columns, width, height = read_size(slave)
     assert width == 0
     assert height == 24 * ASSUMED_CELL_HEIGHT
@@ -66,5 +71,5 @@ def test_a_terminal_too_large_to_count_reports_no_pixels(pty_pair):
 
 def test_an_empty_terminal_reports_no_pixels(pty_pair):
     master, slave = pty_pair
-    set_terminal_size(master, 0, 0)
+    set_terminal_size(master, 0, 0, CELL)
     assert read_size(slave) == (0, 0, 0, 0)

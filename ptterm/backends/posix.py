@@ -13,8 +13,18 @@ __all__ = ["PosixBackend"]
 
 
 class PosixBackend(Backend):
-    def __init__(self, exec_func):
+    """
+    A program on a pty of its own.
+
+    :param cell: how many pixels wide and high one cell is, which goes
+        into the size of the pty beside the rows and the columns. It is
+        the screen's answer to "CSI 16 t", so whoever holds the screen
+        passes it; nothing said means nothing claimed.
+    """
+
+    def __init__(self, exec_func, cell=(0, 0)):
         self.exec_func = exec_func
+        self.cell = cell
 
         # Create pseudo terminal for this pane.
         self.master, self.slave = os.openpty()
@@ -32,13 +42,14 @@ class PosixBackend(Backend):
         self._input_ready_callbacks.append(callback)
 
     @classmethod
-    def from_command(cls, command, before_exec_func=None):
+    def from_command(cls, command, before_exec_func=None, cell=(0, 0)):
         """
         Create Process from command,
         e.g. command=['python', '-c', 'print("test")']
 
         :param before_exec_func: Function that is called before `exec` in the
             process fork.
+        :param cell: the size of one cell in pixels. See `__init__`.
         """
         assert isinstance(command, list)
         assert before_exec_func is None or callable(before_exec_func)
@@ -52,7 +63,7 @@ class PosixBackend(Backend):
                 if os.path.exists(path) and os.access(path, os.X_OK):
                     os.execv(path, command)
 
-        return cls(execv)
+        return cls(execv, cell=cell)
 
     def connect_reader(self):
         if self.master is not None and not self._reader_connected:
@@ -105,7 +116,7 @@ class PosixBackend(Backend):
         assert isinstance(height, int)
 
         if self.master is not None:
-            set_terminal_size(self.master, height, width)
+            set_terminal_size(self.master, height, width, self.cell)
 
     def start(self):
         """

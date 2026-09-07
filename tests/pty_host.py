@@ -13,6 +13,7 @@ it would be taking room from the panes beside it, so ptterm hands the
 ask to the embedder instead.
 """
 from ptterm.backends.posix import PosixBackend
+from ptterm.graphics import ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH
 from ptterm.process import Process
 from ptterm.screen import BetterScreen
 from ptterm.stream import BetterStream
@@ -49,7 +50,9 @@ class Host:
         self.smallest = smallest
         self.largest = largest
 
-        self.backend = PosixBackend.from_command(command)
+        self.backend = PosixBackend.from_command(
+            command, cell=(ASSUMED_CELL_WIDTH, ASSUMED_CELL_HEIGHT)
+        )
         if prepare is not None:
             prepare(self.backend)
 

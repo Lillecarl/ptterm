@@ -129,7 +129,16 @@ def _imports(path: Path):
     outside = set()
     inside = set()
     tree = ast.parse(path.read_text())
-    package = _name_of(path).rsplit(".", 1)[0] if "." in _name_of(path) else ""
+
+    name = _name_of(path)
+    if path.name == "__init__.py":
+        # The module of a package is that package, so one dot in it
+        # means the package itself and not the one above.
+        package = name
+    elif "." in name:
+        package = name.rsplit(".", 1)[0]
+    else:
+        package = ""
 
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
@@ -232,11 +241,18 @@ def test_the_pure_layer_reaches_nothing_above_it(name):
 
 
 @pytest.mark.parametrize("name", sorted(PTY))
-def test_the_pty_layer_reaches_no_front_end(name):
+def test_the_pty_layer_stands_alone(name):
     """
-    `txterm` needs this layer, and it may not drag prompt_toolkit in
-    behind it. Lillecarl/pymux#85.
+    It reaches nothing outside itself, not even the pure layer.
+
+    That is stronger than the split asks for, and it is what makes the
+    layer a package of its own: `ptyhost` runs a program on a pty and
+    depends on neither widget and neither screen. Lillecarl/pymux#85.
+
+    The size of a cell in pixels was the last thing it borrowed. It is
+    what a screen answers to "CSI 16 t", so the screen passes it to the
+    backend rather than the backend reading it from the screen.
     """
     _outside, inside = _imports(MODULES[name])
-    above = sorted(other for other in inside if _layer_of(other) == "front end")
-    assert above == [], "%s imports %s" % (name, above)
+    elsewhere = sorted(other for other in inside if _layer_of(other) != "pty")
+    assert elsewhere == [], "%s imports %s" % (name, elsewhere)
