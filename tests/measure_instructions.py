@@ -61,6 +61,9 @@ things on it, written "history <depth> (<what>)":
   window edge does. A reflow reads every row of the buffer and puts it
   back at the new width, so this is the whole history and not the
   screen, paid while a person watches the edge move.
+- **copy**, the cost of opening copy mode. It builds a document of the
+  whole history: every cell of every row, into text and a list of
+  styles, and none of it is lazy.
 - **redraw**, the cost of a frame with one row changed, which is the
   frame a pane draws all day.
 
@@ -107,7 +110,7 @@ from no_backend import NoBackend  # noqa: E402
 
 from pyte.screen import Screen  # noqa: E402
 from pyte.streams import Stream  # noqa: E402
-from ptterm.terminal import _TerminalControl  # noqa: E402
+from ptterm.terminal import Terminal, _TerminalControl  # noqa: E402
 
 HERE = Path(__file__).parent
 
@@ -255,11 +258,8 @@ LINEFEED_ROWS = 100
 PAST_THE_DEPTH = 3 * LINEFEED_ROWS
 
 
-def a_filled_pane(depth: int):
-    "A widget whose history is full to `depth` rows."
-    control = _TerminalControl(
-        backend=NoBackend(), get_history_limit=lambda: depth
-    )
+def _fill(control, depth: int):
+    "Write past the depth, so the history is full and not filling."
     control.create_content(HISTORY_COLUMNS, HISTORY_LINES)
     control.stream.feed(
         "".join(
@@ -267,7 +267,27 @@ def a_filled_pane(depth: int):
             for number in range(depth + HISTORY_LINES + PAST_THE_DEPTH)
         )
     )
+
+
+def a_filled_pane(depth: int):
+    "A widget whose history is full to `depth` rows."
+    control = _TerminalControl(
+        backend=NoBackend(), get_history_limit=lambda: depth
+    )
+    _fill(control, depth)
     return control
+
+
+def a_filled_terminal(depth: int):
+    """
+    A whole `Terminal` whose history is full, because copy mode belongs
+    to the widget and not to the control under it.
+    """
+    terminal = Terminal(
+        backend=NoBackend(), get_history_limit=lambda: depth
+    )
+    _fill(terminal.terminal_control, depth)
+    return terminal
 
 
 def history_cost(depth: int, prepare):
@@ -275,8 +295,9 @@ def history_cost(depth: int, prepare):
     What one piece of work costs on a pane filled to `depth`, as the
     instructions it runs and the seconds it takes.
 
-    `prepare` takes a filled pane and returns the work to measure, so
-    that whatever the work needs first stays outside both numbers.
+    `prepare` builds a filled pane of its own and returns the work to
+    measure, so that whatever the work needs first stays outside both
+    numbers.
 
     The two runs are two panes. A count and a clock cannot come from
     one run: `sys.monitoring` calls back into Python on every bytecode,
@@ -284,15 +305,16 @@ def history_cost(depth: int, prepare):
     piece of work changes the pane it runs on, so the same pane cannot
     serve twice.
     """
-    counted = count_instructions(prepare(a_filled_pane(depth)))
-    work = prepare(a_filled_pane(depth))
+    counted = count_instructions(prepare(depth))
+    work = prepare(depth)
     started = time.perf_counter()
     work()
     return counted, time.perf_counter() - started
 
 
-def linefeed_work(control):
+def linefeed_work(depth: int):
     "A hundred lines of plain output, which is what a program prints."
+    control = a_filled_pane(depth)
     lines = "".join(
         "another line %d\r\n" % number for number in range(LINEFEED_ROWS)
     )
@@ -304,12 +326,13 @@ def linefeed_work(control):
 ALTERNATE_SCREEN = "\x1b[?1049h\x1b[?1049l"
 
 
-def alternate_work(control):
+def alternate_work(depth: int):
     "Opening a full screen program and closing it again."
+    control = a_filled_pane(depth)
     return lambda: control.stream.feed(ALTERNATE_SCREEN)
 
 
-def resize_work(control):
+def resize_work(depth: int):
     """
     One column narrower, which is what dragging a window edge does.
 
@@ -318,13 +341,27 @@ def resize_work(control):
     and not the screen, and it happens while a person watches the edge
     move.
     """
+    control = a_filled_pane(depth)
     return lambda: control.screen.resize(
         lines=HISTORY_LINES, columns=HISTORY_COLUMNS - 1
     )
 
 
-def redraw_work(control):
+def copy_work(depth: int):
+    """
+    Opening copy mode, which is what a person presses a key for.
+
+    It builds a document of the whole history: every row, and every
+    cell of every row, into text and a list of styles. Nothing of it is
+    lazy, so the rows a person never scrolls to are paid for as well.
+    """
+    terminal = a_filled_terminal(depth)
+    return terminal.read_the_screen_into_the_copy_buffer
+
+
+def redraw_work(depth: int):
     "A frame with one row changed since the frame before it."
+    control = a_filled_pane(depth)
 
     def frame():
         content = control.create_content(HISTORY_COLUMNS, HISTORY_LINES)
@@ -345,6 +382,7 @@ HISTORY_WORK = (
     ("linefeed", linefeed_work),
     ("alternate", alternate_work),
     ("resize", resize_work),
+    ("copy", copy_work),
     ("redraw", redraw_work),
 )
 

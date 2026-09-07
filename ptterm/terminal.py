@@ -765,10 +765,20 @@ class Terminal:
         return style
 
     def enter_copy_mode(self) -> None:
-        # Suspend process.
         self.terminal_control.process.suspend()
+        self.read_the_screen_into_the_copy_buffer()
+        self.is_copying = True
+        get_app().layout.focus(self.copy_window)
 
-        # Copy content into copy buffer.
+    def read_the_screen_into_the_copy_buffer(self) -> None:
+        """
+        Put the whole buffer, history and all, into the copy buffer.
+
+        It is a method of its own because it is the work: entering copy
+        mode is a suspend, this, and a focus, and this is the part that
+        grows with the history. `tests/measure_instructions.py` measures
+        it under "history <depth> (copy)". Lillecarl/pymux#131.
+        """
         screen = self.terminal_control.screen
         data_buffer = screen.page.data_buffer
 
@@ -805,10 +815,6 @@ class Terminal:
         )
 
         self.styled_lines = styled_lines
-
-        # Enter copy mode.
-        self.is_copying = True
-        get_app().layout.focus(self.copy_window)
 
     def exit_copy_mode(self) -> None:
         # Resume process.
