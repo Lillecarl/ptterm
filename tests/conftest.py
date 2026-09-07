@@ -1,18 +1,23 @@
 """
 Which group a test file belongs to, and why the groups exist.
 
-The suite is one thing to a reader and three things to a build. About
-forty of these files need nothing but python. Nineteen need the judge
-panel, which means kitty, libvterm, a Rust build of two more emulators,
-a C build against libghostty, a node tarball, and an X server for
-xterm itself. One needs an X server and the real Xlib.
+The suite is one thing to a reader and two things to a build.
+Seventeen of these files need nothing but python. Nineteen need the
+judge panel, which means kitty, libvterm, a Rust build of two more
+emulators, a C build against libghostty, a node tarball, and an X
+server for xterm itself.
 
 Run as one derivation, a change to any test pays for all of it. So
-`nix/checks.nix` runs three, and `PTTERM_GROUP` says which one this is:
+`nix/checks.nix` runs two, and `PTTERM_GROUP` says which one this is:
 
-    unit    nothing but python, and ncurses for the terminfo entry
+    unit    nothing but python
     panel   the six emulators that ptterm is judged against, and xterm
-    xcms    Xvfb and libX11, for the colour specs
+
+The tests that judge the screen itself live in `pyte/tests` now, and
+`pyte/tests/conftest.py` is this file with the group for the colour
+specs. What is left here judges the widget: what it draws, what it
+sends, and how the panel says another emulator would draw the same
+bytes.
 
 **A file is not listed anywhere.** A list would be forgotten the first
 time somebody adds a test. The group comes from what the file imports:
@@ -41,14 +46,11 @@ PANEL_ORACLES = (
     "xterm_oracle",
 )
 
-#: The module that reads a colour with the real Xlib.
-XCMS_ORACLES = ("xlib_oracle",)
-
 #: Which group this run is. Empty means every group, which is what a
 #: run outside the build does.
 GROUP = os.environ.get("PTTERM_GROUP", "")
 
-GROUPS = ("unit", "panel", "xcms")
+GROUPS = ("unit", "panel")
 
 
 def _imports(source: str, names) -> bool:
@@ -62,8 +64,6 @@ def _imports(source: str, names) -> bool:
 def group_of(path: Path) -> str:
     "The group that this test file belongs to."
     source = path.read_text(errors="replace")
-    if _imports(source, XCMS_ORACLES):
-        return "xcms"
     if _imports(source, PANEL_ORACLES):
         return "panel"
     return "unit"

@@ -19,8 +19,6 @@
   callPackage,
   kitty,
   libvterm-neovim,
-  ncurses,
-  libx11,
   perl,
   xorg-server,
   xterm,
@@ -85,17 +83,6 @@ let
     while [ ! -s display.txt ]; do sleep 0.1; done
     export DISPLAY=":$(cat display.txt)"
   '';
-
-  # The judge for a colour spec: the real Xlib. `ptterm/xcms.py` is a
-  # port of the colour management of Xlib, and only a comparison against
-  # the original says whether the port is right.
-  #
-  # Xcms needs a display, because it reads the screen description from
-  # the root window. A bare Xvfb carries none, so Xlib uses its built-in
-  # description, which is the one xterm uses on such a screen too.
-  display = ''
-    export PTTERM_LIBX11=${libx11}/lib/libX11.so
-  '' + xvfb;
 
   # What pytest runs, for instance
   # `PTTERM_TESTS=tests/test_left_right_margins.py nix build --file . checks.ptterm-unit`.
@@ -194,17 +181,12 @@ let
   '';
 in
 {
-  # The tests that need nothing but python. About forty of the sixty
+  # The tests that need nothing but python. Seventeen of the thirty-six
   # files, so this is the one to run while working, and it pays for
   # none of the six emulators.
-  #
-  # ncurses is here for the one test that compiles the terminfo entry.
   unit = suite {
     name = "ptterm-unit";
-    inputs = [
-      pythonWithTests
-      ncurses
-    ];
+    inputs = [ pythonWithTests ];
     env = { inherit selection; };
     setup = prepare + ''
       export PTTERM_GROUP=unit
@@ -234,19 +216,6 @@ in
   # The colour specs, read back with the real Xlib. `ptterm/xcms.py` is
   # a port of the colour management of Xlib, and only the original says
   # whether the port is right.
-  xcms = suite {
-    name = "ptterm-xcms";
-    inputs = [
-      pythonWithTests
-      xorg-server
-    ];
-    env = { inherit selection; };
-    setup = prepare + display + ''
-      python -c "import sys; sys.path.insert(0, 'tests'); import xlib_oracle; assert xlib_oracle.xlib_color('rgb:f/f/f') == (255, 255, 255)"
-      export PTTERM_GROUP=xcms
-    '';
-  } runPytest;
-
   # The conformance suite of xterm, run against ptterm on a pty of its own.
   #
   # Every other suite here reads the screen from the outside. This one runs a
