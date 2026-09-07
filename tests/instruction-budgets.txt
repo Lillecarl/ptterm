@@ -12,90 +12,90 @@
 # This is what the run saw. To make it what the check expects:
 #     nix build --file . checks.ptterm-instructions.run
 #     cp result/instruction-budgets.txt ptterm/tests/instruction-budgets.txt
-alt_reset                                2066506
+alt_reset                                2066628
 alt_reset (redraw)                       2515
 alt_reset (render)                       2728
-delete_lines                             223762
+delete_lines                             223765
 delete_lines (redraw)                    6428
 delete_lines (render)                    42641
-fish_cc                                  325772
+fish_cc                                  325775
 fish_cc (redraw)                         3338
 fish_cc (render)                         16521
-grid_reset                               273287
+grid_reset                               273293
 grid_reset (redraw)                      9732
 grid_reset (render)                      16910
-history 10000 (alternate)                2565
+history 10000 (alternate)                2592
 history 10000 (copy)                     1550696
 history 10000 (linefeed)                 147871
 history 10000 (redraw)                   1780
-history 10000 (resize)                   4808166
-history 10000 (wrapped resize)           19706340
-history 2000 (alternate)                 2565
+history 10000 (resize)                   13683
+history 10000 (wrapped resize)           97058
+history 2000 (alternate)                 2592
 history 2000 (copy)                      307780
 history 2000 (linefeed)                  147871
 history 2000 (redraw)                    1731
-history 2000 (resize)                    948178
-history 2000 (wrapped resize)            3954340
-history 50000 (alternate)                2565
+history 2000 (resize)                    12786
+history 2000 (wrapped resize)            97058
+history 50000 (alternate)                2592
 history 50000 (copy)                     8110696
 history 50000 (linefeed)                 147871
 history 50000 (redraw)                   1780
-history 50000 (resize)                   25528166
-history 50000 (wrapped resize)           99027334
-indexed_256_colors                       906853
+history 50000 (resize)                   13683
+history 50000 (wrapped resize)           97955
+indexed_256_colors                       906856
 indexed_256_colors (redraw)              5726
 indexed_256_colors (render)              65161
-issue_855                                1425798
+issue_855                                1425801
 issue_855 (redraw)                       6027
 issue_855 (render)                       71162
-ll                                       235314
+ll                                       235317
 ll (redraw)                              5549
 ll (render)                              81314
-region_scroll_down                       734890
+region_scroll_down                       734893
 region_scroll_down (redraw)              1894
 region_scroll_down (render)              8275
-row_reset                                4572208
+row_reset                                4572211
 row_reset (redraw)                       5191
 row_reset (render)                       144782
-scroll_in_region_up_preserves_history    528360
+scroll_in_region_up_preserves_history    528363
 scroll_in_region_up_preserves_history (redraw) 6371
 scroll_in_region_up_preserves_history (render) 94554
-scroll_up_reset                          580408
+scroll_up_reset                          580411
 scroll_up_reset (redraw)                 8575
 scroll_up_reset (render)                 58469
-tmux_git_log                             1813512
+tmux_git_log                             1813553
 tmux_git_log (redraw)                    5476
 tmux_git_log (render)                    65939
-tmux_htop                                4955551
+tmux_htop                                4955565
 tmux_htop (redraw)                       1609
 tmux_htop (render)                       91443
-vim_24bitcolors_bce                      37469288
+vim_24bitcolors_bce                      37469302
 vim_24bitcolors_bce (redraw)             23073
 vim_24bitcolors_bce (render)             941028
-vim_large_window_scroll                  32734124
+vim_large_window_scroll                  32734138
 vim_large_window_scroll (redraw)         20675
 vim_large_window_scroll (render)         451656
-vim_simple_edit                          490148
+vim_simple_edit                          490162
 vim_simple_edit (redraw)                 10628
 vim_simple_edit (render)                 121913
-vttest_cursor_movement_1                 780532
+vttest_cursor_movement_1                 780535
 vttest_cursor_movement_1 (redraw)        9541
 vttest_cursor_movement_1 (render)        110631
-vttest_insert                            609138
+vttest_insert                            609141
 vttest_insert (redraw)                   10376
 vttest_insert (render)                   11770
-vttest_origin_mode_1                     3536847
+vttest_origin_mode_1                     3536850
 vttest_origin_mode_1 (redraw)            5119
 vttest_origin_mode_1 (render)            10110
-vttest_origin_mode_2                     1653286
+vttest_origin_mode_2                     1653289
 vttest_origin_mode_2 (redraw)            4295
 vttest_origin_mode_2 (render)            8990
-vttest_scroll                            1627789
+vttest_scroll                            1627792
 vttest_scroll (redraw)                   1901
 vttest_scroll (render)                   58772
-vttest_tab_clear_set                     236226
+vttest_tab_clear_set                     236229
 vttest_tab_clear_set (redraw)            7371
 vttest_tab_clear_set (render)            15684
-wrapline_alt_toggle                      278713
+wrapline_alt_toggle                      278743
 wrapline_alt_toggle (redraw)             8054
 wrapline_alt_toggle (render)             20156
