@@ -1,54 +1,78 @@
-# What it costs ptterm to parse each of Alacritty's recordings, and to
-# draw one frame of the screen that each one leaves, in bytecode
-# instructions. `tests/measure_instructions.py` says why the unit is
-# not a second, and which half "(render)" is.
+# What it costs ptterm to parse each of Alacritty's recordings, to draw
+# the first frame of the screen that each one leaves, and to draw the
+# frame after that one with a single row changed. The unit is bytecode
+# instructions; `tests/measure_instructions.py` says why it is not a
+# second, and what "(render)" and "(redraw)" each measure.
 #
 # This is what the run saw. To make it what the check expects:
 #     nix build --file . checks.ptterm-instructions.run
 #     cp result/instruction-budgets.txt ptterm/tests/instruction-budgets.txt
-alt_reset                                2046053
-alt_reset (render)                       2381
-delete_lines                             222678
-delete_lines (render)                    41289
-fish_cc                                  324501
-fish_cc (render)                         16077
-grid_reset                               268556
-grid_reset (render)                      16585
-indexed_256_colors                       898630
-indexed_256_colors (render)              64509
-issue_855                                1418600
-issue_855 (render)                       70116
-ll                                       234786
-ll (render)                              80365
-region_scroll_down                       728294
-region_scroll_down (render)              6773
-row_reset                                4530048
-row_reset (render)                       143172
-scroll_in_region_up_preserves_history    527253
-scroll_in_region_up_preserves_history (render) 93520
-scroll_up_reset                          578667
-scroll_up_reset (render)                 57318
-tmux_git_log                             1795721
-tmux_git_log (render)                    65068
-tmux_htop                                4904155
-tmux_htop (render)                       90542
-vim_24bitcolors_bce                      37357506
-vim_24bitcolors_bce (render)             937504
-vim_large_window_scroll                  32734645
-vim_large_window_scroll (render)         450061
-vim_simple_edit                          493951
-vim_simple_edit (render)                 121077
-vttest_cursor_movement_1                 785467
-vttest_cursor_movement_1 (render)        122412
-vttest_insert                            591274
-vttest_insert (render)                   10898
-vttest_origin_mode_1                     3513464
-vttest_origin_mode_1 (render)            9123
-vttest_origin_mode_2                     1630532
-vttest_origin_mode_2 (render)            8133
-vttest_scroll                            1607375
-vttest_scroll (render)                   57901
-vttest_tab_clear_set                     234582
-vttest_tab_clear_set (render)            15788
-wrapline_alt_toggle                      276371
-wrapline_alt_toggle (render)             19722
+alt_reset                                2073910
+alt_reset (redraw)                       2441
+alt_reset (render)                       2382
+delete_lines                             223679
+delete_lines (redraw)                    40911
+delete_lines (render)                    41290
+fish_cc                                  326799
+fish_cc (redraw)                         15864
+fish_cc (render)                         16078
+grid_reset                               274263
+grid_reset (redraw)                      16084
+grid_reset (render)                      16586
+indexed_256_colors                       904915
+indexed_256_colors (redraw)              42739
+indexed_256_colors (render)              64510
+issue_855                                1436144
+issue_855 (redraw)                       69635
+issue_855 (render)                       70117
+ll                                       235371
+ll (redraw)                              80067
+ll (render)                              80366
+region_scroll_down                       737244
+region_scroll_down (redraw)              6803
+region_scroll_down (render)              6774
+row_reset                                4577611
+row_reset (redraw)                       142919
+row_reset (render)                       143173
+scroll_in_region_up_preserves_history    546893
+scroll_in_region_up_preserves_history (redraw) 92502
+scroll_in_region_up_preserves_history (render) 93521
+scroll_up_reset                          582922
+scroll_up_reset (redraw)                 56889
+scroll_up_reset (render)                 57319
+tmux_git_log                             1828079
+tmux_git_log (redraw)                    65035
+tmux_git_log (render)                    65069
+tmux_htop                                4948979
+tmux_htop (redraw)                       88642
+tmux_htop (render)                       90543
+vim_24bitcolors_bce                      37885006
+vim_24bitcolors_bce (redraw)             936663
+vim_24bitcolors_bce (render)             937505
+vim_large_window_scroll                  32914573
+vim_large_window_scroll (redraw)         449029
+vim_large_window_scroll (render)         450062
+vim_simple_edit                          496169
+vim_simple_edit (redraw)                 121063
+vim_simple_edit (render)                 121078
+vttest_cursor_movement_1                 796098
+vttest_cursor_movement_1 (redraw)        106961
+vttest_cursor_movement_1 (render)        122413
+vttest_insert                            627359
+vttest_insert (redraw)                   10254
+vttest_insert (render)                   10899
+vttest_origin_mode_1                     3644813
+vttest_origin_mode_1 (redraw)            8500
+vttest_origin_mode_1 (render)            9124
+vttest_origin_mode_2                     1708716
+vttest_origin_mode_2 (redraw)            7636
+vttest_origin_mode_2 (render)            8134
+vttest_scroll                            1684961
+vttest_scroll (redraw)                   57832
+vttest_scroll (render)                   57902
+vttest_tab_clear_set                     235603
+vttest_tab_clear_set (redraw)            14399
+vttest_tab_clear_set (render)            15789
+wrapline_alt_toggle                      279508
+wrapline_alt_toggle (redraw)             19740
+wrapline_alt_toggle (render)             19723

@@ -19,7 +19,7 @@ real program: vim, tmux, fish, zsh, htop, up to a third of a megabyte
 of it. They are already here for `checks.pymux-alacritty`, and they are
 the largest and most honest workload in the repository.
 
-Each recording is measured twice.
+Each recording is measured three times.
 
 **The parse** is the recording fed to a fresh `Screen` through
 `Stream`, on the screen that Alacritty recorded it at. That is
@@ -33,6 +33,12 @@ what a person sees, and it is paid on every frame rather than once per
 byte. Nothing measured it before, and Lillecarl/pymux#84 asked for it:
 a change that moves the cost of a cell hides in the parse count,
 because the parse walks the bytes and the render walks the cells.
+
+**The redraw**, written "<name> (redraw)", is the frame after that one,
+with one row changed in between. The render is the first frame of a
+screen, where every row is new. A pane spends most of its life drawing
+a screen it has almost entirely drawn before, and the two counts are
+the same number today. Lillecarl/pymux#126 is why they should not be.
 
 ## What it is judged against
 
@@ -151,6 +157,50 @@ def render_cost(data: bytes, lines: int, columns: int) -> int:
     return count_instructions(work)
 
 
+#: The name that a frame after a change is written under.
+REDRAW = "%s (redraw)"
+
+#: What a program writes to change one row. It is the shape of a status
+#: line that ticks: move the cursor, write a few characters, and touch
+#: nothing else.
+ONE_ROW_CHANGED = "\x1b[1;1Hredrawn"
+
+
+def redraw_cost(data: bytes, lines: int, columns: int) -> int:
+    """
+    The instructions that a frame takes when one row changed since the
+    frame before it.
+
+    `render_cost` is the other end of the same question. It measures
+    the first frame after a recording, where nothing has been drawn
+    before and every row is new to whoever draws it.
+
+    **A pane spends most of its life here instead.** A program writes a
+    line, and the frame after it draws a screen that is almost entirely
+    the screen it drew last time. A widget that knew which rows moved
+    would pay for one of them; nothing knows, so every row is built
+    again. Lillecarl/pymux#126 is that difference, and this is the
+    number that says how big it is.
+    """
+    text = data.decode("utf-8", "replace")
+    control = _TerminalControl(backend=NoBackend())
+    control.create_content(columns, lines)
+    control.stream.feed(text)
+
+    def frame():
+        content = control.create_content(columns, lines)
+        first = max(0, content.line_count - lines)
+        for number in range(first, content.line_count):
+            content.get_line(number)
+
+    # The frame before the change. Whatever the widget remembers of a
+    # screen it has drawn, it remembers after this one.
+    frame()
+    control.stream.feed(ONE_ROW_CHANGED)
+
+    return count_instructions(frame)
+
+
 def read_budgets(path: Path):
     "The recorded count of each recording."
     budgets = {}
@@ -166,10 +216,11 @@ def read_budgets(path: Path):
 
 
 HEADER = """\
-# What it costs ptterm to parse each of Alacritty's recordings, and to
-# draw one frame of the screen that each one leaves, in bytecode
-# instructions. `tests/measure_instructions.py` says why the unit is
-# not a second, and which half "(render)" is.
+# What it costs ptterm to parse each of Alacritty's recordings, to draw
+# the first frame of the screen that each one leaves, and to draw the
+# frame after that one with a single row changed. The unit is bytecode
+# instructions; `tests/measure_instructions.py` says why it is not a
+# second, and what "(render)" and "(redraw)" each measure.
 #
 # This is what the run saw. To make it what the check expects:
 #     nix build --file . checks.ptterm-instructions.run
@@ -221,6 +272,7 @@ def main() -> int:
         for name, data, lines, columns in found:
             judge(name, cost(data, lines, columns))
             judge(RENDER % name, render_cost(data, lines, columns))
+            judge(REDRAW % name, redraw_cost(data, lines, columns))
     finally:
         asyncio.set_event_loop(None)
         loop.close()
