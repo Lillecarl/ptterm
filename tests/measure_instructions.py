@@ -40,6 +40,34 @@ screen, where every row is new. A pane spends most of its life drawing
 a screen it has almost entirely drawn before, and the two counts are
 the same number today. Lillecarl/pymux#126 is why they should not be.
 
+## What a deep history costs
+
+Every recording above runs on a screen that has just started, so no
+count here says what a pane costs after a day of work. A pane spends
+its life at its history limit: tmux keeps two thousand rows by default
+and a person who reads a long build log raises it, so ten thousand and
+fifty thousand are both ordinary numbers.
+
+So a second workload fills a history to a depth and then measures three
+things on it, written "history <depth> (<what>)":
+
+- **linefeed**, the cost of a hundred more lines of plain output. That
+  is what a program pays to print. `Screen` prunes the history once per
+  hundred linefeeds, so exactly one prune falls inside the count.
+- **alternate**, the cost of entering the alternate screen and leaving
+  it again. That is what a person pays to open vim and close it, and it
+  is where `touch_everything` walks the whole buffer twice.
+- **redraw**, the cost of a frame with one row changed, which is the
+  frame a pane draws all day.
+
+**An instruction count cannot see all of this workload.** `max(buffer)`
+and `min(buffer)` walk fifty thousand keys inside one `CALL`, and C runs
+no bytecode. So each history measurement runs a second time, on a pane
+of its own and with nothing counting, and prints the seconds that run
+took in a column that nothing judges. A budget in seconds would fail on
+a loaded machine. A reader who sees a count stand still while the
+seconds climb is looking at exactly the cost the count cannot see.
+
 ## What it is judged against
 
 `tests/instruction-budgets.txt` holds one line per recording: the name
@@ -65,6 +93,7 @@ import json
 import os
 import re
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -201,6 +230,106 @@ def redraw_cost(data: bytes, lines: int, columns: int) -> int:
     return count_instructions(frame)
 
 
+#: The depths of history to measure. Two thousand is what `Screen`
+#: keeps by default, and what tmux keeps by default. The other two are
+#: what a person sets who wants to scroll back through a build log.
+DEPTHS = (2000, 10000, 50000)
+
+#: The shape of the pane that the history workload runs in. It is the
+#: size of a terminal that nobody resized.
+HISTORY_LINES = 24
+HISTORY_COLUMNS = 80
+
+#: How many lines of plain output the linefeed measurement writes.
+#: `Screen` prunes its history once per hundred linefeeds, so exactly
+#: one prune falls inside a count of this many.
+LINEFEED_ROWS = 100
+
+#: How far past the depth the fill goes. The buffer has to be at its
+#: limit and not on the way to it, so the fill outruns the depth by
+#: more than one prune.
+PAST_THE_DEPTH = 3 * LINEFEED_ROWS
+
+
+def a_filled_pane(depth: int):
+    "A widget whose history is full to `depth` rows."
+    control = _TerminalControl(
+        backend=NoBackend(), get_history_limit=lambda: depth
+    )
+    control.create_content(HISTORY_COLUMNS, HISTORY_LINES)
+    control.stream.feed(
+        "".join(
+            "line %d\r\n" % number
+            for number in range(depth + HISTORY_LINES + PAST_THE_DEPTH)
+        )
+    )
+    return control
+
+
+def history_cost(depth: int, prepare):
+    """
+    What one piece of work costs on a pane filled to `depth`, as the
+    instructions it runs and the seconds it takes.
+
+    `prepare` takes a filled pane and returns the work to measure, so
+    that whatever the work needs first stays outside both numbers.
+
+    The two runs are two panes. A count and a clock cannot come from
+    one run: `sys.monitoring` calls back into Python on every bytecode,
+    which makes the run tens of times slower than a real one. And each
+    piece of work changes the pane it runs on, so the same pane cannot
+    serve twice.
+    """
+    counted = count_instructions(prepare(a_filled_pane(depth)))
+    work = prepare(a_filled_pane(depth))
+    started = time.perf_counter()
+    work()
+    return counted, time.perf_counter() - started
+
+
+def linefeed_work(control):
+    "A hundred lines of plain output, which is what a program prints."
+    lines = "".join(
+        "another line %d\r\n" % number for number in range(LINEFEED_ROWS)
+    )
+    return lambda: control.stream.feed(lines)
+
+
+#: What a program writes to enter the alternate screen and leave it.
+#: vim and less both do this, and both ends replace the buffer.
+ALTERNATE_SCREEN = "\x1b[?1049h\x1b[?1049l"
+
+
+def alternate_work(control):
+    "Opening a full screen program and closing it again."
+    return lambda: control.stream.feed(ALTERNATE_SCREEN)
+
+
+def redraw_work(control):
+    "A frame with one row changed since the frame before it."
+
+    def frame():
+        content = control.create_content(HISTORY_COLUMNS, HISTORY_LINES)
+        first = max(0, content.line_count - HISTORY_LINES)
+        for number in range(first, content.line_count):
+            content.get_line(number)
+
+    frame()
+    control.stream.feed(ONE_ROW_CHANGED)
+    return frame
+
+
+#: The name that each history measurement is written under.
+HISTORY = "history %d (%s)"
+
+#: What the history workload measures, in the order it measures it.
+HISTORY_WORK = (
+    ("linefeed", linefeed_work),
+    ("alternate", alternate_work),
+    ("redraw", redraw_work),
+)
+
+
 def read_budgets(path: Path):
     "The recorded count of each recording."
     budgets = {}
@@ -222,6 +351,11 @@ HEADER = """\
 # instructions; `tests/measure_instructions.py` says why it is not a
 # second, and what "(render)" and "(redraw)" each measure.
 #
+# The "history <depth>" lines are the second workload: a pane whose
+# scrollback is full to that many rows, and what it then costs to print
+# a hundred lines, to open and close a full screen program, and to draw
+# a frame with one row changed.
+#
 # This is what the run saw. To make it what the check expects:
 #     nix build --file . checks.ptterm-instructions.run
 #     cp result/instruction-budgets.txt ptterm/tests/instruction-budgets.txt
@@ -240,30 +374,46 @@ def main() -> int:
     )
 
     found = recordings(Path(root), include)
-    if not found:
-        print("No recording matched %r, so this run measured nothing." % include)
+    histories = [
+        (HISTORY % (depth, what), measure, depth)
+        for depth in DEPTHS
+        for what, measure in HISTORY_WORK
+        if not include or re.search(include, HISTORY % (depth, what))
+    ]
+    if not found and not histories:
+        print("Nothing matched %r, so this run measured nothing." % include)
         return 1
 
     budgets = read_budgets(BUDGETS)
     counts = {}
     wrong = []
 
-    def judge(name: str, counted: int) -> None:
-        "Print one measurement against its budget, and remember a miss."
+    def judge(name: str, counted: int, seconds: float | None = None) -> None:
+        """
+        Print one measurement against its budget, and remember a miss.
+
+        `seconds` is printed and never judged. It is there for the work
+        that runs in C, which an instruction count cannot see.
+        """
         counts[name] = counted
+        clock = "" if seconds is None else "  %8.4fs" % seconds
         budget = budgets.get(name)
         if budget is None:
-            print("%-40s %12d  (no budget yet)" % (name, counted))
+            print("%-40s %12d  (no budget yet)%s" % (name, counted, clock))
             wrong.append(name)
             return
         moved = 100.0 * (counted - budget) / budget
         mark = "ok " if abs(moved) <= tolerance else "OFF"
         print(
-            "%-40s %12d  budget %12d  %+6.2f%%  %s"
-            % (name, counted, budget, moved, mark)
+            "%-40s %12d  budget %12d  %+6.2f%%  %s%s"
+            % (name, counted, budget, moved, mark, clock)
         )
         if abs(moved) > tolerance:
             wrong.append(name)
+
+    def judge_over_time(name: str, prepare, depth: int) -> None:
+        "Judge one history measurement, and print its clock as well."
+        judge(name, *history_cost(depth, prepare))
 
     # `Process` reads the running event loop, and a script starts none.
     loop = asyncio.new_event_loop()
@@ -273,6 +423,10 @@ def main() -> int:
             judge(name, cost(data, lines, columns))
             judge(RENDER % name, render_cost(data, lines, columns))
             judge(REDRAW % name, redraw_cost(data, lines, columns))
+        if histories:
+            print()
+        for name, measure, depth in histories:
+            judge_over_time(name, measure, depth)
     finally:
         asyncio.set_event_loop(None)
         loop.close()
@@ -286,14 +440,15 @@ def main() -> int:
 
     if include:
         print(
-            "\nThis run measured %d of the recordings, so it makes no claim "
-            "about the rest." % len(found)
+            "\nThis run measured %d of the recordings and %d of the "
+            "histories, so it makes no claim about the rest."
+            % (len(found), len(histories))
         )
 
     if wrong:
         print(
             "\n%d of %d moved by more than %.1f%%: %s"
-            % (len(wrong), len(found), tolerance, ", ".join(sorted(wrong)))
+            % (len(wrong), len(counts), tolerance, ", ".join(sorted(wrong)))
         )
         print(
             "A count that climbed is what this check is for. A count that "
@@ -303,7 +458,7 @@ def main() -> int:
               "ptterm/tests/instruction-budgets.txt")
         return 1
 
-    print("\nEvery recording is within %.1f%% of its budget." % tolerance)
+    print("\nEvery measurement is within %.1f%% of its budget." % tolerance)
     return 0
 
 

@@ -4,6 +4,11 @@
 # instructions; `tests/measure_instructions.py` says why it is not a
 # second, and what "(render)" and "(redraw)" each measure.
 #
+# The "history <depth>" lines are the second workload: a pane whose
+# scrollback is full to that many rows, and what it then costs to print
+# a hundred lines, to open and close a full screen program, and to draw
+# a frame with one row changed.
+#
 # This is what the run saw. To make it what the check expects:
 #     nix build --file . checks.ptterm-instructions.run
 #     cp result/instruction-budgets.txt ptterm/tests/instruction-budgets.txt
@@ -19,6 +24,15 @@ fish_cc (render)                         16322
 grid_reset                               274263
 grid_reset (redraw)                      9520
 grid_reset (render)                      16698
+history 10000 (alternate)                303706
+history 10000 (linefeed)                 216662
+history 10000 (redraw)                   1750
+history 2000 (alternate)                 63706
+history 2000 (linefeed)                  160662
+history 2000 (redraw)                    1701
+history 50000 (alternate)                1503706
+history 50000 (linefeed)                 496662
+history 50000 (redraw)                   1750
 indexed_256_colors                       904915
 indexed_256_colors (redraw)              5598
 indexed_256_colors (render)              65018
