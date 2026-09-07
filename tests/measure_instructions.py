@@ -57,6 +57,10 @@ things on it, written "history <depth> (<what>)":
 - **alternate**, the cost of entering the alternate screen and leaving
   it again. That is what a person pays to open vim and close it, and it
   is where `touch_everything` walks the whole buffer twice.
+- **resize**, the cost of one column narrower, which is what dragging a
+  window edge does. A reflow reads every row of the buffer and puts it
+  back at the new width, so this is the whole history and not the
+  screen, paid while a person watches the edge move.
 - **redraw**, the cost of a frame with one row changed, which is the
   frame a pane draws all day.
 
@@ -305,6 +309,20 @@ def alternate_work(control):
     return lambda: control.stream.feed(ALTERNATE_SCREEN)
 
 
+def resize_work(control):
+    """
+    One column narrower, which is what dragging a window edge does.
+
+    A resize reflows: every row of the buffer is read, taken apart into
+    characters and put back at the new width. That is the whole history
+    and not the screen, and it happens while a person watches the edge
+    move.
+    """
+    return lambda: control.screen.resize(
+        lines=HISTORY_LINES, columns=HISTORY_COLUMNS - 1
+    )
+
+
 def redraw_work(control):
     "A frame with one row changed since the frame before it."
 
@@ -326,6 +344,7 @@ HISTORY = "history %d (%s)"
 HISTORY_WORK = (
     ("linefeed", linefeed_work),
     ("alternate", alternate_work),
+    ("resize", resize_work),
     ("redraw", redraw_work),
 )
 

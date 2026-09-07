@@ -27,12 +27,15 @@ grid_reset (render)                      16703
 history 10000 (alternate)                2947
 history 10000 (linefeed)                 146371
 history 10000 (redraw)                   1755
+history 10000 (resize)                   5056131
 history 2000 (alternate)                 2947
 history 2000 (linefeed)                  146371
 history 2000 (redraw)                    1706
+history 2000 (resize)                    1012143
 history 50000 (alternate)                2947
 history 50000 (linefeed)                 146371
 history 50000 (redraw)                   1755
+history 50000 (resize)                   26696131
 indexed_256_colors                       904921
 indexed_256_colors (redraw)              5603
 indexed_256_colors (render)              65023
