@@ -13,6 +13,8 @@ the rectangle in. None of the four moves the cursor.
 from pyte.screen import Screen
 from pyte.streams import Stream
 from ptterm.style import style_of
+from pyte import escape
+from pyte.sequences import Csi, csi
 
 #: The screen that esctest draws before it takes a rectangle.
 DATA = [
@@ -48,7 +50,7 @@ def _lines(screen):
 def _prepare(stream):
     # The last line carries no newline: one more would scroll the
     # screen and take the first line away.
-    stream.feed("\x1b[1;1H" + "\r\n".join(DATA))
+    stream.feed(csi(escape.CUP, 1, 1) + "\r\n".join(DATA))
 
 
 # ----------------------------------------------------------------------
@@ -58,7 +60,7 @@ def _prepare(stream):
 def test_a_fill_takes_the_rectangle_it_names():
     screen, stream = _screen()
     _prepare(stream)
-    stream.feed("\x1b[37;5;5;7;7$x")
+    stream.feed(csi(Csi.DECFRA, 37, 5, 5, 7, 7))
     assert _lines(screen) == [
         "abcdefgh",
         "ijklmnop",
@@ -74,14 +76,14 @@ def test_a_fill_takes_the_rectangle_it_names():
 def test_a_fill_of_a_rectangle_that_ends_before_it_starts_does_nothing():
     screen, stream = _screen()
     _prepare(stream)
-    stream.feed("\x1b[37;5;5;4;4$x")
+    stream.feed(csi(Csi.DECFRA, 37, 5, 5, 4, 4))
     assert _lines(screen) == DATA
 
 
 def test_a_fill_with_no_corners_takes_the_whole_screen():
     screen, stream = _screen()
     _prepare(stream)
-    stream.feed("\x1b[37$x")
+    stream.feed(csi(Csi.DECFRA, 37))
     assert _lines(screen) == ["%" * 8] * 8
 
 
@@ -89,7 +91,7 @@ def test_a_fill_counts_the_corners_from_the_margins_in_origin_mode():
     screen, stream = _screen()
     _prepare(stream)
     stream.feed("\x1b[?69h\x1b[2;9s\x1b[2;9r\x1b[?6h")
-    stream.feed("\x1b[37;1;1;3;3$x")
+    stream.feed(csi(Csi.DECFRA, 37, 1, 1, 3, 3))
     stream.feed("\x1b[?69l\x1b[r\x1b[?6l")
     assert _lines(screen) == [
         "abcdefgh",
@@ -106,15 +108,15 @@ def test_a_fill_counts_the_corners_from_the_margins_in_origin_mode():
 def test_a_fill_stops_at_the_edge_of_the_screen():
     screen, stream = _screen()
     _prepare(stream)
-    stream.feed("\x1b[37;8;8;18;18$x")
+    stream.feed(csi(Csi.DECFRA, 37, 8, 8, 18, 18))
     assert _line(screen, 7) == "YZ6789!%"
 
 
 def test_a_fill_does_not_move_the_cursor():
     screen, stream = _screen()
     _prepare(stream)
-    stream.feed("\x1b[4;3H")
-    stream.feed("\x1b[37;2;2;4;4$x")
+    stream.feed(csi(escape.CUP, 4, 3))
+    stream.feed(csi(Csi.DECFRA, 37, 2, 2, 4, 4))
     assert (screen.pt_cursor_position.x, screen.pt_cursor_position.y) == (2, 3)
 
 
@@ -122,7 +124,7 @@ def test_a_fill_reaches_past_a_margin():
     screen, stream = _screen()
     _prepare(stream)
     stream.feed("\x1b[?69h\x1b[3;6s\x1b[3;6r")
-    stream.feed("\x1b[37;5;5;7;7$x")
+    stream.feed(csi(Csi.DECFRA, 37, 5, 5, 7, 7))
     stream.feed("\x1b[?69l\x1b[r")
     assert _lines(screen) == [
         "abcdefgh",
@@ -139,7 +141,7 @@ def test_a_fill_reaches_past_a_margin():
 def test_a_fill_drops_a_character_that_a_latin_1_terminal_has_no_cell_for():
     screen, stream = _screen()
     _prepare(stream)
-    stream.feed("\x1b[7;5;5;7;7$x")
+    stream.feed(csi(Csi.DECFRA, 7, 5, 5, 7, 7))
     assert _lines(screen) == DATA
 
 
@@ -171,7 +173,7 @@ def test_a_filled_cell_carries_the_mark_of_decsca():
 def test_an_erase_takes_the_rectangle_it_names():
     screen, stream = _screen()
     _prepare(stream)
-    stream.feed("\x1b[5;5;7;7$z")
+    stream.feed(csi(Csi.DECERA, 5, 5, 7, 7))
     assert _lines(screen) == [
         "abcdefgh",
         "ijklmnop",
@@ -187,14 +189,14 @@ def test_an_erase_takes_the_rectangle_it_names():
 def test_an_erase_of_a_rectangle_that_ends_before_it_starts_does_nothing():
     screen, stream = _screen()
     _prepare(stream)
-    stream.feed("\x1b[5;5;4;4$z")
+    stream.feed(csi(Csi.DECERA, 5, 5, 4, 4))
     assert _lines(screen) == DATA
 
 
 def test_an_erase_with_no_corners_takes_the_whole_screen():
     screen, stream = _screen()
     _prepare(stream)
-    stream.feed("\x1b[$z")
+    stream.feed(csi(Csi.DECERA))
     assert _lines(screen) == [" " * 8] * 8
 
 
@@ -212,7 +214,7 @@ def test_an_erased_rectangle_keeps_the_background():
 def test_an_erase_reaches_a_cell_that_decsca_marked():
     screen, stream = _screen()
     stream.feed('\x1b[1"qabc\x1b[0"q')
-    stream.feed("\x1b[1;1;1;3$z")
+    stream.feed(csi(Csi.DECERA, 1, 1, 1, 3))
     assert _line(screen, 0).rstrip() == ""
 
 
@@ -230,7 +232,7 @@ def test_an_erase_does_not_move_the_cursor():
 def test_a_selective_erase_leaves_a_cell_that_decsca_marked():
     screen, stream = _screen()
     stream.feed('\x1b[1"qabc\x1b[0"qde')
-    stream.feed("\x1b[1;1;1;5${")
+    stream.feed(csi(Csi.DECSERA, 1, 1, 1, 5))
     assert _line(screen, 0).rstrip() == "abc"
 
 
@@ -243,14 +245,14 @@ def test_a_selective_erase_reaches_a_cell_that_spa_marked():
     """
     screen, stream = _screen()
     stream.feed("a\x1bVb\x1bW")
-    stream.feed("\x1b[1;1;1;2${")
+    stream.feed(csi(Csi.DECSERA, 1, 1, 1, 2))
     assert _line(screen, 0).rstrip() == ""
 
 
 def test_a_selective_erase_takes_the_rectangle_it_names():
     screen, stream = _screen()
     _prepare(stream)
-    stream.feed("\x1b[5;5;7;7${")
+    stream.feed(csi(Csi.DECSERA, 5, 5, 7, 7))
     assert _lines(screen) == [
         "abcdefgh",
         "ijklmnop",
@@ -277,7 +279,7 @@ def test_a_selective_erase_does_not_move_the_cursor():
 def test_a_copy_writes_the_rectangle_somewhere_else():
     screen, stream = _screen()
     _prepare(stream)
-    stream.feed("\x1b[2;2;4;4;1;5;5;1$v")
+    stream.feed(csi(Csi.DECCRA, 2, 2, 4, 4, 1, 5, 5, 1))
     assert _lines(screen) == [
         "abcdefgh",
         "ijklmnop",
@@ -293,7 +295,7 @@ def test_a_copy_writes_the_rectangle_somewhere_else():
 def test_a_copy_reads_every_cell_before_it_writes_one():
     screen, stream = _screen()
     _prepare(stream)
-    stream.feed("\x1b[2;2;4;4;1;3;3;1$v")
+    stream.feed(csi(Csi.DECCRA, 2, 2, 4, 4, 1, 3, 3, 1))
     assert _lines(screen) == [
         "abcdefgh",
         "ijklmnop",
@@ -309,7 +311,7 @@ def test_a_copy_reads_every_cell_before_it_writes_one():
 def test_a_copy_that_hangs_over_the_edge_keeps_what_fits():
     screen, stream = _screen()
     _prepare(stream)
-    stream.feed("\x1b[2;2;4;4;1;7;7;1$v")
+    stream.feed(csi(Csi.DECCRA, 2, 2, 4, 4, 1, 7, 7, 1))
     assert _lines(screen)[6:] == [
         "QRSTUVjk",
         "YZ6789rs",
@@ -319,7 +321,7 @@ def test_a_copy_that_hangs_over_the_edge_keeps_what_fits():
 def test_a_copy_takes_the_first_corner_for_a_source_it_has_no_number_for():
     screen, stream = _screen()
     _prepare(stream)
-    stream.feed("\x1b[;;2;2;;5;5;1$v")
+    stream.feed(csi(Csi.DECCRA, None, None, 2, 2, None, 5, 5, 1))
     assert _lines(screen)[4:6] == [
         "ABCDabGH",
         "IJKLijOP",
@@ -329,7 +331,7 @@ def test_a_copy_takes_the_first_corner_for_a_source_it_has_no_number_for():
 def test_a_copy_takes_the_first_corner_for_a_target_it_has_no_number_for():
     screen, stream = _screen()
     _prepare(stream)
-    stream.feed("\x1b[2;2;4;4;1$v")
+    stream.feed(csi(Csi.DECCRA, 2, 2, 4, 4, 1))
     assert _lines(screen)[:3] == [
         "jkldefgh",
         "rstlmnop",
@@ -340,7 +342,7 @@ def test_a_copy_takes_the_first_corner_for_a_target_it_has_no_number_for():
 def test_a_copy_of_a_rectangle_that_ends_before_it_starts_does_nothing():
     screen, stream = _screen()
     _prepare(stream)
-    stream.feed("\x1b[2;2;1;1;1;5;5;1$v")
+    stream.feed(csi(Csi.DECCRA, 2, 2, 1, 1, 1, 5, 5, 1))
     assert _lines(screen) == DATA
 
 
@@ -348,7 +350,7 @@ def test_a_copy_counts_the_corners_from_the_margins_in_origin_mode():
     screen, stream = _screen()
     _prepare(stream)
     stream.feed("\x1b[?69h\x1b[2;9s\x1b[2;9r\x1b[?6h")
-    stream.feed("\x1b[1;1;3;3;1;4;4;1$v")
+    stream.feed(csi(Csi.DECCRA, 1, 1, 3, 3, 1, 4, 4, 1))
     stream.feed("\x1b[?69l\x1b[r\x1b[?6l")
     assert _lines(screen) == [
         "abcdefgh",
@@ -366,7 +368,7 @@ def test_a_copy_reaches_past_a_margin():
     screen, stream = _screen()
     _prepare(stream)
     stream.feed("\x1b[?69h\x1b[3;6s\x1b[3;6r")
-    stream.feed("\x1b[2;2;4;4;1;5;5;1$v")
+    stream.feed(csi(Csi.DECCRA, 2, 2, 4, 4, 1, 5, 5, 1))
     stream.feed("\x1b[?69l\x1b[r")
     assert _lines(screen)[4:7] == [
         "ABCDjklH",
@@ -378,7 +380,7 @@ def test_a_copy_reaches_past_a_margin():
 def test_a_copy_of_a_cell_that_holds_nothing_clears_the_cell_it_lands_on():
     screen, stream = _screen()
     stream.feed("\x1b[5;1Hxyz")
-    stream.feed("\x1b[1;1;1;3;1;5;1;1$v")
+    stream.feed(csi(Csi.DECCRA, 1, 1, 1, 3, 1, 5, 1, 1))
     assert _line(screen, 4).rstrip() == ""
 
 

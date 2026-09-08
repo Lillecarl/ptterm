@@ -23,6 +23,9 @@ import pytest
 
 from no_backend import NoBackend
 from ptterm.terminal import _TerminalControl
+from pyte import escape
+from pyte.modes import PrivateMode
+from pyte.sequences import csi, set_mode
 
 CORPUS = pathlib.Path(__file__).parent / "corpus"
 
@@ -118,7 +121,7 @@ def test_reverse_video_reaches_a_row_that_nothing_wrote():
     control.stream.feed("\x1b[7mhello")
 
     before = frame(control, forget=False)
-    control.stream.feed("\x1b[?5h")
+    control.stream.feed(set_mode(PrivateMode.REVERSE_VIDEO))
     after = frame(control, forget=False)
     assert after == frame(control, forget=True)
     assert after != before
@@ -135,7 +138,7 @@ def test_the_row_the_cursor_stands_on_is_never_kept():
 
     # The cursor moves along the row it already drew, and nothing is
     # written. A row that was kept would come back too short.
-    control.stream.feed("\x1b[1;20H")
+    control.stream.feed(csi(escape.CUP, 1, 20))
     assert frame(control, forget=False) == frame(control, forget=True)
 
 

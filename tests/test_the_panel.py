@@ -18,6 +18,8 @@ import pytest
 
 from panel import abstained, judges, report, verdict
 from kitty_oracle import ptterm_cells
+from pyte import escape
+from pyte.sequences import Csi, csi
 
 #: Every judge that this file wants. With fewer, a tally means nothing.
 WANTED = {"kitty", "wezterm", "alacritty", "libvterm", "ghostty", "xtermjs"}
@@ -134,7 +136,7 @@ def test_an_erase_does_not_keep_the_underline():
     question: what can a reader see on a blank. A colour can be seen,
     and the panel says a line under nothing cannot.
     """
-    for erase in ("\x1b[2J", "\x1b[K"):
+    for erase in (csi(escape.ED, 2), csi(escape.EL)):
         against, with_us = sides("\x1b[4mAB" + erase, lines=3, columns=6)
         assert against == ["kitty"]
         assert with_us == ["alacritty", "ghostty", "libvterm", "wezterm", "xtermjs"]
@@ -453,13 +455,13 @@ def test_the_columns_of_a_region_stand_apart(data, against):
 #: `DECCRATests` draws in the conformance suite.
 RECTANGLE_COMMANDS = [
     # DECFRA fills one with a character.
-    "\x1b[37;2;2;4;4$x",
+    csi(Csi.DECFRA, 37, 2, 2, 4, 4),
     # DECERA erases one.
-    "\x1b[2;2;4;4$z",
+    csi(Csi.DECERA, 2, 2, 4, 4),
     # DECSERA erases one and leaves a cell that DECSCA marked alone.
-    "\x1b[2;2;4;4${",
+    csi(Csi.DECSERA, 2, 2, 4, 4),
     # DECCRA copies one to another place.
-    "\x1b[2;2;4;4;1;5;5;1$v",
+    csi(Csi.DECCRA, 2, 2, 4, 4, 1, 5, 5, 1),
 ]
 
 

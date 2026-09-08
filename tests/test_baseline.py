@@ -17,6 +17,8 @@ import pytest
 from pyte.screen import Screen
 from pyte.streams import Stream
 from ptterm.style import style_of as spell
+from pyte import escape
+from pyte.sequences import csi
 
 
 def screen(lines=2, columns=20):
@@ -91,9 +93,9 @@ def test_seventy_five_leaves_the_other_attributes_alone():
 @pytest.mark.parametrize(
     "sequence,word",
     [
-        ("\x1b[73m", "superscript"),
-        ("\x1b[0;73m", "superscript"),
-        ("\x1b[39;74m", "subscript"),
+        (csi(escape.SGR, 73), "superscript"),
+        (csi(escape.SGR, 0, 73), "superscript"),
+        (csi(escape.SGR, 39, 74), "subscript"),
     ],
 )
 def test_every_way_a_program_writes_it(sequence, word):

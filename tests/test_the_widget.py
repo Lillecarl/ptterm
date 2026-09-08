@@ -42,6 +42,8 @@ from prompt_toolkit.layout.layout import Layout
 from no_backend import NoBackend
 from pyte.cells import PLAIN_APPEARANCE, Cell
 from ptterm.terminal import Terminal, _TerminalControl, _Window
+from pyte.modes import PrivateMode
+from pyte.sequences import Csi, csi, set_mode
 
 
 #: `measure_instructions.py` builds the same widget to measure what the
@@ -269,7 +271,7 @@ def test_the_old_mouse_report_takes_eight_bit_controls():
 
 #: What turns the X10 report on, with nothing after it. The three tests
 #: below are about the coordinates, so they leave S8C1T alone.
-_X10 = "\x1b[?1000h"
+_X10 = set_mode(PrivateMode.MOUSE_REPORTING)
 
 
 def test_the_old_mouse_report_writes_one_byte_for_a_column_under_128():
@@ -344,7 +346,7 @@ def test_an_erase_to_the_bottom_keeps_the_history_away():
 
 def test_a_scroll_up_of_the_whole_screen_keeps_the_history_away():
     '"CSI 1000 S" empties the screen and leaves the history behind it.'
-    assert drawn(FILLED + "\x1b[1000S") == [""] * 8
+    assert drawn(FILLED + csi(Csi.SU, 1000)) == [""] * 8
 
 
 def test_the_line_count_covers_the_screen_and_not_the_buffer():

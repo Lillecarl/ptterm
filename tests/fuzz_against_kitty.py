@@ -24,6 +24,9 @@ from hypothesis import strategies as st  # noqa: E402
 
 from kitty_oracle import differences, kitty_is_available  # noqa: E402
 from panel import judges, report, verdict  # noqa: E402
+from pyte import escape
+from pyte.modes import PrivateMode
+from pyte.sequences import csi, reset_mode, set_mode
 
 pytestmark = pytest.mark.skipif(
     not kitty_is_available(), reason="the kitty python package is not there"
@@ -168,7 +171,7 @@ pieces = st.one_of(
     st.just("\x1b8"),
     st.just("\x1bD"),
     st.just("\x1bM"),
-    st.sampled_from(["\x1b[?7h", "\x1b[?7l"]),
+    st.sampled_from([set_mode(PrivateMode.AUTOWRAP), reset_mode(PrivateMode.AUTOWRAP)]),
     st.builds(lambda n, c: "\x1b[%d%s" % (n, c), small,
               st.sampled_from("ABCDEFGLM@PXIZ")),
     # SU and SD take their count from one, because kitty reads a zero
@@ -193,20 +196,20 @@ pieces = st.one_of(
     st.just("\x1b#8"),
     # Origin mode: a position counts from the top margin, not from the
     # top of the screen.
-    st.sampled_from(["\x1b[?6h", "\x1b[?6l"]),
+    st.sampled_from([set_mode(PrivateMode.ORIGIN), reset_mode(PrivateMode.ORIGIN)]),
     # The tab stops. HTS sets one where the cursor is, "CSI g" clears
     # that one and "CSI 3 g" clears them all. CHT and CBT above move
     # over them.
-    st.sampled_from(["\x1bH", "\x1b[g", "\x1b[3g"]),
+    st.sampled_from(["\x1bH", csi(escape.TBC), csi(escape.TBC, 3)]),
     # The alternate screen, under each of the three names it has.
     st.sampled_from(
         [
-            "\x1b[?1049h",
-            "\x1b[?1049l",
-            "\x1b[?47h",
-            "\x1b[?47l",
-            "\x1b[?1047h",
-            "\x1b[?1047l",
+            set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR),
+            reset_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR),
+            set_mode(PrivateMode.ALTERNATE_SCREEN),
+            reset_mode(PrivateMode.ALTERNATE_SCREEN),
+            set_mode(PrivateMode.ALTERNATE_SCREEN_AGAIN),
+            reset_mode(PrivateMode.ALTERNATE_SCREEN_AGAIN),
         ]
     ),
 )

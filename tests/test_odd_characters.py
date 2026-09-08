@@ -12,6 +12,8 @@ from kitty_oracle import differences, kitty_is_available, ptterm_cells
 from pyte.screen import Screen
 from pyte.streams import Stream
 from ptterm.style import style_of
+from pyte import escape
+from pyte.sequences import csi
 
 NBSP = "\xa0"
 
@@ -26,7 +28,7 @@ def test_a_no_break_space_carries_no_style_of_its_own():
     "The class of the widget would underline it in yellow."
     screen = Screen(2, 6, write_process_input=lambda answer: None)
     stream = Stream(screen)
-    stream.feed("\x1b[31m" + NBSP)
+    stream.feed(csi(escape.SGR, 31) + NBSP)
     cell = screen.page.data_buffer[screen.line_offset][0]
     assert cell.char == NBSP
     assert "nbsp" not in style_of(cell.appearance)

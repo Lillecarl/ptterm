@@ -32,6 +32,8 @@ from prompt_toolkit.selection import SelectionType
 
 from no_backend import NoBackend
 from ptterm.terminal import Terminal
+from pyte.modes import PrivateMode
+from pyte.sequences import set_mode
 
 LINES = 6
 COLUMNS = 20
@@ -145,7 +147,7 @@ def test_copy_mode_on_the_alternate_screen_shows_the_screen():
     Lillecarl/pymux#132.
     """
     terminal = a_terminal(
-        "\x1b[?1049h"
+        set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
         + "".join("row %d\r\n" % number for number in range(60))
     )
     document = terminal.copy_buffer.document

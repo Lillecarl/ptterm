@@ -9,6 +9,8 @@ comes next goes there.
 import pytest
 
 from kitty_oracle import differences, kitty_is_available
+from pyte import escape
+from pyte.sequences import csi
 
 pytestmark = pytest.mark.skipif(
     not kitty_is_available(), reason="the kitty python package is not there"
@@ -24,12 +26,12 @@ def test_the_next_character_wraps():
     [
         "\n",  # A linefeed.
         "\x1bD",  # An index.
-        "\x1b[B",  # A move down.
-        "\x1b[A",  # A move up.
+        csi(escape.CUD),  # A move down.
+        csi(escape.CUU),  # A move up.
         "\x1bE",  # The next line.
         "\r",  # A carriage return.
-        "\x1b[C",  # A move right.
-        "\x1b[D",  # A move left.
+        csi(escape.CUF),  # A move right.
+        csi(escape.CUB),  # A move left.
     ],
 )
 def test_a_move_ends_the_wait(move):

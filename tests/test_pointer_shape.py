@@ -23,6 +23,8 @@ from pyte.screen import Screen
 from pyte.streams import Stream
 
 from kitty_oracle import kitty_is_available
+from pyte.modes import PrivateMode
+from pyte.sequences import reset_mode, set_mode
 
 
 def _screen(lines=4, columns=8):
@@ -138,11 +140,11 @@ def test_a_full_stack_drops_the_oldest():
 def test_each_screen_keeps_its_own_stack():
     screen, stream, _ = _screen()
     stream.feed("\x1b]22;pointer\x1b\\")
-    stream.feed("\x1b[?1049h")
+    stream.feed(set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR))
     assert screen.pointer_shapes.shape == ""
     stream.feed("\x1b]22;wait\x1b\\")
     assert screen.pointer_shapes.shape == "wait"
-    stream.feed("\x1b[?1049l")
+    stream.feed(reset_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR))
     assert screen.pointer_shapes.shape == "pointer"
 
 

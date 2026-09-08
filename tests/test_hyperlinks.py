@@ -21,6 +21,8 @@ from pyte.osc import (
 from pyte.screen import Screen
 from pyte.streams import Stream
 from ptterm.style import style_of
+from pyte import escape
+from pyte.sequences import csi
 
 LINK = "https://example.com/a"
 
@@ -118,7 +120,7 @@ def test_the_cells_of_a_link_carry_it():
 
 def test_a_link_and_a_rendition_live_together():
     screen, stream = _screen()
-    stream.feed("\x1b[1;31m" + open_link() + "a")
+    stream.feed(csi(escape.SGR, 1, 31) + open_link() + "a")
     style = _style(screen, 0)
     assert "bold" in style
     assert _token(LINK) in style
@@ -134,7 +136,7 @@ def test_a_rendition_after_a_link_keeps_the_link():
 def test_a_reset_of_the_rendition_keeps_the_link():
     "'CSI 0 m' says nothing about a link."
     screen, stream = _screen()
-    stream.feed("\x1b[1m" + open_link() + "a\x1b[0mb")
+    stream.feed(csi(escape.SGR, 1) + open_link() + "a\x1b[0mb")
     assert _token(LINK) in _style(screen, 1)
     assert "bold" not in _style(screen, 1)
 

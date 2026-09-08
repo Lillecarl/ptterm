@@ -26,6 +26,7 @@ It is asked four kinds of question here.
 import pytest
 
 from panel import what_ptterm_draws, what_xterm_draws, xterm_is_here
+from pyte.sequences import Csi, csi
 
 pytestmark = pytest.mark.skipif(
     not xterm_is_here(), reason="xterm has no display here"
@@ -86,10 +87,10 @@ COLUMNS_OF_A_REGION = [
 RECTANGLES = [
     "abcdefg\r\nABCDEFG\r\nhijklmn\r\nHIJKLMN\r\nopqrstu" + command
     for command in [
-        "\x1b[37;2;2;4;4$x",
-        "\x1b[2;2;4;4$z",
-        "\x1b[2;2;4;4${",
-        "\x1b[2;2;4;4;1;5;5;1$v",
+        csi(Csi.DECFRA, 37, 2, 2, 4, 4),
+        csi(Csi.DECERA, 2, 2, 4, 4),
+        csi(Csi.DECSERA, 2, 2, 4, 4),
+        csi(Csi.DECCRA, 2, 2, 4, 4, 1, 5, 5, 1),
     ]
 ]
 
