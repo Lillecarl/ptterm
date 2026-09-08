@@ -22,6 +22,8 @@ from pyte import escape
 from pyte.sequences import Csi, csi
 from pyte.sequences import Sharp, sharp
 from pyte.sequences import Escape, esc
+from pyte.modes import PrivateMode
+from pyte.sequences import reset_mode, set_mode
 
 #: Every judge that this file wants. With fewer, a tally means nothing.
 WANTED = {"kitty", "wezterm", "alacritty", "libvterm", "ghostty", "xtermjs"}
@@ -120,7 +122,12 @@ def columns_before_the_wrap(data, lines=4, columns=20):
 
 
 def test_a_plain_program_finds_no_difference():
-    assert verdict("hello\r\nworld\x1b[1;31m!\x1b[0m", 8, 24) == "agree"
+    assert verdict((
+        "hello\r\nworld"
+        + csi(escape.SGR, 1, 31)
+        + "!"
+        + csi(escape.SGR, 0)
+    ), 8, 24) == "agree"
 
 
 def test_an_erase_does_not_keep_the_underline():
@@ -152,7 +159,11 @@ def test_an_erase_keeps_the_background():
     Programs count on it: htop draws the header of its table with
     "CSI K" and expects the colour to reach the end of the line.
     """
-    against, with_us = sides("\x1b[41mAB\x1b[2J", lines=3, columns=6)
+    against, with_us = sides((
+        csi(escape.SGR, 41)
+        + "AB"
+        + csi(escape.ED, 2)
+    ), lines=3, columns=6)
     assert against == ["ghostty"]
     assert with_us == ["alacritty", "kitty", "libvterm", "wezterm", "xtermjs"]
 
@@ -165,7 +176,11 @@ def test_whether_an_erase_keeps_reverse_video_is_a_choice():
     that turns reverse on and then erases means the block to be seen,
     and that is the reading kitty and WezTerm take.
     """
-    against, with_us = sides("\x1b[7mAB\x1b[2J", lines=3, columns=6)
+    against, with_us = sides((
+        csi(escape.SGR, 7)
+        + "AB"
+        + csi(escape.ED, 2)
+    ), lines=3, columns=6)
     assert against == ["alacritty", "ghostty", "libvterm", "xtermjs"]
     assert with_us == ["kitty", "wezterm"]
 
@@ -215,7 +230,10 @@ def test_a_double_height_line_is_a_double_width_line_too():
 
 def test_single_width_gives_the_columns_back():
     "DECSWL puts libvterm back with the rest of the panel."
-    assert columns_before_the_wrap("\x1b#6\x1b#5" + "a" * 15) == WHOLE_WIDTH
+    assert columns_before_the_wrap((
+        sharp(Sharp.DECDWL)
+        + sharp(Sharp.DECSWL)
+    ) + "a" * 15) == WHOLE_WIDTH
 
 
 def test_a_tab_at_the_right_margin_follows_the_panel():
@@ -292,7 +310,13 @@ def test_who_clears_the_alternate_screen_keeps_the_panel():
     Two against two before. Ghostty and xterm.js both clear, so the
     reading that xterm documents has the numbers now.
     """
-    against, with_us = sides("\x1b[?1047h X \x1b[?1047l \x1b[?47h", lines=3, columns=6)
+    against, with_us = sides((
+        set_mode(PrivateMode.ALTERNATE_SCREEN_AGAIN)
+        + " X "
+        + reset_mode(PrivateMode.ALTERNATE_SCREEN_AGAIN)
+        + " "
+        + set_mode(PrivateMode.ALTERNATE_SCREEN)
+    ), lines=3, columns=6)
     assert against == ["alacritty", "kitty"]
     assert with_us == ["ghostty", "libvterm", "wezterm", "xtermjs"]
 
@@ -318,7 +342,12 @@ def test_a_mark_on_an_erased_cell_splits_the_panel():
 
     Three against three. ptterm sits with the three that drop it.
     """
-    against, with_us = sides("0\x1b[40m\x1b[1Ḱ", lines=3, columns=6)
+    against, with_us = sides((
+        "0"
+        + csi(escape.SGR, 40)
+        + csi(escape.EL, 1)
+        + "́"
+    ), lines=3, columns=6)
     assert against == ["alacritty", "ghostty", "libvterm"]
     assert with_us == ["kitty", "wezterm", "xtermjs"]
 
@@ -333,7 +362,14 @@ def test_moving_back_over_a_tab_stop_splits_the_panel():
     that stands and not one emulator being odd.
     """
     against, with_us = sides(
-        "\x1b[Ix\x1b[2Iy\x1b[Zz", lines=8, columns=24, blank_style=False
+        (
+            csi(Csi.CHT)
+            + "x"
+            + csi(Csi.CHT, 2)
+            + "y"
+            + csi(Csi.CBT)
+            + "z"
+        ), lines=8, columns=24, blank_style=False
     )
     assert against == ["alacritty", "ghostty", "xtermjs"]
     assert with_us == ["kitty", "libvterm", "wezterm"]
@@ -379,10 +415,19 @@ def test_the_panel_agrees(data):
         # takes the empty colour space of the ISO form for the red.
         ("libvterm", "\x1b[38:2::10:20:30mcolon colour"),
         # Alacritty sets a tab stop differently.
-        ("alacritty", "\x1b[1;3H\x1bH\x1b[1;1H\tX"),
+        ("alacritty", (
+            csi(escape.CUP, 1, 3)
+            + esc(escape.HTS)
+            + csi(escape.CUP, 1, 1)
+            + "\tX"
+        )),
         # WezTerm scrolls inside a region under origin mode
         # differently.
-        ("wezterm", "\x1b[2;4r\x1b[?6habc\r\ndef"),
+        ("wezterm", (
+            csi(escape.DECSTBM, 2, 4)
+            + set_mode(PrivateMode.ORIGIN)
+            + "abc\r\ndef"
+        )),
     ],
 )
 def test_one_judge_stands_apart(name, data):
@@ -407,16 +452,57 @@ WITHOUT_MARGINS = ["alacritty", "kitty", "xtermjs"]
     "data",
     [
         # SU and SD carry the columns of the region.
-        "a\r\nb\r\nc\r\nd\x1b[?69h\x1b[2;4s\x1b[2S",
-        "a\r\nb\r\nc\r\nd\x1b[?69h\x1b[2;4s\x1b[2T",
+        (
+            "a\r\nb\r\nc\r\nd"
+            + set_mode(PrivateMode.LEFT_RIGHT_MARGIN)
+            + csi(Csi.DECSLRM, 2, 4)
+            + csi(Csi.SU, 2)
+        ),
+        (
+            "a\r\nb\r\nc\r\nd"
+            + set_mode(PrivateMode.LEFT_RIGHT_MARGIN)
+            + csi(Csi.DECSLRM, 2, 4)
+            + csi(Csi.SD, 2)
+        ),
         # IL and DL do the same, from inside the region.
-        "abcd\r\nefgh\r\nijkl\x1b[?69h\x1b[2;4s\x1b[2;3H\x1b[L",
-        "abcd\r\nefgh\r\nijkl\x1b[?69h\x1b[2;4s\x1b[2;3H\x1b[M",
+        (
+            "abcd\r\nefgh\r\nijkl"
+            + set_mode(PrivateMode.LEFT_RIGHT_MARGIN)
+            + csi(Csi.DECSLRM, 2, 4)
+            + csi(escape.CUP, 2, 3)
+            + csi(escape.IL)
+        ),
+        (
+            "abcd\r\nefgh\r\nijkl"
+            + set_mode(PrivateMode.LEFT_RIGHT_MARGIN)
+            + csi(Csi.DECSLRM, 2, 4)
+            + csi(escape.CUP, 2, 3)
+            + csi(escape.DL)
+        ),
         # ICH and DCH stop at the right margin.
-        "abcdefg\x1b[?69h\x1b[2;5s\x1b[1;3H\x1b[@",
-        "abcdefg\x1b[?69h\x1b[2;5s\x1b[1;3H\x1b[P",
+        (
+            "abcdefg"
+            + set_mode(PrivateMode.LEFT_RIGHT_MARGIN)
+            + csi(Csi.DECSLRM, 2, 5)
+            + csi(escape.CUP, 1, 3)
+            + csi(escape.ICH)
+        ),
+        (
+            "abcdefg"
+            + set_mode(PrivateMode.LEFT_RIGHT_MARGIN)
+            + csi(Csi.DECSLRM, 2, 5)
+            + csi(escape.CUP, 1, 3)
+            + csi(escape.DCH)
+        ),
         # A line feed at the bottom margin scrolls the region only.
-        "a\r\nb\r\nc\r\nd\x1b[?69h\x1b[2;4s\x1b[2;4r\x1b[4;3H\n",
+        (
+            "a\r\nb\r\nc\r\nd"
+            + set_mode(PrivateMode.LEFT_RIGHT_MARGIN)
+            + csi(Csi.DECSLRM, 2, 4)
+            + csi(escape.DECSTBM, 2, 4)
+            + csi(escape.CUP, 4, 3)
+            + "\n"
+        ),
     ],
 )
 def test_the_judges_that_carry_margins_agree(data):
@@ -427,7 +513,13 @@ def test_the_judges_that_carry_margins_agree(data):
 
 def test_a_soft_reset_takes_the_margins_away_for_everybody():
     "DECSTR is the one piece of this that all six carry."
-    assert verdict("\x1b[?69h\x1b[3;7s\x1b[!p\x1b[1;5Hab", 8, 24) == "agree"
+    assert verdict((
+        set_mode(PrivateMode.LEFT_RIGHT_MARGIN)
+        + csi(Csi.DECSLRM, 3, 7)
+        + csi(Csi.DECSTR)
+        + csi(escape.CUP, 1, 5)
+        + "ab"
+    ), 8, 24) == "agree"
 
 
 @pytest.mark.parametrize(
@@ -435,14 +527,27 @@ def test_a_soft_reset_takes_the_margins_away_for_everybody():
     [
         # DECIC and DECDC insert and delete columns. Only libvterm and
         # xterm.js carry them.
-        ("abcdefg\r\nABCDEFG\x1b[1;2H\x1b['}", ["alacritty", "ghostty", "kitty",
+        ((
+            "abcdefg\r\nABCDEFG"
+            + csi(escape.CUP, 1, 2)
+            + csi(Csi.DECIC)
+        ), ["alacritty", "ghostty", "kitty",
                                                "wezterm"]),
-        ("abcdefg\r\nABCDEFG\x1b[1;2H\x1b['~", ["alacritty", "ghostty", "kitty",
+        ((
+            "abcdefg\r\nABCDEFG"
+            + csi(escape.CUP, 1, 2)
+            + csi(Csi.DECDC)
+        ), ["alacritty", "ghostty", "kitty",
                                                "wezterm"]),
         # DECBI and DECFI move the region when the cursor stands on a
         # margin. No judge carries them, and xterm does.
         ("x" + csi(escape.CUP, 1, 1) + esc(Escape.DECBI), sorted(WANTED)),
-        ("\x1b[1;24Hx\x1b[1;24H\x1b9", sorted(WANTED)),
+        ((
+            csi(escape.CUP, 1, 24)
+            + "x"
+            + csi(escape.CUP, 1, 24)
+            + esc(Escape.DECFI)
+        ), sorted(WANTED)),
     ],
 )
 def test_the_columns_of_a_region_stand_apart(data, against):
@@ -564,7 +669,11 @@ def test_where_the_cursor_stands_after_the_older_alternate_modes():
     esctest2 asks for the same thing, so xterm itself is on the side of
     the five.
     """
-    against, with_us = sides("\x1b[2;3H\x1b[?47hX", lines=3, columns=6)
+    against, with_us = sides((
+        csi(escape.CUP, 2, 3)
+        + set_mode(PrivateMode.ALTERNATE_SCREEN)
+        + "X"
+    ), lines=3, columns=6)
     assert against == ["kitty"]
     assert with_us == ["alacritty", "ghostty", "libvterm", "wezterm", "xtermjs"]
 
@@ -577,7 +686,11 @@ def test_where_the_cursor_stands_after_the_newest_alternate_mode():
     gives it back on the way out. Four judges leave it. Nothing in
     esctest2 asks, so the difference stands as a choice.
     """
-    against, with_us = sides("\x1b[2;3H\x1b[?1049hX", lines=3, columns=6)
+    against, with_us = sides((
+        csi(escape.CUP, 2, 3)
+        + set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+        + "X"
+    ), lines=3, columns=6)
     assert against == ["alacritty", "ghostty", "libvterm", "xtermjs"]
     assert with_us == ["kitty", "wezterm"]
 
@@ -592,7 +705,11 @@ def test_a_linefeed_at_the_bottom_paints_the_line_it_brings_in():
     not for a screen with no region, so the same linefeed painted or
     did not paint by whether a program had set a region.
     """
-    against, with_us = sides("\x1b[4;1H\x1b[42m\n", lines=4, columns=6)
+    against, with_us = sides((
+        csi(escape.CUP, 4, 1)
+        + csi(escape.SGR, 42)
+        + "\n"
+    ), lines=4, columns=6)
     assert against == ["ghostty", "kitty"]
     assert with_us == ["alacritty", "libvterm", "wezterm", "xtermjs"]
 
@@ -651,7 +768,11 @@ def test_every_judge_holds_a_number_of_the_palette_as_a_number():
     did the same to each judge's answer, so every side matched. Now
     ptterm keeps the number and the oracles hand it on.
     """
-    against, with_us = sides("\x1b[38;5;200m\x1b[48;5;234mX", lines=3, columns=6)
+    against, with_us = sides((
+        csi(escape.SGR, 38, 5, 200)
+        + csi(escape.SGR, 48, 5, 234)
+        + "X"
+    ), lines=3, columns=6)
     assert against == []
     assert with_us == ["alacritty", "ghostty", "kitty", "libvterm", "wezterm", "xtermjs"]
 
@@ -692,13 +813,25 @@ def test_whether_a_reset_forgets_the_saved_cursor():
         held = _cells(data, lines=4, columns=8)
         return {name: rows[0][0].char == "z" for name, rows in held.items()}
 
-    after_ris = home("\x1b[3;5H\x1b7\x1bc\x1b8z")
+    after_ris = home(
+        csi(escape.CUP, 3, 5)
+        + esc(escape.DECSC)
+        + esc(escape.RIS)
+        + esc(escape.DECRC)
+        + "z"
+    )
     for name in ("ptterm", "alacritty", "ghostty", "kitty", "xtermjs"):
         assert after_ris[name], name
     for name in ("libvterm", "wezterm"):
         assert not after_ris[name], name
 
-    after_decstr = home("\x1b[3;5H\x1b7\x1b[!p\x1b8z")
+    after_decstr = home(
+        csi(escape.CUP, 3, 5)
+        + esc(escape.DECSC)
+        + csi(Csi.DECSTR)
+        + esc(escape.DECRC)
+        + "z"
+    )
     for name in ("ptterm", "kitty", "wezterm", "xtermjs"):
         assert after_decstr[name], name
     for name in ("alacritty", "ghostty", "libvterm"):
@@ -724,13 +857,23 @@ def test_whether_a_restore_brings_the_wait_to_wrap_back():
         held = _cells(data, lines=4, columns=6)
         return {name: rows[0][5].char for name, rows in held.items()}
 
-    through_decsc = where_b_landed(fill + "\x1b7\x1b[1;1H\x1b8b")
+    through_decsc = where_b_landed(fill + (
+        esc(escape.DECSC)
+        + csi(escape.CUP, 1, 1)
+        + esc(escape.DECRC)
+        + "b"
+    ))
     for name in ("alacritty", "ghostty", "wezterm"):
         assert through_decsc[name] == "a", name
     for name in ("ptterm", "kitty", "libvterm", "xtermjs"):
         assert through_decsc[name] == "b", name
 
-    through_alt = where_b_landed(fill + "\x1b[?1049hx\x1b[?1049lb")
+    through_alt = where_b_landed(fill + (
+        set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+        + "x"
+        + reset_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+        + "b"
+    ))
     for name in ("alacritty", "ghostty", "wezterm"):
         assert through_alt[name] == "a", name
     for name in ("ptterm", "kitty", "libvterm", "xtermjs"):
@@ -764,13 +907,23 @@ def test_what_a_delete_leaves_at_the_right_edge():
     This is the whole of `delete_chars_reset` in
     `checks.pymux-alacritty`: twelve cells at the end of one row.
     """
-    keeps_background = _cells("\x1b[41mabcdef\x1b[1;1H\x1b[1P")
+    keeps_background = _cells(
+        csi(escape.SGR, 41)
+        + "abcdef"
+        + csi(escape.CUP, 1, 1)
+        + csi(escape.DCH, 1)
+    )
     for name in ("ptterm", "alacritty", "kitty", "libvterm", "xtermjs"):
         assert keeps_background[name][0][7].bg == ("index", 1), name
     for name in ("ghostty", "wezterm"):
         assert keeps_background[name][0][7].bg is None, name
 
-    reversed_cells = _cells("\x1b[31;1;7;4;9mabcdef\x1b[1;1H\x1b[1P")
+    reversed_cells = _cells(
+        csi(escape.SGR, 31, 1, 7, 4, 9)
+        + "abcdef"
+        + csi(escape.CUP, 1, 1)
+        + csi(escape.DCH, 1)
+    )
     for name in ("ptterm", "kitty"):
         assert reversed_cells[name][0][7].reverse, name
     for name in ("alacritty", "ghostty", "libvterm", "wezterm", "xtermjs"):
@@ -844,7 +997,15 @@ def test_the_alternate_screen_gives_back_what_it_saved():
     terminal. ptterm emptied the list on the way in, so the restore
     sent the cursor home and dropped the character sets with it.
     """
-    data = "\x1b[?1049h\x1b[3;5H\x1b7\x1b[?1049l\x1b[?1049h\x1b8z"
+    data = (
+        set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+        + csi(escape.CUP, 3, 5)
+        + esc(escape.DECSC)
+        + reset_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+        + set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+        + esc(escape.DECRC)
+        + "z"
+    )
     held = characters_in_row(data, row=2, lines=6, columns=10)
     for name in ("ptterm", "alacritty", "ghostty", "kitty", "libvterm", "wezterm", "xtermjs"):
         assert held[name][:5] == "    z", name
@@ -964,7 +1125,10 @@ def test_a_link_overwrites_the_shape_of_a_line():
         assert held[name][0][0].underline == 0, name
 
     over_a_curly = OPEN_LINK % ("id=1", A_TARGET) + "\x1b[4:3mab\x1b[m" + CLOSE_LINK
-    under_a_curly = "\x1b[4:3m" + OPEN_LINK % ("id=1", A_TARGET) + "ab\x1b[m"
+    under_a_curly = "\x1b[4:3m" + OPEN_LINK % ("id=1", A_TARGET) + (
+        "ab"
+        + csi(escape.SGR)
+    )
     for data in (over_a_curly, under_a_curly):
         held = _cells(data, lines=2, columns=4)
         assert held["xtermjs"][0][0].underline == DASHED
@@ -1232,7 +1396,11 @@ def test_an_erase_at_the_end_of_a_line_ends_the_wrap_out_of_it():
     together. `_end_the_wrap_out_of_this_line` in `ptterm/screen.py`
     takes it off, and this is that fix seen from outside.
     """
-    erased = rows_of("D" * 15 + "\x1bM\x1b[9G\x1b[K", 3, 10, (3, 20))
+    erased = rows_of("D" * 15 + (
+        esc(escape.RI)
+        + csi(escape.CHA, 9)
+        + csi(escape.EL)
+    ), 3, 10, (3, 20))
     for name in erased:
         assert erased[name] == ["DDDDDDDD", "DDDDD", ""], name
 
@@ -1313,4 +1481,7 @@ def test_a_raised_glyph_leaves_ptterm_alone():
     do not hold.
     """
     assert verdict(csi(escape.SGR, 73) + "x", lines=1, columns=4) == "agree"
-    assert cannot_see("\x1b[73mx", lines=1, columns=4) == list(BASELINE_BLIND)
+    assert cannot_see((
+        csi(escape.SGR, 73)
+        + "x"
+    ), lines=1, columns=4) == list(BASELINE_BLIND)

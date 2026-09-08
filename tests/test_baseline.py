@@ -19,6 +19,7 @@ from pyte.streams import Stream
 from ptterm.style import style_of as spell
 from pyte import escape
 from pyte.sequences import csi
+from pyte.sequences import esc
 
 
 def screen(lines=2, columns=20):
@@ -120,5 +121,11 @@ def test_a_saved_cursor_brings_the_baseline_back():
     back with it. The savepoint holds the whole of `_rendition`.
     """
     made, stream = screen()
-    stream.feed("\x1b[73m\x1b7\x1b[75m\x1b8x")
+    stream.feed(
+        csi(escape.SGR, 73)
+        + esc(escape.DECSC)
+        + csi(escape.SGR, 75)
+        + esc(escape.DECRC)
+        + "x"
+    )
     assert "superscript" in style_of(made).split()

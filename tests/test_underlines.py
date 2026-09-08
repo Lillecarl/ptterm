@@ -60,9 +60,15 @@ def test_a_plain_four_draws_a_single_line():
 
 def test_the_colour_of_the_line():
     assert styles("\x1b[4;58:2::255:0:0mA", 1) == ["underline ul:#ff0000 "]
-    assert styles("\x1b[4;58;2;255;0;0mA", 1) == ["underline ul:#ff0000 "]
+    assert styles((
+        csi(escape.SGR, 4, 58, 2, 255, 0, 0)
+        + "A"
+    ), 1) == ["underline ul:#ff0000 "]
     assert styles("\x1b[4;58:5:9mA", 1) == ["underline ul:#ansibrightred "]
-    assert styles("\x1b[4;58;5;9mA", 1) == ["underline ul:#ansibrightred "]
+    assert styles((
+        csi(escape.SGR, 4, 58, 5, 9)
+        + "A"
+    ), 1) == ["underline ul:#ansibrightred "]
 
 
 def test_the_colour_goes_away_again():
@@ -124,4 +130,8 @@ def test_a_private_marker_makes_another_sequence():
     # them: the marker belongs to that one sequence alone.
     assert styles(csi(escape.SGR, 4, private='?') + "A", 1) == [""]
     assert styles(csi(escape.SGR, 4, private='<') + "A", 1) == [""]
-    assert styles("\x1b[>4m\x1b[4mA", 1) == ["underline "]
+    assert styles((
+        csi(escape.SGR, 4, private='>')
+        + csi(escape.SGR, 4)
+        + "A"
+    ), 1) == ["underline "]

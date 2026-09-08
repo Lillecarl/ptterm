@@ -69,7 +69,7 @@ def test_twenty_nine_leaves_the_other_attributes_alone():
     assert "underline" in style
 
 
-@pytest.mark.parametrize("sequence", ["\x1b[9m", "\x1b[0;9m", "\x1b[39;9m"])
+@pytest.mark.parametrize("sequence", [csi(escape.SGR, 9), csi(escape.SGR, 0, 9), csi(escape.SGR, 39, 9)])
 def test_every_way_a_program_writes_it(sequence):
     made, stream = screen()
     stream.feed(sequence + "x")

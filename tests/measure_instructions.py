@@ -113,6 +113,8 @@ from pyte.streams import Stream  # noqa: E402
 from ptterm.terminal import Terminal, _TerminalControl  # noqa: E402
 from pyte import escape
 from pyte.sequences import csi
+from pyte.modes import PrivateMode
+from pyte.sequences import reset_mode, set_mode
 
 HERE = Path(__file__).parent
 
@@ -340,7 +342,10 @@ def linefeed_work(depth: int):
 
 #: What a program writes to enter the alternate screen and leave it.
 #: vim and less both do this, and both ends replace the buffer.
-ALTERNATE_SCREEN = "\x1b[?1049h\x1b[?1049l"
+ALTERNATE_SCREEN = (
+    set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+    + reset_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+)
 
 
 def alternate_work(depth: int):

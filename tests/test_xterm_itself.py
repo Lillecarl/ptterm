@@ -29,6 +29,8 @@ from panel import what_ptterm_draws, what_xterm_draws, xterm_is_here
 from pyte.sequences import Csi, csi
 from pyte import escape
 from pyte.sequences import Escape, Sharp, esc, sharp
+from pyte.modes import PrivateMode
+from pyte.sequences import reset_mode, set_mode
 
 pytestmark = pytest.mark.skipif(
     not xterm_is_here(), reason="xterm has no display here"
@@ -64,13 +66,54 @@ def test_the_two_draw_the_same_plain_screen():
 #: three against three. `DEVIATIONS.md` entry 10 says the three that
 #: drop it are missing a feature, on the word of esctest2.
 MARGINS = [
-    "a\r\nb\r\nc\r\nd\x1b[?69h\x1b[2;4s\x1b[2S",
-    "a\r\nb\r\nc\r\nd\x1b[?69h\x1b[2;4s\x1b[2T",
-    "abcd\r\nefgh\r\nijkl\x1b[?69h\x1b[2;4s\x1b[2;3H\x1b[L",
-    "abcd\r\nefgh\r\nijkl\x1b[?69h\x1b[2;4s\x1b[2;3H\x1b[M",
-    "abcdefg\x1b[?69h\x1b[2;5s\x1b[1;3H\x1b[@",
-    "abcdefg\x1b[?69h\x1b[2;5s\x1b[1;3H\x1b[P",
-    "a\r\nb\r\nc\r\nd\x1b[?69h\x1b[2;4s\x1b[2;4r\x1b[4;3H\n",
+    (
+        "a\r\nb\r\nc\r\nd"
+        + set_mode(PrivateMode.LEFT_RIGHT_MARGIN)
+        + csi(Csi.DECSLRM, 2, 4)
+        + csi(Csi.SU, 2)
+    ),
+    (
+        "a\r\nb\r\nc\r\nd"
+        + set_mode(PrivateMode.LEFT_RIGHT_MARGIN)
+        + csi(Csi.DECSLRM, 2, 4)
+        + csi(Csi.SD, 2)
+    ),
+    (
+        "abcd\r\nefgh\r\nijkl"
+        + set_mode(PrivateMode.LEFT_RIGHT_MARGIN)
+        + csi(Csi.DECSLRM, 2, 4)
+        + csi(escape.CUP, 2, 3)
+        + csi(escape.IL)
+    ),
+    (
+        "abcd\r\nefgh\r\nijkl"
+        + set_mode(PrivateMode.LEFT_RIGHT_MARGIN)
+        + csi(Csi.DECSLRM, 2, 4)
+        + csi(escape.CUP, 2, 3)
+        + csi(escape.DL)
+    ),
+    (
+        "abcdefg"
+        + set_mode(PrivateMode.LEFT_RIGHT_MARGIN)
+        + csi(Csi.DECSLRM, 2, 5)
+        + csi(escape.CUP, 1, 3)
+        + csi(escape.ICH)
+    ),
+    (
+        "abcdefg"
+        + set_mode(PrivateMode.LEFT_RIGHT_MARGIN)
+        + csi(Csi.DECSLRM, 2, 5)
+        + csi(escape.CUP, 1, 3)
+        + csi(escape.DCH)
+    ),
+    (
+        "a\r\nb\r\nc\r\nd"
+        + set_mode(PrivateMode.LEFT_RIGHT_MARGIN)
+        + csi(Csi.DECSLRM, 2, 4)
+        + csi(escape.DECSTBM, 2, 4)
+        + csi(escape.CUP, 4, 3)
+        + "\n"
+    ),
 ]
 
 #: The four programs of `test_the_columns_of_a_region_stand_apart`.
@@ -172,7 +215,12 @@ def test_xterm_brings_the_wait_to_wrap_back_through_a_restore():
         what_xterm_draws(fill + tail, lines=4, columns=6)[0][5]
         for tail in (
             esc(escape.DECSC) + csi(escape.CUP, 1, 1) + esc(escape.DECRC) + "b",
-            "\x1b[?1049hx\x1b[?1049lb",
+            (
+                set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+                + "x"
+                + reset_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+                + "b"
+            ),
             esc(escape.DECSC) + esc(escape.DECRC) + "b",
         )
     ]
@@ -181,7 +229,13 @@ def test_xterm_brings_the_wait_to_wrap_back_through_a_restore():
     # The restore puts the column back as well as the wait. "CSI D"
     # clears the wait and moves one column left, so the "b" lands one
     # left of the last column and the "a" there stays.
-    with_a_move = what_xterm_draws(fill + "\x1b7\x1b[1;1H\x1b8\x1b[Db", 4, 6)
+    with_a_move = what_xterm_draws(fill + (
+        esc(escape.DECSC)
+        + csi(escape.CUP, 1, 1)
+        + esc(escape.DECRC)
+        + csi(escape.CUB)
+        + "b"
+    ), 4, 6)
     assert with_a_move[0] == "aaaaba"
 
 
@@ -220,7 +274,15 @@ def test_xterm_wraps_rather_than_moving_back_over_a_tab_stop():
     assert [where(drawn, one) for one in "xyz"] == [(0, 8), (0, 23), (1, 0)]
     assert [where(ours, one) for one in "xyz"] == [(0, 8), (0, 23), (0, 16)]
 
-    with_a_move = what_xterm_draws("\x1b[Ix\x1b[2Iy\x1b[Z\x1b[Dz", 8, 24)
+    with_a_move = what_xterm_draws((
+        csi(Csi.CHT)
+        + "x"
+        + csi(Csi.CHT, 2)
+        + "y"
+        + csi(Csi.CBT)
+        + csi(escape.CUB)
+        + "z"
+    ), 8, 24)
     assert where(with_a_move, "z") == (0, 15)
 
 
@@ -273,7 +335,13 @@ def test_xterm_reads_the_parameters_it_needs_out_of_too_many():
     "number, data, lines, columns",
     [
         (1, csi(escape.CUP, 8, 20) + "12345\t", 6, 20),
-        (2, "\x1b[?1047h X \x1b[?1047l \x1b[?47h", 3, 6),
+        (2, (
+            set_mode(PrivateMode.ALTERNATE_SCREEN_AGAIN)
+            + " X "
+            + reset_mode(PrivateMode.ALTERNATE_SCREEN_AGAIN)
+            + " "
+            + set_mode(PrivateMode.ALTERNATE_SCREEN)
+        ), 3, 6),
         (4, "ab" + sharp(Sharp.DECALN) + "X", 4, 6),
         (5, "\n\x080", 4, 8),
         (6, "a\r\nb" + csi(Csi.SU, 0), 4, 8),
@@ -308,7 +376,11 @@ def test_where_xterm_leaves_the_cursor_on_the_newest_alternate_mode():
     clearing it first." So the tally is five against two, and the
     document the issue quotes is the terminal that wrote it.
     """
-    drawn = what_xterm_draws("\x1b[2;3H\x1b[?1049hX", lines=3, columns=6)
+    drawn = what_xterm_draws((
+        csi(escape.CUP, 2, 3)
+        + set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+        + "X"
+    ), lines=3, columns=6)
     assert [(y, row.index("X")) for y, row in enumerate(drawn) if "X" in row] == [
         (1, 2)
     ]
@@ -336,7 +408,13 @@ def test_where_xterm_draws_after_the_screen_goes_back_under_another_name():
     wait where xterm keeps it. Lillecarl/pymux#107 holds the three
     together.
     """
-    program = "\x1b[?1049h\x1b[14G00000你你你\x1b[?47l0"
+    program = (
+        set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+        + csi(escape.CHA, 14)
+        + "00000你你你"
+        + reset_mode(PrivateMode.ALTERNATE_SCREEN)
+        + "0"
+    )
 
     def marks(rows):
         return [
@@ -352,7 +430,14 @@ def test_where_xterm_draws_after_the_screen_goes_back_under_another_name():
     # The cursor is in the last column, as it is for ptterm. "CSI D"
     # clears the wait and moves one column left, and the "0" lands
     # there.
-    with_a_move = "\x1b[?1049h\x1b[14G00000你你你\x1b[?47l\x1b[D0"
+    with_a_move = (
+        set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+        + csi(escape.CHA, 14)
+        + "00000你你你"
+        + reset_mode(PrivateMode.ALTERNATE_SCREEN)
+        + csi(escape.CUB)
+        + "0"
+    )
     assert marks(what_xterm_draws(with_a_move, lines=8, columns=24)) == [(0, 22)]
 
 

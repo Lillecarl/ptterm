@@ -11,6 +11,8 @@ import pytest
 from kitty_oracle import differences, kitty_is_available, ptterm_cells
 from pyte import escape
 from pyte.sequences import csi
+from pyte.modes import PrivateMode
+from pyte.sequences import reset_mode
 
 pytestmark = pytest.mark.skipif(
     not kitty_is_available(), reason="the kitty python package is not there"
@@ -41,7 +43,10 @@ def test_the_line_goes_on_after_the_wrap():
 
 def test_a_wide_character_at_the_right_edge_without_auto_wrap():
     "Auto wrap off: the character takes the last two columns."
-    assert not differences("\x1b[?7labcde你", lines=3, columns=6)
+    assert not differences((
+        reset_mode(PrivateMode.AUTOWRAP)
+        + "abcde你"
+    ), lines=3, columns=6)
 
 
 def test_a_narrow_character_over_the_left_half():
@@ -57,31 +62,59 @@ def test_a_wide_character_over_a_pair():
 
 
 def test_a_delete_that_splits_a_pair():
-    assert not differences("你好\x1b[1;2H\x1b[1P", lines=3, columns=6)
+    assert not differences((
+        "你好"
+        + csi(escape.CUP, 1, 2)
+        + csi(escape.DCH, 1)
+    ), lines=3, columns=6)
 
 
 def test_an_insert_that_splits_a_pair():
-    assert not differences("你好\x1b[1;2H\x1b[1@", lines=3, columns=6)
+    assert not differences((
+        "你好"
+        + csi(escape.CUP, 1, 2)
+        + csi(escape.ICH, 1)
+    ), lines=3, columns=6)
 
 
 def test_an_insert_that_pushes_half_a_pair_off_the_edge():
-    assert not differences("abcd你\x1b[1;1H\x1b[1@", lines=3, columns=6)
+    assert not differences((
+        "abcd你"
+        + csi(escape.CUP, 1, 1)
+        + csi(escape.ICH, 1)
+    ), lines=3, columns=6)
 
 
 def test_an_erase_of_the_left_half():
-    assert not differences("你好\x1b[1;1H\x1b[1X", lines=3, columns=6)
+    assert not differences((
+        "你好"
+        + csi(escape.CUP, 1, 1)
+        + csi(escape.ECH, 1)
+    ), lines=3, columns=6)
 
 
 def test_an_erase_of_the_right_half():
-    assert not differences("你好\x1b[1;2H\x1b[1X", lines=3, columns=6)
+    assert not differences((
+        "你好"
+        + csi(escape.CUP, 1, 2)
+        + csi(escape.ECH, 1)
+    ), lines=3, columns=6)
 
 
 def test_an_erase_to_the_end_of_the_line_that_splits_a_pair():
-    assert not differences("你好\x1b[1;2H\x1b[0K", lines=3, columns=6)
+    assert not differences((
+        "你好"
+        + csi(escape.CUP, 1, 2)
+        + csi(escape.EL, 0)
+    ), lines=3, columns=6)
 
 
 def test_an_erase_to_the_start_of_the_line_that_splits_a_pair():
-    assert not differences("你好\x1b[1;1H\x1b[1K", lines=3, columns=6)
+    assert not differences((
+        "你好"
+        + csi(escape.CUP, 1, 1)
+        + csi(escape.EL, 1)
+    ), lines=3, columns=6)
 
 
 def test_a_wide_character_never_writes_outside_the_screen():

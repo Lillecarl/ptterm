@@ -17,6 +17,7 @@ from kitty_oracle import ptterm_cells, ptterm_cells_in_pieces
 from pyte import escape
 from pyte.modes import PrivateMode
 from pyte.sequences import Sharp, csi, set_mode, sharp
+from pyte.sequences import reset_mode
 
 CORPUS = pathlib.Path(__file__).parent / "corpus"
 
@@ -34,7 +35,13 @@ PROGRAMS = [
     "\x1b]8;;https://example.com/a\x1b\\link\x1b]8;;\x1b\\",
     "\x1bP0;0;0q#0;2;0;0;0#0~~\x1b\\",
     "\x1b_Ga=T,f=24,s=1,v=1;AAAA\x1b\\",
-    "\x1b[?1049h\x1b[2J\x1b[HX\x1b[?1049l",
+    (
+        set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+        + csi(escape.ED, 2)
+        + csi(escape.CUP)
+        + "X"
+        + reset_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+    ),
     sharp(Sharp.DECALN) + csi(escape.DECSTBM, 2, 4) + set_mode(PrivateMode.ORIGIN),
     "你好" + csi(escape.CUB, 1) + "世界",
     "\x1b(0lqk\x1b(B",

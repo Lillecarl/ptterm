@@ -33,7 +33,12 @@ def _background(row, column):
 
 def test_inserted_characters_take_the_background():
     screen, stream = _screen()
-    stream.feed("abcdef\x1b[1;3H\x1b[42m\x1b[2@")
+    stream.feed(
+        "abcdef"
+        + csi(escape.CUP, 1, 3)
+        + csi(escape.SGR, 42)
+        + csi(escape.ICH, 2)
+    )
     row = screen.page.data_buffer[screen.line_offset]
     assert row[0].char == "a"
     assert _background(row, 2) is not None and row[2].char == " "
@@ -49,7 +54,12 @@ def test_inserted_characters_fall_off_the_right_edge():
 
 def test_deleted_characters_take_the_background_at_the_edge():
     screen, stream = _screen(columns=6)
-    stream.feed("abcdef\x1b[1;1H\x1b[41m\x1b[2P")
+    stream.feed(
+        "abcdef"
+        + csi(escape.CUP, 1, 1)
+        + csi(escape.SGR, 41)
+        + csi(escape.DCH, 2)
+    )
     row = screen.page.data_buffer[screen.line_offset]
     assert row[0].char == "c"
     assert _background(row, 4) is not None and row[4].char == " "

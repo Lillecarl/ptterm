@@ -17,6 +17,7 @@ from pyte import escape
 from pyte.sequences import Csi, csi
 from pyte.modes import PrivateMode
 from pyte.sequences import Escape, esc, reset_mode
+from pyte.sequences import set_mode
 
 #: The screen that esctest draws before it takes a rectangle.
 DATA = [
@@ -92,9 +93,18 @@ def test_a_fill_with_no_corners_takes_the_whole_screen():
 def test_a_fill_counts_the_corners_from_the_margins_in_origin_mode():
     screen, stream = _screen()
     _prepare(stream)
-    stream.feed("\x1b[?69h\x1b[2;9s\x1b[2;9r\x1b[?6h")
+    stream.feed(
+        set_mode(PrivateMode.LEFT_RIGHT_MARGIN)
+        + csi(Csi.DECSLRM, 2, 9)
+        + csi(escape.DECSTBM, 2, 9)
+        + set_mode(PrivateMode.ORIGIN)
+    )
     stream.feed(csi(Csi.DECFRA, 37, 1, 1, 3, 3))
-    stream.feed("\x1b[?69l\x1b[r\x1b[?6l")
+    stream.feed(
+        reset_mode(PrivateMode.LEFT_RIGHT_MARGIN)
+        + csi(escape.DECSTBM)
+        + reset_mode(PrivateMode.ORIGIN)
+    )
     assert _lines(screen) == [
         "abcdefgh",
         "i%%%mnop",
@@ -125,7 +135,11 @@ def test_a_fill_does_not_move_the_cursor():
 def test_a_fill_reaches_past_a_margin():
     screen, stream = _screen()
     _prepare(stream)
-    stream.feed("\x1b[?69h\x1b[3;6s\x1b[3;6r")
+    stream.feed(
+        set_mode(PrivateMode.LEFT_RIGHT_MARGIN)
+        + csi(Csi.DECSLRM, 3, 6)
+        + csi(escape.DECSTBM, 3, 6)
+    )
     stream.feed(csi(Csi.DECFRA, 37, 5, 5, 7, 7))
     stream.feed(reset_mode(PrivateMode.LEFT_RIGHT_MARGIN) + csi(escape.DECSTBM))
     assert _lines(screen) == [
@@ -163,7 +177,11 @@ def test_a_filled_cell_takes_the_rendition_that_is_set_now():
 
 def test_a_filled_cell_carries_the_mark_of_decsca():
     screen, stream = _screen()
-    stream.feed('\x1b[1"q\x1b[37;1;1;1;3$x\x1b[0"q')
+    stream.feed(
+        csi(Csi.DECSCA, 1)
+        + csi(Csi.DECFRA, 37, 1, 1, 1, 3)
+        + csi(Csi.DECSCA, 0)
+    )
     stream.feed(csi(escape.CUP, 1, 1) + csi(escape.EL, 2, private='?'))
     assert _line(screen, 0).rstrip() == "%%%"
 
@@ -351,9 +369,18 @@ def test_a_copy_of_a_rectangle_that_ends_before_it_starts_does_nothing():
 def test_a_copy_counts_the_corners_from_the_margins_in_origin_mode():
     screen, stream = _screen()
     _prepare(stream)
-    stream.feed("\x1b[?69h\x1b[2;9s\x1b[2;9r\x1b[?6h")
+    stream.feed(
+        set_mode(PrivateMode.LEFT_RIGHT_MARGIN)
+        + csi(Csi.DECSLRM, 2, 9)
+        + csi(escape.DECSTBM, 2, 9)
+        + set_mode(PrivateMode.ORIGIN)
+    )
     stream.feed(csi(Csi.DECCRA, 1, 1, 3, 3, 1, 4, 4, 1))
-    stream.feed("\x1b[?69l\x1b[r\x1b[?6l")
+    stream.feed(
+        reset_mode(PrivateMode.LEFT_RIGHT_MARGIN)
+        + csi(escape.DECSTBM)
+        + reset_mode(PrivateMode.ORIGIN)
+    )
     assert _lines(screen) == [
         "abcdefgh",
         "ijklmnop",
@@ -369,7 +396,11 @@ def test_a_copy_counts_the_corners_from_the_margins_in_origin_mode():
 def test_a_copy_reaches_past_a_margin():
     screen, stream = _screen()
     _prepare(stream)
-    stream.feed("\x1b[?69h\x1b[3;6s\x1b[3;6r")
+    stream.feed(
+        set_mode(PrivateMode.LEFT_RIGHT_MARGIN)
+        + csi(Csi.DECSLRM, 3, 6)
+        + csi(escape.DECSTBM, 3, 6)
+    )
     stream.feed(csi(Csi.DECCRA, 2, 2, 4, 4, 1, 5, 5, 1))
     stream.feed(reset_mode(PrivateMode.LEFT_RIGHT_MARGIN) + csi(escape.DECSTBM))
     assert _lines(screen)[4:7] == [

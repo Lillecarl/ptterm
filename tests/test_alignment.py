@@ -14,6 +14,8 @@ from kitty_oracle import differences, kitty_is_available
 from pyte.sequences import Sharp, sharp
 from pyte import escape
 from pyte.sequences import csi, esc
+from pyte.modes import PrivateMode
+from pyte.sequences import set_mode
 
 
 def _screen(lines=4, columns=6):
@@ -68,8 +70,18 @@ def test_the_margins_go_back_to_the_whole_screen():
         csi(escape.DECSTBM, 2, 3) + sharp(Sharp.DECALN) + "X",
         "0" + sharp(Sharp.DECALN) + csi(escape.DECSTBM, 1, 1) + "0",
         csi(escape.DECSTBM, 2, 3) + sharp(Sharp.DECALN) + esc(escape.RI),
-        "\x1b[2;3r\x1b#8\x1b[?6hX",
-        "\x1b[2;3r\x1b[?6h\x1b#8X",
+        (
+            csi(escape.DECSTBM, 2, 3)
+            + sharp(Sharp.DECALN)
+            + set_mode(PrivateMode.ORIGIN)
+            + "X"
+        ),
+        (
+            csi(escape.DECSTBM, 2, 3)
+            + set_mode(PrivateMode.ORIGIN)
+            + sharp(Sharp.DECALN)
+            + "X"
+        ),
     ],
 )
 def test_kitty_draws_the_same_screen(data):

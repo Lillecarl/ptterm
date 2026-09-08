@@ -17,6 +17,7 @@ from pyte.streams import Stream
 from ptterm.style import style_of
 from pyte import escape
 from pyte.sequences import Csi, csi
+from pyte.sequences import esc
 
 
 def row_style(data, row=3, lines=4, columns=6):
@@ -34,16 +35,30 @@ def test_a_scroll_up_paints_the_line_it_brings_in():
 
 def test_a_linefeed_at_the_bottom_paints_the_line_it_brings_in():
     "Four judges paint it: WezTerm, Alacritty, libvterm and xterm.js."
-    assert row_style("\x1b[4;1H\x1b[42m\n") == "bg:#ansigreen "
+    assert row_style(
+        csi(escape.CUP, 4, 1)
+        + csi(escape.SGR, 42)
+        + "\n"
+    ) == "bg:#ansigreen "
 
 
 def test_a_linefeed_in_a_region_paints_the_line_it_brings_in():
     "The region is rows one to three, so the new line is the third."
-    assert row_style("\x1b[1;3r\x1b[3;1H\x1b[42m\n", row=2) == "bg:#ansigreen "
+    assert row_style((
+        csi(escape.DECSTBM, 1, 3)
+        + csi(escape.CUP, 3, 1)
+        + csi(escape.SGR, 42)
+        + "\n"
+    ), row=2) == "bg:#ansigreen "
 
 
 def test_an_index_in_a_region_paints_the_line_it_brings_in():
-    assert row_style("\x1b[1;3r\x1b[3;1H\x1b[42m\x1bD", row=2) == "bg:#ansigreen "
+    assert row_style((
+        csi(escape.DECSTBM, 1, 3)
+        + csi(escape.CUP, 3, 1)
+        + csi(escape.SGR, 42)
+        + esc(escape.IND)
+    ), row=2) == "bg:#ansigreen "
 
 
 def test_a_linefeed_with_no_background_leaves_the_row_out():
@@ -58,6 +73,12 @@ def test_a_linefeed_over_a_row_that_holds_text_keeps_it():
     "A linefeed in the middle of a screen brings no line in."
     screen = Screen(4, 6, write_process_input=lambda answer: None)
     stream = Stream(screen)
-    stream.feed("\x1b[3;1Hkeep\x1b[1;1H\x1b[42m\n")
+    stream.feed(
+        csi(escape.CUP, 3, 1)
+        + "keep"
+        + csi(escape.CUP, 1, 1)
+        + csi(escape.SGR, 42)
+        + "\n"
+    )
     row = screen.page.data_buffer[screen.line_offset + 2]
     assert "".join(row[column].char for column in range(4)) == "keep"

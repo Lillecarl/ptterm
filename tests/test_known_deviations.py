@@ -104,7 +104,12 @@ def test_a_mark_on_an_erased_cell_agrees():
     # before the cursor and paints it with the background. The cell
     # that the erase leaves holds no character, so the mark that lands
     # on it goes away, the same way it does in kitty.
-    assert not differences("0\x1b[40m\x1b[1K\u0301", lines=3, columns=6)
+    assert not differences((
+        "0"
+        + csi(escape.SGR, 40)
+        + csi(escape.EL, 1)
+        + "́"
+    ), lines=3, columns=6)
 
 
 def test_a_mark_on_an_erased_cell_agrees_without_a_background():

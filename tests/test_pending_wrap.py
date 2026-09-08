@@ -40,8 +40,18 @@ def test_a_move_ends_the_wait(move):
 
 
 def test_a_reverse_index_ends_the_wait():
-    assert not differences("\x1b[2;6H0\x1bM0", lines=4, columns=6)
+    assert not differences((
+        csi(escape.CUP, 2, 6)
+        + "0"
+        + esc(escape.RI)
+        + "0"
+    ), lines=4, columns=6)
 
 
 def test_an_erase_does_not_move_the_cursor():
-    assert not differences("\x1b[6G0\x1b[K0", lines=4, columns=6)
+    assert not differences((
+        csi(escape.CHA, 6)
+        + "0"
+        + csi(escape.EL)
+        + "0"
+    ), lines=4, columns=6)

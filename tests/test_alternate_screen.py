@@ -9,6 +9,9 @@ what an older one sends.
 import pytest
 
 from kitty_oracle import differences, kitty_is_available
+from pyte import escape
+from pyte.modes import PrivateMode
+from pyte.sequences import csi, esc, reset_mode, set_mode
 
 pytestmark = pytest.mark.skipif(
     not kitty_is_available(), reason="the kitty python package is not there"
@@ -30,16 +33,30 @@ def test_the_first_screen_comes_back(mode):
 
 
 def test_a_second_switch_keeps_the_first_screen():
-    assert not differences("abc\x1b[?47h\x1b[?1049hx\x1b[?1049l", lines=4, columns=8)
+    assert not differences((
+        "abc"
+        + set_mode(PrivateMode.ALTERNATE_SCREEN)
+        + set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+        + "x"
+        + reset_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+    ), lines=4, columns=8)
 
 
 def test_leaving_a_screen_that_was_never_taken():
-    assert not differences("abc\x1b[?1049l", lines=4, columns=8)
+    assert not differences((
+        "abc"
+        + reset_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+    ), lines=4, columns=8)
 
 
 def test_the_lines_of_the_alternate_screen_go_away():
     "What the program drew may not come back with the first screen."
-    data = "a\r\nb\r\nc\x1b[?1049hx\r\ny\x1b[?1049l"
+    data = (
+        "a\r\nb\r\nc"
+        + set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+        + "x\r\ny"
+        + reset_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+    )
     assert not differences(data, lines=4, columns=8)
 
 
@@ -54,62 +71,134 @@ def test_any_of_the_three_gives_the_screen_back(taken, given_back):
 
 
 def test_the_cursor_comes_back_with_the_mode_that_saved_it():
-    assert not differences("ab\x1b[?1049hZ\x1b[?1049lX", lines=3, columns=8)
+    assert not differences((
+        "ab"
+        + set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+        + "Z"
+        + reset_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+        + "X"
+    ), lines=3, columns=8)
 
 
 def test_a_cursor_that_was_never_saved_does_not_come_back():
     "'?47' takes the screen without a cursor, so '?1049l' has none to read."
-    assert not differences("0\x1b[?47h\x1b[?1049l0", lines=3, columns=8)
+    assert not differences((
+        "0"
+        + set_mode(PrivateMode.ALTERNATE_SCREEN)
+        + reset_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+        + "0"
+    ), lines=3, columns=8)
 
 
 def test_the_scrolling_region_survives_the_switch():
     "The region belongs to the terminal, so the alternate screen keeps it."
-    assert not differences("\x1b[2;3h\x1b[2;3r\x1b[?1049h0\x1bM", lines=5, columns=6)
+    assert not differences((
+        csi(escape.SM, 2, 3)
+        + csi(escape.DECSTBM, 2, 3)
+        + set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+        + "0"
+        + esc(escape.RI)
+    ), lines=5, columns=6)
 
 
 def test_the_region_scrolls_on_the_alternate_screen():
-    data = "\x1b[2;4r\x1b[?1049hA\x1b[4;1HB\nC"
+    data = (
+        csi(escape.DECSTBM, 2, 4)
+        + set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+        + "A"
+        + csi(escape.CUP, 4, 1)
+        + "B\nC"
+    )
     assert not differences(data, lines=5, columns=6)
 
 
 def test_a_region_set_on_the_alternate_screen_holds_after_the_leave():
-    data = "\x1b[2;3r\x1b[?1049h\x1b[1;3r\x1b[?1049l\x1b[9B0"
+    data = (
+        csi(escape.DECSTBM, 2, 3)
+        + set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+        + csi(escape.DECSTBM, 1, 3)
+        + reset_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+        + csi(escape.CUD, 9)
+        + "0"
+    )
     assert not differences(data, lines=5, columns=6)
 
 
 def test_each_screen_has_its_own_saved_cursor():
     "A restore on the alternate screen may not read the cursor of the first."
-    assert not differences("0\x1b7\x1b[?1049h\x1b80", lines=5, columns=6)
+    assert not differences((
+        "0"
+        + esc(escape.DECSC)
+        + set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+        + esc(escape.DECRC)
+        + "0"
+    ), lines=5, columns=6)
 
 
 def test_the_saved_cursor_of_the_first_screen_survives():
-    data = "0\x1b7\x1b[?1049h\x1b7\x1b[3;1H\x1b8X\x1b[?1049l\x1b8Y"
+    data = (
+        "0"
+        + esc(escape.DECSC)
+        + set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+        + esc(escape.DECSC)
+        + csi(escape.CUP, 3, 1)
+        + esc(escape.DECRC)
+        + "X"
+        + reset_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+        + esc(escape.DECRC)
+        + "Y"
+    )
     assert not differences(data, lines=5, columns=6)
 
 
 def test_the_alternate_screen_starts_with_a_plain_rendition():
-    assert not differences("\x1b[1m\x1b[?1049h0", lines=4, columns=6, strict=True)
+    assert not differences((
+        csi(escape.SGR, 1)
+        + set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+        + "0"
+    ), lines=4, columns=6, strict=True)
 
 
 def test_the_rendition_comes_back_with_the_cursor():
     "'?1049' saves the rendition the way 'ESC 7' does."
-    data = "\x1b[1m\x1b[?1049h\x1b[?1049l0"
+    data = (
+        csi(escape.SGR, 1)
+        + set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+        + reset_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+        + "0"
+    )
     assert not differences(data, lines=4, columns=6, strict=True)
 
 
 def test_a_rendition_set_on_the_alternate_screen_does_not_survive():
-    data = "\x1b[?1049h\x1b[31m\x1b[?1049l0"
+    data = (
+        set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+        + csi(escape.SGR, 31)
+        + reset_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+        + "0"
+    )
     assert not differences(data, lines=4, columns=6, strict=True)
 
 
 def test_the_older_modes_bring_no_rendition_back():
-    data = "\x1b[42m\x1b[?47h0\x1b[?47l0"
+    data = (
+        csi(escape.SGR, 42)
+        + set_mode(PrivateMode.ALTERNATE_SCREEN)
+        + "0"
+        + reset_mode(PrivateMode.ALTERNATE_SCREEN)
+        + "0"
+    )
     assert not differences(data, lines=4, columns=6, strict=True)
 
 
 def test_the_leave_of_1049_reads_the_saved_cursor_of_the_first_screen():
     "'?47' saved none, so '?1049l' finds nothing and goes home."
-    assert not differences("\x1b[?47h0\x1b[?1049l0", lines=4, columns=6)
+    assert not differences((
+        set_mode(PrivateMode.ALTERNATE_SCREEN)
+        + "0"
+        + reset_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+        + "0"
+    ), lines=4, columns=6)
 
 
 # ----------------------------------------------------------------------
@@ -121,30 +210,68 @@ def test_the_leave_of_1049_reads_the_saved_cursor_of_the_first_screen():
 
 
 def test_a_second_visit_finds_what_the_first_left():
-    assert not differences("\x1b[?47hX\x1b[?47l\x1b[?47h", lines=3, columns=6)
+    assert not differences((
+        set_mode(PrivateMode.ALTERNATE_SCREEN)
+        + "X"
+        + reset_mode(PrivateMode.ALTERNATE_SCREEN)
+        + set_mode(PrivateMode.ALTERNATE_SCREEN)
+    ), lines=3, columns=6)
 
 
 def test_the_mode_that_clears_still_clears():
-    assert not differences("\x1b[?1049hX\x1b[?1049l\x1b[?1049h", lines=3, columns=6)
+    assert not differences((
+        set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+        + "X"
+        + reset_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+        + set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+    ), lines=3, columns=6)
 
 
 def test_a_screen_that_1049_left_is_still_there_for_an_older_name():
-    assert not differences("\x1b[?1049hX\x1b[?1049l\x1b[?47h", lines=3, columns=6)
+    assert not differences((
+        set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+        + "X"
+        + reset_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+        + set_mode(PrivateMode.ALTERNATE_SCREEN)
+    ), lines=3, columns=6)
 
 
 def test_the_cells_come_back_on_a_second_visit():
     # The cursor goes home by hand: where it stands after the switch
     # is a deviation of its own, in `test_known_deviations.py`.
-    assert not differences("\x1b[?47habc\x1b[?47l\x1b[?47h\x1b[HZ",
+    assert not differences((
+        set_mode(PrivateMode.ALTERNATE_SCREEN)
+        + "abc"
+        + reset_mode(PrivateMode.ALTERNATE_SCREEN)
+        + set_mode(PrivateMode.ALTERNATE_SCREEN)
+        + csi(escape.CUP)
+        + "Z"
+    ),
                            lines=3, columns=6)
 
 
 def test_the_first_screen_is_untouched_by_all_of_it():
-    data = "M\x1b[?47hX\x1b[?47l\x1b[?47hY\x1b[?47l"
+    data = (
+        "M"
+        + set_mode(PrivateMode.ALTERNATE_SCREEN)
+        + "X"
+        + reset_mode(PrivateMode.ALTERNATE_SCREEN)
+        + set_mode(PrivateMode.ALTERNATE_SCREEN)
+        + "Y"
+        + reset_mode(PrivateMode.ALTERNATE_SCREEN)
+    )
     assert not differences(data, lines=3, columns=6)
 
 
 def test_a_rendition_of_the_first_visit_does_not_come_back():
     "The cells keep the colour they were drawn with; the next one is plain."
-    data = "\x1b[?47h\x1b[31mred\x1b[?47l\x1b[?47h\x1b[Hplain"
+    data = (
+        set_mode(PrivateMode.ALTERNATE_SCREEN)
+        + csi(escape.SGR, 31)
+        + "red"
+        + reset_mode(PrivateMode.ALTERNATE_SCREEN)
+        + set_mode(PrivateMode.ALTERNATE_SCREEN)
+        + csi(escape.CUP)
+        + "plain"
+    )
     assert not differences(data, lines=3, columns=6, strict=True)

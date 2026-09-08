@@ -226,7 +226,7 @@ pieces = st.one_of(
 #:
 #: The panel hunt keeps all three, because a verdict counts the judges
 #: and a difference from one of them is a question and not a fault.
-KITTY_DISAGREES = frozenset(["\x1b[?47h", "\x1b[?1047h", "\x1b[?1047l"])
+KITTY_DISAGREES = frozenset([set_mode(PrivateMode.ALTERNATE_SCREEN), set_mode(PrivateMode.ALTERNATE_SCREEN_AGAIN), reset_mode(PrivateMode.ALTERNATE_SCREEN_AGAIN)])
 
 program = st.lists(pieces, min_size=1, max_size=24).map("".join)
 

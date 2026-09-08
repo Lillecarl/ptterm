@@ -14,6 +14,7 @@ from pyte.streams import Stream
 from kitty_oracle import differences, kitty_is_available
 from pyte import escape
 from pyte.sequences import csi, esc
+from pyte.sequences import Sharp, sharp
 
 
 def _screen(lines=4, columns=8):
@@ -46,7 +47,12 @@ def test_a_reverse_index_at_the_top_does_not_take_the_screen_with_it():
     not kitty_is_available(), reason="the kitty python package is not there"
 )
 def test_the_last_line_stays_in_sight():
-    assert not differences("\x1b[8d\n0\x1b[2;3r\x1bM", lines=8, columns=6)
+    assert not differences((
+        csi(escape.VPA, 8)
+        + "\n0"
+        + csi(escape.DECSTBM, 2, 3)
+        + esc(escape.RI)
+    ), lines=8, columns=6)
 
 
 def test_a_position_past_the_bottom_stays_on_the_screen():
@@ -63,4 +69,8 @@ def test_a_position_past_the_bottom_stays_on_the_screen():
 
 def test_a_position_past_the_bottom_of_a_full_screen():
     "The same, with every cell drawn: DECALN is how the hunt found it."
-    assert not differences("\x1b#8\x1b[9;9HX", lines=4, columns=8)
+    assert not differences((
+        sharp(Sharp.DECALN)
+        + csi(escape.CUP, 9, 9)
+        + "X"
+    ), lines=4, columns=8)
