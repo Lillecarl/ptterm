@@ -20,6 +20,7 @@ from panel import abstained, judges, report, verdict
 from kitty_oracle import ptterm_cells
 from pyte import escape
 from pyte.sequences import Csi, csi
+from pyte.sequences import Sharp, sharp
 
 #: Every judge that this file wants. With fewer, a tally means nothing.
 WANTED = {"kitty", "wezterm", "alacritty", "libvterm", "ghostty", "xtermjs"}
@@ -202,13 +203,13 @@ def test_a_double_width_line_still_holds_every_column():
     reports a line attribute. It can be asked where the text wraps,
     which is what `THISROWWIDTH` decides. Lillecarl/pymux#55.
     """
-    assert columns_before_the_wrap("\x1b#6" + "a" * 15) == HALF_WIDTH
+    assert columns_before_the_wrap(sharp(Sharp.DECDWL) + "a" * 15) == HALF_WIDTH
 
 
 def test_a_double_height_line_is_a_double_width_line_too():
     "Both halves of a DECDHL line are double width, so libvterm halves both."
-    assert columns_before_the_wrap("\x1b#3" + "a" * 15) == HALF_WIDTH
-    assert columns_before_the_wrap("\x1b#4" + "a" * 15) == HALF_WIDTH
+    assert columns_before_the_wrap(sharp(Sharp.DECDHL_TOP) + "a" * 15) == HALF_WIDTH
+    assert columns_before_the_wrap(sharp(Sharp.DECDHL_BOTTOM) + "a" * 15) == HALF_WIDTH
 
 
 def test_single_width_gives_the_columns_back():
@@ -347,7 +348,7 @@ def test_moving_back_over_a_tab_stop_splits_the_panel():
     [
         "\x1b[4:2mdouble\x1b[4:3mcurly\x1b[4:4mdotted\x1b[4:5mdashed",
         "\x1b[4;58:2::255:0:0mred line",
-        "\x1b#8",
+        sharp(Sharp.DECALN),
         "你好世界",
         "hello\r\nworld\x1b[2;2H\x1b[1K",
         "\x1b[2;4rabc\r\ndef\r\nghi\r\njkl",

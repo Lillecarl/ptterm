@@ -11,6 +11,7 @@ import pytest
 from kitty_oracle import differences, kitty_is_available
 from pyte import escape
 from pyte.sequences import csi
+from pyte.sequences import esc
 
 pytestmark = pytest.mark.skipif(
     not kitty_is_available(), reason="the kitty python package is not there"
@@ -25,10 +26,10 @@ def test_the_next_character_wraps():
     "move",
     [
         "\n",  # A linefeed.
-        "\x1bD",  # An index.
+        esc(escape.IND),  # An index.
         csi(escape.CUD),  # A move down.
         csi(escape.CUU),  # A move up.
-        "\x1bE",  # The next line.
+        esc(escape.NEL),  # The next line.
         "\r",  # A carriage return.
         csi(escape.CUF),  # A move right.
         csi(escape.CUB),  # A move left.

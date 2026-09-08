@@ -46,6 +46,8 @@ import time
 from typing import Callable, List, Optional, Tuple
 
 from kitty_oracle import HISTORY, Cell
+from pyte import escape
+from pyte.sequences import esc
 
 __all__ = ["xterm_is_available", "xterm_cells"]
 
@@ -277,7 +279,7 @@ class _Xterm:
         one the command line named. The size is not one of them, so it
         is asked for again.
         """
-        self._talk("\x1bc", _always)
+        self._talk(esc(escape.RIS), _always)
         self.resize(lines, columns)
         self._talk(data, _always)
         if resize is not None:

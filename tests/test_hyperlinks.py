@@ -23,6 +23,7 @@ from pyte.streams import Stream
 from ptterm.style import style_of
 from pyte import escape
 from pyte.sequences import csi
+from pyte.sequences import esc
 
 LINK = "https://example.com/a"
 
@@ -189,7 +190,7 @@ def test_a_target_that_is_dropped_leaves_the_link_alone():
 def test_a_save_and_a_restore_leave_the_link_alone():
     "'ESC 7' remembers the rendition, and a link is not one."
     screen, stream = _screen()
-    stream.feed("\x1b7" + open_link() + "\x1b8a")
+    stream.feed(esc(escape.DECSC) + open_link() + "\x1b8a")
     assert _token(LINK) in _style(screen, 0)
 
 

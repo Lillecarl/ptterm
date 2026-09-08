@@ -27,6 +27,7 @@ from panel import judges, report, verdict  # noqa: E402
 from pyte import escape
 from pyte.modes import PrivateMode
 from pyte.sequences import csi, reset_mode, set_mode
+from pyte.sequences import Sharp, esc, sharp
 
 pytestmark = pytest.mark.skipif(
     not kitty_is_available(), reason="the kitty python package is not there"
@@ -167,10 +168,10 @@ pieces = st.one_of(
     # No backspace: kitty steps back to the end of the row above when
     # the cursor sits in the first column and ptterm does not. See
     # `test_known_deviations`.
-    st.just("\x1b7"),
-    st.just("\x1b8"),
-    st.just("\x1bD"),
-    st.just("\x1bM"),
+    st.just(esc(escape.DECSC)),
+    st.just(esc(escape.DECRC)),
+    st.just(esc(escape.IND)),
+    st.just(esc(escape.RI)),
     st.sampled_from([set_mode(PrivateMode.AUTOWRAP), reset_mode(PrivateMode.AUTOWRAP)]),
     st.builds(lambda n, c: "\x1b[%d%s" % (n, c), small,
               st.sampled_from("ABCDEFGLM@PXIZ")),
@@ -193,14 +194,14 @@ pieces = st.one_of(
     st.sampled_from(["\x1b(0", "\x1b(B", "\x1b)0", "\x1b)B", "\x0e", "\x0f"]),
     # DECALN ("ESC # 8"): fill the screen with "E". A terminal test
     # starts with it.
-    st.just("\x1b#8"),
+    st.just(sharp(Sharp.DECALN)),
     # Origin mode: a position counts from the top margin, not from the
     # top of the screen.
     st.sampled_from([set_mode(PrivateMode.ORIGIN), reset_mode(PrivateMode.ORIGIN)]),
     # The tab stops. HTS sets one where the cursor is, "CSI g" clears
     # that one and "CSI 3 g" clears them all. CHT and CBT above move
     # over them.
-    st.sampled_from(["\x1bH", csi(escape.TBC), csi(escape.TBC, 3)]),
+    st.sampled_from([esc(escape.HTS), csi(escape.TBC), csi(escape.TBC, 3)]),
     # The alternate screen, under each of the three names it has.
     st.sampled_from(
         [

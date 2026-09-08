@@ -11,6 +11,7 @@ from pyte.screen import Screen
 from pyte.streams import Stream
 
 from kitty_oracle import differences, kitty_is_available
+from pyte.sequences import Sharp, sharp
 
 
 def _screen(lines=4, columns=6):
@@ -21,7 +22,7 @@ def _screen(lines=4, columns=6):
 
 def test_every_cell_holds_an_e():
     screen, stream = _screen()
-    stream.feed("\x1b#8")
+    stream.feed(sharp(Sharp.DECALN))
     buffer = screen.page.data_buffer
     for y in range(screen.line_offset, screen.line_offset + 4):
         assert "".join(buffer[y][x].char for x in range(6)) == "EEEEEE"
@@ -59,7 +60,7 @@ def test_the_margins_go_back_to_the_whole_screen():
 @pytest.mark.parametrize(
     "data",
     [
-        "\x1b#8",
+        sharp(Sharp.DECALN),
         "ab\x1b#8X",
         "\x1b[4d\x1b#8\n",
         "\x1b[2;3r\x1b#8X",
