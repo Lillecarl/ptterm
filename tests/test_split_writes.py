@@ -18,6 +18,8 @@ from pyte import escape
 from pyte.modes import PrivateMode
 from pyte.sequences import Sharp, csi, set_mode, sharp
 from pyte.sequences import reset_mode
+from pyte.osc import Osc
+from pyte.sequences import Terminator, apc, dcs, osc
 
 CORPUS = pathlib.Path(__file__).parent / "corpus"
 
@@ -31,10 +33,14 @@ PROGRAMS = [
     csi(escape.SGR, 1, 31) + "red" + csi(escape.SGR, 0),
     csi(escape.SGR, 38, 2, 10, 20, 30) + "truecolor",
     "\x1b[38:2::10:20:30mcolons",
-    "\x1b]0;a title\x07after",
-    "\x1b]8;;https://example.com/a\x1b\\link\x1b]8;;\x1b\\",
-    "\x1bP0;0;0q#0;2;0;0;0#0~~\x1b\\",
-    "\x1b_Ga=T,f=24,s=1,v=1;AAAA\x1b\\",
+    osc("0", "a title", end=Terminator.BEL) + "after",
+    (
+        osc(Osc.HYPERLINK, "", "https://example.com/a")
+        + "link"
+        + osc(Osc.HYPERLINK, "", "")
+    ),
+    dcs("0;0;0q#0;2;0;0;0#0~~"),
+    apc("Ga=T,f=24,s=1,v=1;AAAA"),
     (
         set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
         + csi(escape.ED, 2)

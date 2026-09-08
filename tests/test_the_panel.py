@@ -24,6 +24,8 @@ from pyte.sequences import Sharp, sharp
 from pyte.sequences import Escape, esc
 from pyte.modes import PrivateMode
 from pyte.sequences import reset_mode, set_mode
+from pyte.osc import Osc
+from pyte.sequences import osc
 
 #: Every judge that this file wants. With fewer, a tally means nothing.
 WANTED = {"kitty", "wezterm", "alacritty", "libvterm", "ghostty", "xtermjs"}
@@ -1034,7 +1036,7 @@ DASHED = 5
 #: A link opens with its parameters and its target, and closes with
 #: neither.
 OPEN_LINK = "\x1b]8;%s;%s\x1b\\"
-CLOSE_LINK = "\x1b]8;;\x1b\\"
+CLOSE_LINK = osc(Osc.HYPERLINK, "", "")
 
 A_TARGET = "https://a"
 ANOTHER_TARGET = "https://b"

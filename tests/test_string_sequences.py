@@ -11,6 +11,8 @@ import pytest
 from kitty_oracle import differences, kitty_is_available
 from pyte import escape
 from pyte.sequences import csi
+from pyte.osc import Osc
+from pyte.sequences import Terminator, apc, dcs, osc
 
 pytestmark = pytest.mark.skipif(
     not kitty_is_available(), reason="the kitty python package is not there"
@@ -18,17 +20,17 @@ pytestmark = pytest.mark.skipif(
 
 #: A sequence of each kind, with a payload that has to stay invisible.
 SEQUENCES = [
-    "\x1b]0;a title\x07",  # The title, ended by a bell.
-    "\x1b]0;a title\x1b\\",  # The same, ended by a string terminator.
-    "\x1b]2;a title\x1b\\",
-    "\x1b]4;1;?\x1b\\",  # A palette query.
-    "\x1b]8;;http://example.com\x1b\\",  # A hyperlink.
-    "\x1b]52;c;aGVsbG8=\x07",  # A clipboard write.
-    "\x1b]99;i=1;done\x1b\\",  # A notification.
-    "\x1b]30001;whatever\x1b\\",  # A code that nobody answers.
-    "\x1bP1$r0m\x1b\\",  # DCS.
-    "\x1bPq#0;2;0;0;0\x1b\\",  # DCS with a sixel payload.
-    "\x1b_Ga=T,f=24\x1b\\",  # APC, the graphics protocol.
+    osc("0", "a title", end=Terminator.BEL),  # The title, ended by a bell.
+    osc("0", "a title"),  # The same, ended by a string terminator.
+    osc("2", "a title"),
+    osc(Osc.PALETTE_COLOR, "1", "?"),  # A palette query.
+    osc(Osc.HYPERLINK, "", "http://example.com"),  # A hyperlink.
+    osc(Osc.CLIPBOARD, "c", "aGVsbG8=", end=Terminator.BEL),  # A clipboard write.
+    osc(Osc.NOTIFICATION, "i=1", "done"),  # A notification.
+    osc("30001", "whatever"),  # A code that nobody answers.
+    dcs("1$r0m"),  # DCS.
+    dcs("q#0;2;0;0;0"),  # DCS with a sixel payload.
+    apc("Ga=T,f=24"),  # APC, the graphics protocol.
     "\x1b^a private message\x1b\\",  # PM.
     "\x1bXa start of string\x1b\\",  # SOS.
 ]
@@ -59,8 +61,11 @@ def test_a_string_sequence_does_not_move_the_cursor(sequence):
 
 
 def test_a_payload_that_holds_a_semicolon():
-    assert not differences("\x1b]99;i=1;a;b;c\x1b\\X", lines=4, columns=12)
+    assert not differences((
+        osc(Osc.NOTIFICATION, "i=1", "a", "b", "c")
+        + "X"
+    ), lines=4, columns=12)
 
 
 def test_an_empty_payload():
-    assert not differences("\x1b]0;\x07X", lines=4, columns=12)
+    assert not differences(osc("0", "", end=Terminator.BEL) + "X", lines=4, columns=12)

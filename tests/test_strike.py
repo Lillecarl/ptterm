@@ -15,6 +15,7 @@ from pyte.streams import Stream
 from ptterm.style import style_of as spell
 from pyte import escape
 from pyte.sequences import csi
+from pyte.sequences import decrqss
 
 
 def screen(lines=2, columns=20):
@@ -84,6 +85,6 @@ def test_decrqss_reports_the_line_back():
     answers = []
     made = Screen(2, 20, write_process_input=answers.append)
     stream = Stream(made)
-    stream.feed("\x1b[9m\x1bP$qm\x1b\\")
+    stream.feed(csi(escape.SGR, 9) + decrqss(escape.SGR))
     assert answers, "the screen answered nothing"
     assert "9" in answers[-1].split("$r")[-1], answers[-1]

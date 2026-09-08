@@ -27,6 +27,8 @@ from pyte.sequences import esc
 from pyte.modes import PrivateMode
 from pyte.sequences import set_mode
 from pyte.sequences import reset_mode
+from pyte.osc import Osc
+from pyte.sequences import Terminator, osc
 
 LINK = "https://example.com/a"
 
@@ -53,7 +55,7 @@ def open_link(target=LINK, params=""):
     return "\x1b]8;%s;%s\x1b\\" % (params, target)
 
 
-CLOSE = "\x1b]8;;\x1b\\"
+CLOSE = osc(Osc.HYPERLINK, "", "")
 
 
 # ----------------------------------------------------------------------
@@ -83,7 +85,10 @@ def test_a_payload_without_a_semicolon_is_no_link():
     assert parse_hyperlink(LINK) is None
 
 
-@pytest.mark.parametrize("target", ["a\x1b]0;owned\x07", "a\x07b", "a\nb", "a\x7fb"])
+@pytest.mark.parametrize("target", [(
+    "a"
+    + osc("0", "owned", end=Terminator.BEL)
+), "a\x07b", "a\nb", "a\x7fb"])
 def test_a_target_with_a_control_character_is_dropped(target):
     assert parse_hyperlink(";" + target) is None
 
