@@ -24,6 +24,8 @@ from ptterm.style import style_of
 from pyte import escape
 from pyte.sequences import csi
 from pyte.sequences import esc
+from pyte.modes import PrivateMode
+from pyte.sequences import set_mode
 
 LINK = "https://example.com/a"
 
@@ -129,7 +131,7 @@ def test_a_link_and_a_rendition_live_together():
 
 def test_a_rendition_after_a_link_keeps_the_link():
     screen, stream = _screen()
-    stream.feed(open_link() + "a\x1b[1mb")
+    stream.feed(open_link() + "a" + csi(escape.SGR, 1) + "b")
     assert _token(LINK) in _style(screen, 1)
     assert "bold" in _style(screen, 1)
 
@@ -137,7 +139,7 @@ def test_a_rendition_after_a_link_keeps_the_link():
 def test_a_reset_of_the_rendition_keeps_the_link():
     "'CSI 0 m' says nothing about a link."
     screen, stream = _screen()
-    stream.feed(csi(escape.SGR, 1) + open_link() + "a\x1b[0mb")
+    stream.feed(csi(escape.SGR, 1) + open_link() + "a" + csi(escape.SGR, 0) + "b")
     assert _token(LINK) in _style(screen, 1)
     assert "bold" not in _style(screen, 1)
 
@@ -190,7 +192,7 @@ def test_a_target_that_is_dropped_leaves_the_link_alone():
 def test_a_save_and_a_restore_leave_the_link_alone():
     "'ESC 7' remembers the rendition, and a link is not one."
     screen, stream = _screen()
-    stream.feed(esc(escape.DECSC) + open_link() + "\x1b8a")
+    stream.feed(esc(escape.DECSC) + open_link() + esc(escape.DECRC) + "a")
     assert _token(LINK) in _style(screen, 0)
 
 
@@ -212,7 +214,7 @@ def test_a_link_of_the_alternate_screen_does_not_reach_the_first():
 
 def test_the_alternate_screen_starts_with_no_link():
     screen, stream = _screen()
-    stream.feed(open_link() + "\x1b[?1049ha")
+    stream.feed(open_link() + set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR) + "a")
     assert screen.hyperlink == ""
     assert "hyperlink" not in _style(screen, 0)
 

@@ -111,6 +111,8 @@ from no_backend import NoBackend  # noqa: E402
 from pyte.screen import Screen  # noqa: E402
 from pyte.streams import Stream  # noqa: E402
 from ptterm.terminal import Terminal, _TerminalControl  # noqa: E402
+from pyte import escape
+from pyte.sequences import csi
 
 HERE = Path(__file__).parent
 
@@ -199,7 +201,7 @@ REDRAW = "%s (redraw)"
 #: What a program writes to change one row. It is the shape of a status
 #: line that ticks: move the cursor, write a few characters, and touch
 #: nothing else.
-ONE_ROW_CHANGED = "\x1b[1;1Hredrawn"
+ONE_ROW_CHANGED = csi(escape.CUP, 1, 1) + "redrawn"
 
 
 def redraw_cost(data: bytes, lines: int, columns: int) -> int:

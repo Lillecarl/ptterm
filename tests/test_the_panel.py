@@ -21,6 +21,7 @@ from kitty_oracle import ptterm_cells
 from pyte import escape
 from pyte.sequences import Csi, csi
 from pyte.sequences import Sharp, sharp
+from pyte.sequences import Escape, esc
 
 #: Every judge that this file wants. With fewer, a tally means nothing.
 WANTED = {"kitty", "wezterm", "alacritty", "libvterm", "ghostty", "xtermjs"}
@@ -138,7 +139,7 @@ def test_an_erase_does_not_keep_the_underline():
     and the panel says a line under nothing cannot.
     """
     for erase in (csi(escape.ED, 2), csi(escape.EL)):
-        against, with_us = sides("\x1b[4mAB" + erase, lines=3, columns=6)
+        against, with_us = sides(csi(escape.SGR, 4) + "AB" + erase, lines=3, columns=6)
         assert against == ["kitty"]
         assert with_us == ["alacritty", "ghostty", "libvterm", "wezterm", "xtermjs"]
 
@@ -236,7 +237,7 @@ def test_a_tab_at_the_right_margin_follows_the_panel():
     puts the same program to xterm, and xterm puts the "X" on the next
     row with the panel.
     """
-    assert verdict("\x1b[1;20H12345\tX", 8, 24) == "agree"
+    assert verdict(csi(escape.CUP, 1, 20) + "12345\tX", 8, 24) == "agree"
 
 
 # ----------------------------------------------------------------------
@@ -253,7 +254,7 @@ def test_a_tab_on_the_last_row_keeps_the_panel():
     xterm.js both leave the screen alone, so the side ptterm is on has
     the numbers now.
     """
-    against, with_us = sides("\x1b[8;20H12345\t")
+    against, with_us = sides(csi(escape.CUP, 8, 20) + "12345\t")
     assert against == ["alacritty", "kitty"]
     assert with_us == ["ghostty", "libvterm", "wezterm", "xtermjs"]
 
@@ -267,7 +268,7 @@ def test_a_backspace_in_the_first_column_keeps_the_panel():
 
 def test_a_count_of_zero_for_su_keeps_the_panel():
     "kitty and Ghostty read a zero as no scroll. The other four read one."
-    against, with_us = sides("a\r\nb\x1b[0S", lines=4, columns=8)
+    against, with_us = sides("a\r\nb" + csi(Csi.SU, 0), lines=4, columns=8)
     assert against == ["ghostty", "kitty"]
     assert with_us == ["alacritty", "libvterm", "wezterm", "xtermjs"]
 
@@ -279,7 +280,7 @@ def test_too_many_parameters_splits_the_panel():
     Two against two before, and three against three now: the two new
     judges took one side each. Nothing here decides it.
     """
-    against, with_us = sides("\x1b[3;9;9GX", lines=4, columns=8)
+    against, with_us = sides(csi(escape.CHA, 3, 9, 9) + "X", lines=4, columns=8)
     assert against == ["ghostty", "kitty", "wezterm"]
     assert with_us == ["alacritty", "libvterm", "xtermjs"]
 
@@ -301,7 +302,7 @@ def test_decaln_sends_the_cursor_home_for_most_of_the_panel():
     ptterm follows the DEC manuals here, and the change is not a
     guess: four of the six do the same.
     """
-    against, with_us = sides("ab\x1b#8X", lines=4, columns=6)
+    against, with_us = sides("ab" + sharp(Sharp.DECALN) + "X", lines=4, columns=6)
     assert against == ["alacritty", "libvterm"]
     assert with_us == ["ghostty", "kitty", "wezterm", "xtermjs"]
 
@@ -350,15 +351,15 @@ def test_moving_back_over_a_tab_stop_splits_the_panel():
         "\x1b[4;58:2::255:0:0mred line",
         sharp(Sharp.DECALN),
         "你好世界",
-        "hello\r\nworld\x1b[2;2H\x1b[1K",
-        "\x1b[2;4rabc\r\ndef\r\nghi\r\njkl",
+        "hello\r\nworld" + csi(escape.CUP, 2, 2) + csi(escape.EL, 1),
+        csi(escape.DECSTBM, 2, 4) + "abc\r\ndef\r\nghi\r\njkl",
         # The four of the position family that ptterm already had. They
         # are here so that a change to HPB and VPB cannot quietly move
         # these.
-        "\x1b[1;8H\x1b[3GX",
-        "\x1b[1;4H\x1b[3aX",
-        "\x1b[6;3H\x1b[3dX",
-        "\x1b[2;3H\x1b[3eX",
+        csi(escape.CUP, 1, 8) + csi(escape.CHA, 3) + "X",
+        csi(escape.CUP, 1, 4) + csi(escape.HPR, 3) + "X",
+        csi(escape.CUP, 6, 3) + csi(escape.VPA, 3) + "X",
+        csi(escape.CUP, 2, 3) + csi(escape.VPR, 3) + "X",
     ],
 )
 def test_the_panel_agrees(data):
@@ -440,7 +441,7 @@ def test_a_soft_reset_takes_the_margins_away_for_everybody():
                                                "wezterm"]),
         # DECBI and DECFI move the region when the cursor stands on a
         # margin. No judge carries them, and xterm does.
-        ("x\x1b[1;1H\x1b6", sorted(WANTED)),
+        ("x" + csi(escape.CUP, 1, 1) + esc(Escape.DECBI), sorted(WANTED)),
         ("\x1b[1;24Hx\x1b[1;24H\x1b9", sorted(WANTED)),
     ],
 )
@@ -496,9 +497,9 @@ WITHOUT_THE_PAIR = ["alacritty", "kitty", "xtermjs"]
     "data",
     [
         # HPB: three columns to the left of column eight.
-        "\x1b[1;8H\x1b[3jX",
+        csi(escape.CUP, 1, 8) + csi(Csi.HPB, 3) + "X",
         # VPB: two rows above row six.
-        "\x1b[6;3H\x1b[2kX",
+        csi(escape.CUP, 6, 3) + csi(Csi.VPB, 2) + "X",
     ],
 )
 def test_hpb_and_vpb_follow_the_three_judges_that_carry_them(data):
@@ -737,7 +738,7 @@ def test_whether_a_restore_brings_the_wait_to_wrap_back():
 
     #: A save and a restore with nothing in between. Four judges leave
     #: the screen alone, and libvterm is one of them here.
-    no_move = where_b_landed(fill + "\x1b7\x1b8b")
+    no_move = where_b_landed(fill + esc(escape.DECSC) + esc(escape.DECRC) + "b")
     for name in ("alacritty", "ghostty", "libvterm", "wezterm"):
         assert no_move[name] == "a", name
     for name in ("ptterm", "kitty", "xtermjs"):
@@ -1276,7 +1277,7 @@ def baseline_of(data, lines=1, columns=4):
 
 
 def test_two_judges_raise_a_glyph_for_sgr_73():
-    found = baseline_of("\x1b[73mx")
+    found = baseline_of(csi(escape.SGR, 73) + "x")
     assert found["libvterm"] == RAISED
     assert found["wezterm"] == RAISED
     for name in BASELINE_BLIND:
@@ -1284,7 +1285,7 @@ def test_two_judges_raise_a_glyph_for_sgr_73():
 
 
 def test_the_same_two_judges_lower_a_glyph_for_sgr_74():
-    found = baseline_of("\x1b[74mx")
+    found = baseline_of(csi(escape.SGR, 74) + "x")
     assert found["libvterm"] == LOWERED
     assert found["wezterm"] == LOWERED
     for name in BASELINE_BLIND:
@@ -1292,13 +1293,13 @@ def test_the_same_two_judges_lower_a_glyph_for_sgr_74():
 
 
 def test_sgr_75_puts_the_glyph_back_on_the_line():
-    found = baseline_of("\x1b[73m\x1b[75mx")
+    found = baseline_of(csi(escape.SGR, 73) + csi(escape.SGR, 75) + "x")
     for name in found:
         assert found[name] == 0, name
 
 
 def test_sgr_0_puts_the_glyph_back_on_the_line():
-    found = baseline_of("\x1b[74m\x1b[0mx")
+    found = baseline_of(csi(escape.SGR, 74) + csi(escape.SGR, 0) + "x")
     for name in found:
         assert found[name] == 0, name
 
@@ -1311,5 +1312,5 @@ def test_a_raised_glyph_leaves_ptterm_alone():
     projection drops the field, so the difference is exactly what they
     do not hold.
     """
-    assert verdict("\x1b[73mx", lines=1, columns=4) == "agree"
+    assert verdict(csi(escape.SGR, 73) + "x", lines=1, columns=4) == "agree"
     assert cannot_see("\x1b[73mx", lines=1, columns=4) == list(BASELINE_BLIND)

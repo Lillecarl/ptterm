@@ -15,6 +15,8 @@ writes again, so those eight cells hold what the scroll left there.
 from pyte.screen import Screen
 from pyte.streams import Stream
 from ptterm.style import style_of
+from pyte import escape
+from pyte.sequences import Csi, csi
 
 
 def row_style(data, row=3, lines=4, columns=6):
@@ -27,7 +29,7 @@ def row_style(data, row=3, lines=4, columns=6):
 
 
 def test_a_scroll_up_paints_the_line_it_brings_in():
-    assert row_style("\x1b[42m\x1b[1S") == "bg:#ansigreen "
+    assert row_style(csi(escape.SGR, 42) + csi(Csi.SU, 1)) == "bg:#ansigreen "
 
 
 def test_a_linefeed_at_the_bottom_paints_the_line_it_brings_in():
@@ -48,7 +50,7 @@ def test_a_linefeed_with_no_background_leaves_the_row_out():
     "A row that carries nothing is absent, which keeps the screen sparse."
     screen = Screen(4, 6, write_process_input=lambda answer: None)
     stream = Stream(screen)
-    stream.feed("\x1b[4;1H\n")
+    stream.feed(csi(escape.CUP, 4, 1) + "\n")
     assert screen.line_offset + 3 not in screen.data_buffer
 
 

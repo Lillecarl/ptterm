@@ -15,6 +15,8 @@ from pyte.streams import Stream
 from ptterm.style import style_of
 from pyte import escape
 from pyte.sequences import Csi, csi
+from pyte.modes import PrivateMode
+from pyte.sequences import Escape, esc, reset_mode
 
 #: The screen that esctest draws before it takes a rectangle.
 DATA = [
@@ -125,7 +127,7 @@ def test_a_fill_reaches_past_a_margin():
     _prepare(stream)
     stream.feed("\x1b[?69h\x1b[3;6s\x1b[3;6r")
     stream.feed(csi(Csi.DECFRA, 37, 5, 5, 7, 7))
-    stream.feed("\x1b[?69l\x1b[r")
+    stream.feed(reset_mode(PrivateMode.LEFT_RIGHT_MARGIN) + csi(escape.DECSTBM))
     assert _lines(screen) == [
         "abcdefgh",
         "ijklmnop",
@@ -152,7 +154,7 @@ def _background(row, column):
 
 def test_a_filled_cell_takes_the_rendition_that_is_set_now():
     screen, stream = _screen()
-    stream.feed("\x1b[42m\x1b[37;1;1;1;2$x")
+    stream.feed(csi(escape.SGR, 42) + csi(Csi.DECFRA, 37, 1, 1, 1, 2))
     row = screen.page.data_buffer[0]
     assert row[0].char == "%"
     assert _background(row, 0) is not None
@@ -162,7 +164,7 @@ def test_a_filled_cell_takes_the_rendition_that_is_set_now():
 def test_a_filled_cell_carries_the_mark_of_decsca():
     screen, stream = _screen()
     stream.feed('\x1b[1"q\x1b[37;1;1;1;3$x\x1b[0"q')
-    stream.feed("\x1b[1;1H\x1b[?2K")
+    stream.feed(csi(escape.CUP, 1, 1) + csi(escape.EL, 2, private='?'))
     assert _line(screen, 0).rstrip() == "%%%"
 
 
@@ -203,7 +205,7 @@ def test_an_erase_with_no_corners_takes_the_whole_screen():
 def test_an_erased_rectangle_keeps_the_background():
     screen, stream = _screen()
     _prepare(stream)
-    stream.feed("\x1b[42m\x1b[1;1;1;3$z")
+    stream.feed(csi(escape.SGR, 42) + csi(Csi.DECERA, 1, 1, 1, 3))
     row = screen.page.data_buffer[0]
     for column in range(3):
         assert row[column].char == " "
@@ -213,7 +215,7 @@ def test_an_erased_rectangle_keeps_the_background():
 
 def test_an_erase_reaches_a_cell_that_decsca_marked():
     screen, stream = _screen()
-    stream.feed('\x1b[1"qabc\x1b[0"q')
+    stream.feed(csi(Csi.DECSCA, 1) + "abc" + csi(Csi.DECSCA, 0))
     stream.feed(csi(Csi.DECERA, 1, 1, 1, 3))
     assert _line(screen, 0).rstrip() == ""
 
@@ -221,7 +223,7 @@ def test_an_erase_reaches_a_cell_that_decsca_marked():
 def test_an_erase_does_not_move_the_cursor():
     screen, stream = _screen()
     _prepare(stream)
-    stream.feed("\x1b[4;3H\x1b[2;2;4;4$z")
+    stream.feed(csi(escape.CUP, 4, 3) + csi(Csi.DECERA, 2, 2, 4, 4))
     assert (screen.pt_cursor_position.x, screen.pt_cursor_position.y) == (2, 3)
 
 
@@ -231,7 +233,7 @@ def test_an_erase_does_not_move_the_cursor():
 
 def test_a_selective_erase_leaves_a_cell_that_decsca_marked():
     screen, stream = _screen()
-    stream.feed('\x1b[1"qabc\x1b[0"qde')
+    stream.feed(csi(Csi.DECSCA, 1) + "abc" + csi(Csi.DECSCA, 0) + "de")
     stream.feed(csi(Csi.DECSERA, 1, 1, 1, 5))
     assert _line(screen, 0).rstrip() == "abc"
 
@@ -244,7 +246,7 @@ def test_a_selective_erase_reaches_a_cell_that_spa_marked():
     xterm's own conformance suite asks for each of the two.
     """
     screen, stream = _screen()
-    stream.feed("a\x1bVb\x1bW")
+    stream.feed("a" + esc(Escape.SPA) + "b" + esc(Escape.EPA))
     stream.feed(csi(Csi.DECSERA, 1, 1, 1, 2))
     assert _line(screen, 0).rstrip() == ""
 
@@ -268,7 +270,7 @@ def test_a_selective_erase_takes_the_rectangle_it_names():
 def test_a_selective_erase_does_not_move_the_cursor():
     screen, stream = _screen()
     _prepare(stream)
-    stream.feed("\x1b[4;3H\x1b[2;2;4;4${")
+    stream.feed(csi(escape.CUP, 4, 3) + csi(Csi.DECSERA, 2, 2, 4, 4))
     assert (screen.pt_cursor_position.x, screen.pt_cursor_position.y) == (2, 3)
 
 
@@ -369,7 +371,7 @@ def test_a_copy_reaches_past_a_margin():
     _prepare(stream)
     stream.feed("\x1b[?69h\x1b[3;6s\x1b[3;6r")
     stream.feed(csi(Csi.DECCRA, 2, 2, 4, 4, 1, 5, 5, 1))
-    stream.feed("\x1b[?69l\x1b[r")
+    stream.feed(reset_mode(PrivateMode.LEFT_RIGHT_MARGIN) + csi(escape.DECSTBM))
     assert _lines(screen)[4:7] == [
         "ABCDjklH",
         "IJKLrstP",
@@ -379,7 +381,7 @@ def test_a_copy_reaches_past_a_margin():
 
 def test_a_copy_of_a_cell_that_holds_nothing_clears_the_cell_it_lands_on():
     screen, stream = _screen()
-    stream.feed("\x1b[5;1Hxyz")
+    stream.feed(csi(escape.CUP, 5, 1) + "xyz")
     stream.feed(csi(Csi.DECCRA, 1, 1, 1, 3, 1, 5, 1, 1))
     assert _line(screen, 4).rstrip() == ""
 
@@ -387,5 +389,5 @@ def test_a_copy_of_a_cell_that_holds_nothing_clears_the_cell_it_lands_on():
 def test_a_copy_does_not_move_the_cursor():
     screen, stream = _screen()
     _prepare(stream)
-    stream.feed("\x1b[4;3H\x1b[2;2;4;4;1;5;5;1$v")
+    stream.feed(csi(escape.CUP, 4, 3) + csi(Csi.DECCRA, 2, 2, 4, 4, 1, 5, 5, 1))
     assert (screen.pt_cursor_position.x, screen.pt_cursor_position.y) == (2, 3)

@@ -8,6 +8,8 @@ character, and the character then sits one cell further back.
 import pytest
 
 from kitty_oracle import differences, kitty_is_available, ptterm_cells
+from pyte import escape
+from pyte.sequences import csi
 
 pytestmark = pytest.mark.skipif(
     not kitty_is_available(), reason="the kitty python package is not there"
@@ -35,8 +37,8 @@ def test_a_mark_with_nothing_before_it():
 
 
 def test_a_mark_after_a_cursor_move():
-    assert not differences("\x1b[3Gá", lines=3, columns=8)
+    assert not differences(csi(escape.CHA, 3) + "á", lines=3, columns=8)
 
 
 def test_a_mark_on_a_character_that_is_already_drawn():
-    assert not differences("abc\x1b[1Gá", lines=3, columns=8)
+    assert not differences("abc" + csi(escape.CHA, 1) + "á", lines=3, columns=8)

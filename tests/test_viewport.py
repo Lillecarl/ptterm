@@ -12,6 +12,8 @@ from pyte.screen import Screen
 from pyte.streams import Stream
 
 from kitty_oracle import differences, kitty_is_available
+from pyte import escape
+from pyte.sequences import csi, esc
 
 
 def _screen(lines=4, columns=8):
@@ -22,13 +24,13 @@ def _screen(lines=4, columns=8):
 
 def test_the_screen_shows_the_last_lines_after_a_scroll():
     screen, stream = _screen()
-    stream.feed("\x1b[4d\n0")  # The last line, one line further, a "0".
+    stream.feed(csi(escape.VPA, 4) + "\n0")  # The last line, one line further, a "0".
     assert screen.line_offset == 1
 
 
 def test_a_move_up_does_not_take_the_screen_with_it():
     screen, stream = _screen()
-    stream.feed("\x1b[4d\n0\x1b[1;1H")
+    stream.feed(csi(escape.VPA, 4) + "\n0" + csi(escape.CUP, 1, 1))
     assert screen.line_offset == 1
 
 
@@ -36,7 +38,7 @@ def test_a_reverse_index_at_the_top_does_not_take_the_screen_with_it():
     screen, stream = _screen()
     # "CSI 2;3r" homes the cursor above the top margin, and the reverse
     # index there moves it up, which used to move the screen as well.
-    stream.feed("\x1b[4d\n0\x1b[2;3r\x1bM")
+    stream.feed(csi(escape.VPA, 4) + "\n0" + csi(escape.DECSTBM, 2, 3) + esc(escape.RI))
     assert screen.line_offset == 1
 
 
@@ -54,7 +56,7 @@ def test_a_position_past_the_bottom_stays_on_the_screen():
     the character drew a fifth line and pushed the screen down.
     """
     screen, stream = _screen(lines=4, columns=8)
-    stream.feed("\x1b[9;9HX")
+    stream.feed(csi(escape.CUP, 9, 9) + "X")
     assert screen.pt_cursor_position.y == 3
     assert screen.line_offset == 0
 

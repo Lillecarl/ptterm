@@ -12,6 +12,8 @@ reason and whether it could become a setting.
 import pytest
 
 from kitty_oracle import differences, kitty_is_available
+from pyte import escape
+from pyte.sequences import Csi, csi
 
 pytestmark = pytest.mark.skipif(
     not kitty_is_available(), reason="the kitty python package is not there"
@@ -28,7 +30,7 @@ def test_a_tab_at_the_right_margin_of_the_last_row():
     # whole panel does. kitty goes further on the last row and scrolls
     # the screen up. Two judges scroll and two do not, so the panel
     # decides nothing here.
-    assert not differences("\x1b[8;20H12345\t", lines=8, columns=24)
+    assert not differences(csi(escape.CUP, 8, 20) + "12345\t", lines=8, columns=24)
 
 
 @pytest.mark.xfail(
@@ -55,7 +57,7 @@ def test_a_backspace_that_is_not_in_the_first_column_agrees():
     strict=True,
 )
 def test_a_scroll_of_zero_lines():
-    assert not differences("a\r\nb\x1b[0S", lines=4, columns=8)
+    assert not differences("a\r\nb" + csi(Csi.SU, 0), lines=4, columns=8)
 
 
 @pytest.mark.parametrize("letter", "ABCDEFGLM@PX")
@@ -73,7 +75,7 @@ def test_a_count_of_zero_agrees_everywhere_else(letter):
     strict=True,
 )
 def test_the_line_that_a_scroll_brings_in():
-    assert not differences("\x1b[42m\x1b[1S", lines=4, columns=6)
+    assert not differences(csi(escape.SGR, 42) + csi(Csi.SU, 1), lines=4, columns=6)
 
 
 @pytest.mark.xfail(
@@ -85,7 +87,7 @@ def test_the_line_that_a_scroll_brings_in():
 def test_a_sequence_with_too_many_parameters():
     # "CSI 3;9;9 G" is CHA, which takes one parameter. ptterm moves to
     # column three; kitty leaves the cursor where it was.
-    assert not differences("\x1b[3;9;9GX", lines=4, columns=8)
+    assert not differences(csi(escape.CHA, 3, 9, 9) + "X", lines=4, columns=8)
 
 
 def test_a_sequence_with_too_many_parameters_does_not_raise():
@@ -93,7 +95,7 @@ def test_a_sequence_with_too_many_parameters_does_not_raise():
     # stream of a pane. Everything after it still reaches the screen.
     from kitty_oracle import ptterm_cells
 
-    rows = ptterm_cells("\x1b[3;9;9GX\r\nok", lines=4, columns=8)
+    rows = ptterm_cells(csi(escape.CHA, 3, 9, 9) + "X\r\nok", lines=4, columns=8)
     assert rows[1][0].char == "o"
 
 
@@ -109,7 +111,7 @@ def test_a_mark_on_an_erased_cell_agrees_without_a_background():
     # The same program without a background. ptterm gave two answers
     # for these two before: with no background the erase drops the
     # cell, and with one it wrote a space that the mark hung on.
-    assert not differences("0\x1b[1K\u0301", lines=3, columns=6)
+    assert not differences("0" + csi(escape.EL, 1) + "́", lines=3, columns=6)
 
 
 def test_a_mark_on_a_space_that_a_program_wrote():
@@ -129,19 +131,19 @@ def test_a_character_after_a_wrap_below_the_region():
     fault of kitty. The oracle takes the second character out of the
     cell, because a reader sees two cells either way.
     """
-    data = "\x1b[1;2r\x1b[8;23H000ä"
+    data = csi(escape.DECSTBM, 1, 2) + csi(escape.CUP, 8, 23) + "000ä"
     assert not differences(data, lines=8, columns=24)
 
 
 @pytest.mark.parametrize("tail", ["0a", "ä0", "äa", "00ä"])
 def test_the_cases_around_it_agree(tail):
-    data = "\x1b[1;2r\x1b[8;23H00" + tail
+    data = csi(escape.DECSTBM, 1, 2) + csi(escape.CUP, 8, 23) + "00" + tail
     assert not differences(data, lines=8, columns=24)
 
 
 def test_the_line_after_the_cell_that_kitty_holds_wrong():
     "What follows the second character moves along with it."
-    data = "\x1b[1;2r\x1b[8;23H000ä0"
+    data = csi(escape.DECSTBM, 1, 2) + csi(escape.CUP, 8, 23) + "000ä0"
     assert not differences(data, lines=8, columns=24)
 
 

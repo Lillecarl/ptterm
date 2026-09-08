@@ -27,6 +27,8 @@ import pytest
 
 from panel import what_ptterm_draws, what_xterm_draws, xterm_is_here
 from pyte.sequences import Csi, csi
+from pyte import escape
+from pyte.sequences import Escape, Sharp, esc, sharp
 
 pytestmark = pytest.mark.skipif(
     not xterm_is_here(), reason="xterm has no display here"
@@ -75,10 +77,10 @@ MARGINS = [
 #: Two judges carry DECIC and DECDC, and no judge carries DECBI or
 #: DECFI. `DEVIATIONS.md` entry 11.
 COLUMNS_OF_A_REGION = [
-    "abcdefg\r\nABCDEFG\x1b[1;2H\x1b['}",
-    "abcdefg\r\nABCDEFG\x1b[1;2H\x1b['~",
-    "x\x1b[1;1H\x1b6",
-    "\x1b[1;24Hx\x1b[1;24H\x1b9",
+    "abcdefg\r\nABCDEFG" + csi(escape.CUP, 1, 2) + csi(Csi.DECIC),
+    "abcdefg\r\nABCDEFG" + csi(escape.CUP, 1, 2) + csi(Csi.DECDC),
+    "x" + csi(escape.CUP, 1, 1) + esc(Escape.DECBI),
+    csi(escape.CUP, 1, 24) + "x" + csi(escape.CUP, 1, 24) + esc(Escape.DECFI),
 ]
 
 #: The four programs of `test_no_judge_carries_a_rectangle_command`,
@@ -169,9 +171,9 @@ def test_xterm_brings_the_wait_to_wrap_back_through_a_restore():
     landed = [
         what_xterm_draws(fill + tail, lines=4, columns=6)[0][5]
         for tail in (
-            "\x1b7\x1b[1;1H\x1b8b",
+            esc(escape.DECSC) + csi(escape.CUP, 1, 1) + esc(escape.DECRC) + "b",
             "\x1b[?1049hx\x1b[?1049lb",
-            "\x1b7\x1b8b",
+            esc(escape.DECSC) + esc(escape.DECRC) + "b",
         )
     ]
     assert landed == ["a", "a", "a"]
@@ -206,7 +208,7 @@ def test_xterm_wraps_rather_than_moving_back_over_a_tab_stop():
     outlives CBT is the wait, not the column: the cursor stands at 16
     and the next character wraps anyway.
     """
-    program = "\x1b[Ix\x1b[2Iy\x1b[Zz"
+    program = csi(Csi.CHT) + "x" + csi(Csi.CHT, 2) + "y" + csi(Csi.CBT) + "z"
 
     def where(rows, glyph):
         return next(
@@ -239,7 +241,7 @@ def test_xterm_keeps_the_wait_to_wrap_through_a_tab():
     for Lillecarl/pymux#107: ptterm already made this exact change once,
     in one place, and three more places still drop the wait.
     """
-    drawn = what_xterm_draws("\x1b[1;20H12345\tX", lines=8, columns=24)
+    drawn = what_xterm_draws(csi(escape.CUP, 1, 20) + "12345\tX", lines=8, columns=24)
     assert [(y, row.index("X")) for y, row in enumerate(drawn) if "X" in row] == [
         (1, 0)
     ]
@@ -256,7 +258,7 @@ def test_xterm_reads_the_parameters_it_needs_out_of_too_many():
     **xterm reads them.** The tally is four against three, and this
     time ptterm is on the larger side.
     """
-    drawn, ours = both("\x1b[3;9;9GX", lines=4, columns=8)
+    drawn, ours = both(csi(escape.CHA, 3, 9, 9) + "X", lines=4, columns=8)
     assert drawn == ours
 
 
@@ -270,11 +272,11 @@ def test_xterm_reads_the_parameters_it_needs_out_of_too_many():
 @pytest.mark.parametrize(
     "number, data, lines, columns",
     [
-        (1, "\x1b[8;20H12345\t", 6, 20),
+        (1, csi(escape.CUP, 8, 20) + "12345\t", 6, 20),
         (2, "\x1b[?1047h X \x1b[?1047l \x1b[?47h", 3, 6),
-        (4, "ab\x1b#8X", 4, 6),
+        (4, "ab" + sharp(Sharp.DECALN) + "X", 4, 6),
         (5, "\n\x080", 4, 8),
-        (6, "a\r\nb\x1b[0S", 4, 8),
+        (6, "a\r\nb" + csi(Csi.SU, 0), 4, 8),
     ],
 )
 def test_a_settled_difference_reads_the_way_xterm_reads_it(

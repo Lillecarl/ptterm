@@ -33,13 +33,13 @@ def style_of(made, row=0, column=0):
 
 def test_seventy_three_raises_a_glyph():
     made, stream = screen()
-    stream.feed("\x1b[73mx")
+    stream.feed(csi(escape.SGR, 73) + "x")
     assert "superscript" in style_of(made).split()
 
 
 def test_seventy_four_lowers_a_glyph():
     made, stream = screen()
-    stream.feed("\x1b[74mx")
+    stream.feed(csi(escape.SGR, 74) + "x")
     assert "subscript" in style_of(made).split()
 
 
@@ -53,7 +53,7 @@ def test_a_plain_cell_sits_on_the_line():
 
 def test_seventy_five_puts_the_glyph_back():
     made, stream = screen()
-    stream.feed("\x1b[73ma\x1b[75mb")
+    stream.feed(csi(escape.SGR, 73) + "a" + csi(escape.SGR, 75) + "b")
     assert "superscript" in style_of(made, column=0).split()
     assert "superscript" not in style_of(made, column=1).split()
 
@@ -61,7 +61,7 @@ def test_seventy_five_puts_the_glyph_back():
 def test_the_two_replace_each_other():
     "A glyph sits in one place, so 74 after 73 lowers it rather than both."
     made, stream = screen()
-    stream.feed("\x1b[73m\x1b[74mx")
+    stream.feed(csi(escape.SGR, 73) + csi(escape.SGR, 74) + "x")
     style = style_of(made).split()
     assert "subscript" in style
     assert "superscript" not in style
@@ -69,13 +69,13 @@ def test_the_two_replace_each_other():
 
 def test_a_reset_puts_the_glyph_back():
     made, stream = screen()
-    stream.feed("\x1b[73ma\x1b[0mb")
+    stream.feed(csi(escape.SGR, 73) + "a" + csi(escape.SGR, 0) + "b")
     assert "superscript" not in style_of(made, column=1).split()
 
 
 def test_the_baseline_lives_beside_the_other_attributes():
     made, stream = screen()
-    stream.feed("\x1b[1;4;73;31mx")
+    stream.feed(csi(escape.SGR, 1, 4, 73, 31) + "x")
     style = style_of(made).split()
     for word in ("bold", "underline", "superscript"):
         assert word in style, (word, style)
@@ -83,7 +83,7 @@ def test_the_baseline_lives_beside_the_other_attributes():
 
 def test_seventy_five_leaves_the_other_attributes_alone():
     made, stream = screen()
-    stream.feed("\x1b[1;4;73m\x1b[75mx")
+    stream.feed(csi(escape.SGR, 1, 4, 73) + csi(escape.SGR, 75) + "x")
     style = style_of(made).split()
     assert "superscript" not in style
     assert "bold" in style

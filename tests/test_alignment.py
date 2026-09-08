@@ -12,6 +12,8 @@ from pyte.streams import Stream
 
 from kitty_oracle import differences, kitty_is_available
 from pyte.sequences import Sharp, sharp
+from pyte import escape
+from pyte.sequences import csi, esc
 
 
 def _screen(lines=4, columns=6):
@@ -31,7 +33,7 @@ def test_every_cell_holds_an_e():
 def test_the_cursor_goes_home():
     "The DEC manuals say so, and kitty does it."
     screen, stream = _screen()
-    stream.feed("ab\x1b#8")
+    stream.feed("ab" + sharp(Sharp.DECALN))
     assert (screen.pt_cursor_position.y, screen.pt_cursor_position.x) == (
         screen.line_offset,
         0,
@@ -41,7 +43,7 @@ def test_the_cursor_goes_home():
 def test_the_pattern_covers_the_scrolling_region_too():
     "DECALN draws over the whole screen, region or no region."
     screen, stream = _screen()
-    stream.feed("\x1b[2;3r\x1b#8")
+    stream.feed(csi(escape.DECSTBM, 2, 3) + sharp(Sharp.DECALN))
     buffer = screen.page.data_buffer
     for y in range(screen.line_offset, screen.line_offset + 4):
         assert "".join(buffer[y][x].char for x in range(6)) == "EEEEEE"
@@ -50,7 +52,7 @@ def test_the_pattern_covers_the_scrolling_region_too():
 def test_the_margins_go_back_to_the_whole_screen():
     "The DEC manuals say so, and kitty does it."
     screen, stream = _screen()
-    stream.feed("\x1b[2;3r\x1b#8")
+    stream.feed(csi(escape.DECSTBM, 2, 3) + sharp(Sharp.DECALN))
     assert screen.margins is None
 
 
@@ -61,11 +63,11 @@ def test_the_margins_go_back_to_the_whole_screen():
     "data",
     [
         sharp(Sharp.DECALN),
-        "ab\x1b#8X",
-        "\x1b[4d\x1b#8\n",
-        "\x1b[2;3r\x1b#8X",
-        "0\x1b#8\x1b[1;1r0",
-        "\x1b[2;3r\x1b#8\x1bM",
+        "ab" + sharp(Sharp.DECALN) + "X",
+        csi(escape.VPA, 4) + sharp(Sharp.DECALN) + "\n",
+        csi(escape.DECSTBM, 2, 3) + sharp(Sharp.DECALN) + "X",
+        "0" + sharp(Sharp.DECALN) + csi(escape.DECSTBM, 1, 1) + "0",
+        csi(escape.DECSTBM, 2, 3) + sharp(Sharp.DECALN) + esc(escape.RI),
         "\x1b[2;3r\x1b#8\x1b[?6hX",
         "\x1b[2;3r\x1b[?6h\x1b#8X",
     ],

@@ -19,7 +19,7 @@ pytestmark = pytest.mark.skipif(
 
 
 def test_the_next_character_wraps():
-    assert not differences("\x1b[6G00", lines=4, columns=6)
+    assert not differences(csi(escape.CHA, 6) + "00", lines=4, columns=6)
 
 
 @pytest.mark.parametrize(
@@ -36,7 +36,7 @@ def test_the_next_character_wraps():
     ],
 )
 def test_a_move_ends_the_wait(move):
-    assert not differences("\x1b[6G0%s0" % move, lines=4, columns=6)
+    assert not differences(csi(escape.CHA, 6) + "0%s0" % move, lines=4, columns=6)
 
 
 def test_a_reverse_index_ends_the_wait():

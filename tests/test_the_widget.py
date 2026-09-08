@@ -44,6 +44,7 @@ from pyte.cells import PLAIN_APPEARANCE, Cell
 from ptterm.terminal import Terminal, _TerminalControl, _Window
 from pyte.modes import PrivateMode
 from pyte.sequences import Csi, csi, set_mode
+from pyte import escape
 
 
 #: `measure_instructions.py` builds the same widget to measure what the
@@ -126,12 +127,12 @@ def test_reverse_video_turns_the_rest_of_the_row_as_well():
     The screen is more than the cells a program wrote. A row that ends
     after two characters is reversed to the right edge of the pane.
     """
-    assert reversed_at("\x1b[?5hhi")[0] == [True] * 12
+    assert reversed_at(set_mode(PrivateMode.REVERSE_VIDEO) + "hi")[0] == [True] * 12
 
 
 def test_reverse_video_turns_a_row_that_holds_nothing():
     "An empty row is part of the screen, so it turns too."
-    assert reversed_at("\x1b[?5hhi")[4] == [True] * 12
+    assert reversed_at(set_mode(PrivateMode.REVERSE_VIDEO) + "hi")[4] == [True] * 12
 
 
 def test_reverse_video_cancels_a_reverse_that_a_program_set():
@@ -145,7 +146,7 @@ def test_reverse_video_cancels_a_reverse_that_a_program_set():
 
 def test_a_cell_that_a_program_reversed_stays_reversed_without_the_mode():
     "The cancelling happens only while DECSCNM is on."
-    assert reversed_at("a\x1b[7mb")[0][:2] == [False, True]
+    assert reversed_at("a" + csi(escape.SGR, 7) + "b")[0][:2] == [False, True]
 
 
 def test_reverse_video_goes_away_again():
@@ -334,13 +335,13 @@ def test_a_delete_of_every_line_below_the_cursor_keeps_the_history_away():
     rather than past the end, and four lines that had left the screen
     come back.
     """
-    rows = drawn(FILLED + "\x1b[3H\x1b[1000M")
+    rows = drawn(FILLED + csi(escape.CUP, 3) + csi(escape.DL, 1000))
     assert rows == ["line5", "line6", "", "", "", "", "", ""]
 
 
 def test_an_erase_to_the_bottom_keeps_the_history_away():
     "\"CSI J\" drops the same rows, and the answer is the same."
-    rows = drawn(FILLED + "\x1b[3H\x1b[J")
+    rows = drawn(FILLED + csi(escape.CUP, 3) + csi(escape.ED))
     assert rows == ["line5", "line6", "", "", "", "", "", ""]
 
 
@@ -359,7 +360,7 @@ def test_the_line_count_covers_the_screen_and_not_the_buffer():
     """
     control = _TerminalControl(backend=_NoBackend())
     control.create_content(12, 8)
-    control.stream.feed(FILLED + "\x1b[3H\x1b[1000M")
+    control.stream.feed(FILLED + csi(escape.CUP, 3) + csi(escape.DL, 1000))
 
     screen = control.screen
     content = control.create_content(12, 8)
@@ -459,7 +460,7 @@ def test_a_space_that_a_program_wrote_asks_to_stay():
 
 def test_a_cell_an_erase_left_asks_for_nothing():
     "An erased cell and a cell nobody touched are the same to a renderer."
-    assert keeps_a_blank_at("abc\r\x1b[K")[0][:3] == [False, False, False]
+    assert keeps_a_blank_at("abc\r" + csi(escape.EL))[0][:3] == [False, False, False]
 
 
 def test_a_cell_nobody_wrote_asks_for_nothing():

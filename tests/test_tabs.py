@@ -8,6 +8,7 @@ the line.
 import pytest
 
 from kitty_oracle import differences, kitty_is_available
+from pyte.sequences import Csi, csi
 
 pytestmark = pytest.mark.skipif(
     not kitty_is_available(), reason="the kitty python package is not there"
@@ -46,15 +47,15 @@ def test_a_stop_that_a_program_clears():
 
 
 def test_forward_over_one_stop():
-    assert not differences("\x1b[Ix", lines=3, columns=24)
+    assert not differences(csi(Csi.CHT) + "x", lines=3, columns=24)
 
 
 def test_forward_over_several_stops():
-    assert not differences("\x1b[2Ix", lines=3, columns=24)
+    assert not differences(csi(Csi.CHT, 2) + "x", lines=3, columns=24)
 
 
 def test_forward_past_the_last_stop():
-    assert not differences("\x1b[9Ix", lines=3, columns=24)
+    assert not differences(csi(Csi.CHT, 9) + "x", lines=3, columns=24)
 
 
 def test_back_over_one_stop():
@@ -67,11 +68,11 @@ def test_back_over_several_stops():
 
 def test_back_from_the_first_column():
     "There is no stop before the first column, so the cursor stays."
-    assert not differences("\x1b[Zx", lines=3, columns=24)
+    assert not differences(csi(Csi.CBT) + "x", lines=3, columns=24)
 
 
 def test_a_count_of_zero_moves_over_one_stop():
-    assert not differences("\x1b[0Ix", lines=3, columns=24)
+    assert not differences(csi(Csi.CHT, 0) + "x", lines=3, columns=24)
     assert not differences("\x1b[1;20H\x1b[0Zx", lines=3, columns=24)
 
 

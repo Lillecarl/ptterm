@@ -9,6 +9,8 @@ well as a row of numbers.
 from pyte.screen import Screen
 from pyte.streams import Stream
 from ptterm.style import style_of as spell
+from pyte import escape
+from pyte.sequences import csi
 
 
 def style_of(data, column=0):
@@ -21,7 +23,7 @@ def style_of(data, column=0):
 
 
 def test_a_colour_of_the_palette_takes_colons():
-    assert style_of("\x1b[38:5:9mA") == style_of("\x1b[38;5;9mA")
+    assert style_of("\x1b[38:5:9mA") == style_of(csi(escape.SGR, 38, 5, 9) + "A")
     assert "#ansibrightred" in style_of("\x1b[38:5:9mA")
 
 

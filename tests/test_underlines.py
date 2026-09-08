@@ -12,6 +12,8 @@ import pytest
 from pyte.screen import Screen
 from pyte.streams import Stream
 from ptterm.style import style_of
+from pyte import escape
+from pyte.sequences import csi
 
 
 def screen_of(data, lines=2, columns=20):
@@ -117,9 +119,9 @@ def test_a_private_marker_makes_another_sequence():
     on, and every character the program draws after it carries a line
     that nobody asked for.
     """
-    assert styles("\x1b[>4m> hello", 3) == ["", "", ""]
+    assert styles(csi(escape.SGR, 4, private='>') + "> hello", 3) == ["", "", ""]
     # The same for the other markers, and for a plain SGR after one of
     # them: the marker belongs to that one sequence alone.
-    assert styles("\x1b[?4mA", 1) == [""]
-    assert styles("\x1b[<4mA", 1) == [""]
+    assert styles(csi(escape.SGR, 4, private='?') + "A", 1) == [""]
+    assert styles(csi(escape.SGR, 4, private='<') + "A", 1) == [""]
     assert styles("\x1b[>4m\x1b[4mA", 1) == ["underline "]

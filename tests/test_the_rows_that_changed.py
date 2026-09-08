@@ -118,7 +118,7 @@ def test_reverse_video_reaches_a_row_that_nothing_wrote():
     """
     control = _TerminalControl(backend=NoBackend())
     control.create_content(COLUMNS, LINES)
-    control.stream.feed("\x1b[7mhello")
+    control.stream.feed(csi(escape.SGR, 7) + "hello")
 
     before = frame(control, forget=False)
     control.stream.feed(set_mode(PrivateMode.REVERSE_VIDEO))
@@ -160,7 +160,7 @@ def test_a_row_that_was_written_is_built_again():
     control.stream.feed("first\r\nsecond")
 
     once = control.create_content(COLUMNS, LINES).get_line(0)
-    control.stream.feed("\x1b[1;1Hagain")
+    control.stream.feed(csi(escape.CUP, 1, 1) + "again")
     again = control.create_content(COLUMNS, LINES).get_line(0)
     assert again is not once
     assert again == control.create_content(COLUMNS, LINES).get_line(0)

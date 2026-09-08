@@ -9,6 +9,8 @@ a character that nobody asked for.
 import pytest
 
 from kitty_oracle import differences, kitty_is_available, ptterm_cells
+from pyte import escape
+from pyte.sequences import csi
 
 pytestmark = pytest.mark.skipif(
     not kitty_is_available(), reason="the kitty python package is not there"
@@ -43,15 +45,15 @@ def test_a_wide_character_at_the_right_edge_without_auto_wrap():
 
 
 def test_a_narrow_character_over_the_left_half():
-    assert not differences("你好\x1b[1;1Hx", lines=3, columns=6)
+    assert not differences("你好" + csi(escape.CUP, 1, 1) + "x", lines=3, columns=6)
 
 
 def test_a_narrow_character_over_the_right_half():
-    assert not differences("你好\x1b[1;2Hx", lines=3, columns=6)
+    assert not differences("你好" + csi(escape.CUP, 1, 2) + "x", lines=3, columns=6)
 
 
 def test_a_wide_character_over_a_pair():
-    assert not differences("你好\x1b[1;2H漢", lines=3, columns=6)
+    assert not differences("你好" + csi(escape.CUP, 1, 2) + "漢", lines=3, columns=6)
 
 
 def test_a_delete_that_splits_a_pair():

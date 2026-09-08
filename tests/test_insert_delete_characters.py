@@ -7,6 +7,8 @@ same way an erased cell does.
 from pyte.screen import Screen
 from pyte.streams import Stream
 from ptterm.style import style_of
+from pyte import escape
+from pyte.sequences import csi
 
 
 def _screen(lines=4, columns=8):
@@ -41,7 +43,7 @@ def test_inserted_characters_take_the_background():
 
 def test_inserted_characters_fall_off_the_right_edge():
     screen, stream = _screen(columns=6)
-    stream.feed("abcdef\x1b[1;1H\x1b[2@")
+    stream.feed("abcdef" + csi(escape.CUP, 1, 1) + csi(escape.ICH, 2))
     assert _rows(screen) == ["  abcd", "", "", ""]
 
 

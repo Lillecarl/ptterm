@@ -13,6 +13,9 @@ import pytest
 
 from kitty_oracle import kitty_is_available
 from vterm_oracle import libvterm_is_available, three_way, vterm_differences
+from pyte import escape
+from pyte.modes import PrivateMode
+from pyte.sequences import Csi, csi, esc, reset_mode
 
 pytestmark = pytest.mark.skipif(
     not (libvterm_is_available() and kitty_is_available()),
@@ -25,31 +28,31 @@ pytestmark = pytest.mark.skipif(
 #: a second emulator says the agreement is not a coincidence.
 SAME = [
     "hello",
-    "\x1b[1;31mred\x1b[0m plain",
-    "\x1b[38;5;200mcube\x1b[0m",
-    "\x1b[38;2;10;20;30mtruecolor\x1b[0m",
+    csi(escape.SGR, 1, 31) + "red" + csi(escape.SGR, 0) + " plain",
+    csi(escape.SGR, 38, 5, 200) + "cube" + csi(escape.SGR, 0),
+    csi(escape.SGR, 38, 2, 10, 20, 30) + "truecolor" + csi(escape.SGR, 0),
     "a\r\nb\r\nc",
-    "abc\x1b[1;2H\x1b[1K",
-    "abc\x1b[2K",
-    "abc\r\ndef\x1b[1;1H\x1b[1J",
-    "\x1b[2;3r\x1b[2;1Habc\r\ndef\r\nghi",
-    "abc\x1b[1;2H\x1b[2@",
-    "abcdef\x1b[1;2H\x1b[2P",
-    "abc\x1b[1;1H\x1b[2L",
-    "abc\r\ndef\x1b[1;1H\x1b[1M",
-    "\x1b[1;3r\x1b[3;1H\x1b[2S",
-    "\x1b[1;3r\x1b[1;1H\x1b[2T",
-    "abc\x1b[3X",
+    "abc" + csi(escape.CUP, 1, 2) + csi(escape.EL, 1),
+    "abc" + csi(escape.EL, 2),
+    "abc\r\ndef" + csi(escape.CUP, 1, 1) + csi(escape.ED, 1),
+    csi(escape.DECSTBM, 2, 3) + csi(escape.CUP, 2, 1) + "abc\r\ndef\r\nghi",
+    "abc" + csi(escape.CUP, 1, 2) + csi(escape.ICH, 2),
+    "abcdef" + csi(escape.CUP, 1, 2) + csi(escape.DCH, 2),
+    "abc" + csi(escape.CUP, 1, 1) + csi(escape.IL, 2),
+    "abc\r\ndef" + csi(escape.CUP, 1, 1) + csi(escape.DL, 1),
+    csi(escape.DECSTBM, 1, 3) + csi(escape.CUP, 3, 1) + csi(Csi.SU, 2),
+    csi(escape.DECSTBM, 1, 3) + csi(escape.CUP, 1, 1) + csi(Csi.SD, 2),
+    "abc" + csi(escape.ECH, 3),
     "\x1b(0lqk\x1b(B",
     "你好世界",
     "é",
-    "abcde\x1b[?7l fgh",
-    "\x1b7abc\x1b8X",
-    "\x1b[3;1H\x1bM",
-    "\x1b[1;1H\x1bD",
+    "abcde" + reset_mode(PrivateMode.AUTOWRAP) + " fgh",
+    esc(escape.DECSC) + "abc" + esc(escape.DECRC) + "X",
+    csi(escape.CUP, 3, 1) + esc(escape.RI),
+    csi(escape.CUP, 1, 1) + esc(escape.IND),
     "\x1b[4:2mdouble\x1b[24m plain",
     "\x1b[4:3mcurly\x1b[0m plain",
-    "\x1b[21mdouble\x1b[24m plain",
+    csi(escape.SGR, 21) + "double" + csi(escape.SGR, 24) + " plain",
     "\x1b[4:3m\x1b[4msingle",
     "\x1b[38:5:9mindex\x1b[0m",
     "\x1b[38:2:10:20:30mtruecolor\x1b[0m",
@@ -77,9 +80,9 @@ def test_the_three_agree(data):
 FOLLOWS_PTTERM = [
     ("a tab in the last column of the last row", "\x1b[8;20H12345\t", 8, 24),
     ("a backspace in the first column", "\n\x080", 4, 8),
-    ("a count of zero for SU", "a\r\nb\x1b[0S", 4, 8),
-    ("the line that a scroll brings in", "\x1b[42m\x1b[1S", 4, 6),
-    ("a sequence with too many parameters", "\x1b[3;9;9GX", 4, 8),
+    ("a count of zero for SU", "a\r\nb" + csi(Csi.SU, 0), 4, 8),
+    ("the line that a scroll brings in", csi(escape.SGR, 42) + csi(Csi.SU, 1), 4, 6),
+    ("a sequence with too many parameters", csi(escape.CHA, 3, 9, 9) + "X", 4, 8),
 ]
 
 
@@ -107,7 +110,7 @@ def test_a_character_after_the_tab_shows_what_the_tab_did():
     The character after the tab stays here as the probe that finds a
     regression.
     """
-    assert three_way("\x1b[1;20H12345\t", lines=4, columns=24) == "agree"
+    assert three_way(csi(escape.CUP, 1, 20) + "12345\t", lines=4, columns=24) == "agree"
     assert three_way("\x1b[1;20H12345\tX", lines=4, columns=24) == "agree"
 
 

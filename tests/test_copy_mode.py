@@ -34,6 +34,8 @@ from no_backend import NoBackend
 from ptterm.terminal import Terminal
 from pyte.modes import PrivateMode
 from pyte.sequences import set_mode
+from pyte import escape
+from pyte.sequences import csi
 
 LINES = 6
 COLUMNS = 20
@@ -90,9 +92,9 @@ def every_line_the_eager_way(terminal):
 #: one scrolls the screen, so the buffer holds history as well.
 CHUNKS = [
     "plain text",
-    "\r\n\x1b[31;44mcoloured\x1b[0m and not",
-    "\r\n\x1b[1;4;7mbold underlined reversed\x1b[0m",
-    "\r\n\x1b[?5hunder reverse video",
+    "\r\n" + csi(escape.SGR, 31, 44) + "coloured" + csi(escape.SGR, 0) + " and not",
+    "\r\n" + csi(escape.SGR, 1, 4, 7) + "bold underlined reversed" + csi(escape.SGR, 0),
+    "\r\n" + set_mode(PrivateMode.REVERSE_VIDEO) + "under reverse video",
     "\r\na line that is longer than the pane is wide",
     "\r\n" + "".join("scrolled row %d\r\n" % number for number in range(20)),
 ]

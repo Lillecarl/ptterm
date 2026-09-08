@@ -13,6 +13,8 @@ import pytest
 from pyte.screen import Screen
 from pyte.streams import Stream
 from ptterm.style import style_of as spell
+from pyte import escape
+from pyte.sequences import csi
 
 
 def screen(lines=2, columns=20):
@@ -27,7 +29,7 @@ def style_of(made, row=0, column=0):
 
 def test_a_crossed_out_cell_says_so():
     made, stream = screen()
-    stream.feed("\x1b[9mx")
+    stream.feed(csi(escape.SGR, 9) + "x")
     assert "strike" in style_of(made)
 
 
@@ -39,20 +41,20 @@ def test_a_plain_cell_does_not():
 
 def test_twenty_nine_takes_the_line_away_again():
     made, stream = screen()
-    stream.feed("\x1b[9ma\x1b[29mb")
+    stream.feed(csi(escape.SGR, 9) + "a" + csi(escape.SGR, 29) + "b")
     assert "strike" in style_of(made, column=0)
     assert "strike" not in style_of(made, column=1)
 
 
 def test_a_reset_takes_the_line_away():
     made, stream = screen()
-    stream.feed("\x1b[9ma\x1b[0mb")
+    stream.feed(csi(escape.SGR, 9) + "a" + csi(escape.SGR, 0) + "b")
     assert "strike" not in style_of(made, column=1)
 
 
 def test_the_line_lives_beside_the_other_attributes():
     made, stream = screen()
-    stream.feed("\x1b[1;4;9;31mx")
+    stream.feed(csi(escape.SGR, 1, 4, 9, 31) + "x")
     style = style_of(made)
     for word in ("bold", "underline", "strike"):
         assert word in style, (word, style)
@@ -60,7 +62,7 @@ def test_the_line_lives_beside_the_other_attributes():
 
 def test_twenty_nine_leaves_the_other_attributes_alone():
     made, stream = screen()
-    stream.feed("\x1b[1;4;9m\x1b[29mx")
+    stream.feed(csi(escape.SGR, 1, 4, 9) + csi(escape.SGR, 29) + "x")
     style = style_of(made)
     assert "strike" not in style
     assert "bold" in style

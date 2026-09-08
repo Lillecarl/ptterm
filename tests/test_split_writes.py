@@ -14,6 +14,9 @@ import pathlib
 import pytest
 
 from kitty_oracle import ptterm_cells, ptterm_cells_in_pieces
+from pyte import escape
+from pyte.modes import PrivateMode
+from pyte.sequences import Sharp, csi, set_mode, sharp
 
 CORPUS = pathlib.Path(__file__).parent / "corpus"
 
@@ -24,16 +27,16 @@ SIZES = [1, 2, 3, 7, 17, 250]
 
 #: Sequences that hold something a parser keeps state for.
 PROGRAMS = [
-    "\x1b[1;31mred\x1b[0m",
-    "\x1b[38;2;10;20;30mtruecolor",
+    csi(escape.SGR, 1, 31) + "red" + csi(escape.SGR, 0),
+    csi(escape.SGR, 38, 2, 10, 20, 30) + "truecolor",
     "\x1b[38:2::10:20:30mcolons",
     "\x1b]0;a title\x07after",
     "\x1b]8;;https://example.com/a\x1b\\link\x1b]8;;\x1b\\",
     "\x1bP0;0;0q#0;2;0;0;0#0~~\x1b\\",
     "\x1b_Ga=T,f=24,s=1,v=1;AAAA\x1b\\",
     "\x1b[?1049h\x1b[2J\x1b[HX\x1b[?1049l",
-    "\x1b#8\x1b[2;4r\x1b[?6h",
-    "你好\x1b[1D世界",
+    sharp(Sharp.DECALN) + csi(escape.DECSTBM, 2, 4) + set_mode(PrivateMode.ORIGIN),
+    "你好" + csi(escape.CUB, 1) + "世界",
     "\x1b(0lqk\x1b(B",
     "\x1b[4:3;58:2::255:0:0munderlined",
 ]

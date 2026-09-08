@@ -18,6 +18,8 @@ Lillecarl/pymux#62.
 from pyte.screen import Screen
 from pyte.streams import Stream
 from ptterm.terminal import cursor_offset
+from pyte import escape
+from pyte.sequences import csi
 
 COLUMNS = 8
 
@@ -48,7 +50,7 @@ def test_a_move_back_from_the_wait_counts_from_the_line():
 
 def test_the_offset_never_leaves_the_line():
     "Whatever a program does, the answer names a place on the line."
-    for data in ["abcdefgh", "abcdefgh\t", "\x1b[8Gx", "abcdefghi"]:
+    for data in ["abcdefgh", "abcdefgh\t", csi(escape.CHA, 8) + "x", "abcdefghi"]:
         assert cursor_offset(_screen(data)) < COLUMNS
 
 
