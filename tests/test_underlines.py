@@ -7,6 +7,7 @@ travel in the style of that cell: the shape as one word, the colour
 after "ul:". prompt_toolkit reads them back and writes the sequences
 again on the terminal of the user.
 """
+
 import pytest
 
 from pyte.screen import Screen
@@ -60,15 +61,13 @@ def test_a_plain_four_draws_a_single_line():
 
 def test_the_colour_of_the_line():
     assert styles("\x1b[4;58:2::255:0:0mA", 1) == ["underline ul:#ff0000 "]
-    assert styles((
-        csi(escape.SGR, 4, 58, 2, 255, 0, 0)
-        + "A"
-    ), 1) == ["underline ul:#ff0000 "]
+    assert styles((csi(escape.SGR, 4, 58, 2, 255, 0, 0) + "A"), 1) == [
+        "underline ul:#ff0000 "
+    ]
     assert styles("\x1b[4;58:5:9mA", 1) == ["underline ul:#ansibrightred "]
-    assert styles((
-        csi(escape.SGR, 4, 58, 5, 9)
-        + "A"
-    ), 1) == ["underline ul:#ansibrightred "]
+    assert styles((csi(escape.SGR, 4, 58, 5, 9) + "A"), 1) == [
+        "underline ul:#ansibrightred "
+    ]
 
 
 def test_the_colour_goes_away_again():
@@ -125,13 +124,11 @@ def test_a_private_marker_makes_another_sequence():
     on, and every character the program draws after it carries a line
     that nobody asked for.
     """
-    assert styles(csi(escape.SGR, 4, private='>') + "> hello", 3) == ["", "", ""]
+    assert styles(csi(escape.SGR, 4, private=">") + "> hello", 3) == ["", "", ""]
     # The same for the other markers, and for a plain SGR after one of
     # them: the marker belongs to that one sequence alone.
-    assert styles(csi(escape.SGR, 4, private='?') + "A", 1) == [""]
-    assert styles(csi(escape.SGR, 4, private='<') + "A", 1) == [""]
-    assert styles((
-        csi(escape.SGR, 4, private='>')
-        + csi(escape.SGR, 4)
-        + "A"
-    ), 1) == ["underline "]
+    assert styles(csi(escape.SGR, 4, private="?") + "A", 1) == [""]
+    assert styles(csi(escape.SGR, 4, private="<") + "A", 1) == [""]
+    assert styles((csi(escape.SGR, 4, private=">") + csi(escape.SGR, 4) + "A"), 1) == [
+        "underline "
+    ]

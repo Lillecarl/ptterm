@@ -9,6 +9,7 @@ and ptterm differs, ptterm is wrong and nobody has to decide anything.
 Where the two disagree, the difference is a choice, and
 `test_known_deviations.py` holds it.
 """
+
 import pytest
 
 from kitty_oracle import kitty_is_available
@@ -79,10 +80,12 @@ def test_the_three_agree(data):
 # the choice is not one implementation against the world.
 
 FOLLOWS_PTTERM = [
-    ("a tab in the last column of the last row", (
-        csi(escape.CUP, 8, 20)
-        + "12345\t"
-    ), 8, 24),
+    (
+        "a tab in the last column of the last row",
+        (csi(escape.CUP, 8, 20) + "12345\t"),
+        8,
+        24,
+    ),
     ("a backspace in the first column", "\n\x080", 4, 8),
     ("a count of zero for SU", "a\r\nb" + csi(Csi.SU, 0), 4, 8),
     ("the line that a scroll brings in", csi(escape.SGR, 42) + csi(Csi.SU, 1), 4, 6),
@@ -115,10 +118,9 @@ def test_a_character_after_the_tab_shows_what_the_tab_did():
     regression.
     """
     assert three_way(csi(escape.CUP, 1, 20) + "12345\t", lines=4, columns=24) == "agree"
-    assert three_way((
-        csi(escape.CUP, 1, 20)
-        + "12345\tX"
-    ), lines=4, columns=24) == "agree"
+    assert (
+        three_way((csi(escape.CUP, 1, 20) + "12345\tX"), lines=4, columns=24) == "agree"
+    )
 
 
 def test_the_two_emulators_disagree_about_a_mark_on_an_erased_cell():
@@ -129,12 +131,12 @@ def test_the_two_emulators_disagree_about_a_mark_on_an_erased_cell():
     it, and libvterm hangs it on the character that the erase was meant
     to take away. Nothing to follow here.
     """
-    assert three_way((
-        "0"
-        + csi(escape.SGR, 40)
-        + csi(escape.EL, 1)
-        + "́"
-    ), lines=3, columns=6) == "split"
+    assert (
+        three_way(
+            ("0" + csi(escape.SGR, 40) + csi(escape.EL, 1) + "́"), lines=3, columns=6
+        )
+        == "split"
+    )
 
 
 def test_the_alternate_screen_keeps_what_it_held():
@@ -161,12 +163,16 @@ def test_libvterm_does_not_take_the_alternate_screen_on_the_oldest_name():
     comparison against kitty covers it instead.
     """
     # The "X" of the alternate screen shows up on the first screen.
-    assert vterm_differences((
-        "M"
-        + set_mode(PrivateMode.ALTERNATE_SCREEN)
-        + "X"
-        + reset_mode(PrivateMode.ALTERNATE_SCREEN)
-    ), lines=3, columns=6)
+    assert vterm_differences(
+        (
+            "M"
+            + set_mode(PrivateMode.ALTERNATE_SCREEN)
+            + "X"
+            + reset_mode(PrivateMode.ALTERNATE_SCREEN)
+        ),
+        lines=3,
+        columns=6,
+    )
 
 
 def test_libvterm_reads_no_colour_space_in_a_colour():
@@ -204,17 +210,31 @@ def test_who_clears_the_alternate_screen_is_a_choice():
     leaves, whichever mode leaves.
     """
     # Leaving with "?1049l" keeps the content here and in kitty.
-    assert three_way((
-        set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
-        + "0"
-        + reset_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
-        + set_mode(PrivateMode.ALTERNATE_SCREEN)
-    ), 4, 6) == "split"
+    assert (
+        three_way(
+            (
+                set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+                + "0"
+                + reset_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+                + set_mode(PrivateMode.ALTERNATE_SCREEN)
+            ),
+            4,
+            6,
+        )
+        == "split"
+    )
     # Leaving with "?1047l" clears it here and in libvterm.
-    assert three_way((
-        set_mode(PrivateMode.ALTERNATE_SCREEN_AGAIN)
-        + " X "
-        + reset_mode(PrivateMode.ALTERNATE_SCREEN_AGAIN)
-        + " "
-        + set_mode(PrivateMode.ALTERNATE_SCREEN)
-    ), 3, 6) == "split"
+    assert (
+        three_way(
+            (
+                set_mode(PrivateMode.ALTERNATE_SCREEN_AGAIN)
+                + " X "
+                + reset_mode(PrivateMode.ALTERNATE_SCREEN_AGAIN)
+                + " "
+                + set_mode(PrivateMode.ALTERNATE_SCREEN)
+            ),
+            3,
+            6,
+        )
+        == "split"
+    )

@@ -9,6 +9,7 @@ A link also has an id. The id joins the pieces of one link, so a link
 that a line break cuts in two is one link and not two. A cell carries
 the id the same way it carries the target.
 """
+
 import base64
 
 import pytest
@@ -85,10 +86,10 @@ def test_a_payload_without_a_semicolon_is_no_link():
     assert parse_hyperlink(LINK) is None
 
 
-@pytest.mark.parametrize("target", [(
-    "a"
-    + osc("0", "owned", end=Terminator.BEL)
-), "a\x07b", "a\nb", "a\x7fb"])
+@pytest.mark.parametrize(
+    "target",
+    [("a" + osc("0", "owned", end=Terminator.BEL)), "a\x07b", "a\nb", "a\x7fb"],
+)
 def test_a_target_with_a_control_character_is_dropped(target):
     assert parse_hyperlink(";" + target) is None
 
@@ -213,7 +214,13 @@ def test_the_screen_holds_the_target():
 def test_a_link_of_the_alternate_screen_does_not_reach_the_first():
     "A program that leaves a link open may not hand it to the shell."
     screen, stream = _screen()
-    stream.feed(set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR) + open_link() + "a" + reset_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR) + "b")
+    stream.feed(
+        set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+        + open_link()
+        + "a"
+        + reset_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+        + "b"
+    )
     assert screen.hyperlink == ""
     assert "hyperlink" not in _style(screen, 0)
 
@@ -231,12 +238,15 @@ def test_a_link_of_the_first_screen_does_not_come_back():
     of the first screen keep the one they were drawn with anyway.
     """
     screen, stream = _screen()
-    stream.feed(open_link() + (
-        "a"
-        + set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
-        + reset_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
-        + "b"
-    ))
+    stream.feed(
+        open_link()
+        + (
+            "a"
+            + set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+            + reset_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+            + "b"
+        )
+    )
     assert screen.hyperlink == ""
     assert _token(LINK) in _style(screen, 0)
     assert "hyperlink" not in _style(screen, 1)

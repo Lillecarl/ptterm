@@ -47,6 +47,7 @@ files, and the check does nothing when it is not set.
 `PTTERM_VTERM_OUT` names the directory to write the list and the log
 into.
 """
+
 import os
 import re
 import subprocess
@@ -250,7 +251,7 @@ def keep(directory: Path, failed: Counter, log: str) -> None:
         "# the test file, the line in it, and the assertion, and each one is\n"
         "# a real difference between ptterm and libvterm.\n"
         "#\n"
-        "# A line can appear more than once: \"$SEQ\" and \"$REP\" in a test\n"
+        '# A line can appear more than once: "$SEQ" and "$REP" in a test\n'
         "# file turn one line into many assertions.\n"
         "#\n"
         "# This is what the run saw. To make it what the check expects:\n"
@@ -322,8 +323,7 @@ def check_the_exclusions(names, include: str) -> int:
         print("vterm: left out %s," % (", ".join(matched) or "nothing"))
         print("vterm:     because %s" % reason)
         if not matched:
-            print("vterm: NOT_OURS leaves out %r, and no file has that name."
-                  % pattern)
+            print("vterm: NOT_OURS leaves out %r, and no file has that name." % pattern)
             status = 1
 
     both = sorted({entry.split(":")[0] for entry in known} & set(out))
@@ -332,8 +332,10 @@ def check_the_exclusions(names, include: str) -> int:
         status = 1
 
     if status:
-        print("\nvterm: NOT_OURS in %s no longer describes the suite."
-              % Path(__file__).name)
+        print(
+            "\nvterm: NOT_OURS in %s no longer describes the suite."
+            % Path(__file__).name
+        )
     return status
 
 
@@ -391,8 +393,10 @@ def main() -> int:
     status = check_the_exclusions(names, include)
 
     for name in sorted(set(broken)):
-        print("vterm: the harness raised while %s ran. Read the log: this "
-              "is a fault here and not a deviation." % name)
+        print(
+            "vterm: the harness raised while %s ran. Read the log: this "
+            "is a fault here and not a deviation." % name
+        )
         status = 1
 
     return report(failed, ran, include) or status

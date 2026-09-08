@@ -19,6 +19,7 @@ where it started with nothing to say so. The import that breaks a layer
 fails here instead. `pyte/tests/test_the_layers.py` is the other half:
 it holds the pure layer to importing no toolkit at all.
 """
+
 import ast
 from pathlib import Path
 
@@ -117,12 +118,10 @@ def test_only_the_named_modules_of_pyte_are_used(name):
     upstream left behind, or a piece of the screen that nobody wrote
     down here.
     """
-    taken = {
-        module for module in _imports(MODULES[name]) if _root(module) == "pyte"
-    }
-    assert taken <= FROM_PYTE, (
-        "%s imports %s from pyte; add it to FROM_PYTE"
-        % (name, sorted(taken - FROM_PYTE))
+    taken = {module for module in _imports(MODULES[name]) if _root(module) == "pyte"}
+    assert taken <= FROM_PYTE, "%s imports %s from pyte; add it to FROM_PYTE" % (
+        name,
+        sorted(taken - FROM_PYTE),
     )
 
 
@@ -136,9 +135,7 @@ def test_the_list_is_what_the_package_really_needs():
     """
     taken = set()
     for path in MODULES.values():
-        taken |= {
-            module for module in _imports(path) if _root(module) == "pyte"
-        }
+        taken |= {module for module in _imports(path) if _root(module) == "pyte"}
     assert taken == FROM_PYTE
 
 

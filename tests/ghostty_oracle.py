@@ -21,6 +21,7 @@ A judge that cannot hold something has to say so. One that answers
 anyway is worse than one that abstains, because the panel counts its
 vote.
 """
+
 from typing import List, Optional, Tuple
 
 from kitty_oracle import Cell

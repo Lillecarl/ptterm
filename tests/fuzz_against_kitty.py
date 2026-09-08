@@ -13,6 +13,7 @@ than they get fixed, and each one needs a decision about whether to
 follow kitty or xterm. `nix build --file . checks.fuzz` runs it, and
 `PTTERM_FUZZ` says how many examples to try.
 """
+
 import os
 
 import pytest
@@ -79,8 +80,23 @@ payload = st.text(
 string_terminator = st.sampled_from(["\x1b\\", "\x07"])
 
 #: The OSC codes that a program really sends.
-OSC_CODES = ["0", "1", "2", "4", "8", "10", "11", "12", "21", "22", "52",
-             "99", "133", "777", "30001"]
+OSC_CODES = [
+    "0",
+    "1",
+    "2",
+    "4",
+    "8",
+    "10",
+    "11",
+    "12",
+    "21",
+    "22",
+    "52",
+    "99",
+    "133",
+    "777",
+    "30001",
+]
 
 osc = st.builds(
     lambda code, param, end: "\x1b]%s;%s%s" % (code, param, end),
@@ -173,13 +189,17 @@ pieces = st.one_of(
     st.just(esc(escape.IND)),
     st.just(esc(escape.RI)),
     st.sampled_from([set_mode(PrivateMode.AUTOWRAP), reset_mode(PrivateMode.AUTOWRAP)]),
-    st.builds(lambda n, c: "\x1b[%d%s" % (n, c), small,
-              st.sampled_from("ABCDEFGLM@PXIZ")),
+    st.builds(
+        lambda n, c: "\x1b[%d%s" % (n, c), small, st.sampled_from("ABCDEFGLM@PXIZ")
+    ),
     # SU and SD take their count from one, because kitty reads a zero
     # as no scroll and xterm reads it as one. See
     # `test_known_deviations`.
-    st.builds(lambda n, c: "\x1b[%d%s" % (n, c),
-              st.integers(min_value=1, max_value=9), st.sampled_from("ST")),
+    st.builds(
+        lambda n, c: "\x1b[%d%s" % (n, c),
+        st.integers(min_value=1, max_value=9),
+        st.sampled_from("ST"),
+    ),
     st.builds(lambda n: "\x1b[%dG" % n, column),
     st.builds(lambda n: "\x1b[%dd" % n, row),
     st.builds(lambda r, c: "\x1b[%d;%dH" % (r, c), row, column),
@@ -226,7 +246,13 @@ pieces = st.one_of(
 #:
 #: The panel hunt keeps all three, because a verdict counts the judges
 #: and a difference from one of them is a question and not a fault.
-KITTY_DISAGREES = frozenset([set_mode(PrivateMode.ALTERNATE_SCREEN), set_mode(PrivateMode.ALTERNATE_SCREEN_AGAIN), reset_mode(PrivateMode.ALTERNATE_SCREEN_AGAIN)])
+KITTY_DISAGREES = frozenset(
+    [
+        set_mode(PrivateMode.ALTERNATE_SCREEN),
+        set_mode(PrivateMode.ALTERNATE_SCREEN_AGAIN),
+        reset_mode(PrivateMode.ALTERNATE_SCREEN_AGAIN),
+    ]
+)
 
 program = st.lists(pieces, min_size=1, max_size=24).map("".join)
 

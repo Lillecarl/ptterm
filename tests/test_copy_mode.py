@@ -20,6 +20,7 @@ lazy about there.
 **A line of the document is a line a program wrote**, not a row of the
 pane. The window wraps it again for the eye. Lillecarl/pymux#135.
 """
+
 import asyncio
 
 import pytest
@@ -81,9 +82,7 @@ def every_line_the_eager_way(terminal):
             if row:
                 for column in range(0, max(row) + 1):
                     char = row[column]
-                    lines[-1].append(
-                        (terminal._copy_cell_style(char), char.char)
-                    )
+                    lines[-1].append((terminal._copy_cell_style(char), char.char))
     return lines
 
 
@@ -214,9 +213,7 @@ async def test_space_starts_a_selection_and_enter_keeps_copy_mode():
 
 async def test_v_swaps_what_a_selection_selects():
     terminal = await press(a_terminal("first\r\nsecond"), " ", "v")
-    assert (
-        terminal.copy_buffer.selection_state.type == SelectionType.LINES
-    )
+    assert terminal.copy_buffer.selection_state.type == SelectionType.LINES
     assert terminal.is_copying
 
 

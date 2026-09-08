@@ -12,6 +12,7 @@ in `30state_pen.test`; WezTerm reads them as well. The panel says the
 same: `test_the_panel.py` holds the tally, and the four judges that
 cannot see a baseline abstain. Lillecarl/pymux#59.
 """
+
 import pytest
 
 from pyte.screen import Screen

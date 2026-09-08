@@ -8,6 +8,7 @@ one, so a program that crossed a word out drew a plain word.
 The picture harness of pymux found it: the same program in the same
 xterm drew a line through "struck" without a pane and no line with one.
 """
+
 import pytest
 
 from pyte.screen import Screen
@@ -70,7 +71,9 @@ def test_twenty_nine_leaves_the_other_attributes_alone():
     assert "underline" in style
 
 
-@pytest.mark.parametrize("sequence", [csi(escape.SGR, 9), csi(escape.SGR, 0, 9), csi(escape.SGR, 39, 9)])
+@pytest.mark.parametrize(
+    "sequence", [csi(escape.SGR, 9), csi(escape.SGR, 0, 9), csi(escape.SGR, 39, 9)]
+)
 def test_every_way_a_program_writes_it(sequence):
     made, stream = screen()
     stream.feed(sequence + "x")

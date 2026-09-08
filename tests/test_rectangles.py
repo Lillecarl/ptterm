@@ -10,6 +10,7 @@ All four read the corners the same way. The numbers count from one,
 origin mode counts them from the margins, and a margin does not hold
 the rectangle in. None of the four moves the cursor.
 """
+
 from pyte.screen import Screen
 from pyte.streams import Stream
 from ptterm.style import style_of
@@ -178,11 +179,9 @@ def test_a_filled_cell_takes_the_rendition_that_is_set_now():
 def test_a_filled_cell_carries_the_mark_of_decsca():
     screen, stream = _screen()
     stream.feed(
-        csi(Csi.DECSCA, 1)
-        + csi(Csi.DECFRA, 37, 1, 1, 1, 3)
-        + csi(Csi.DECSCA, 0)
+        csi(Csi.DECSCA, 1) + csi(Csi.DECFRA, 37, 1, 1, 1, 3) + csi(Csi.DECSCA, 0)
     )
-    stream.feed(csi(escape.CUP, 1, 1) + csi(escape.EL, 2, private='?'))
+    stream.feed(csi(escape.CUP, 1, 1) + csi(escape.EL, 2, private="?"))
     assert _line(screen, 0).rstrip() == "%%%"
 
 

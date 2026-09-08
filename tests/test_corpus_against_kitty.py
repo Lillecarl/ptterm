@@ -10,6 +10,7 @@ A capture holds the answers that the program asked for as well, so a
 difference can also come from a query that ptterm answers differently.
 Keep that in mind when one of these fails.
 """
+
 import pathlib
 
 import pytest

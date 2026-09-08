@@ -15,6 +15,7 @@ prompt, and every cell of that non-breaking space came out of pymux
 with an underline under it. `checks.pymux-pictures` measured five
 pixels, in xterm and in foot alike.
 """
+
 import pytest
 from prompt_toolkit.layout.screen import Char
 
@@ -58,9 +59,7 @@ def test_no_character_reaches_the_screen_marked_up(char):
     assert "class:" not in drawn(char)[1]
 
 
-@pytest.mark.parametrize(
-    "char", sorted(set(Char.display_mappings) - {"\xa0"})
-)
+@pytest.mark.parametrize("char", sorted(set(Char.display_mappings) - {"\xa0"}))
 def test_a_control_character_is_drawn_as_a_blank(char):
     """
     It should never be in a cell: the parser consumes those. One that
@@ -74,9 +73,7 @@ def test_a_control_character_is_drawn_as_a_blank(char):
 # What still goes through.
 
 
-@pytest.mark.parametrize(
-    "char", [" ", "a", "❯", "─", "你", "é", "·", "\xa0"]
-)
+@pytest.mark.parametrize("char", [" ", "a", "❯", "─", "你", "é", "·", "\xa0"])
 def test_an_ordinary_character_is_drawn_as_it_is(char):
     assert drawn(char) == (char, "")
 

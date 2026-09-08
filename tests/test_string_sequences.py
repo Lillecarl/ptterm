@@ -6,6 +6,7 @@ terminator. None of them writes a cell. What matters is that the parser
 eats the whole payload: a payload that leaks writes text on the screen
 that the program never meant to show.
 """
+
 import pytest
 
 from kitty_oracle import differences, kitty_is_available
@@ -54,17 +55,15 @@ def test_a_string_sequence_between_two_words(sequence):
 
 @pytest.mark.parametrize("sequence", SEQUENCES)
 def test_a_string_sequence_does_not_move_the_cursor(sequence):
-    assert not differences((
-        "abc"
-        + csi(escape.CUP, 1, 2)
-    ) + sequence + "X", lines=4, columns=12)
+    assert not differences(
+        ("abc" + csi(escape.CUP, 1, 2)) + sequence + "X", lines=4, columns=12
+    )
 
 
 def test_a_payload_that_holds_a_semicolon():
-    assert not differences((
-        osc(Osc.NOTIFICATION, "i=1", "a", "b", "c")
-        + "X"
-    ), lines=4, columns=12)
+    assert not differences(
+        (osc(Osc.NOTIFICATION, "i=1", "a", "b", "c") + "X"), lines=4, columns=12
+    )
 
 
 def test_an_empty_payload():

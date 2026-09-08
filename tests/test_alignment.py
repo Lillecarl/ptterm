@@ -5,6 +5,7 @@ It is the alignment test of the DEC terminals, and a program that
 checks a terminal starts with it. The pattern is the easy part; where
 the cursor ends up is the part that the emulators disagree on.
 """
+
 import pytest
 
 from pyte.screen import Screen

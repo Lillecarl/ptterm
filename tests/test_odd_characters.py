@@ -6,6 +6,7 @@ that a reader can see them: a no-break space becomes a space that is
 underlined in yellow. A pane is not a widget. What a program wrote is
 what the cell holds, and every emulator agrees.
 """
+
 import pytest
 
 from kitty_oracle import differences, kitty_is_available, ptterm_cells

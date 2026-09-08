@@ -12,6 +12,7 @@ set a region. Alacritty's `vim_large_window_scroll` reference test
 found it: vim writes a line, moves over eight cells with `CSI 8 C` and
 writes again, so those eight cells hold what the scroll left there.
 """
+
 from pyte.screen import Screen
 from pyte.streams import Stream
 from ptterm.style import style_of
@@ -35,30 +36,41 @@ def test_a_scroll_up_paints_the_line_it_brings_in():
 
 def test_a_linefeed_at_the_bottom_paints_the_line_it_brings_in():
     "Four judges paint it: WezTerm, Alacritty, libvterm and xterm.js."
-    assert row_style(
-        csi(escape.CUP, 4, 1)
-        + csi(escape.SGR, 42)
-        + "\n"
-    ) == "bg:#ansigreen "
+    assert (
+        row_style(csi(escape.CUP, 4, 1) + csi(escape.SGR, 42) + "\n")
+        == "bg:#ansigreen "
+    )
 
 
 def test_a_linefeed_in_a_region_paints_the_line_it_brings_in():
     "The region is rows one to three, so the new line is the third."
-    assert row_style((
-        csi(escape.DECSTBM, 1, 3)
-        + csi(escape.CUP, 3, 1)
-        + csi(escape.SGR, 42)
-        + "\n"
-    ), row=2) == "bg:#ansigreen "
+    assert (
+        row_style(
+            (
+                csi(escape.DECSTBM, 1, 3)
+                + csi(escape.CUP, 3, 1)
+                + csi(escape.SGR, 42)
+                + "\n"
+            ),
+            row=2,
+        )
+        == "bg:#ansigreen "
+    )
 
 
 def test_an_index_in_a_region_paints_the_line_it_brings_in():
-    assert row_style((
-        csi(escape.DECSTBM, 1, 3)
-        + csi(escape.CUP, 3, 1)
-        + csi(escape.SGR, 42)
-        + esc(escape.IND)
-    ), row=2) == "bg:#ansigreen "
+    assert (
+        row_style(
+            (
+                csi(escape.DECSTBM, 1, 3)
+                + csi(escape.CUP, 3, 1)
+                + csi(escape.SGR, 42)
+                + esc(escape.IND)
+            ),
+            row=2,
+        )
+        == "bg:#ansigreen "
+    )
 
 
 def test_a_linefeed_with_no_background_leaves_the_row_out():

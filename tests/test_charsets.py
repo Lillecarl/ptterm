@@ -6,6 +6,7 @@ when the font has no Unicode. A program then sends "ESC ( 0" and the
 letters "lqk" for the top of a box. Without the translation the reader
 sees the letters.
 """
+
 import pytest
 
 from kitty_oracle import differences, kitty_is_available

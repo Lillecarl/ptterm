@@ -12,6 +12,7 @@ This host owns its pty, so it answers a resize itself. A pane cannot:
 it would be taking room from the panes beside it, so ptterm hands the
 ask to the embedder instead.
 """
+
 from pyte.images import ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH
 from pyte.screen import Screen
 from pyte.streams import Stream

@@ -38,6 +38,7 @@ widening has rows to pull back. A judge with none would answer "blank"
 and agree with every other judge with none, which says how the judges
 were built and nothing about the emulators.
 """
+
 import atexit
 import json
 import os

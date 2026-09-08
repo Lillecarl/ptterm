@@ -23,6 +23,7 @@ It is asked four kinds of question here.
   of those the same way, and Lillecarl/pymux#107 says why they are one
   question: ptterm drops the wait to wrap where xterm keeps it.
 """
+
 import pytest
 
 from panel import what_ptterm_draws, what_xterm_draws, xterm_is_here
@@ -32,9 +33,7 @@ from pyte.sequences import Escape, Sharp, esc, sharp
 from pyte.modes import PrivateMode
 from pyte.sequences import reset_mode, set_mode
 
-pytestmark = pytest.mark.skipif(
-    not xterm_is_here(), reason="xterm has no display here"
-)
+pytestmark = pytest.mark.skipif(not xterm_is_here(), reason="xterm has no display here")
 
 
 def both(data, lines=3, columns=8):
@@ -229,13 +228,18 @@ def test_xterm_brings_the_wait_to_wrap_back_through_a_restore():
     # The restore puts the column back as well as the wait. "CSI D"
     # clears the wait and moves one column left, so the "b" lands one
     # left of the last column and the "a" there stays.
-    with_a_move = what_xterm_draws(fill + (
-        esc(escape.DECSC)
-        + csi(escape.CUP, 1, 1)
-        + esc(escape.DECRC)
-        + csi(escape.CUB)
-        + "b"
-    ), 4, 6)
+    with_a_move = what_xterm_draws(
+        fill
+        + (
+            esc(escape.DECSC)
+            + csi(escape.CUP, 1, 1)
+            + esc(escape.DECRC)
+            + csi(escape.CUB)
+            + "b"
+        ),
+        4,
+        6,
+    )
     assert with_a_move[0] == "aaaaba"
 
 
@@ -265,24 +269,26 @@ def test_xterm_wraps_rather_than_moving_back_over_a_tab_stop():
     program = csi(Csi.CHT) + "x" + csi(Csi.CHT, 2) + "y" + csi(Csi.CBT) + "z"
 
     def where(rows, glyph):
-        return next(
-            (y, row.index(glyph)) for y, row in enumerate(rows) if glyph in row
-        )
+        return next((y, row.index(glyph)) for y, row in enumerate(rows) if glyph in row)
 
     drawn = what_xterm_draws(program, lines=8, columns=24)
     ours = what_ptterm_draws(program, lines=8, columns=24)
     assert [where(drawn, one) for one in "xyz"] == [(0, 8), (0, 23), (1, 0)]
     assert [where(ours, one) for one in "xyz"] == [(0, 8), (0, 23), (0, 16)]
 
-    with_a_move = what_xterm_draws((
-        csi(Csi.CHT)
-        + "x"
-        + csi(Csi.CHT, 2)
-        + "y"
-        + csi(Csi.CBT)
-        + csi(escape.CUB)
-        + "z"
-    ), 8, 24)
+    with_a_move = what_xterm_draws(
+        (
+            csi(Csi.CHT)
+            + "x"
+            + csi(Csi.CHT, 2)
+            + "y"
+            + csi(Csi.CBT)
+            + csi(escape.CUB)
+            + "z"
+        ),
+        8,
+        24,
+    )
     assert where(with_a_move, "z") == (0, 15)
 
 
@@ -335,13 +341,18 @@ def test_xterm_reads_the_parameters_it_needs_out_of_too_many():
     "number, data, lines, columns",
     [
         (1, csi(escape.CUP, 8, 20) + "12345\t", 6, 20),
-        (2, (
-            set_mode(PrivateMode.ALTERNATE_SCREEN_AGAIN)
-            + " X "
-            + reset_mode(PrivateMode.ALTERNATE_SCREEN_AGAIN)
-            + " "
-            + set_mode(PrivateMode.ALTERNATE_SCREEN)
-        ), 3, 6),
+        (
+            2,
+            (
+                set_mode(PrivateMode.ALTERNATE_SCREEN_AGAIN)
+                + " X "
+                + reset_mode(PrivateMode.ALTERNATE_SCREEN_AGAIN)
+                + " "
+                + set_mode(PrivateMode.ALTERNATE_SCREEN)
+            ),
+            3,
+            6,
+        ),
         (4, "ab" + sharp(Sharp.DECALN) + "X", 4, 6),
         (5, "\n\x080", 4, 8),
         (6, "a\r\nb" + csi(Csi.SU, 0), 4, 8),
@@ -376,11 +387,15 @@ def test_where_xterm_leaves_the_cursor_on_the_newest_alternate_mode():
     clearing it first." So the tally is five against two, and the
     document the issue quotes is the terminal that wrote it.
     """
-    drawn = what_xterm_draws((
-        csi(escape.CUP, 2, 3)
-        + set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
-        + "X"
-    ), lines=3, columns=6)
+    drawn = what_xterm_draws(
+        (
+            csi(escape.CUP, 2, 3)
+            + set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+            + "X"
+        ),
+        lines=3,
+        columns=6,
+    )
     assert [(y, row.index("X")) for y, row in enumerate(drawn) if "X" in row] == [
         (1, 2)
     ]

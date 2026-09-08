@@ -39,6 +39,7 @@ xterm in slave mode writes the id of its window to the pty as soon as
 the window is there. That is the one thing it says on its own, and it
 is what says the terminal is ready.
 """
+
 import os
 import re
 import select
@@ -105,25 +106,34 @@ def _argv(path: str, lines: int, columns: int, slave: str, fd: int) -> List[str]
     return [
         path,
         "-S%s/%d" % (slave, fd),
-        "-geometry", "%dx%d" % (columns, lines),
+        "-geometry",
+        "%dx%d" % (columns, lines),
         # A font that fontconfig serves, so the display needs no font
         # path of its own. Small, because the window has to fit the
         # screen at eighty columns and more.
-        "-fa", "DejaVu Sans Mono",
-        "-fs", "8",
+        "-fa",
+        "DejaVu Sans Mono",
+        "-fs",
+        "8",
         "+sb",
-        "-b", "0",
-        "-bw", "0",
+        "-b",
+        "0",
+        "-bw",
+        "0",
         # Always UTF-8, whatever the locale says, because every judge
         # is asked in UTF-8.
         "-u8",
         # A checksum and a resize are both window operations.
-        "-xrm", "XTerm*allowWindowOps: true",
-        "-xrm", "XTerm*checksumExtension: %d" % CHECKSUM_EXTENSION,
+        "-xrm",
+        "XTerm*allowWindowOps: true",
+        "-xrm",
+        "XTerm*checksumExtension: %d" % CHECKSUM_EXTENSION,
         # As much history as every other judge keeps.
         # `kitty_oracle.HISTORY` says why the number is one number.
-        "-xrm", "XTerm*saveLines: %d" % HISTORY,
-        "-xrm", "XTerm*cursorBlink: false",
+        "-xrm",
+        "XTerm*saveLines: %d" % HISTORY,
+        "-xrm",
+        "XTerm*cursorBlink: false",
     ]
 
 
@@ -224,9 +234,7 @@ class _Xterm:
         """
         deadline = time.monotonic() + PATIENCE
         while True:
-            found = self._talk(
-                "\x1b[8;%d;%dt\x1b[18t" % (lines, columns), _SIZE.search
-            )
+            found = self._talk("\x1b[8;%d;%dt\x1b[18t" % (lines, columns), _SIZE.search)
             if (int(found.group(1)), int(found.group(2))) == (lines, columns):
                 return
             if time.monotonic() > deadline:

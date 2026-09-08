@@ -73,6 +73,7 @@ screen until a harness outside says it has taken the picture.
 uses to photograph vttest in a real terminal with a pane in the chain
 and without one.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -246,7 +247,7 @@ NOT_OURS = (
         "vttest builds each level out of the level below it, so the "
         "VT220 menu is a submenu of the VT320 menu and that one is a "
         "submenu of the VT420 menu. The main menu reaches each level "
-        "directly, under \"Test of VT<n> features\", and this pattern "
+        'directly, under "Test of VT<n> features", and this pattern '
         "matches only the nested copies. Walking all three is the same "
         "screens three times over and most of the run.",
     ),
@@ -311,6 +312,7 @@ MENU_ENTRY = re.compile(r"^\s+(\d+)[.*] (.+?)\s*$")
 #: What `holdit` writes when it waits for a return.
 HOLD = "Push <RETURN>"
 
+
 class Failed(AssertionError):
     pass
 
@@ -371,8 +373,7 @@ class Shutter:
                 pass
             if time.monotonic() - started > PICTURE_TIMEOUT:
                 raise Failed(
-                    "no picture of %r came in %g seconds"
-                    % (identity, PICTURE_TIMEOUT)
+                    "no picture of %r came in %g seconds" % (identity, PICTURE_TIMEOUT)
                 )
             await asyncio.sleep(TICK)
 
@@ -416,8 +417,7 @@ def rows_of(screen) -> list[str]:
     out = []
     for row in range(screen.lines):
         line = buffer[offset + row]
-        out.append("".join(_text_of(line[column])
-                           for column in range(screen.columns)))
+        out.append("".join(_text_of(line[column]) for column in range(screen.columns)))
     return out
 
 
@@ -889,15 +889,15 @@ class Walk:
             "why:  %s" % why,
             "size: %d rows by %d columns" % (screen.lines, screen.columns),
             "the pty is: %s" % self.mode(),
-            "cursor: row %d, column %d" % (
+            "cursor: row %d, column %d"
+            % (
                 screen.pt_cursor_position.y - screen.line_offset,
                 screen.pt_cursor_position.x,
             ),
         ]
         blinking = blinks(screen)
         if blinking:
-            out.append("this screen blinks, so a still picture of it says "
-                       "nothing")
+            out.append("this screen blinks, so a still picture of it says nothing")
         out.append("-" * 72)
         for number, row in enumerate(rows):
             out.append("%2d |%s|" % (number, row))
@@ -943,7 +943,7 @@ class Walk:
         """
         for depth, frame in enumerate(self.stack):
             if frame.key == key:
-                del self.stack[depth + 1:]
+                del self.stack[depth + 1 :]
                 frame.inside = None
                 frame.entries = entries
                 return frame
@@ -999,8 +999,9 @@ class Walk:
             # so write it down once and work through the escapes.
             if here not in self.asked:
                 self.asked.add(here)
-                await self.keep(rows, "no menu and no return; the pty is %s"
-                                % self.mode())
+                await self.keep(
+                    rows, "no menu and no return; the pty is %s" % self.mode()
+                )
                 self.stuck.append(here)
 
             keys = asked_for(rows)
@@ -1114,8 +1115,7 @@ def keep(directory: Path, walk: Walk, log: Path) -> None:
     (directory / "paths.txt").write_text(
         "# Every screen this walk kept, in order, by the name it is\n"
         "# known by. Two runs must write this file identically.\n"
-        "\n"
-        + "".join(one + "\n" for one in walk.identities)
+        "\n" + "".join(one + "\n" for one in walk.identities)
     )
 
     # Every menu, by the key that is supposed to tell it from the
@@ -1137,30 +1137,39 @@ def report(walk: Walk, include: str) -> int:
     compare against yet. What fails here is a walk that did not happen:
     no screen at all, or an exclusion that names nothing.
     """
-    print("vttest: %d screens, %d menu paths left out, %d without a prompt, "
-          "%d menus met a second time"
-          % (len(walk.screens), len(walk.left_out), len(walk.stuck),
-             len(walk.again)))
+    print(
+        "vttest: %d screens, %d menu paths left out, %d without a prompt, "
+        "%d menus met a second time"
+        % (len(walk.screens), len(walk.left_out), len(walk.stuck), len(walk.again))
+    )
     for path, reason in walk.left_out:
         print("vttest: left out %s: %s" % (path, reason))
     for path in walk.stuck:
         print("vttest: no prompt came at: %s" % path)
     if walk.narrowed:
-        print("vttest: the include left out %d items of the main menu"
-              % len(walk.narrowed))
+        print(
+            "vttest: the include left out %d items of the main menu"
+            % len(walk.narrowed)
+        )
 
     if walk.shutter is not None:
-        print("vttest: %d screens were photographed, which took %.1f seconds"
-              % (len(walk.identities), walk.shutter.spent))
+        print(
+            "vttest: %d screens were photographed, which took %.1f seconds"
+            % (len(walk.identities), walk.shutter.spent)
+        )
 
-    print("vttest: %d steps took %.1f seconds. The slowest ten:"
-          % (len(walk.spent), sum(one for one, _ in walk.spent)))
+    print(
+        "vttest: %d steps took %.1f seconds. The slowest ten:"
+        % (len(walk.spent), sum(one for one, _ in walk.spent))
+    )
     for seconds, path in sorted(walk.spent, reverse=True)[:10]:
         print("vttest:   %5.1fs  %s" % (seconds, path))
     for edge in (0.02, 0.05, 0.2, 1.0):
         over = [one for one, _ in walk.spent if one > edge]
-        print("vttest:   %4d steps over %.2fs, %.1f seconds of the total"
-              % (len(over), edge, sum(over)))
+        print(
+            "vttest:   %4d steps over %.2fs, %.1f seconds of the total"
+            % (len(over), edge, sum(over))
+        )
 
     if not walk.screens:
         print("vttest: the walk drew nothing at all")
@@ -1171,8 +1180,10 @@ def report(walk: Walk, include: str) -> int:
     if include == ".*":
         for pattern, _ in NOT_OURS:
             if not any(re.search(pattern, path) for path, _ in walk.left_out):
-                print("vttest: NOT_OURS leaves out %r, and no menu item has "
-                      "that name." % pattern)
+                print(
+                    "vttest: NOT_OURS leaves out %r, and no menu item has "
+                    "that name." % pattern
+                )
                 return 1
 
     return 0
@@ -1208,8 +1219,10 @@ def main() -> int:
         # finished drawing. Guessing costs a wait on every one of four
         # hundred screens and gets the answer wrong sometimes. A walk
         # that cannot be exact is not worth running.
-        print("vttest: this machine has no /proc/<pid>/syscall, so there is "
-              "no fence and the walk does not run.")
+        print(
+            "vttest: this machine has no /proc/<pid>/syscall, so there is "
+            "no fence and the walk does not run."
+        )
         return 0
 
     include = os.environ.get("PTTERM_VTTEST_INCLUDE", ".*")
@@ -1227,12 +1240,13 @@ def main() -> int:
     room = os.environ.get("PTTERM_VTTEST_PAUSE", "")
     through = os.environ.get("PTTERM_VTTEST_THROUGH") == "1"
     if room and not through:
-        print("vttest: PTTERM_VTTEST_PAUSE waits for pictures of a terminal "
-              "that PTTERM_VTTEST_THROUGH is not drawing on.")
+        print(
+            "vttest: PTTERM_VTTEST_PAUSE waits for pictures of a terminal "
+            "that PTTERM_VTTEST_THROUGH is not drawing on."
+        )
         return 1
 
-    walk = Walk(include, through=through,
-                shutter=Shutter(Path(room)) if room else None)
+    walk = Walk(include, through=through, shutter=Shutter(Path(room)) if room else None)
     if walk.through:
         # Everything this program says now goes to stderr. Its stdout
         # belongs to vttest, and a word of ours on that screen would be

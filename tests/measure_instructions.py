@@ -95,6 +95,7 @@ Two knobs reach this file from `ptterm/nix/checks.nix`:
 `PTTERM_INSTRUCTIONS` names the directory of recordings and
 `PTTERM_INSTRUCTIONS_OUT` is where the run leaves its report.
 """
+
 import asyncio
 import json
 import os
@@ -265,8 +266,10 @@ PAST_THE_DEPTH = 3 * LINEFEED_ROWS
 #: A line that is wider than the pane, so the screen wraps it. Two rows
 #: of the buffer hold one line of the program, and the second of them is
 #: in `wrapped_lines`.
-A_WRAPPING_LINE = "a line of output that is wider than eighty columns " \
+A_WRAPPING_LINE = (
+    "a line of output that is wider than eighty columns "
     "and so the screen wraps it onto a second row"
+)
 
 
 def _fill(control, depth: int, wrapping: bool = False):
@@ -278,21 +281,16 @@ def _fill(control, depth: int, wrapping: bool = False):
         # history.
         control.stream.feed(
             "".join(
-                "%d %s\r\n" % (number, A_WRAPPING_LINE)
-                for number in range(rows // 2)
+                "%d %s\r\n" % (number, A_WRAPPING_LINE) for number in range(rows // 2)
             )
         )
     else:
-        control.stream.feed(
-            "".join("line %d\r\n" % number for number in range(rows))
-        )
+        control.stream.feed("".join("line %d\r\n" % number for number in range(rows)))
 
 
 def a_filled_pane(depth: int, wrapping: bool = False):
     "A widget whose history is full to `depth` rows."
-    control = _TerminalControl(
-        backend=NoBackend(), get_history_limit=lambda: depth
-    )
+    control = _TerminalControl(backend=NoBackend(), get_history_limit=lambda: depth)
     _fill(control, depth, wrapping)
     return control
 
@@ -302,9 +300,7 @@ def a_filled_terminal(depth: int):
     A whole `Terminal` whose history is full, because copy mode belongs
     to the widget and not to the control under it.
     """
-    terminal = Terminal(
-        backend=NoBackend(), get_history_limit=lambda: depth
-    )
+    terminal = Terminal(backend=NoBackend(), get_history_limit=lambda: depth)
     _fill(terminal.terminal_control, depth)
     return terminal
 
@@ -334,17 +330,14 @@ def history_cost(depth: int, prepare):
 def linefeed_work(depth: int):
     "A hundred lines of plain output, which is what a program prints."
     control = a_filled_pane(depth)
-    lines = "".join(
-        "another line %d\r\n" % number for number in range(LINEFEED_ROWS)
-    )
+    lines = "".join("another line %d\r\n" % number for number in range(LINEFEED_ROWS))
     return lambda: control.stream.feed(lines)
 
 
 #: What a program writes to enter the alternate screen and leave it.
 #: vim and less both do this, and both ends replace the buffer.
-ALTERNATE_SCREEN = (
-    set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
-    + reset_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+ALTERNATE_SCREEN = set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR) + reset_mode(
+    PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR
 )
 
 
@@ -549,8 +542,9 @@ def main() -> int:
             "A count that climbed is what this check is for. A count that "
             "fell is a budget nobody updated. Read the numbers, then:"
         )
-        print("    cp result/instruction-budgets.txt "
-              "ptterm/tests/instruction-budgets.txt")
+        print(
+            "    cp result/instruction-budgets.txt ptterm/tests/instruction-budgets.txt"
+        )
         return 1
 
     print("\nEvery measurement is within %.1f%% of its budget." % tolerance)

@@ -10,6 +10,7 @@ it means it.
 The limit is a function and not a number so that a change reaches a
 pane that is already running. `Screen` calls it on every cleanup.
 """
+
 import asyncio
 
 import pytest
@@ -38,9 +39,7 @@ def _a_loop():
 
 def control(get_history_limit=None):
     "A widget of a known size, with no program under it."
-    made = _TerminalControl(
-        backend=NoBackend(), get_history_limit=get_history_limit
-    )
+    made = _TerminalControl(backend=NoBackend(), get_history_limit=get_history_limit)
     made.create_content(COLUMNS, LINES)
     return made
 

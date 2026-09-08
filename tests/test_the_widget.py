@@ -26,6 +26,7 @@ sees clamped.
 
 Lillecarl/pymux#84 asked for this.
 """
+
 import asyncio
 
 import pytest
@@ -112,18 +113,20 @@ def reversed_at(data: str, lines: int = 8, columns: int = 12):
     screen = rendered(data, lines, columns)
     style = Style([])
     return [
-        [style.get_attrs_for_style_str(screen.data_buffer[y][x].style).reverse
-         for x in range(columns)]
+        [
+            style.get_attrs_for_style_str(screen.data_buffer[y][x].style).reverse
+            for x in range(columns)
+        ]
         for y in range(lines)
     ]
 
 
 def test_reverse_video_turns_a_cell_that_a_program_wrote():
-    "\"CSI ? 5 h\" is DECSCNM: the whole screen goes the other way."
-    assert reversed_at(
-        set_mode(PrivateMode.REVERSE_VIDEO)
-        + "hi"
-    )[0][:2] == [True, True]
+    '"CSI ? 5 h" is DECSCNM: the whole screen goes the other way.'
+    assert reversed_at(set_mode(PrivateMode.REVERSE_VIDEO) + "hi")[0][:2] == [
+        True,
+        True,
+    ]
 
 
 def test_reverse_video_turns_the_rest_of_the_row_as_well():
@@ -146,10 +149,7 @@ def test_reverse_video_cancels_a_reverse_that_a_program_set():
     this at lines 50 and 51.
     """
     assert reversed_at(
-        set_mode(PrivateMode.REVERSE_VIDEO)
-        + "a"
-        + csi(escape.SGR, 7)
-        + "b"
+        set_mode(PrivateMode.REVERSE_VIDEO) + "a" + csi(escape.SGR, 7) + "b"
     )[0][:2] == [True, False]
 
 
@@ -160,11 +160,14 @@ def test_a_cell_that_a_program_reversed_stays_reversed_without_the_mode():
 
 def test_reverse_video_goes_away_again():
     '"CSI ? 5 l" puts the screen back.'
-    assert reversed_at(
-        set_mode(PrivateMode.REVERSE_VIDEO)
-        + "hi"
-        + reset_mode(PrivateMode.REVERSE_VIDEO)
-    )[0] == [False] * 12
+    assert (
+        reversed_at(
+            set_mode(PrivateMode.REVERSE_VIDEO)
+            + "hi"
+            + reset_mode(PrivateMode.REVERSE_VIDEO)
+        )[0]
+        == [False] * 12
+    )
 
 
 class _FocusedLayout:
@@ -243,8 +246,10 @@ def copy_mode_reversed_at(data: str, lines: int = 4, columns: int = 8):
 
     style = Style([])
     return [
-        [style.get_attrs_for_style_str(screen.data_buffer[y][x].style).reverse
-         for x in range(columns)]
+        [
+            style.get_attrs_for_style_str(screen.data_buffer[y][x].style).reverse
+            for x in range(columns)
+        ]
         for y in range(lines)
     ]
 
@@ -254,19 +259,16 @@ async def test_copy_mode_draws_the_reverse_video_of_the_pane():
     Copy mode shows the same screen, stopped. A screen that changes
     appearance when the user scrolls it is a screen nobody can trust.
     """
-    assert copy_mode_reversed_at(
-        set_mode(PrivateMode.REVERSE_VIDEO)
-        + "hi"
-    )[0] == [True] * 8
+    assert (
+        copy_mode_reversed_at(set_mode(PrivateMode.REVERSE_VIDEO) + "hi")[0]
+        == [True] * 8
+    )
 
 
 async def test_copy_mode_cancels_a_reverse_that_a_program_set():
     "DECSCNM xors here as well."
     assert copy_mode_reversed_at(
-        set_mode(PrivateMode.REVERSE_VIDEO)
-        + "a"
-        + csi(escape.SGR, 7)
-        + "b"
+        set_mode(PrivateMode.REVERSE_VIDEO) + "a" + csi(escape.SGR, 7) + "b"
     )[0][:2] == [True, False]
 
 
@@ -275,34 +277,40 @@ async def test_copy_mode_draws_no_reverse_without_the_mode():
 
 
 def test_the_sgr_mouse_report_reaches_the_program():
-    assert clicked(
-        set_mode(PrivateMode.MOUSE_REPORTING)
-        + set_mode(PrivateMode.SGR_MOUSE)
-    ) == b"\x1b[<0;3;2M"
+    assert (
+        clicked(set_mode(PrivateMode.MOUSE_REPORTING) + set_mode(PrivateMode.SGR_MOUSE))
+        == b"\x1b[<0;3;2M"
+    )
 
 
 def test_the_sgr_mouse_report_takes_eight_bit_controls():
     "It is a control the terminal sends, so S8C1T reaches it."
-    assert clicked(
-        announce(escape.S8C1T)
-        + set_mode(PrivateMode.MOUSE_REPORTING)
-        + set_mode(PrivateMode.SGR_MOUSE)
-    ) == b"\x9b<0;3;2M"
+    assert (
+        clicked(
+            announce(escape.S8C1T)
+            + set_mode(PrivateMode.MOUSE_REPORTING)
+            + set_mode(PrivateMode.SGR_MOUSE)
+        )
+        == b"\x9b<0;3;2M"
+    )
 
 
 def test_the_urxvt_mouse_report_takes_eight_bit_controls():
-    assert clicked(
-        announce(escape.S8C1T)
-        + set_mode(PrivateMode.MOUSE_REPORTING)
-        + set_mode(PrivateMode.URXVT_MOUSE)
-    ) == b"\x9b32;3;2M"
+    assert (
+        clicked(
+            announce(escape.S8C1T)
+            + set_mode(PrivateMode.MOUSE_REPORTING)
+            + set_mode(PrivateMode.URXVT_MOUSE)
+        )
+        == b"\x9b32;3;2M"
+    )
 
 
 def test_the_old_mouse_report_takes_eight_bit_controls():
-    assert clicked(
-        announce(escape.S8C1T)
-        + set_mode(PrivateMode.MOUSE_REPORTING)
-    ) == b"\x9bM \x23\x22"
+    assert (
+        clicked(announce(escape.S8C1T) + set_mode(PrivateMode.MOUSE_REPORTING))
+        == b"\x9bM \x23\x22"
+    )
 
 
 #: What turns the X10 report on, with nothing after it. The three tests
@@ -375,7 +383,7 @@ def test_a_delete_of_every_line_below_the_cursor_keeps_the_history_away():
 
 
 def test_an_erase_to_the_bottom_keeps_the_history_away():
-    "\"CSI J\" drops the same rows, and the answer is the same."
+    '"CSI J" drops the same rows, and the answer is the same.'
     rows = drawn(FILLED + csi(escape.CUP, 3) + csi(escape.ED))
     assert rows == ["line5", "line6", "", "", "", "", "", ""]
 
@@ -452,9 +460,7 @@ def test_a_control_character_in_a_cell_is_drawn_as_a_blank():
     control.create_content(6, 3)
     # A `Cell` holds what it is given, so the cell is written here. The
     # guard in `_visible_char` is what keeps it off the terminal.
-    control.screen.page.data_buffer[0][0] = Cell(
-        "\x01", PLAIN_APPEARANCE
-    )
+    control.screen.page.data_buffer[0][0] = Cell("\x01", PLAIN_APPEARANCE)
     content = control.create_content(6, 3)
     assert "".join(text for _, text in content.get_line(0))[0] == " "
 
@@ -535,6 +541,14 @@ def test_the_first_render_sizes_the_pane_before_it_starts_the_program():
 # Lillecarl/pymux#141.
 
 
-@pytest.mark.parametrize("sequence", [sharp(Sharp.DECDHL_TOP), sharp(Sharp.DECDHL_BOTTOM), sharp(Sharp.DECSWL), sharp(Sharp.DECDWL)])
+@pytest.mark.parametrize(
+    "sequence",
+    [
+        sharp(Sharp.DECDHL_TOP),
+        sharp(Sharp.DECDHL_BOTTOM),
+        sharp(Sharp.DECSWL),
+        sharp(Sharp.DECDWL),
+    ],
+)
 def test_the_sequence_costs_the_row_no_column(sequence):
     assert drawn(sequence + "abcde")[0] == "abcde"

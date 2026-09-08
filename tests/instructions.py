@@ -22,6 +22,7 @@ Two things move a count that is not a change in the code:
 it counts, so the count is of plain bytecode. That is what makes it
 stable; it also means the count is not a time and does not become one.
 """
+
 import sys
 
 __all__ = ["count_instructions"]

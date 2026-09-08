@@ -30,6 +30,7 @@ every module it collects, before any mark can deselect it. In the unit
 run there is no kitty and no node, so importing `panel` would fail.
 `pytest_ignore_collect` runs before the import and reads the source.
 """
+
 import os
 import re
 from pathlib import Path
@@ -80,8 +81,7 @@ def pytest_ignore_collect(collection_path, config):
         return None
     if GROUP not in GROUPS:
         raise ValueError(
-            "PTTERM_GROUP is %r, and the groups are %s"
-            % (GROUP, ", ".join(GROUPS))
+            "PTTERM_GROUP is %r, and the groups are %s" % (GROUP, ", ".join(GROUPS))
         )
     if collection_path.suffix != ".py":
         return None

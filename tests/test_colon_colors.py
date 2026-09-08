@@ -6,6 +6,7 @@ and a program that follows it sends the colour that way. The parts
 reach the screen as one tuple, so the screen has to read a tuple as
 well as a row of numbers.
 """
+
 from pyte.screen import Screen
 from pyte.streams import Stream
 from ptterm.style import style_of as spell

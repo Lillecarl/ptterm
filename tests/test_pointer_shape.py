@@ -8,6 +8,7 @@ program asked for and the embedder puts it on the pointer of the user.
 The stack of kitty is driveable from python, so these compare against
 it directly.
 """
+
 import os
 import sys
 

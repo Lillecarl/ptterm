@@ -16,6 +16,7 @@ The two differ in nothing else. Neither builds `fragment` differently,
 because both run the same code; the only question is which rows they
 run it on.
 """
+
 import asyncio
 import pathlib
 
@@ -84,20 +85,17 @@ def test_a_real_program_draws_the_same_rows(name):
     keeping, building = two_controls()
 
     for at in range(0, len(text), CHUNK):
-        chunk = text[at:at + CHUNK]
+        chunk = text[at : at + CHUNK]
         keeping.stream.feed(chunk)
         building.stream.feed(chunk)
 
         kept = frame(keeping, forget=False)
         built = frame(building, forget=True)
-        assert kept == built, (
-            "%s: the frame after byte %d differs on %d of %d rows"
-            % (
-                name,
-                at + len(chunk),
-                sum(1 for a, b in zip(kept, built) if a != b),
-                len(built),
-            )
+        assert kept == built, "%s: the frame after byte %d differs on %d of %d rows" % (
+            name,
+            at + len(chunk),
+            sum(1 for a, b in zip(kept, built) if a != b),
+            len(built),
         )
 
 

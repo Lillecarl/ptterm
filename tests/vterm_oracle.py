@@ -17,6 +17,7 @@ not set.
 The shape of a cell, and the readers that turn a screen into cells,
 live in `kitty_oracle`. This adds one more reader.
 """
+
 import ctypes
 import os
 from typing import List, Optional, Tuple
@@ -64,6 +65,7 @@ class _Attrs(ctypes.Structure):
 
 class _Color(ctypes.Structure):
     "The tagged union of libvterm, read as its four bytes."
+
     _fields_ = [
         ("type", ctypes.c_uint8),
         ("first", ctypes.c_uint8),

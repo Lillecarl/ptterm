@@ -5,6 +5,7 @@ A combining mark belongs to the character before it and shares its
 cell. The cell before can be the empty second half of a double width
 character, and the character then sits one cell further back.
 """
+
 import pytest
 
 from kitty_oracle import differences, kitty_is_available, ptterm_cells

@@ -9,6 +9,7 @@ reference: what it shows is what the user sees outside pymux.
 `PTTERM_KITTY` names the directory that holds the `kitty` package. The
 tests skip when it is not set.
 """
+
 import base64
 import os
 import re
@@ -72,6 +73,7 @@ _INDEX_BY_ANSI_NAME = {name: index for index, name in enumerate(ANSI_COLOR_NAMES
 
 class Cell(NamedTuple):
     "One cell of a screen, in a form that both sides can produce."
+
     char: str
     fg: Optional[Tuple]
     bg: Optional[Tuple]
@@ -403,9 +405,7 @@ def kitty_cells(
                         if cursor.decoration
                         else None
                     ),
-                    hyperlink=(
-                        screen.hyperlink_at(x, y) if link_numbers[x] else None
-                    ),
+                    hyperlink=(screen.hyperlink_at(x, y) if link_numbers[x] else None),
                     hyperlink_id=str(link_numbers[x]) if link_numbers[x] else None,
                 )
             )
@@ -536,7 +536,5 @@ def differences(
             mine, other = keep(ours[y][x]), keep(theirs[y][x])
             if mine == other:
                 continue
-            reported.append(
-                "cell %d,%d: ptterm %r, kitty %r" % (y, x, mine, other)
-            )
+            reported.append("cell %d,%d: ptterm %r, kitty %r" % (y, x, mine, other))
     return reported

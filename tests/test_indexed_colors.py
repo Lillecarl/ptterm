@@ -9,6 +9,7 @@ a number all the way through the screen.
 The first sixteen carry a name that prompt_toolkit already knows, and
 the other 240 are written "ansi16" up to "ansi255".
 """
+
 from pyte.screen import Screen
 from pyte.streams import Stream
 from ptterm.style import style_of as spell

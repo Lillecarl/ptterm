@@ -15,6 +15,7 @@ before the comparison.
 The shape of a cell, and the reader that turns a ptterm screen into
 cells, live in `kitty_oracle`. This adds two more readers.
 """
+
 from typing import List, Optional, Tuple
 
 from kitty_oracle import (

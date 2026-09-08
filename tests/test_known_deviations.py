@@ -9,6 +9,7 @@ This file compares against kitty alone. `test_the_panel.py` holds the
 tally of all four judges for each one, and `DEVIATIONS.md` holds the
 reason and whether it could become a setting.
 """
+
 import pytest
 
 from kitty_oracle import differences, kitty_is_available
@@ -104,12 +105,9 @@ def test_a_mark_on_an_erased_cell_agrees():
     # before the cursor and paints it with the background. The cell
     # that the erase leaves holds no character, so the mark that lands
     # on it goes away, the same way it does in kitty.
-    assert not differences((
-        "0"
-        + csi(escape.SGR, 40)
-        + csi(escape.EL, 1)
-        + "́"
-    ), lines=3, columns=6)
+    assert not differences(
+        ("0" + csi(escape.SGR, 40) + csi(escape.EL, 1) + "́"), lines=3, columns=6
+    )
 
 
 def test_a_mark_on_an_erased_cell_agrees_without_a_background():

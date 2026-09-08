@@ -9,6 +9,7 @@ holds its state between reads, and this is the check on that.
 The comparison needs no other emulator: the screen of one feed against
 the screen of many is a property of ptterm alone.
 """
+
 import pathlib
 
 import pytest
@@ -67,9 +68,7 @@ def test_a_sequence_survives_a_split(data, size):
 
 
 @pytest.mark.parametrize("size", SIZES)
-@pytest.mark.parametrize(
-    "name", sorted(path.name for path in CORPUS.glob("*.bin"))
-)
+@pytest.mark.parametrize("name", sorted(path.name for path in CORPUS.glob("*.bin")))
 def test_a_real_program_survives_a_split(name, size):
     data = (CORPUS / name).read_bytes().decode("utf-8", "replace")
     whole = ptterm_cells(data, 24, 80)

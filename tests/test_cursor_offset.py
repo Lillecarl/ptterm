@@ -15,6 +15,7 @@ the whole pane.
 and only a terminal reading what pymux emitted disagreed.
 Lillecarl/pymux#62.
 """
+
 from pyte.screen import Screen
 from pyte.streams import Stream
 from ptterm.terminal import cursor_offset

@@ -1,6 +1,7 @@
 """
 The layout engine. This builds the prompt_toolkit layout.
 """
+
 import os
 from typing import Callable, Iterable, List
 
@@ -157,9 +158,7 @@ def cursor_offset(screen) -> int:
     a pane draws the cursor where a program is told it stands.
     """
     row = screen.page.data_buffer[screen.pt_cursor_position.y]
-    return len(
-        "".join(row[x].char for x in range(0, screen.reported_column))
-    )
+    return len("".join(row[x].char for x in range(0, screen.reported_column)))
 
 
 def _visible_char(char: str) -> str:
@@ -861,9 +860,7 @@ class Terminal:
 
         lines: list[TextLine] = []
         if data_buffer:
-            lines = screen.page.text_lines(
-                min(data_buffer), max(data_buffer)
-            )
+            lines = screen.page.text_lines(min(data_buffer), max(data_buffer))
 
         text_str = "\n".join(line.text for line in lines)
 
@@ -895,9 +892,7 @@ class Terminal:
         if 0 <= number < len(self._copy_lines):
             shown = self._copy_lines[number]
             # The rows of one line hold one line, so the answer does.
-            lines, _ = self.terminal_control.screen.page.unwrap(
-                shown.first, shown.last
-            )
+            lines, _ = self.terminal_control.screen.page.unwrap(shown.first, shown.last)
             for cell in lines[0].cells:
                 line.append((self._copy_cell_style(cell), cell.char))
         self._styled_lines[number] = line
@@ -944,6 +939,4 @@ class _UseStyledTextProcessor(Processor):
         self.terminal = terminal
 
     def apply_transformation(self, transformation_input) -> Transformation:
-        return Transformation(
-            self.terminal.styled_line(transformation_input.lineno)
-        )
+        return Transformation(self.terminal.styled_line(transformation_input.lineno))

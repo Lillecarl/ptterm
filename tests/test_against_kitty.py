@@ -9,6 +9,7 @@ will notice.
 These tests skip when `PTTERM_KITTY` does not name a directory holding
 the `kitty` package.
 """
+
 import pytest
 
 from kitty_oracle import differences, kitty_is_available, ptterm_cells

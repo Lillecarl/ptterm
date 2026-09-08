@@ -6,6 +6,7 @@ past the line. The next character wraps from there. A move of the
 cursor ends that wait: the cursor lands on the last column, and what
 comes next goes there.
 """
+
 import pytest
 
 from kitty_oracle import differences, kitty_is_available
@@ -40,18 +41,12 @@ def test_a_move_ends_the_wait(move):
 
 
 def test_a_reverse_index_ends_the_wait():
-    assert not differences((
-        csi(escape.CUP, 2, 6)
-        + "0"
-        + esc(escape.RI)
-        + "0"
-    ), lines=4, columns=6)
+    assert not differences(
+        (csi(escape.CUP, 2, 6) + "0" + esc(escape.RI) + "0"), lines=4, columns=6
+    )
 
 
 def test_an_erase_does_not_move_the_cursor():
-    assert not differences((
-        csi(escape.CHA, 6)
-        + "0"
-        + csi(escape.EL)
-        + "0"
-    ), lines=4, columns=6)
+    assert not differences(
+        (csi(escape.CHA, 6) + "0" + csi(escape.EL) + "0"), lines=4, columns=6
+    )

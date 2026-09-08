@@ -10,6 +10,7 @@ this file and nothing else (Lillecarl/pymux#82).
 words through a whole screen. This file judges the spelling alone, so
 a failure says which half is wrong.
 """
+
 import pytest
 
 from pyte.colors import DEFAULT_COLOR, PALETTE, Color, SgrColor

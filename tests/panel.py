@@ -39,6 +39,7 @@ equal, so the difference is exactly what that judge misses.
 - "split": the judges that can see it do not agree with each other, so
   the difference is a choice and not a bug.
 """
+
 from typing import Callable, Dict, List, NamedTuple, Optional, Tuple
 
 from kitty_oracle import (
@@ -67,6 +68,7 @@ Resize = Optional[Tuple[int, int]]
 
 class Judge(NamedTuple):
     "One emulator, and what it can hold."
+
     name: str
     #: Feed data to it and read the screen back. The last argument is a
     #: size to take after the data; every judge acts on it.
@@ -154,6 +156,7 @@ def _keeper(strict: bool, blank_style: bool) -> Callable[[Cell], Cell]:
 
 class _Answer(NamedTuple):
     "What one judge says about one program."
+
     #: Every cell where the judge and ptterm differ, as readable lines.
     found: List[str]
     #: The judge, as this comparison reads it.

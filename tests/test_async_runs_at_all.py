@@ -19,6 +19,7 @@ supported", which is a real failure and not a silent pass. This file is
 here to make that failure say which of the three is missing, and
 because a plain test can read a mark that a coroutine left.
 """
+
 import anyio
 
 #: What the coroutine below leaves behind.

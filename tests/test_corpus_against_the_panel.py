@@ -19,6 +19,7 @@ character in a place.
 terminal it was made on, because a program asks what the terminal can
 do and draws what the answers allow.
 """
+
 import codecs
 import json
 import pathlib

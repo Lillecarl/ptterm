@@ -43,6 +43,7 @@ Run it through the check, not by hand:
 
     nix build --file . checks.ptterm-vterm
 """
+
 import codecs
 import sys
 import traceback
@@ -109,9 +110,7 @@ class Harness:
         # directly and reads it back through this harness. What the
         # terminal writes back does have somewhere to go, because the
         # suite reads it: `output_line` hands it to the runner.
-        self.screen = Screen(
-            rows, columns, write_process_input=self.written.append
-        )
+        self.screen = Screen(rows, columns, write_process_input=self.written.append)
         self.stream = Stream(self.screen)
         self.decoder = codecs.getincrementaldecoder("utf-8")("replace")
 
@@ -255,9 +254,7 @@ class Harness:
         if argument == "reverse":
             return _switch(attrs.reverse)
         if argument == "underline":
-            return str(
-                _underline_of_style(style_of(appearance_of[attrs, "", ""]))
-            )
+            return str(_underline_of_style(style_of(appearance_of[attrs, "", ""])))
         if argument == "foreground":
             return self._colour(attrs.color, self.default_foreground, "fg")
         if argument == "background":
@@ -497,9 +494,7 @@ def _baseline_of_style(style: str) -> str:
 def _rendition_of(cell) -> str:
     "The style of a cell, without the hyperlink that is not a style."
     return " ".join(
-        part
-        for part in style_of(cell.appearance).split()
-        if not part.startswith(_LINK)
+        part for part in style_of(cell.appearance).split() if not part.startswith(_LINK)
     )
 
 
@@ -540,9 +535,30 @@ assert len(_ANSI_RGB) == len(ANSI_COLOR_NAMES)
 _CUBE_RAMP = [0x00, 0x33, 0x66, 0x99, 0xCC, 0xFF]
 
 _GREY_RAMP = [
-    0x00, 0x0B, 0x16, 0x21, 0x2C, 0x37, 0x42, 0x4D,
-    0x58, 0x63, 0x6E, 0x79, 0x85, 0x90, 0x9B, 0xA6,
-    0xB1, 0xBC, 0xC7, 0xD2, 0xDD, 0xE8, 0xF3, 0xFF,
+    0x00,
+    0x0B,
+    0x16,
+    0x21,
+    0x2C,
+    0x37,
+    0x42,
+    0x4D,
+    0x58,
+    0x63,
+    0x6E,
+    0x79,
+    0x85,
+    0x90,
+    0x9B,
+    0xA6,
+    0xB1,
+    0xBC,
+    0xC7,
+    0xD2,
+    0xDD,
+    0xE8,
+    0xF3,
+    0xFF,
 ]
 
 

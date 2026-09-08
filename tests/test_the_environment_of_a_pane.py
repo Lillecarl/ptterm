@@ -12,6 +12,7 @@ no opinion on what parses the bytes. Lillecarl/pymux#125.
 `sh`, so they say what the child really got and not what this file
 thinks the code passes down.
 """
+
 import asyncio
 import os
 
@@ -90,8 +91,7 @@ async def run_and_read() -> dict:
         while SENTINEL not in _read(screen):
             if asyncio.get_event_loop().time() > deadline:
                 raise AssertionError(
-                    "waited %g seconds; the screen holds %r"
-                    % (TIMEOUT, _read(screen))
+                    "waited %g seconds; the screen holds %r" % (TIMEOUT, _read(screen))
                 )
             await asyncio.sleep(TICK)
     finally:

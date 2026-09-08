@@ -16,6 +16,7 @@ cell of a frame, so the answer is remembered. A screen makes one
 appearance per SGR sequence, and a frame draws thousands of cells
 carrying a handful of them.
 """
+
 import base64
 from functools import lru_cache
 from typing import TYPE_CHECKING, Dict, List
