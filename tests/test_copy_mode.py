@@ -158,6 +158,63 @@ def test_copy_mode_on_the_alternate_screen_shows_the_screen():
     assert document.lines[0] == "row 55"
 
 
+# ----------------------------------------------------------------------
+# Where copy mode opens. Lillecarl/pymux#189.
+
+
+def _cursor(terminal):
+    "The row and the column the copy cursor opened on."
+    document = terminal.copy_buffer.document
+    return document.cursor_position_row, document.cursor_position_col
+
+
+def test_copy_mode_opens_where_the_pane_cursor_is():
+    """
+    Copy mode opens on what a person was looking at.
+
+    It opened at the end of the whole flattened buffer, which is where
+    a shell prompt happens to be and is nowhere in particular for a
+    program that draws its own screen. The window follows the cursor,
+    so a full screen program saw the view pop as copy mode opened.
+    """
+    terminal = a_terminal(
+        set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+        + "one\r\ntwo\r\nthree"
+        + csi(escape.CUP, 2, 2)
+    )
+
+    assert _cursor(terminal) == (1, 1)
+
+
+def test_the_cursor_of_a_shell_is_still_at_the_end():
+    "Which is where it always was, because that is where a shell is."
+    terminal = a_terminal("one\r\ntwo\r\nthree")
+
+    row, column = _cursor(terminal)
+    assert (row, column) == (2, 5)
+
+
+def test_a_cursor_on_a_row_a_wrap_made():
+    """
+    A line the pane wrapped is one line of the document, so the rows
+    before the cursor's own row inside that line count for what they
+    hold.
+    """
+    text = "a line that is longer than the pane is wide"
+    terminal = a_terminal(text)
+
+    document = terminal.copy_buffer.document
+    assert document.line_count == 1
+    assert document.cursor_position == len(text)
+
+
+def test_a_cursor_past_the_end_of_its_row():
+    "It stands where the next character goes, which is past the cells."
+    terminal = a_terminal("one\r\ntwo" + csi(escape.CUP, 1, 10))
+
+    assert _cursor(terminal) == (0, 3)
+
+
 async def press(terminal, *keys):
     """
     Open copy mode, press these keys, and give the terminal back.

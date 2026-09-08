@@ -3,6 +3,7 @@ The layout engine. This builds the prompt_toolkit layout.
 """
 
 import os
+from bisect import bisect_right
 from typing import Callable, Iterable, List
 
 from prompt_toolkit.application.current import get_app, get_app_or_none
@@ -865,11 +866,52 @@ class Terminal:
         text_str = "\n".join(line.text for line in lines)
 
         self.copy_buffer.set_document(
-            Document(text=text_str, cursor_position=len(text_str)), bypass_readonly=True
+            Document(
+                text=text_str,
+                cursor_position=self._where_the_pane_is(lines, text_str),
+            ),
+            bypass_readonly=True,
         )
 
         self._copy_lines = lines
         self._styled_lines: dict[int, StyleAndTextTuples] = {}
+
+    def _where_the_pane_is(self, lines: list[TextLine], text: str) -> int:
+        """
+        Where in the copy document the cursor of the pane stands.
+
+        **Copy mode opens on what a person was looking at.** It used to
+        open at the end of the whole flattened buffer, which is where a
+        shell prompt happens to be and is nowhere in particular for a
+        program that draws its own screen. The window follows the
+        cursor, so on a full screen program it scrolled away from the
+        screen as copy mode opened and a person saw the view pop.
+        Lillecarl/pymux#189.
+
+        The rows of the buffer and the offsets in the document are two
+        countings of the same cells, and `Page.offset_in_line` is the
+        one place that turns one into the other.
+
+        **Nothing here walks the lines.** Copy mode opens on fifty
+        thousand of them and this runs while a person waits, which is
+        what `tests/instruction-budgets.txt` holds it to. The lines
+        come in row order, so the one that holds a row is the last one
+        that starts at or before it, and `Document` counts the
+        characters before a line with the same list of line starts
+        that drawing the window needs anyway.
+        """
+        screen = self.terminal_control.screen
+        where = screen.pt_cursor_position
+
+        number = bisect_right(lines, where.y, key=lambda line: line.first) - 1
+        if number < 0 or where.y > lines[number].last:
+            # A cursor on no line of the range. The end is where copy
+            # mode always opened, so it is the honest answer for a
+            # buffer that does not hold the cursor's row at all.
+            return len(text)
+
+        column = screen.page.offset_in_line(lines[number], where.y, where.x)
+        return Document(text).translate_row_col_to_index(number, column)
 
     def styled_line(self, number: int) -> StyleAndTextTuples:
         """
