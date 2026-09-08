@@ -158,6 +158,43 @@ def test_copy_mode_on_the_alternate_screen_shows_the_screen():
     assert document.lines[0] == "row 55"
 
 
+def test_copy_mode_and_the_pane_agree_after_a_narrowing():
+    """
+    The alternate screen does not reflow, so it never holds more rows
+    than it can show, and copy mode reads the same rows the pane draws.
+
+    It used to reflow. Five rows that each filled a wide screen wrapped
+    into ten on a narrow one; the pane drew the last six of them and
+    copy mode read all ten, so the first row of the pane and the first
+    row of copy mode were different lines. Lillecarl/pymux#192.
+    """
+    wide = COLUMNS + 12
+    terminal = Terminal(backend=NoBackend())
+    control = terminal.terminal_control
+    control.create_content(wide, LINES)
+    control.stream.feed(
+        set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+        + "\r\n".join(letter * (wide - 1) for letter in "ABCDE")
+    )
+
+    # The resize a person makes by dragging the edge of the window.
+    control.create_content(COLUMNS, LINES)
+    terminal.read_the_screen_into_the_copy_buffer()
+
+    document = terminal.copy_buffer.document
+    screen = control.screen
+
+    assert document.line_count <= LINES, document.lines
+
+    # The row the pane draws at the top of the screen is the row copy
+    # mode offers at the top of its document.
+    top = screen.line_offset
+    drawn = "".join(
+        cell.char or " " for cell in screen.page.data_buffer[top].values()
+    ).rstrip()
+    assert document.lines[0] == drawn, (document.lines, drawn)
+
+
 # ----------------------------------------------------------------------
 # Where copy mode opens. Lillecarl/pymux#189.
 
