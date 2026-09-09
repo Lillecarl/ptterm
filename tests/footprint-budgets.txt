@@ -5,9 +5,9 @@
 # This is what the run saw. To make it what the check expects:
 #     nix build --file . checks.ptterm-footprint.run
 #     cp result/footprint-budgets.txt ptterm/tests/footprint-budgets.txt
-plain 10000 rows 7619633
-plain 2000 rows 1638649
-plain 50000 rows 40112593
-wrapped 10000 rows 18605881
-wrapped 2000 rows 3833745
-wrapped 50000 rows 94938841
+plain 10000 rows 4892785
+plain 2000 rows 1087689
+plain 50000 rows 26505745
+wrapped 10000 rows 15879033
+wrapped 2000 rows 3282897
+wrapped 50000 rows 81331993
