@@ -1,0 +1,13 @@
+# What a full scrollback costs to hold, in bytes that Python
+# allocated. `tests/measure_footprint.py` says what each line
+# covers and why bytes are a fair unit where seconds are not.
+#
+# This is what the run saw. To make it what the check expects:
+#     nix build --file . checks.ptterm-footprint.run
+#     cp result/footprint-budgets.txt ptterm/tests/footprint-budgets.txt
+plain 10000 rows 7619633
+plain 2000 rows 1638649
+plain 50000 rows 40112593
+wrapped 10000 rows 18605881
+wrapped 2000 rows 3833745
+wrapped 50000 rows 94938841

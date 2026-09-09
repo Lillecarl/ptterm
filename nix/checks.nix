@@ -137,6 +137,12 @@ let
   instructionsInclude = builtins.getEnv "PTTERM_INSTRUCTIONS_INCLUDE";
   instructionsTolerance = builtins.getEnv "PTTERM_INSTRUCTIONS_TOLERANCE";
 
+  # What a scrollback costs to hold, rather than to touch. Bytes are
+  # machine independent in a way seconds are not, so a budget holds
+  # them. `PTTERM_FOOTPRINT_INCLUDE=2000 nix build --file . checks.ptterm-footprint`.
+  footprintInclude = builtins.getEnv "PTTERM_FOOTPRINT_INCLUDE";
+  footprintTolerance = builtins.getEnv "PTTERM_FOOTPRINT_TOLERANCE";
+
   prepare = ''
     cp -r ${testSources}/tests .
     cp ${testSources}/pyproject.toml .
@@ -328,6 +334,30 @@ in
       export PYTHONHASHSEED=0
     '';
   } "python tests/measure_instructions.py";
+
+  # What a scrollback costs to hold, in bytes that Python allocated.
+  #
+  # `instructions` above measures what a history costs to *touch*: a
+  # linefeed, a reflow, a frame. Nothing measured what it costs to
+  # *keep*, and that is the other half of the same question. A person
+  # raises `history-limit` to read a long build log and leaves sixteen
+  # panes open for a week; the machine either has the room or it swaps.
+  #
+  # The unit is bytes and not resident memory. `tracemalloc` counts
+  # what Python allocated, which is the same on every machine; resident
+  # memory includes the interpreter, the arenas it has not given back
+  # and every other job in this sandbox.
+  footprint = suite {
+    name = "ptterm-footprint";
+    inputs = [ pythonWithTests ];
+    env = { inherit footprintInclude footprintTolerance; };
+    setup = prepare + ''
+      export PTTERM_FOOTPRINT_INCLUDE="$footprintInclude"
+      export PTTERM_FOOTPRINT_TOLERANCE="$footprintTolerance"
+      export PTTERM_FOOTPRINT_OUT="$out"
+      export PYTHONHASHSEED=0
+    '';
+  } "python tests/measure_footprint.py";
 
   # The hunt for deviations between ptterm and kitty. This is not a gate:
   # it finds them faster than they get fixed, and each one needs a
