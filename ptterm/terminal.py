@@ -38,11 +38,12 @@ from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.key_binding.key_processor import KeyPressEvent
 from prompt_toolkit.keys import Keys
 from prompt_toolkit.layout.containers import (
+    AnyContainer,
     ConditionalContainer,
+    DynamicContainer,
     Float,
     FloatContainer,
     HSplit,
-    VSplit,
     Window,
 )
 from prompt_toolkit.layout.controls import (
@@ -783,20 +784,32 @@ class Terminal:
         def is_copying() -> bool:
             return self.is_copying
 
+        def the_window_that_is_shown() -> AnyContainer:
+            """
+            The screen, or the copy buffer that replaces it.
+
+            **One of them is laid out and the other is not.** This was
+            two `ConditionalContainer`s side by side, and they needed a
+            `VSplit` around them because a conditional container whose
+            width becomes zero collapses the element beside it. So
+            every frame of every pane divided the widths of a split
+            that only ever had one child to give them to, and a profile
+            of eight panes found roughly a tenth of a frame in there.
+
+            A container that answers with the window to draw never lays
+            the other one out, so there is nothing to collapse and no
+            widths to divide. Lillecarl/pymux#221.
+
+            Both switches set `is_copying` before they focus, so the
+            window they focus is in the tree by the time they ask for
+            it.
+            """
+            return self.copy_window if self.is_copying else self.terminal_window
+
         self.container = FloatContainer(
             content=HSplit(
                 [
-                    # Either show terminal window or copy buffer.
-                    VSplit(
-                        [  # XXX: this nested VSplit should not have been necessary,
-                            # but the ConditionalContainer which width can become
-                            # zero will collapse the other elements.
-                            ConditionalContainer(
-                                self.terminal_window, filter=~is_copying
-                            ),
-                            ConditionalContainer(self.copy_window, filter=is_copying),
-                        ]
-                    ),
+                    DynamicContainer(the_window_that_is_shown),
                     ConditionalContainer(self.search_toolbar, filter=is_copying),
                 ],
                 style=style,
