@@ -1,5 +1,28 @@
 """
-The layout engine. This builds the prompt_toolkit layout.
+A terminal in a prompt_toolkit widget.
+
+It runs a program on a pty, feeds what the program writes to a screen,
+and draws that screen. Three packages do the work and this file is the
+joint between them: `ptyhost` owns the pty and the child process,
+`pyte` parses the bytes and holds the cells, and prompt_toolkit draws.
+`txterm/terminal.py` is the same joint for Textual.
+
+Three classes carry it, and only the first is for anybody outside:
+
+    Terminal            the widget. A `FloatContainer` holding the
+                        screen, the copy buffer that replaces it while
+                        a person reads the history, and a search bar
+    _TerminalControl    the `UIControl` under it: it feeds the stream
+                        what the program wrote, and turns the screen
+                        into the rows prompt_toolkit asks for
+    _Window             a `Window` that keeps the bottom of the screen
+                        in view, from the screen's own numbers rather
+                        than from a prompt_toolkit cursor
+
+**The screen is not this widget's to interpret.** A cell holds a
+`pyte.cells.Appearance`, which is a model, and `ptterm/style.py`
+spells one as a prompt_toolkit style string. That is the whole of what
+this layer adds to a cell.
 """
 
 import os
