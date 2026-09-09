@@ -990,6 +990,24 @@ class Terminal:
         self.is_copying = False
         get_app().layout.focus(self.terminal_window)
 
+    def set_size(self, width: int, height: int) -> None:
+        """
+        Tell this terminal how big it is, in cells.
+
+        **A widget that is drawn is told by the drawing**, because
+        prompt_toolkit gives the size to `create_content`. This is the
+        door for a caller that knows the size without drawing: pymux
+        lays its panes out itself, and a pane it does not draw -- one
+        scrolled out of the view, or behind another in a stack -- still
+        has a program in it that needs the size it will be shown at.
+        Lillecarl/pymux#224.
+
+        Nothing happens when the size has not changed: the process
+        signals only a real change, and `Screen.resize` returns at
+        once for the size it already is.
+        """
+        self.terminal_control.set_size(width, height)
+
     def __pt_container__(self) -> FloatContainer:
         return self.container
 
