@@ -243,7 +243,13 @@ class _TerminalControl(UIControl):
         resize_func: Callable[[int | None, int | None], None] | None = None,
         may_resize: Callable[[], bool] | None = None,
         get_history_limit: Callable[[], int] | None = None,
+        unreadable_key_func: Callable[[object, int, str], None] | None = None,
     ) -> None:
+        # Called for a key this pane reads as something else, or not at
+        # all. What a person presses still degrades on the way in, the
+        # way a keyboard does; this is how anything finds out.
+        # Lillecarl/pymux#238.
+        self.unreadable_key_func = unreadable_key_func
 
         def has_priority() -> bool:
             # Give priority to the processing of this terminal output, if this
@@ -472,7 +478,11 @@ class _TerminalControl(UIControl):
                 # alt+char), so that they can be re-encoded for the
                 # keyboard mode of this pane. (The empty-data presses
                 # are the remainders of such split sequences.)
-                self.process.write_input(self.screen.encode_key(key_press.data))
+                self.process.write_input(
+                    self.screen.encode_key(
+                        key_press.data, report=self.unreadable_key_func
+                    )
+                )
 
         @bindings.add(Keys.BracketedPaste)
         def _(event):
@@ -678,6 +688,7 @@ class Terminal:
         resize_func: Callable[[int | None, int | None], None] | None = None,
         may_resize: Callable[[], bool] | None = None,
         get_history_limit: Callable[[], int] | None = None,
+        unreadable_key_func: Callable[[object, int, str], None] | None = None,
     ) -> None:
         if backend is None:
             backend = create_backend(command, before_exec_func)
@@ -690,6 +701,7 @@ class Terminal:
             may_resize=may_resize,
             done_callback=done_callback,
             get_history_limit=get_history_limit,
+            unreadable_key_func=unreadable_key_func,
         )
 
         self.terminal_window = _Window(
