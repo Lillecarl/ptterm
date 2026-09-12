@@ -766,6 +766,7 @@ class Terminal:
             ],
             preview_search=True,  # XXX: not sure why we need twice preview_search.
             key_bindings=kb,
+            append_space=False,
         )
 
         #: Whether the pane was in reverse video when copy mode opened.

@@ -254,6 +254,34 @@ def copy_mode_reversed_at(data: str, lines: int = 4, columns: int = 8):
     ]
 
 
+async def test_copy_mode_keeps_full_width_lines_on_one_row():
+    columns, lines = 8, 6
+    terminal = Terminal(backend=_NoBackend())
+    control = terminal.terminal_control
+    control.create_content(columns, lines)
+    control.stream.feed("abcdefgh\r\nABCDEFGH\r\nlast")
+
+    app = DummyApplication()
+    app.layout = Layout(terminal.container)
+    screen = Screen(default_char=None, initial_width=columns, initial_height=lines)
+    with set_app(app):
+        terminal.enter_copy_mode()
+        terminal.container.write_to_screen(
+            screen,
+            MouseHandlers(),
+            WritePosition(xpos=0, ypos=0, width=columns, height=lines),
+            "",
+            False,
+            None,
+        )
+
+    rows = [
+        "".join(screen.data_buffer[y][x].char for x in range(columns)).rstrip()
+        for y in range(lines)
+    ]
+    assert rows[:3] == ["abcdefgh", "ABCDEFGH", "last"]
+
+
 async def test_copy_mode_draws_the_reverse_video_of_the_pane():
     """
     Copy mode shows the same screen, stopped. A screen that changes
