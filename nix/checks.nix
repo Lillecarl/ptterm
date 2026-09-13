@@ -4,7 +4,7 @@
 # carry the six emulators, the X server and the node tarball that only a test
 # needs.
 #
-# `package`, `testSources`, `judges` and `esctest2` come from `default.nix`:
+# `testEnv`, `testSources`, `judges` and `esctest2` come from `default.nix`:
 # the first because a suite runs against the installed package, the second
 # because it knows where the repository root is and this file does not, and
 # the last two because a tool is not a suite and pymux takes them from there
@@ -12,10 +12,11 @@
 #
 # `nix/suite.nix` says why a check is two derivations.
 {
-  python,
-  pytest,
-  anyio,
-  hypothesis,
+  # The python every suite runs on: a virtualenv of ptterm, what ptterm
+  # declares, and its `test` extra. `default.nix` builds it from
+  # `pyproject.toml`, so what a suite may import is what the package
+  # declares and there is no second list here. Lillecarl/pymux#319.
+  testEnv,
   callPackage,
   kitty,
   libvterm-neovim,
@@ -25,7 +26,6 @@
   vttest,
   makeFontsConf,
   dejavu_fonts,
-  package,
   testSources,
   judges,
   esctest2,
@@ -39,16 +39,6 @@ let
   # work out which of the two a name means.
   vttestProgram = vttest;
 
-
-  # anyio carries the pytest plugin that runs a coroutine test. Without
-  # it pytest fails one with "async def functions are not natively
-  # supported", so no async test in this repository runs at all.
-  pythonWithTests = python.withPackages (ps: [
-    package
-    pytest
-    anyio
-    hypothesis
-  ]);
 
   # The emulators to compare the screen of ptterm against. `PTTERM_KITTY` is
   # the one kitty carries as a python extension, and kitty is the terminal
@@ -192,7 +182,7 @@ in
   # none of the six emulators.
   unit = suite {
     name = "ptterm-unit";
-    inputs = [ pythonWithTests ];
+    inputs = [ testEnv ];
     env = { inherit selection; };
     setup = prepare + ''
       export PTTERM_GROUP=unit
@@ -204,7 +194,7 @@ in
   panel = suite {
     name = "ptterm-panel";
     inputs = [
-      pythonWithTests
+      testEnv
       # xterm itself is the seventh judge, and it is a program and not
       # a library: it needs a display to draw on and a font to draw
       # with. `tests/xterm_oracle.py` says how it is asked.
@@ -235,7 +225,7 @@ in
   esctest = suite {
     name = "ptterm-esctest";
     inputs = [
-      pythonWithTests
+      testEnv
       esctest2
     ];
     env = { inherit esctestInclude; };
@@ -260,7 +250,7 @@ in
   vterm = suite {
     name = "ptterm-vterm";
     inputs = [
-      pythonWithTests
+      testEnv
       perl
     ];
     env = { inherit vtermInclude; };
@@ -284,7 +274,7 @@ in
   vttest = suite {
     name = "ptterm-vttest";
     inputs = [
-      pythonWithTests
+      testEnv
       vttestProgram
     ];
     env = { inherit vttestInclude vttestArgs vttestThrough; };
@@ -324,7 +314,7 @@ in
   # and a branch decides a count.
   instructions = suite {
     name = "ptterm-instructions";
-    inputs = [ pythonWithTests ];
+    inputs = [ testEnv ];
     env = { inherit instructionsInclude instructionsTolerance; };
     setup = prepare + ''
       export PTTERM_INSTRUCTIONS=${alacrittySuite}/share/alacritty-ref
@@ -349,7 +339,7 @@ in
   # and every other job in this sandbox.
   footprint = suite {
     name = "ptterm-footprint";
-    inputs = [ pythonWithTests ];
+    inputs = [ testEnv ];
     env = { inherit footprintInclude footprintTolerance; };
     setup = prepare + ''
       export PTTERM_FOOTPRINT_INCLUDE="$footprintInclude"
@@ -373,7 +363,7 @@ in
     in
     suite {
       name = "ptterm-fuzz";
-      inputs = [ pythonWithTests ];
+      inputs = [ testEnv ];
       # Rerun whenever the count changes.
       env = { inherit examples; };
       setup = prepare + oracles + ''

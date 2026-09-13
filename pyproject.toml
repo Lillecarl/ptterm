@@ -1,3 +1,55 @@
+# What ptterm is and what it needs. `setup.py` used to say this, and a build
+# read it by running it. Nix reads this file instead, at evaluation time, so
+# the dependency list here is the one the package is built from and there is
+# no second copy in a `.nix` file to fall out of step. Lillecarl/pymux#319.
+[project]
+name = "ptterm"
+version = "0.1"
+description = "Terminal emulator for prompt_toolkit."
+readme = "README.rst"
+license = "BSD-3-Clause"
+license-files = ["LICENSE"]
+# pyte needs 3.10, so ptterm has needed 3.10 for a while. Nothing said so
+# until the `python_requires` of `setup.py`, and this is where it lives now.
+requires-python = ">=3.10"
+authors = [{ name = "Jonathan Slenders" }]
+dependencies = [
+    "prompt_toolkit>=3.0.52,<3.1.0",
+    # The screen, the parser and everything under them. That was in this
+    # repository, and it left because `txterm` needs it and must not take
+    # prompt_toolkit on behind it. Lillecarl/pymux#11.
+    "pyte>=0.5.1",
+    # The layer that runs a program on a pty. It used to be
+    # `ptterm.process` and `ptterm.backends`, and it left for the same
+    # reason. Lillecarl/pymux#85.
+    "ptyhost",
+]
+
+[project.optional-dependencies]
+# What a check installs, beside what ptterm itself needs. anyio carries the
+# pytest plugin that runs a coroutine test, and hypothesis drives the hunt
+# for deviations against kitty.
+#
+# The six emulators the panel compares against are not here. None of them is
+# a Python distribution this could name: each arrives as a program or a
+# shared library, through an environment variable that `nix/checks.nix`
+# sets.
+test = [
+    "pytest",
+    "anyio",
+    "hypothesis",
+]
+
+[project.urls]
+Homepage = "https://github.com/prompt-toolkit/ptterm"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["ptterm"]
+
 [tool.pytest.ini_options]
 # Run a coroutine test, with no mark on it.
 #

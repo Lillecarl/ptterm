@@ -10,63 +10,68 @@
 # Nothing else belongs in this repository: the dev shell and the collection
 # that assembles this with its siblings live in pyterm.
 #
-# prompt-toolkit, ptyhost and pyte arrive as arguments, so nixpkgs supplies
-# them when this repository is built on its own, and pyterm supplies the
-# sibling checkouts when it builds the collection.
+# **This is a pyproject.nix builders package, not a nixpkgs one.** The three
+# dependencies are declared once, in `pyproject.toml`, and the renderer reads
+# them; an environment is a virtualenv rather than a PYTHONPATH.
+# Lillecarl/pymux#319.
 {
   lib,
-  buildPythonPackage,
-  setuptools,
-  prompt-toolkit,
-  ptyhost,
-  pyte,
+  stdenv,
+  python,
+  pyprojectHook,
+  resolveBuildSystem,
+  mkVirtualEnv,
+  mkProject,
   callPackage,
 }:
 let
-  package = buildPythonPackage {
-    pname = "ptterm";
-    version = "0.1";
-    src = lib.cleanSource ./.;
-    pyproject = true;
-
-    # Only ruff configuration lives in pyproject.toml, so the build backend
-    # has to be named here rather than read from it.
-    build-system = [ setuptools ];
-    dependencies = [
-      prompt-toolkit
-      # The layer that runs a program on a pty. It was `ptterm.process`
-      # and `ptterm.backends`, and it left so that a Textual widget can
-      # use it without taking prompt_toolkit on behind it.
-      # Lillecarl/pymux#85.
-      ptyhost
-      # The screen, the parser and everything under them. That was here
-      # too, and it left for the same reason: `txterm` needs it and must
-      # not take prompt_toolkit on behind it. Lillecarl/pymux#11.
-      pyte
+  # What the wheel is built from, and nothing else. A denylist would carry
+  # `tests`, `examples`, the `__pycache__` beside every module and the
+  # `.ruff_cache` a local run rewrites, and a source that a test run changes
+  # rebuilds everything below it. Lillecarl/pymux#320.
+  projectRoot = lib.fileset.toSource {
+    root = ./.;
+    fileset = lib.fileset.unions [
+      # Not only the `.py` files: `py.typed` is what tells a checker that
+      # the annotations here are meant to be read.
+      (lib.fileset.fileFilter (file: file.hasExt "py" || file.name == "py.typed") ./ptterm)
+      ./pyproject.toml
+      ./README.rst
+      ./LICENSE
     ];
-
-    # The suites run as `checks.tests` and `checks.fuzz`, against the
-    # installed package.
-    doCheck = false;
-    pythonImportsCheck = [ "ptterm" ];
-
-    passthru = {
-      inherit
-        checks
-        judges
-        esctest2
-        vtermSuite
-        alacrittySuite
-        vttestWalker
-        ;
-    };
-
-    meta = {
-      description = "Terminal emulator for prompt_toolkit";
-      homepage = "https://github.com/prompt-toolkit/ptterm";
-      license = lib.licenses.bsd3;
-    };
   };
+
+  package =
+    (mkProject {
+      inherit projectRoot python;
+      extra = rendered: {
+        # The tools ride on the package, and the package is what the set
+        # holds, so a sibling reaches them by asking the set for ptterm.
+        # Under nixpkgs this was the same shape; what changed is that a
+        # lifted package would have kept the files and dropped this, which
+        # is why ptterm had to convert before its consumers could stop
+        # taking the nixpkgs copy. Lillecarl/pymux#319.
+        passthru = rendered.passthru // {
+          inherit
+            checks
+            judges
+            esctest2
+            vtermSuite
+            alacrittySuite
+            vttestWalker
+            ;
+        };
+
+        meta = rendered.meta // {
+          description = "Terminal emulator for prompt_toolkit";
+          homepage = "https://github.com/prompt-toolkit/ptterm";
+          license = lib.licenses.bsd3;
+        };
+      };
+    })
+      {
+        inherit stdenv pyprojectHook resolveBuildSystem;
+      };
 
   # Only the tests, not the whole repository. A copy of everything makes
   # the test runs rebuild on every unrelated edit.
@@ -85,6 +90,10 @@ let
       ./pyproject.toml
     ];
   };
+
+  # What the suites run on: ptterm, everything it declares, and the `test`
+  # extra beside them in the same file.
+  testEnv = mkVirtualEnv "ptterm-test-env" { ptterm = [ "test" ]; };
 
   # Each judge is built from its own directory alone. Otherwise every change
   # to a test rebuilds every crate.
@@ -143,7 +152,7 @@ let
 
   checks = callPackage ./nix/checks.nix {
     inherit
-      package
+      testEnv
       testSources
       judges
       esctest2
