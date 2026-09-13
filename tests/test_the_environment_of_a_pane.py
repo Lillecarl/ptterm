@@ -77,7 +77,6 @@ async def run_and_read() -> dict:
     "Start `sh` through the widget's own backend and read what it prints."
     screen = Screen(len(REPORT) + 3, COLUMNS, write_process_input=lambda data: None)
     stream = Stream(screen)
-    stream.attach(screen)
 
     process = Process(
         backend=create_backend(["sh", "-c", SCRIPT], None),

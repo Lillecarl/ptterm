@@ -281,7 +281,6 @@ class _TerminalControl(UIControl):
             get_history_limit=get_history_limit,
         )
         self.stream = Stream(self.screen)
-        self.stream.attach(self.screen)
 
         self.process = Process(
             backend=backend,
