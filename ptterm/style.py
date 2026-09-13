@@ -11,18 +11,23 @@ it builds a `rich.style.Style` from the same object and reads no word
 written here (Lillecarl/pymux#82). Nothing in this file is shared with
 it, which is the reason it is a file of its own.
 
-`ptterm/terminal.py` is the only thing that calls `style_of`, once per
-cell of a frame, so the answer is remembered. A screen makes one
-appearance per SGR sequence, and a frame draws thousands of cells
-carrying a handful of them.
+The two halves of a cell are here: `style_of` for what it looks like,
+and `visible_char` for what is drawn. `ptterm/terminal.py` calls both
+once per cell of a frame, and `ptterm/preview.py` calls them for a
+drawing of a pane that a person is not working in, so the style answer
+is remembered. A screen makes one appearance per SGR sequence, and a
+frame draws thousands of cells carrying a handful of them.
 """
 
 import base64
 from functools import lru_cache
 from typing import TYPE_CHECKING, Dict, List
 
+from prompt_toolkit.layout.screen import Char
+
 from pyte.cells import appearance_of
 from pyte.colors import SgrColor
+from pyte.placeholders import PLACEHOLDER
 
 if TYPE_CHECKING:
     from pyte.cells import Appearance
@@ -33,6 +38,7 @@ __all__ = (
     "UNDERLINE_WORDS",
     "style_of",
     "style_word",
+    "visible_char",
 )
 
 #: The names that prompt_toolkit gives the first sixteen colours of the
@@ -166,3 +172,40 @@ def _spelled(appearance: "Appearance") -> str:
 #: here. A key of this cache is an `Appearance`, and `pyte.cells` keeps
 #: only that many of those alive.
 style_of = lru_cache(maxsize=appearance_of.size)(_spelled)
+
+
+#: The characters that must not reach the terminal of the user as they
+#: stand. prompt_toolkit lists them because it draws them for a person
+#: who is typing; the reason here is different, and so is the answer.
+#: The non-breaking space is left out: it is a character to draw, not a
+#: control to keep out.
+NOT_FOR_A_SCREEN = frozenset(Char.display_mappings) - {"\xa0"}
+
+
+def visible_char(char: str) -> str:
+    """
+    What to draw for a cell.
+
+    A unicode placeholder stands for a cell of an image, and the
+    embedder draws that image itself. The character must not reach the
+    screen: a terminal that does not know it paints a box, and the
+    combining characters that carry the row and the column pile up on
+    top of it. A space keeps the cell, and the image covers it.
+
+    A control character is drawn as a blank. It should never be in a
+    cell at all, because the parser consumes those, and one that is
+    there must not reach the terminal of the user: that terminal would
+    read it as a control of its own and the screen after it is anybody's
+    guess. prompt_toolkit draws "^@" in blue for the same characters,
+    which is a thing to look at rather than a thing to be safe.
+
+    A non-breaking space goes through as it stands. It is a printable
+    character that a program wrote on purpose, and the content of this
+    control says `apply_display_mappings=False`, which is what stops
+    prompt_toolkit from marking it up.
+    """
+    if char.startswith(PLACEHOLDER):
+        return " "
+    if char in NOT_FOR_A_SCREEN:
+        return " "
+    return char

@@ -487,7 +487,7 @@ def test_a_control_character_in_a_cell_is_drawn_as_a_blank():
     control = _TerminalControl(backend=_NoBackend())
     control.create_content(6, 3)
     # A `Cell` holds what it is given, so the cell is written here. The
-    # guard in `_visible_char` is what keeps it off the terminal.
+    # guard in `visible_char` is what keeps it off the terminal.
     control.screen.page.data_buffer[0][0] = Cell("\x01", PLAIN_APPEARANCE)
     content = control.create_content(6, 3)
     assert "".join(text for _, text in content.get_line(0))[0] == " "

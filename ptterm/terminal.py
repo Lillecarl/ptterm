@@ -59,7 +59,7 @@ from prompt_toolkit.layout.processors import (
     Processor,
     Transformation,
 )
-from prompt_toolkit.layout.screen import Char, Point
+from prompt_toolkit.layout.screen import Point
 from prompt_toolkit.mouse_events import MouseEventType
 from prompt_toolkit.selection import SelectionType
 from prompt_toolkit.token import KeepWhitespace
@@ -71,13 +71,12 @@ from ptyhost.backends import Backend
 
 from pyte.environment import prepare
 from pyte.images import ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH
-from pyte.placeholders import PLACEHOLDER
 from pyte.cells import Cell, WrittenCell
 from pyte.page import TextLine
 from pyte.screen import Screen
 from pyte.streams import Stream
 
-from .style import style_of
+from .style import style_of, visible_char
 
 __all__ = ["Terminal"]
 
@@ -154,14 +153,6 @@ def _one_byte(value: int) -> str:
     return chr(0xDC00 + value)
 
 
-#: The characters that must not reach the terminal of the user as they
-#: stand. prompt_toolkit lists them because it draws them for a person
-#: who is typing; the reason here is different, and so is the answer.
-#: The non-breaking space is left out: it is a character to draw, not a
-#: control to keep out.
-_NOT_FOR_A_SCREEN = frozenset(Char.display_mappings) - {"\xa0"}
-
-
 def cursor_offset(screen) -> int:
     """
     How many characters stand before the cursor on its own line.
@@ -184,35 +175,6 @@ def cursor_offset(screen) -> int:
     """
     row = screen.page.data_buffer[screen.pt_cursor_position.y]
     return len("".join(row[x].char for x in range(0, screen.reported_column)))
-
-
-def _visible_char(char: str) -> str:
-    """
-    What to draw for a cell.
-
-    A unicode placeholder stands for a cell of an image, and the
-    embedder draws that image itself. The character must not reach the
-    screen: a terminal that does not know it paints a box, and the
-    combining characters that carry the row and the column pile up on
-    top of it. A space keeps the cell, and the image covers it.
-
-    A control character is drawn as a blank. It should never be in a
-    cell at all, because the parser consumes those, and one that is
-    there must not reach the terminal of the user: that terminal would
-    read it as a control of its own and the screen after it is anybody's
-    guess. prompt_toolkit draws "^@" in blue for the same characters,
-    which is a thing to look at rather than a thing to be safe.
-
-    A non-breaking space goes through as it stands. It is a printable
-    character that a program wrote on purpose, and the content of this
-    control says `apply_display_mappings=False`, which is what stops
-    prompt_toolkit from marking it up.
-    """
-    if char.startswith(PLACEHOLDER):
-        return " "
-    if char in _NOT_FOR_A_SCREEN:
-        return " "
-    return char
 
 
 class _TerminalControl(UIControl):
@@ -375,7 +337,7 @@ class _TerminalControl(UIControl):
             control are both cells that a program made, and both keep
             their column.
             """
-            char = _visible_char(cell.char)
+            char = visible_char(cell.char)
             style = style_of(cell.appearance)
             if reverse_video and cell.appearance.rendition.reverse:
                 style += " noreverse"

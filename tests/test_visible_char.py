@@ -20,12 +20,12 @@ import pytest
 from prompt_toolkit.layout.screen import Char
 
 from pyte.placeholders import PLACEHOLDER
-from ptterm.terminal import _visible_char
+from ptterm.style import visible_char
 
 
 def drawn(char):
     "The cell that a pane makes for this character: (char, style)."
-    cell = Char(_visible_char(char), "", apply_display_mappings=False)
+    cell = Char(visible_char(char), "", apply_display_mappings=False)
     return cell.char, cell.style
 
 
@@ -66,7 +66,7 @@ def test_a_control_character_is_drawn_as_a_blank(char):
     is there must not reach the terminal of the user, which would read
     it as a control of its own.
     """
-    assert _visible_char(char) == " "
+    assert visible_char(char) == " "
 
 
 # ----------------------------------------------------------------------
@@ -80,4 +80,4 @@ def test_an_ordinary_character_is_drawn_as_it_is(char):
 
 def test_a_placeholder_still_becomes_a_blank():
     "The cell of an image. The embedder draws the image over it."
-    assert _visible_char(PLACEHOLDER + "̅̅") == " "
+    assert visible_char(PLACEHOLDER + "̅̅") == " "
