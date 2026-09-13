@@ -357,11 +357,14 @@ def test_a_mark_on_an_erased_cell_splits_the_panel():
 def test_moving_back_over_a_tab_stop_splits_the_panel():
     """
     CBT and CHT ("CSI Ps Z" and "CSI Ps I") move over the tab stops
-    without drawing. Three of the six land somewhere else than ptterm.
+    without drawing. The panel splits three and three over what a
+    cursor that waits to wrap does when CBT asks it to move back.
 
-    This looked like a quirk of Alacritty while the panel was four.
-    Ghostty and xterm.js both take that side, so it is a difference
-    that stands and not one emulator being odd.
+    **ptterm changed sides.** It used to move the cursor back a tab
+    stop, with kitty, libvterm and WezTerm. xterm keeps the wait, and
+    so do the other three, which made it four against three; Carl
+    decided that the wait is cursor state and travels through
+    everything. Lillecarl/pymux#106. Lillecarl/pymux#107.
     """
     against, with_us = sides(
         (csi(Csi.CHT) + "x" + csi(Csi.CHT, 2) + "y" + csi(Csi.CBT) + "z"),
@@ -369,8 +372,8 @@ def test_moving_back_over_a_tab_stop_splits_the_panel():
         columns=24,
         blank_style=False,
     )
-    assert against == ["alacritty", "ghostty", "xtermjs"]
-    assert with_us == ["kitty", "libvterm", "wezterm"]
+    assert against == ["kitty", "libvterm", "wezterm"]
+    assert with_us == ["alacritty", "ghostty", "xtermjs"]
 
 
 # ----------------------------------------------------------------------
@@ -843,16 +846,14 @@ def test_whether_a_reset_forgets_the_saved_cursor():
 
 def test_whether_a_restore_brings_the_wait_to_wrap_back():
     """
-    A character in the last column leaves the cursor waiting to wrap.
-    `save_cursor` stores the column the cursor stands on, so the wait is
-    not in the savepoint, and a restore cannot bring it back.
+    A character in the last column leaves the cursor waiting to wrap,
+    and the savepoint carries that wait now, so a restore brings it
+    back. Lillecarl/pymux#88. Lillecarl/pymux#107.
 
-    Three judges bring it back and three do not, so ptterm keeps what it
-    does. The third case is the one to read: with no move between the
-    save and the restore, four judges leave the screen alone.
-
-    Entry 22 of `DEVIATIONS.md` and Lillecarl/pymux#88 hold it. It is
-    the whole of `wrapline_alt_toggle` in `checks.pymux-alacritty`.
+    Three judges bring it back and three do not, and ptterm is with the
+    three that do. The third case is why: with no move between the save
+    and the restore, four judges leave the screen alone, and a save
+    followed by a restore that moves the cursor is hard to argue for.
     """
     fill = "a" * 6
 
@@ -863,9 +864,9 @@ def test_whether_a_restore_brings_the_wait_to_wrap_back():
     through_decsc = where_b_landed(
         fill + (esc(escape.DECSC) + csi(escape.CUP, 1, 1) + esc(escape.DECRC) + "b")
     )
-    for name in ("alacritty", "ghostty", "wezterm"):
+    for name in ("ptterm", "alacritty", "ghostty", "wezterm"):
         assert through_decsc[name] == "a", name
-    for name in ("ptterm", "kitty", "libvterm", "xtermjs"):
+    for name in ("kitty", "libvterm", "xtermjs"):
         assert through_decsc[name] == "b", name
 
     through_alt = where_b_landed(
@@ -877,17 +878,17 @@ def test_whether_a_restore_brings_the_wait_to_wrap_back():
             + "b"
         )
     )
-    for name in ("alacritty", "ghostty", "wezterm"):
+    for name in ("ptterm", "alacritty", "ghostty", "wezterm"):
         assert through_alt[name] == "a", name
-    for name in ("ptterm", "kitty", "libvterm", "xtermjs"):
+    for name in ("kitty", "libvterm", "xtermjs"):
         assert through_alt[name] == "b", name
 
     #: A save and a restore with nothing in between. Four judges leave
     #: the screen alone, and libvterm is one of them here.
     no_move = where_b_landed(fill + esc(escape.DECSC) + esc(escape.DECRC) + "b")
-    for name in ("alacritty", "ghostty", "libvterm", "wezterm"):
+    for name in ("ptterm", "alacritty", "ghostty", "libvterm", "wezterm"):
         assert no_move[name] == "a", name
-    for name in ("ptterm", "kitty", "xtermjs"):
+    for name in ("kitty", "xtermjs"):
         assert no_move[name] == "b", name
 
 

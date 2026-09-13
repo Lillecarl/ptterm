@@ -250,13 +250,12 @@ def test_xterm_wraps_rather_than_moving_back_over_a_tab_stop():
     "CSI I" twice puts a "y" in the last column, which leaves the
     cursor waiting to wrap. "CSI Z" then asks for one tab stop back.
 
-    ptterm moves the cursor to column 16 and draws the "z" there, and
-    kitty, libvterm and WezTerm do the same. Alacritty, Ghostty and
-    xterm.js draw it at the start of the next row, all three of them.
-    Three against three.
-
-    **xterm draws it at the start of the next row too**, so the tally
-    is four against three and ptterm is on the smaller side.
+    ptterm drew the "z" at column 16, with kitty, libvterm and WezTerm.
+    Alacritty, Ghostty and xterm.js drew it at the start of the next
+    row, and so does xterm: four against three, and ptterm on the
+    smaller side. **ptterm follows xterm now**, which is
+    Lillecarl/pymux#107 and Carl's decision that the wait to wrap is
+    cursor state.
 
     **The cursor does move.** A checksum says where a character landed
     and not where the cursor stood, so the second probe asks. "CSI D"
@@ -264,7 +263,9 @@ def test_xterm_wraps_rather_than_moving_back_over_a_tab_stop():
     every terminal. The "z" then lands at column 15, which is one left
     of 16, so CBT had moved the cursor back a tab stop after all. What
     outlives CBT is the wait, not the column: the cursor stands at 16
-    and the next character wraps anyway.
+    and the next character wraps anyway. ptterm reads it the same way,
+    so this probe is the one that says the fix is xterm's rule and not
+    a cursor that refused to move.
     """
     program = csi(Csi.CHT) + "x" + csi(Csi.CHT, 2) + "y" + csi(Csi.CBT) + "z"
 
@@ -274,7 +275,7 @@ def test_xterm_wraps_rather_than_moving_back_over_a_tab_stop():
     drawn = what_xterm_draws(program, lines=8, columns=24)
     ours = what_ptterm_draws(program, lines=8, columns=24)
     assert [where(drawn, one) for one in "xyz"] == [(0, 8), (0, 23), (1, 0)]
-    assert [where(ours, one) for one in "xyz"] == [(0, 8), (0, 23), (0, 16)]
+    assert [where(ours, one) for one in "xyz"] == [(0, 8), (0, 23), (1, 0)]
 
     with_a_move = what_xterm_draws(
         (
@@ -290,6 +291,21 @@ def test_xterm_wraps_rather_than_moving_back_over_a_tab_stop():
         24,
     )
     assert where(with_a_move, "z") == (0, 15)
+
+    ours_with_a_move = what_ptterm_draws(
+        (
+            csi(Csi.CHT)
+            + "x"
+            + csi(Csi.CHT, 2)
+            + "y"
+            + csi(Csi.CBT)
+            + csi(escape.CUB)
+            + "z"
+        ),
+        8,
+        24,
+    )
+    assert where(ours_with_a_move, "z") == (0, 15)
 
 
 def test_xterm_keeps_the_wait_to_wrap_through_a_tab():
@@ -407,21 +423,24 @@ def test_where_xterm_draws_after_the_screen_goes_back_under_another_name():
 
     A program takes the alternate screen with "?1049", draws to the end
     of the row, and gives the screen back with "?47". The hunt found
-    this and hypothesis cut it down; the panel calls it a split, so it
-    is a choice and not a fault.
+    this and hypothesis cut it down.
 
-    ptterm draws the last "0" where the cursor stood, at row 0 column
-    23. kitty, WezTerm, Ghostty and xterm.js draw it somewhere else.
-    The size is the one the hunt uses.
+    ptterm drew the last "0" where the cursor stood, at row 0 column
+    23, and every other emulator drew it at row 1 column 0. `verdict()`
+    read that as a split, and it was not one: alacritty and libvterm
+    differ from ptterm over a second thing in the same program -- what
+    "?47l" leaves on the screen -- and a judge that differs twice makes
+    the vote read as a disagreement.
+    `ptterm/tests/test_wait_to_wrap_panel.py` measured it and found
+    seven to nothing on the cursor.
 
-    **xterm draws it at row 1, column 0.** The three wide characters
-    fill the row to the last column, which leaves the cursor waiting to
-    wrap, and giving the screen back does not clear that wait. So the
-    "0" wraps.
+    **xterm draws it at row 1, column 0**, and ptterm does now. The
+    three wide characters fill the row to the last column, which leaves
+    the cursor waiting to wrap, and giving the screen back does not
+    clear that wait. So the "0" wraps.
 
-    This is the same flag as entry 9 and entry 22: ptterm drops the
-    wait where xterm keeps it. Lillecarl/pymux#107 holds the three
-    together.
+    The same flag as entry 9 and entry 22. Lillecarl/pymux#107 holds
+    the three together, and Carl decided them together.
     """
     program = (
         set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
@@ -440,11 +459,15 @@ def test_where_xterm_draws_after_the_screen_goes_back_under_another_name():
         ]
 
     assert marks(what_xterm_draws(program, lines=8, columns=24)) == [(1, 0)]
-    assert marks(what_ptterm_draws(program, lines=8, columns=24)) == [(0, 23)]
+    assert marks(what_ptterm_draws(program, lines=8, columns=24)) == [(1, 0)]
 
-    # The cursor is in the last column, as it is for ptterm. "CSI D"
-    # clears the wait and moves one column left, and the "0" lands
-    # there.
+    # "CSI D" clears the wait and moves left. **xterm and the panel
+    # disagree about how far**, and this is not the question
+    # Lillecarl/pymux#106 settled: xterm folds the waiting cursor back
+    # onto the last column first and then moves, which is two columns
+    # from where the wait sat; all six judges move one. ptterm is with
+    # the six, so it draws the "0" at column 23 where xterm draws it at
+    # 22.
     with_a_move = (
         set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
         + csi(escape.CHA, 14)
@@ -454,6 +477,7 @@ def test_where_xterm_draws_after_the_screen_goes_back_under_another_name():
         + "0"
     )
     assert marks(what_xterm_draws(with_a_move, lines=8, columns=24)) == [(0, 22)]
+    assert marks(what_ptterm_draws(with_a_move, lines=8, columns=24)) == [(0, 23)]
 
 
 def test_what_xterm_draws_for_the_blank_of_the_line_drawing_set():

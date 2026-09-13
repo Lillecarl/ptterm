@@ -11,19 +11,25 @@ back (Lillecarl/pymux#35).
 Lillecarl/pymux#106 named what nobody had measured: whether the judges
 that differ from ptterm agree with xterm, or only that they differ.
 This file measures it, for all three. They agree, every time, and one
-of the three is not a split at all:
+of the three was not a split at all:
 
 | case | the wait survives | it does not |
 | --- | --- | --- |
-| over a tab stop | xterm, alacritty, ghostty, xtermjs | kitty, libvterm, wezterm, ptterm |
-| a save and a restore | xterm, alacritty, ghostty, wezterm | kitty, libvterm, xtermjs, ptterm |
-| giving the screen back | every judge, and xterm | ptterm alone |
+| over a tab stop | xterm, alacritty, ghostty, xtermjs, **ptterm** | kitty, libvterm, wezterm |
+| a save and a restore | xterm, alacritty, ghostty, wezterm, **ptterm** | kitty, libvterm, xtermjs |
+| giving the screen back | every judge, xterm and **ptterm** | nobody |
 
 **The third row is why this file exists.** `verdict()` called it a
-split, and it is not one: alacritty and libvterm disagree with ptterm
+split, and it was not one: alacritty and libvterm disagree with ptterm
 about something else in the same program -- what `?47l` leaves on the
 screen -- and a judge that differs for two reasons makes the vote read
-as a split. On the cursor itself the seven are unanimous.
+as a split. On the cursor the seven were unanimous, and ptterm was the
+one that was wrong.
+
+ptterm carries the wait through all three now (Lillecarl/pymux#107),
+so the judges that differ here are the ones that drop it.
+`pyte/tests/test_the_wait_to_wrap_is_cursor_state.py` is the gate on
+what ptterm does; this file is the record of what the others do.
 """
 
 import pytest
@@ -84,16 +90,15 @@ def test_every_judge_that_differs_draws_the_same_cursor(name, data, lines, colum
 
     Each judge that differs from ptterm draws something; whether they
     draw the **same** thing is what says how strong the reading is.
+    They did, which is what made the three one decision.
     """
     answers = _readings(data, lines, columns)
-    assert answers, "%s: nobody differs from ptterm" % (name,)
-
     cursors = {judge: _where_the_cursor_went(drawn) for judge, drawn in answers.items()}
-    assert len(set(cursors.values())) == 1, "%s: they do not agree: %r" % (name, cursors)
+    assert len(set(cursors.values())) <= 1, "%s: they do not agree: %r" % (name, cursors)
 
 
 @pytest.mark.parametrize(
-    "name,data,lines,columns,with_ptterm",
+    "name,data,lines,columns,drop_the_wait",
     [
         ("over a tab stop", OVER_A_TAB_STOP, 8, 24, {"kitty", "libvterm", "wezterm"}),
         (
@@ -103,19 +108,25 @@ def test_every_judge_that_differs_draws_the_same_cursor(name, data, lines, colum
             6,
             {"kitty", "libvterm", "xtermjs"},
         ),
-        ("giving the screen back", GIVING_BACK_THE_SCREEN, 6, 24, set()),
+        # Nobody drops it here. alacritty and libvterm still differ
+        # from ptterm in this program, over what `?47l` leaves on the
+        # screen, which is a question of its own and not this one.
+        (
+            "giving the screen back",
+            GIVING_BACK_THE_SCREEN,
+            6,
+            24,
+            {"alacritty", "libvterm"},
+        ),
     ],
 )
-def test_the_tally_is_what_the_issues_say(name, data, lines, columns, with_ptterm):
+def test_the_tally_is_what_the_issues_say(name, data, lines, columns, drop_the_wait):
     """
-    Who stands where, held so that a reading which moves is a test
-    that fails and has to be read again.
+    Who differs from ptterm, held so that a reading which moves is a
+    test that fails and has to be read again.
 
-    Nobody stands with ptterm on the third. That one is unanimous, and
-    the rule of the collection makes a unanimous panel ptterm's bug
-    rather than the user's decision.
+    ptterm carries the wait now, so a judge that differs is one that
+    drops it -- except on the third, where the two that differ do so
+    for another reason entirely.
     """
-    said = report(data, lines=lines, columns=columns)
-    differ = set(_readings(data, lines, columns))
-
-    assert set(said) - differ == with_ptterm
+    assert set(_readings(data, lines, columns)) == drop_the_wait
