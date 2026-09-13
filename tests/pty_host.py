@@ -64,7 +64,6 @@ class Host:
             resize_func=self.resize,
         )
         self.stream = Stream(self.screen)
-        self.stream.attach(self.screen)
 
         self.process = Process(
             backend=self.backend,
