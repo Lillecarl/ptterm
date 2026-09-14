@@ -361,6 +361,24 @@ async def test_y_copies_and_leaves_with_vi_keys():
     assert not terminal.is_copying
 
 
+@pytest.mark.parametrize(
+    "vi, keys",
+    [
+        (True, ["g", "g", "V", "y"]),
+        (False, [Keys.ControlP, Keys.ControlA, " ", "v", Keys.ControlM]),
+    ],
+)
+async def test_a_selection_of_lines_does_not_carry_the_break(vi, keys):
+    """
+    A copy of one line is one line. The keys reach it from both sides:
+    `V` selects lines with vi keys, and `v` swaps a selection to lines
+    with emacs keys.
+    """
+    terminal = a_terminal("hello world\r\nsecond")
+    app = await press(terminal, *keys, vi=vi)
+    assert app.clipboard.get_data().text == "hello world"
+
+
 async def test_y_with_no_selection_is_still_the_vi_operator():
     "`yy` is prompt_toolkit's, and copy mode does not take it away."
     terminal = a_terminal("hello world")
