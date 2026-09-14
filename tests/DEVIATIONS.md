@@ -792,6 +792,15 @@ that reason.
 esctest2 sets the clipboard and reads it back, so it waits for the
 report timeout and fails. That is the one test it costs.
 
+**It is on ptterm's failure list and not on txterm's, and that is not a
+difference between the two.** Measured: the test fails identically on
+both, with the same `Timeout waiting to read`. It is decorated
+`@optionRequired(terminal="xterm", option=XTERM_WINOPS_ENABLED)`, and
+that decorator downgrades a failure to an expected one when the option
+is absent. ptterm's esctest host passes the option because it owns its
+pty and answers a resize; txterm's widget does not, so the same failure
+is excused there and counted here. Lillecarl/pymux#124.
+
 **As a setting:** it could be. A person who wants a pane to read the
 clipboard could say so, the way `allow-program-resize` lets a program
 take room. Nobody has asked, and the default stays no either way.
