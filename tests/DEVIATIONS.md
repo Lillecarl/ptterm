@@ -181,7 +181,7 @@ of them without asking a person.
 
 ## The deviations that stand
 
-**The user has decided seven of these thirteen, and ptterm keeps what
+**The user has decided seven of these fourteen, and ptterm keeps what
 it does in each.** Do not reopen one of those without a new reason. The
 tally is what the decision rested on, so it stands beside each entry.
 
@@ -222,6 +222,7 @@ here.
 | 21 | Reverse video on a cell an erase leaves | kitty, WezTerm | Alacritty, Ghostty, libvterm, xterm.js | holds no colour |
 | 22 | A saved cursor and the wait to wrap | Alacritty, Ghostty, WezTerm | kitty, libvterm, xterm.js | with ptterm |
 | 23 | Two runs of one target with no id | kitty, WezTerm | Alacritty | holds no link |
+| 24 | `?47l` gives back a screen `?1049h` took | Ghostty, kitty, WezTerm, xterm.js | Alacritty, libvterm | with ptterm |
 
 Number 20 is the newest, and it is open. The five judges against ptterm
 do not agree with each other either: one draws a space and four draw
@@ -950,6 +951,40 @@ holds the tally.
 
 **As a setting:** no. A program that wants two links writes an id, and
 that works in all four.
+
+### 24. "?47l" gives back a screen that "?1049h" took
+
+`\x1b[?1049h\x1b[14G00000你你你\x1b[?47l0` on 6 lines and 24 columns.
+
+The two modes are not a pair. `?1049h` saves the cursor, switches to
+the alternate screen and clears it; `?47l` is the older, smaller mode,
+and it switches back without saying anything about saving or clearing.
+So what row 0 of the original screen holds afterwards is not written
+down.
+
+ptterm gives back the original row, which is empty here, and so do
+Ghostty, kitty, WezTerm and xterm.js. Alacritty and libvterm leave the
+alternate screen's `00000你你你` behind.
+
+**xterm gives back the original row**, measured: row 0 reads empty.
+That is six to two with ptterm, and it is the terminal both modes come
+from. `test_giving_the_screen_back_panel.py` holds it.
+
+This is the same family as number 2. Both are a program leaving the
+alternate screen under a name that is not the one it entered by, and
+in both the judges that differ are the ones that treat every leave the
+same way -- libvterm clears whenever it leaves, whatever the mode.
+
+**It cost a reading.** `test_wait_to_wrap_panel.py` met this while
+measuring where the cursor went in the same program, and `verdict()`
+called that a split when the seven judges were unanimous: a judge that
+differs for two reasons in one program cannot agree cell for cell with
+one that differs for one. Any question asked with a program that mixes
+`?1049h` and `?47l` reads the same way. Lillecarl/pymux#328.
+
+**As a setting:** no, and for the reason number 2 gives. A pane holds
+one screen and every attached client draws its cells, so the content of
+a screen cannot answer one way for one client and another for another.
 
 ## Where kitty looks wrong
 
