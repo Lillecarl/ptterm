@@ -22,11 +22,14 @@ pane. The window wraps it again for the eye. Lillecarl/pymux#135.
 """
 
 import asyncio
+import base64
 
 import pytest
 from prompt_toolkit.application.current import set_app
 from prompt_toolkit.application.dummy import DummyApplication
+from prompt_toolkit.enums import EditingMode
 from prompt_toolkit.key_binding.key_processor import KeyPress, _Flush
+from prompt_toolkit.key_binding.vi_state import InputMode
 from prompt_toolkit.keys import Keys
 from prompt_toolkit.layout.layout import Layout
 from prompt_toolkit.selection import SelectionType
@@ -34,6 +37,7 @@ from prompt_toolkit.selection import SelectionType
 from no_backend import NoBackend
 from ptterm.terminal import Terminal
 from pyte.modes import PrivateMode
+from pyte.osc import Osc
 from pyte.sequences import set_mode
 from pyte import escape
 from pyte.sequences import csi
@@ -52,9 +56,9 @@ def _a_loop():
     loop.close()
 
 
-def a_terminal(data: str) -> Terminal:
+def a_terminal(data: str, osc_func=None) -> Terminal:
     "A widget that has been written to, with copy mode read in."
-    terminal = Terminal(backend=NoBackend())
+    terminal = Terminal(backend=NoBackend(), osc_func=osc_func)
     control = terminal.terminal_control
     control.create_content(COLUMNS, LINES)
     control.stream.feed(data)
@@ -252,31 +256,44 @@ def test_a_cursor_past_the_end_of_its_row():
     assert _cursor(terminal) == (0, 3)
 
 
-async def press(terminal, *keys):
+async def press(terminal, *keys, vi=False):
     """
-    Open copy mode, press these keys, and give the terminal back.
+    Open copy mode, press these keys, and give back the application.
 
     The keys go through the key processor of a real application, which
     is what decides which binding a key reaches. A test that called the
     handler itself would pass with no binding at all, and that is the
     fault these keys had. Lillecarl/pymux#133.
+
+    `vi` is the `mode-keys` option of tmux, which pymux spells as the
+    editing mode of the application. A read-only buffer holds the vi
+    state in navigation mode, which is what pymux does on a change of
+    focus.
     """
     app = DummyApplication()
     app.layout = Layout(terminal.container)
+    if vi:
+        app.editing_mode = EditingMode.VI
 
     with set_app(app):
         terminal.enter_copy_mode()
+        if vi:
+            app.vi_state.input_mode = InputMode.NAVIGATION
         for key in keys:
-            app.key_processor.feed(KeyPress(key, ""))
+            # The data of a key press is the character it stands for.
+            # A vi count reads it, and so does a jump like `f`.
+            app.key_processor.feed(KeyPress(key, key if len(key) == 1 else ""))
         app.key_processor.process_keys()
 
-    return terminal
+    return app
 
 
 @pytest.mark.parametrize("key", ["q", Keys.ControlM, Keys.ControlC])
 async def test_a_key_that_leaves_copy_mode(key):
     "tmux leaves copy mode on all of these, and pymux left on one."
-    assert not (await press(a_terminal("first\r\nsecond"), key)).is_copying
+    terminal = a_terminal("first\r\nsecond")
+    await press(terminal, key)
+    assert not terminal.is_copying
 
 
 async def test_escape_leaves_copy_mode():
@@ -299,16 +316,141 @@ async def test_escape_leaves_copy_mode():
     assert not terminal.is_copying
 
 
-async def test_space_starts_a_selection_and_enter_keeps_copy_mode():
-    "Enter copies the selection there, so it may not also leave."
-    terminal = await press(a_terminal("first\r\nsecond"), " ", Keys.ControlM)
-    assert terminal.is_copying
-
-
 async def test_v_swaps_what_a_selection_selects():
-    terminal = await press(a_terminal("first\r\nsecond"), " ", "v")
+    terminal = a_terminal("first\r\nsecond")
+    await press(terminal, " ", "v")
     assert terminal.copy_buffer.selection_state.type == SelectionType.LINES
     assert terminal.is_copying
+
+
+# ----------------------------------------------------------------------
+# Copying. Lillecarl/pymux#376.
+
+
+def _to_the_start_of_the_line(vi):
+    "The keys that take the caret to column nought."
+    return ["0"] if vi else [Keys.ControlA]
+
+
+@pytest.mark.parametrize("vi, copied", [(False, "h"), (True, "he")])
+async def test_enter_leaves_copy_mode_with_the_copy_made(vi, copied):
+    """
+    tmux leaves: `Enter` is `copy-pipe-and-cancel` in both of its key
+    tables. It stayed, so a person had made the copy and nothing said
+    so.
+
+    A vi selection holds the character under the caret as well, which
+    is why the two halves copy a different number of them.
+    """
+    terminal = a_terminal("hello world")
+    app = await press(
+        terminal, *_to_the_start_of_the_line(vi), " ", Keys.Right, Keys.ControlM, vi=vi
+    )
+    assert not terminal.is_copying
+    assert app.clipboard.get_data().text == copied
+
+
+async def test_y_copies_and_leaves_with_vi_keys():
+    """
+    tmux leaves `y` unbound and a person with vi keys binds it to
+    `copy-selection-and-cancel`, which is the first thing they press.
+    """
+    terminal = a_terminal("hello world")
+    app = await press(terminal, "0", "v", "l", "y", vi=True)
+    assert app.clipboard.get_data().text == "he"
+    assert not terminal.is_copying
+
+
+async def test_y_with_no_selection_is_still_the_vi_operator():
+    "`yy` is prompt_toolkit's, and copy mode does not take it away."
+    terminal = a_terminal("hello world")
+    app = await press(terminal, "y", "y", vi=True)
+    assert app.clipboard.get_data().text == "hello world"
+    assert terminal.is_copying
+
+
+async def test_the_copy_reaches_the_terminal_of_the_user():
+    """
+    The clipboard belongs to the terminal of the user, so a copy asks
+    for it the way a program in the pane asks: with OSC 52. tmux writes
+    the same sequence to the screen of the pane.
+    """
+    asked = []
+    terminal = a_terminal("hello world", osc_func=lambda code, param: asked.append((code, param)))
+    await press(terminal, "0", "v", "l", "y", vi=True)
+
+    assert asked == [(Osc.CLIPBOARD, "c;" + base64.b64encode(b"he").decode("ascii"))]
+
+
+async def test_nothing_is_asked_for_when_the_selection_is_empty():
+    asked = []
+    terminal = a_terminal("hello world", osc_func=lambda code, param: asked.append((code, param)))
+    await press(terminal, "0", " ", Keys.ControlM)
+
+    assert asked == []
+
+
+async def test_v_is_vis_own_key_with_vi_keys():
+    "It ends the selection, the way vi does. `V` selects lines."
+    terminal = a_terminal("hello world")
+    await press(terminal, "0", "v", "l", "v", vi=True)
+    assert terminal.copy_buffer.selection_state is None
+
+
+# ----------------------------------------------------------------------
+# Where the caret may stand. Lillecarl/pymux#377.
+
+
+async def test_the_caret_does_not_stand_on_the_line_break():
+    """
+    `$` is one past the last character, which is where an editor puts
+    what a person types next. vi does not allow it and neither does
+    tmux: `window_copy_cursor_limit` returns `grid_line_limit` for vi
+    mode keys, the last character of the row.
+    """
+    terminal = a_terminal("hello world\r\nsecond")
+    await press(terminal, "g", "g", "0", "$", vi=True)
+    assert terminal.copy_buffer.document.cursor_position == len("hello world") - 1
+
+
+async def test_a_selection_to_the_end_of_a_line_leaves_the_break_behind():
+    "The copy carried a line ending that nobody selected."
+    terminal = a_terminal("hello world\r\nsecond")
+    app = await press(terminal, "g", "g", "0", "v", "$", "y", vi=True)
+    assert app.clipboard.get_data().text == "hello world"
+
+
+async def test_the_caret_stops_at_the_last_character_of_the_last_line():
+    "There is no break under it, and a selected cell was drawn there."
+    terminal = a_terminal("hello world")
+    await press(terminal, "0", "$", vi=True)
+    assert terminal.copy_buffer.document.cursor_position == len("hello world") - 1
+
+
+async def test_an_empty_line_holds_the_caret_at_its_start():
+    "There is nowhere else to stand, and the line before is not it."
+    terminal = a_terminal("one\r\n\r\nthree")
+    await press(terminal, "g", "g", "j", "$", vi=True)
+    assert terminal.copy_buffer.document.cursor_position_row == 1
+    assert terminal.copy_buffer.document.cursor_position_col == 0
+
+
+async def test_emacs_keys_keep_the_caret_past_the_last_character():
+    "tmux clamps for vi mode keys alone, and this is the other half."
+    terminal = a_terminal("hello world\r\nsecond")
+    await press(terminal, Keys.ControlP, Keys.ControlE)
+    assert terminal.copy_buffer.document.cursor_position == len("hello world")
+
+
+async def test_copy_mode_opens_where_the_pane_is_with_vi_keys():
+    """
+    The caret opens past the last character of a shell prompt, which is
+    where the next character goes. Only a move of the caret is clamped.
+    Lillecarl/pymux#189.
+    """
+    terminal = a_terminal("one\r\ntwo\r\nthree")
+    await press(terminal, vi=True)
+    assert _cursor(terminal) == (2, 5)
 
 
 async def test_leaving_copy_mode_forgets_what_was_styled():

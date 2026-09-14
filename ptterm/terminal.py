@@ -25,6 +25,7 @@ spells one as a prompt_toolkit style string. That is the whole of what
 this layer adds to a cell.
 """
 
+import base64
 import os
 from bisect import bisect_right
 from typing import Callable, Iterable, List
@@ -70,6 +71,7 @@ from ptyhost import Process
 from ptyhost.backends import Backend
 
 from pyte.environment import prepare
+from pyte.osc import Osc
 from pyte.images import ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH
 from pyte.cells import Cell, WrittenCell
 from pyte.page import TextLine
@@ -702,6 +704,11 @@ class Terminal:
         if backend is None:
             backend = create_backend(command, before_exec_func)
 
+        # The screen calls this for what a program in the pane asks the
+        # terminal of the user for. `copy_selection` asks for the same
+        # thing on its own account.
+        self._osc_func = osc_func
+
         self.terminal_control = _TerminalControl(
             backend=backend,
             bell_func=bell_func,
@@ -742,14 +749,31 @@ class Terminal:
             event.current_buffer.start_selection()
 
         @kb.add("enter", filter=has_selection)
+        @kb.add("y", filter=has_selection & vi_mode)
         def _copy_selection(event):
-            "Copy selection."
-            data = event.current_buffer.copy_selection()
-            event.app.clipboard.set_data(data)
+            """
+            Copy the selection and leave copy mode.
 
-        @kb.add("v", filter=has_selection)
+            tmux leaves. `Enter` is `copy-pipe-and-cancel` in both of
+            its tables, and `y` is what a person with vi keys binds to
+            `copy-selection-and-cancel`; tmux itself leaves `y` unbound.
+            prompt_toolkit has a `y` of its own, the vi yank operator,
+            which fills the clipboard of the application and reaches no
+            terminal. Lillecarl/pymux#376.
+            """
+            self.copy_selection(event.current_buffer)
+            self.exit_copy_mode()
+
+        @kb.add("v", filter=has_selection & ~vi_mode)
         def _toggle_selection_type(event):
-            "Swap between selecting characters and selecting lines."
+            """
+            Swap between selecting characters and selecting lines.
+
+            **With vi keys `v` is vi's**, which ends the selection, and
+            `V` is the one that selects lines. A person with vi keys
+            reads `v` as the key they know, so this takes the other
+            half of the keyboard. Lillecarl/pymux#376.
+            """
             selection_state = event.current_buffer.selection_state
             if selection_state is None:
                 return
@@ -896,6 +920,31 @@ class Terminal:
         if char.char == " " and isinstance(char, WrittenCell):
             style += " " + KeepWhitespace
         return style
+
+    def copy_selection(self, buffer: Buffer) -> None:
+        """
+        Put the selection on the clipboard of the user, and in the
+        clipboard of the application.
+
+        **The clipboard belongs to the terminal of the user**, so this
+        asks for it the way a program in the pane asks: with OSC 52,
+        through the door the embedder already holds. tmux copies the
+        same way -- `window_copy_copy_buffer` writes the selection to
+        the screen of the pane with `screen_write_setselection` -- and
+        the embedder decides whether it goes out. pymux has
+        `set-clipboard` for that. Lillecarl/pymux#376.
+
+        The clipboard of the application is the paste buffer of the
+        session, which `paste-buffer` reads. It is written second, so
+        that the selection type it carries is the one that stands.
+        """
+        data = buffer.copy_selection()
+
+        if self._osc_func is not None and data.text:
+            payload = base64.b64encode(data.text.encode("utf-8")).decode("ascii")
+            self._osc_func(Osc.CLIPBOARD, "c;" + payload)
+
+        get_app().clipboard.set_data(data)
 
     def enter_copy_mode(self) -> None:
         self.terminal_control.process.suspend()
