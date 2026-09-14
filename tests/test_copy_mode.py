@@ -22,7 +22,6 @@ pane. The window wraps it again for the eye. Lillecarl/pymux#135.
 """
 
 import asyncio
-import base64
 
 import pytest
 from prompt_toolkit.application.current import set_app
@@ -37,7 +36,6 @@ from prompt_toolkit.selection import SelectionType
 from no_backend import NoBackend
 from ptterm.terminal import Terminal
 from pyte.modes import PrivateMode
-from pyte.osc import Osc
 from pyte.sequences import set_mode
 from pyte import escape
 from pyte.sequences import csi
@@ -56,9 +54,9 @@ def _a_loop():
     loop.close()
 
 
-def a_terminal(data: str, osc_func=None) -> Terminal:
+def a_terminal(data: str, copy_func=None) -> Terminal:
     "A widget that has been written to, with copy mode read in."
-    terminal = Terminal(backend=NoBackend(), osc_func=osc_func)
+    terminal = Terminal(backend=NoBackend(), copy_func=copy_func)
     control = terminal.terminal_control
     control.create_content(COLUMNS, LINES)
     control.stream.feed(data)
@@ -387,25 +385,25 @@ async def test_y_with_no_selection_is_still_the_vi_operator():
     assert terminal.is_copying
 
 
-async def test_the_copy_reaches_the_terminal_of_the_user():
+async def test_the_copy_is_handed_to_the_embedder():
     """
-    The clipboard belongs to the terminal of the user, so a copy asks
-    for it the way a program in the pane asks: with OSC 52. tmux writes
-    the same sequence to the screen of the pane.
+    The clipboard of the user belongs to their terminal, which this
+    widget does not own. So a copy is handed over, and the embedder
+    decides: pymux asks `set-clipboard`.
     """
-    asked = []
-    terminal = a_terminal("hello world", osc_func=lambda code, param: asked.append((code, param)))
+    copied = []
+    terminal = a_terminal("hello world", copy_func=copied.append)
     await press(terminal, "0", "v", "l", "y", vi=True)
 
-    assert asked == [(Osc.CLIPBOARD, "c;" + base64.b64encode(b"he").decode("ascii"))]
+    assert copied == ["he"]
 
 
-async def test_nothing_is_asked_for_when_the_selection_is_empty():
-    asked = []
-    terminal = a_terminal("hello world", osc_func=lambda code, param: asked.append((code, param)))
+async def test_nothing_is_handed_over_when_the_selection_is_empty():
+    copied = []
+    terminal = a_terminal("hello world", copy_func=copied.append)
     await press(terminal, "0", " ", Keys.ControlM)
 
-    assert asked == []
+    assert copied == []
 
 
 async def test_v_is_vis_own_key_with_vi_keys():

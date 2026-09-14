@@ -47,7 +47,6 @@ FROM_PYTE = {
     "pyte.colors",
     "pyte.environment",
     "pyte.images",
-    "pyte.osc",
     "pyte.page",
     "pyte.placeholders",
     "pyte.screen",

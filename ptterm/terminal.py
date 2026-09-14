@@ -25,7 +25,6 @@ spells one as a prompt_toolkit style string. That is the whole of what
 this layer adds to a cell.
 """
 
-import base64
 import os
 from bisect import bisect_right
 from typing import Callable, Iterable, List
@@ -71,7 +70,6 @@ from ptyhost import Process
 from ptyhost.backends import Backend
 
 from pyte.environment import prepare
-from pyte.osc import Osc
 from pyte.images import ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH
 from pyte.cells import Cell, WrittenCell
 from pyte.page import TextLine
@@ -671,6 +669,12 @@ class Terminal:
     :param osc_func: Called with the code and the payload of an OSC
         sequence that only the terminal of the user can serve. (The
         clipboard, a notification, the shape of the pointer.)
+    :param copy_func: Called with what a person copied in copy mode.
+        The clipboard of the user belongs to the terminal, and this
+        widget does not own one, so the embedder decides whether the
+        copy reaches it. A pane asking for the clipboard is a
+        different question with a different answer, and that one is
+        `osc_func`.
     :param resize_func: Called with the lines and the columns that the
         program asks for, when it sends DECSLPP or a window resize.
         Either one is None when the program leaves that side alone. A
@@ -696,6 +700,7 @@ class Terminal:
         height: int | None = None,
         done_callback: Callable[[], None] | None = None,
         osc_func: Callable[[str, str], None] | None = None,
+        copy_func: Callable[[str], None] | None = None,
         resize_func: Callable[[int | None, int | None], None] | None = None,
         may_resize: Callable[[], bool] | None = None,
         get_history_limit: Callable[[], int] | None = None,
@@ -704,10 +709,7 @@ class Terminal:
         if backend is None:
             backend = create_backend(command, before_exec_func)
 
-        # The screen calls this for what a program in the pane asks the
-        # terminal of the user for. `copy_selection` asks for the same
-        # thing on its own account.
-        self._osc_func = osc_func
+        self._copy_func = copy_func
 
         self.terminal_control = _TerminalControl(
             backend=backend,
@@ -926,13 +928,11 @@ class Terminal:
         Put the selection on the clipboard of the user, and in the
         clipboard of the application.
 
-        **The clipboard belongs to the terminal of the user**, so this
-        asks for it the way a program in the pane asks: with OSC 52,
-        through the door the embedder already holds. tmux copies the
-        same way -- `window_copy_copy_buffer` writes the selection to
-        the screen of the pane with `screen_write_setselection` -- and
-        the embedder decides whether it goes out. pymux has
-        `set-clipboard` for that. Lillecarl/pymux#376.
+        **The clipboard belongs to the terminal of the user**, which
+        this widget does not own, so the embedder is handed the text.
+        tmux does the same work in the same order -- the copy goes to
+        a paste buffer of its own, and `set-clipboard` says whether it
+        also goes out. Lillecarl/pymux#376.
 
         The clipboard of the application is the paste buffer of the
         session, which `paste-buffer` reads. It is written second, so
@@ -940,9 +940,8 @@ class Terminal:
         """
         data = buffer.copy_selection()
 
-        if self._osc_func is not None and data.text:
-            payload = base64.b64encode(data.text.encode("utf-8")).decode("ascii")
-            self._osc_func(Osc.CLIPBOARD, "c;" + payload)
+        if self._copy_func is not None and data.text:
+            self._copy_func(data.text)
 
         get_app().clipboard.set_data(data)
 
