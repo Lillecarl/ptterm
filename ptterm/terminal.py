@@ -32,7 +32,7 @@ from typing import Callable, Iterable, List
 from prompt_toolkit.application.current import get_app, get_app_or_none
 from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.document import Document
-from prompt_toolkit.filters import Condition, has_selection
+from prompt_toolkit.filters import Condition, has_selection, vi_mode
 from prompt_toolkit.formatted_text import StyleAndTextTuples
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.key_binding.key_processor import KeyPressEvent
@@ -609,6 +609,54 @@ def create_backend(
         )
 
 
+class _CopyBuffer(Buffer):
+    """
+    The buffer of copy mode, whose caret never stands on a line break.
+
+    prompt_toolkit puts it there: `$` is `get_end_of_line_position()`,
+    which is one past the last character, and `l` stops in the same
+    place. That is where an editor puts what a person types next, and
+    copy mode has nothing to type. A vi selection takes the character
+    under the caret, so a selection to the end of a line took the break
+    with it: the copy carried a line ending nobody selected, and the
+    window drew one selected cell at the start of the row under it.
+    Lillecarl/pymux#377.
+
+    vi does not allow the caret there, and neither does tmux:
+    `window_copy_cursor_limit` returns `grid_line_limit`, the last
+    character of the row, and `window_copy_find_length`, one past it,
+    only when `mode-keys` is not vi. So this holds for vi keys alone.
+
+    **A move of the caret is clamped, and the opening of copy mode is
+    not.** Copy mode opens where the cursor of the pane stands, which is
+    where the next character goes and is past the last character of a
+    shell prompt. `read_the_screen_into_the_copy_buffer` sets the whole
+    document, which does not come through here. Lillecarl/pymux#189.
+    """
+
+    @property
+    def cursor_position(self) -> int:
+        return Buffer.cursor_position.fget(self)
+
+    @cursor_position.setter
+    def cursor_position(self, value: int) -> None:
+        Buffer.cursor_position.fset(self, self._off_the_line_break(value))
+
+    def _off_the_line_break(self, position: int) -> int:
+        if not vi_mode():
+            return position
+
+        text = self.text
+        if position < len(text) and text[position] != "\n":
+            return position
+
+        # The start of the line is as far back as this goes. An empty
+        # line has nowhere else to stand.
+        if position > 0 and text[position - 1] != "\n":
+            return position - 1
+        return position
+
+
 class Terminal:
     """
     Terminal widget for use in a prompt_toolkit layout.
@@ -714,7 +762,7 @@ class Terminal:
             forward_search_prompt="Search down: ", backward_search_prompt="Search up: "
         )
 
-        self.copy_buffer = Buffer(read_only=True)
+        self.copy_buffer = _CopyBuffer(read_only=True)
         self.copy_buffer_control = BufferControl(
             buffer=self.copy_buffer,
             search_buffer_control=self.search_toolbar.control,
