@@ -728,25 +728,28 @@ cursor, so the choice belongs to the pane and is made once.
 `\x1b[c`, and the answer that comes back.
 
 xterm at level 5 names thirteen: `65;1;2;6;9;15;16;17;18;21;22;28;29`.
-A pane names eight: `65;1;4;6;17;21;22;28`.
+A pane names ten: `65;1;4;6;9;15;17;21;22;28`.
 
-Six of xterm's are missing, and a pane has none of them:
+Four of xterm's are missing, and a pane has none of them:
 
 - **2**, the printer port. There is no printer, and DECPFF and DECPEX
   are kept and not acted on.
-- **9**, the national replacement character sets, and **15**, the
-  technical set. `pyte/charsets.py` holds `B`, `0`, `U` and `V` and
-  nothing else, so `ESC ( A` and `ESC ( >` reach `define_charset`,
-  match nothing and are dropped without a word. **These two were named
-  and were not true**, until vttest read the answer back and said so:
-  a program that took 9 at its word got ASCII and drew the wrong
-  glyph. Lillecarl/pymux#112. Lillecarl/pymux#111 is the code that
-  would let them come back.
 - **16**, the locator device port. It reports the mouse the way ReGIS
   does, and a pane reports the mouse the way xterm does.
 - **18**, user windows. A pane is one window and cannot make another.
   Entry 15 says the same about moving one.
 - **29**, the ANSI text locator. The other half of 16.
+
+**9 and 15 were named and were not true, and now they are true.**
+`pyte/charsets.py` held `B`, `0`, `U` and `V` and nothing else, so
+`ESC ( A` and `ESC ( >` reached `define_charset`, matched nothing and
+were dropped without a word: a program that took 9 at its word got
+ASCII and drew the wrong glyph. vttest read the answer back and said
+so, and the numbers came out (Lillecarl/pymux#112). The sets are
+written now -- the twelve national replacement sets of a VT320 and the
+DEC technical set -- so the numbers are back with them
+(Lillecarl/pymux#111). `test_the_charset_claims_follow_the_charsets_that_exist`
+is what ties the claim to the code, and it fails if either moves alone.
 
 One is there that xterm does not name: **4**, sixel. A pane draws sixel
 images, so it says so.
