@@ -998,6 +998,64 @@ one that differs for one. Any question asked with a program that mixes
 one screen and every attached client draws its cells, so the content of
 a screen cannot answer one way for one client and another for another.
 
+### 25. A pane has the national sets a VT320 had, and applies them at once
+
+`\x1b(A#`, and the eleven probes beside it in
+`test_the_panel.py::test_who_holds_the_same_table_as_ptterm`.
+
+A national replacement set is ASCII with a handful of positions
+replaced by the letters one country needs. A pane has the twelve a
+VT320 had and the DEC technical set with them, and it applies one as
+soon as a program selects it. Lillecarl/pymux#111.
+
+**Two separate votes, and they do not say the same thing.**
+
+*When a set applies.* kitty, WezTerm, libvterm, Ghostty and xterm.js
+draw `£` for `\x1b(A#` with no mode asked for. xterm waits for DECNRCM
+(`CSI ? 42 h`), and Alacritty has no national sets at all. Five to one
+among the judges, so a pane does not wait either, and it keeps no
+DECNRCM.
+
+*Which sets exist.* This is where the first vote stops carrying. Those
+five agree on British and on **nothing else**: kitty, WezTerm,
+libvterm and Ghostty leave the other eleven sets as plain ASCII, and
+xterm.js holds eight of them -- Finnish, Swedish, Swiss, German,
+French, French Canadian, Italian and Spanish. Nobody but a pane has
+Dutch, Portuguese or Norwegian and Danish.
+
+So a pane is not following the panel here. It is following **xterm**,
+whose `charsets.h` is the only published list of these tables there is;
+`checks.pyte-xterm-tables` compares all twelve against that header on
+every run. A judge drawing ASCII has never heard of the set, which is
+a capability it lacks and not an opinion it holds, so there is nothing
+to disagree with.
+
+**Two judges draw something else, and both are findings.**
+
+- **kitty cannot reach Portuguese.** It reads `ESC ( %` as a one byte
+  name, so `\x1b(%6` selects nothing and the `6` is drawn as a letter:
+  `6[\]{|}` where a pane draws `ÃÇÕãçõ`. A pane had the same bug until
+  Lillecarl/pymux#111 read the intermediate.
+- **xterm.js approximates two positions of Dutch**, `i` for U+0133
+  LATIN SMALL LIGATURE IJ and `f` for U+0192 LATIN SMALL LETTER F WITH
+  HOOK. Those are xterm's `UNI` entries: the positions that need a
+  character Latin-1 has not got, which xterm draws only in UTF-8 NRC
+  mode and otherwise leaves as ASCII. **A pane is always in UTF-8**,
+  so it draws both, which is what xterm does in the mode a pane is
+  permanently in. The technical set is nearly all `UNI` entries and
+  reads the same way.
+
+**Thirteen positions of the technical set stay as ASCII.** 0x31 to
+0x37 are the seven pieces a terminal drew a large sigma out of, and
+Unicode has no character for one; xterm draws them from its own
+private area, which a screen of characters cannot do. 0x38 to 0x3B,
+0x52, 0x54, 0x55, 0x6D and 0x75 are undefined in the set itself.
+
+**As a setting:** no. Which letters a set holds is not a preference,
+and the one thing a person might want to choose -- whether DECNRCM
+gates it -- would make a pane draw a different letter for the same
+bytes depending on a mode five of six emulators do not have.
+
 ## Where kitty looks wrong
 
 kitty puts the second character after a wrap into the cell of the

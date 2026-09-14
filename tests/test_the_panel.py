@@ -19,7 +19,7 @@ import pytest
 
 from panel import abstained, judges, report, verdict
 from kitty_oracle import ptterm_cells
-from pyte import escape
+from pyte import charsets, escape
 from pyte.sequences import Csi, csi
 from pyte.sequences import Sharp, sharp
 from pyte.sequences import Escape, esc
@@ -1498,3 +1498,134 @@ def test_a_raised_glyph_leaves_ptterm_alone():
     assert cannot_see((csi(escape.SGR, 73) + "x"), lines=1, columns=4) == list(
         BASELINE_BLIND
     )
+
+
+# ----------------------------------------------------------------------
+# The national replacement sets, and the DEC technical set.
+#
+# `pyte/charsets.py` copied its tables out of xterm's `charsets.h`, and
+# `checks.pyte-xterm-tables` says the copy is right. That says nothing
+# about whether the other emulators hold the same tables, or about when
+# they apply one. Only the panel says that. Lillecarl/pymux#111.
+
+
+def _probe(name):
+    "Select a set, then write the ASCII at every position it moves."
+    moved = charsets.NATIONAL[name]
+    return "\x1b(%s%s" % (name, "".join(chr(position) for position in sorted(moved)))
+
+
+def _drawn_by_pyte(name):
+    moved = charsets.NATIONAL[name]
+    return "".join(chr(moved[position]) for position in sorted(moved))
+
+
+def test_a_national_set_applies_with_no_mode_asked_for():
+    """
+    **The vote that decided the convention.**
+
+    ptterm applies a national set as soon as it is selected. xterm
+    waits for DECNRCM ("CSI ? 42 h") and Alacritty has no national
+    sets at all, so the two of them draw "#".
+    """
+    against, with_us = sides("\x1b(A#", lines=2, columns=4)
+    assert with_us == ["ghostty", "kitty", "libvterm", "wezterm", "xtermjs"]
+    assert against == ["alacritty"]
+
+
+#: Which judges draw what ptterm draws for each national set.
+#:
+#: **Measured, and not what Lillecarl/pymux#111 assumed.** That issue
+#: probed British alone and read five judges agreeing. They agree on
+#: British and on nothing else: kitty, WezTerm, libvterm, Ghostty and
+#: xterm.js all leave the other eleven sets as ASCII. So the five are
+#: not a panel that ptterm follows here -- they have one national set
+#: between them, and ptterm has twelve, the ones xterm has.
+#: `DEVIATIONS.md` entry 25 holds the vote.
+JUDGES_WITH_A_NATIONAL_SET = {
+    "A": ["ghostty", "kitty", "libvterm", "wezterm", "xtermjs"],
+    "5": ["xtermjs"],  # Finnish
+    "7": ["xtermjs"],  # Swedish
+    "=": ["xtermjs"],  # Swiss
+    "K": ["xtermjs"],  # German
+    "Q": ["xtermjs"],  # French Canadian
+    "R": ["xtermjs"],  # French
+    "Y": ["xtermjs"],  # Italian
+    "Z": ["xtermjs"],  # Spanish
+    # Dutch, Portuguese and Norwegian/Danish: nobody but ptterm.
+}
+
+
+@pytest.mark.parametrize("name", sorted(charsets.NATIONAL))
+def test_who_holds_the_same_table_as_ptterm(name):
+    "The tables, not only the moment one applies."
+    found = characters_in_row(_probe(name), columns=20)
+    expected = _drawn_by_pyte(name)
+    assert found["ptterm"].rstrip() == expected
+
+    agreeing = sorted(
+        judge.name
+        for judge in judges()
+        if found[judge.name].rstrip() == expected
+    )
+    assert agreeing == JUDGES_WITH_A_NATIONAL_SET.get(name, [])
+
+
+#: The two judges that neither hold a set nor leave it alone.
+#:
+#: Measured, and both are findings rather than opinions.
+DRAWS_SOMETHING_ELSE = {
+    # kitty reads "ESC ( %" as a one byte name, so the "6" of
+    # Portuguese is drawn as a letter and the set is unreachable. The
+    # same bug pyte had until Lillecarl/pymux#111.
+    ("%6", "kitty"): "6[\\]{|}",
+    # xterm.js approximates the two positions that need a character
+    # Latin-1 does not have: "i" for U+0133 LATIN SMALL LIGATURE IJ and
+    # "f" for U+0192 LATIN SMALL LETTER F WITH HOOK. xterm draws
+    # neither unless it is in UTF-8 NRC mode -- they are its "UNI"
+    # entries -- and a pane is always in UTF-8, so a pane draws both.
+    ("4", "xtermjs"): "£¾i½|¨f¼´",
+}
+
+
+@pytest.mark.parametrize("name", sorted(charsets.NATIONAL))
+def test_a_judge_that_does_not_agree_has_no_such_set_at_all(name):
+    """
+    **The difference that matters.** A judge holding a different table
+    would be a disagreement about what the letters are. A judge
+    drawing plain ASCII has never heard of the set, which is a
+    capability it lacks and not an opinion it holds.
+
+    All but two are the second kind. `DRAWS_SOMETHING_ELSE` holds the
+    two, and `DEVIATIONS.md` entry 25 says what each of them is.
+    """
+    probe = _probe(name)
+    found = characters_in_row(probe, columns=20)
+    expected = _drawn_by_pyte(name)
+    ascii_positions = probe[probe.index(name) + len(name) :]
+
+    for judge in judges():
+        drawn = found[judge.name].rstrip()
+        if drawn == expected:
+            continue
+        known = DRAWS_SOMETHING_ELSE.get((name, judge.name))
+        if known is not None:
+            assert drawn == known, judge.name
+            continue
+        assert drawn == ascii_positions, judge.name
+
+
+def test_the_technical_set_draws_mathematics():
+    found = characters_in_row("\x1b(>ABC", columns=8)
+    assert found["ptterm"].rstrip() == "∝∞÷"
+
+
+def test_nobody_draws_a_piece_of_a_large_sigma():
+    """
+    0x31 to 0x37 are the seven pieces a terminal drew a large sigma
+    out of, and Unicode has no character for one. ptterm leaves them
+    as ASCII. What the judges do here is the question this asks, and
+    the answer belongs in `DEVIATIONS.md` whichever way it goes.
+    """
+    found = characters_in_row("\x1b(>1234567", columns=10)
+    assert found["ptterm"].rstrip() == "1234567"
