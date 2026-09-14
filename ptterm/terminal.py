@@ -819,8 +819,20 @@ class Terminal:
             return "[0/0]"
 
     def _copy_style(self) -> str:
-        "The style of the whole copy window, blank cells included."
-        return "reverse" if self.copy_reverse_video else ""
+        """
+        The style of the whole copy window, blank cells included.
+
+        **The class is what makes a selection visible here.**
+        prompt_toolkit marks a selection by reversing it, and `reverse`
+        sets rather than toggles (`styles/style.py`), so on a reversed
+        pane a selected cell and an unselected one both came out
+        reversed and the selection could not be seen. A style rule for
+        `reversed-pane selected` turns it back; class names accumulate
+        left to right, and the window's style is prepended to every
+        cell before a processor appends `class:selected`, so the rule
+        matches. Lillecarl/pymux#99.
+        """
+        return "reverse class:reversed-pane" if self.copy_reverse_video else ""
 
     def _copy_cell_style(self, char) -> str:
         """
