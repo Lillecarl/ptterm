@@ -1615,6 +1615,45 @@ def test_a_judge_that_does_not_agree_has_no_such_set_at_all(name):
         assert drawn == ascii_positions, judge.name
 
 
+#: The line drawing character every terminal has, and the letter that
+#: names it in the DEC special graphics set.
+CORNER = "┌"
+
+
+def test_a_locking_shift_brings_g2_in():
+    """
+    LS2, `ESC n`. G2 is designated first and then moved into place.
+
+    **A judge that draws `l` has no G2 at all.** It never designated
+    the set, so the letter is the letter, and that is a feature it
+    lacks rather than an answer it gives. Lillecarl/pymux#373.
+    """
+    found = characters_in_row("\x1b*0\x1bnl", columns=4)
+    assert found["ptterm"].rstrip() == CORNER
+    holds_it = sorted(
+        judge.name for judge in judges() if found[judge.name].rstrip() == CORNER
+    )
+    assert holds_it == ["ghostty", "libvterm", "xtermjs"]
+    for name in ("kitty", "wezterm", "alacritty"):
+        assert found[name].rstrip() == "l", name
+
+
+def test_a_single_shift_lends_g2_for_one_character():
+    "SS2, `ESC N`. The second `l` comes from G0 again."
+    found = characters_in_row("\x1b*0\x1bNll", columns=4)
+    assert found["ptterm"].rstrip() == CORNER + "l"
+    holds_it = sorted(
+        judge.name
+        for judge in judges()
+        if found[judge.name].rstrip() == CORNER + "l"
+    )
+    assert holds_it == ["ghostty", "libvterm"]
+    # The rest draw both letters, which is what never shifting looks
+    # like. xterm.js has the locking shift and not this one.
+    for name in ("kitty", "wezterm", "alacritty", "xtermjs"):
+        assert found[name].rstrip() == "ll", name
+
+
 def test_the_technical_set_draws_mathematics():
     found = characters_in_row("\x1b(>ABC", columns=8)
     assert found["ptterm"].rstrip() == "∝∞÷"

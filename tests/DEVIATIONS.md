@@ -1056,6 +1056,48 @@ and the one thing a person might want to choose -- whether DECNRCM
 gates it -- would make a pane draw a different letter for the same
 bytes depending on a mode five of six emulators do not have.
 
+### 26. A pane has four character set slots, and three judges have two
+
+`\x1b*0\x1bnl` and `\x1b*0\x1bNll` on one line and four columns.
+
+A VT100 had two slots, G0 and G1, and the two control characters that
+pick between them: SI and SO. A VT220 has four. `ESC *` and `ESC +`
+designate G2 and G3, a locking shift (`ESC n`, `ESC o`) moves one of
+them into the letters, and a single shift (`ESC N`, `ESC O`) lends one
+for the next character alone. A pane has all of it.
+Lillecarl/pymux#373.
+
+**The panel cannot settle this, because most of it is a capability and
+not an opinion.** Measured:
+
+| probe | draws the box | draws the letter |
+| --- | --- | --- |
+| `ESC n` (LS2) | ptterm, Ghostty, libvterm, xterm.js | kitty, WezTerm, Alacritty |
+| `ESC N` (SS2) | ptterm, Ghostty, libvterm | kitty, WezTerm, Alacritty, xterm.js |
+
+A judge drawing `l` never designated the set, so the letter is the
+letter. That is a feature it has not got.
+
+**xterm draws what a pane draws, on all three probes**, measured in
+`test_xterm_itself.py`: the locking shift, the single shift, and the
+single shift surviving a cursor move between the shift and the
+character. It is the terminal the four slots come from, so it is the
+one a pane follows here.
+
+**A single shift belongs to the next character and not the next
+byte.** `\x1b*0\x1bN\x1b[3Gl` moves the cursor between the shift and
+the letter, and both xterm and a pane still draw the box. `draw` is
+the only thing that spends one.
+
+**GR is not here.** `LS1R`, `LS2R` and `LS3R` move a slot into the
+right half of an eight bit world, and a pane reads UTF-8, so there is
+no right half for them to move anything into. Nothing claims them, so
+nothing is untrue; Lillecarl/pymux#373 holds the question of whether
+they are worth keeping as state a pane never acts on.
+
+**As a setting:** no. Which slot a program shifted to is state the
+program set, not a preference.
+
 ## Where kitty looks wrong
 
 kitty puts the second character after a wrap into the cell of the

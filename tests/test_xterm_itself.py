@@ -520,3 +520,29 @@ def test_a_whole_screen_of_eighty_columns_comes_back():
     program = "".join("%d\r\n" % (number % 10) for number in range(24))
     drawn, ours = both(program, lines=24, columns=80)
     assert drawn == ours
+
+
+def test_xterm_holds_g2_and_a_locking_shift():
+    """
+    **The terminal the four slots come from.**
+
+    kitty, WezTerm and Alacritty draw the plain letter here, which is
+    what having no G2 looks like. So the panel cannot settle
+    Lillecarl/pymux#373 and xterm is what ptterm follows.
+    """
+    drawn, ours = both("\x1b*0\x1bnl", lines=1, columns=4)
+    assert drawn == ours
+    assert drawn == ["┌   "]
+
+
+def test_xterm_spends_a_single_shift_on_one_character():
+    drawn, ours = both("\x1b*0\x1bNll", lines=1, columns=4)
+    assert drawn == ours
+    assert drawn == ["┌l  "]
+
+
+def test_xterm_keeps_a_single_shift_across_a_cursor_move():
+    "The shift belongs to the next character, not to the next byte."
+    drawn, ours = both("\x1b*0\x1bN\x1b[3Gl", lines=1, columns=4)
+    assert drawn == ours
+    assert drawn == ["  ┌ "]
