@@ -35,6 +35,7 @@ from prompt_toolkit.document import Document
 from prompt_toolkit.filters import Condition, has_selection, vi_mode
 from prompt_toolkit.formatted_text import StyleAndTextTuples
 from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.key_binding.bindings.scroll import scroll_page_down
 from prompt_toolkit.key_binding.key_processor import KeyPressEvent
 from prompt_toolkit.keys import Keys
 from prompt_toolkit.layout.containers import (
@@ -745,13 +746,32 @@ class Terminal:
             "Leave copy mode. tmux leaves on all four of these."
             self.exit_copy_mode()
 
-        @kb.add("space")
-        def _reset_selection(event):
-            "Reset selection."
+        @kb.add("space", filter=vi_mode)
+        def _start_selection(event):
+            "Start a selection here, or start it again from here."
             event.current_buffer.start_selection()
+
+        @kb.add("space", filter=~vi_mode)
+        def _page_down(event):
+            """
+            The page under this one.
+
+            **tmux gives `Space` to a different job in each table.** It
+            starts a selection with vi keys, and pages down with emacs
+            keys, where `C-Space` is the one that starts a selection.
+            Both tables started a selection here, so a person with
+            emacs keys paging through their history started one instead
+            and every arrow key after that dragged it.
+            Lillecarl/pymux#379.
+
+            prompt_toolkit binds `C-Space` to the selection already.
+            """
+            scroll_page_down(event)
 
         @kb.add("enter", filter=has_selection)
         @kb.add("y", filter=has_selection & vi_mode)
+        @kb.add("c-w", filter=has_selection & ~vi_mode)
+        @kb.add("escape", "w", filter=has_selection & ~vi_mode)
         def _copy_selection(event):
             """
             Copy the selection and leave copy mode.
@@ -762,6 +782,10 @@ class Terminal:
             prompt_toolkit has a `y` of its own, the vi yank operator,
             which fills the clipboard of the application and reaches no
             terminal. Lillecarl/pymux#376.
+
+            `C-w` and `M-w` are the two tmux gives emacs keys, and they
+            are the only copy keys such a person knows.
+            Lillecarl/pymux#379.
             """
             self.copy_selection(event.current_buffer)
             self.exit_copy_mode()

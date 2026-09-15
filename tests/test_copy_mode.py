@@ -31,6 +31,8 @@ from prompt_toolkit.key_binding.key_processor import KeyPress, _Flush
 from prompt_toolkit.key_binding.vi_state import InputMode
 from prompt_toolkit.keys import Keys
 from prompt_toolkit.layout.layout import Layout
+from prompt_toolkit.layout.mouse_handlers import MouseHandlers
+from prompt_toolkit.layout.screen import Screen as PtScreen, WritePosition
 from prompt_toolkit.selection import SelectionType
 
 from no_backend import NoBackend
@@ -316,7 +318,7 @@ async def test_escape_leaves_copy_mode():
 
 async def test_v_swaps_what_a_selection_selects():
     terminal = a_terminal("first\r\nsecond")
-    await press(terminal, " ", "v")
+    await press(terminal, Keys.ControlSpace, "v")
     assert terminal.copy_buffer.selection_state.type == SelectionType.LINES
     assert terminal.is_copying
 
@@ -328,6 +330,16 @@ async def test_v_swaps_what_a_selection_selects():
 def _to_the_start_of_the_line(vi):
     "The keys that take the caret to column nought."
     return ["0"] if vi else [Keys.ControlA]
+
+
+def _begin_selection(vi):
+    """
+    The key that starts a selection in each table.
+
+    tmux binds `Space` with vi keys and `C-Space` with emacs keys,
+    where `Space` is the page under this one. Lillecarl/pymux#379.
+    """
+    return " " if vi else Keys.ControlSpace
 
 
 @pytest.mark.parametrize("vi, copied", [(False, "h"), (True, "he")])
@@ -342,7 +354,12 @@ async def test_enter_leaves_copy_mode_with_the_copy_made(vi, copied):
     """
     terminal = a_terminal("hello world")
     app = await press(
-        terminal, *_to_the_start_of_the_line(vi), " ", Keys.Right, Keys.ControlM, vi=vi
+        terminal,
+        *_to_the_start_of_the_line(vi),
+        _begin_selection(vi),
+        Keys.Right,
+        Keys.ControlM,
+        vi=vi,
     )
     assert not terminal.is_copying
     assert app.clipboard.get_data().text == copied
@@ -363,7 +380,7 @@ async def test_y_copies_and_leaves_with_vi_keys():
     "vi, keys",
     [
         (True, ["g", "g", "V", "y"]),
-        (False, [Keys.ControlP, Keys.ControlA, " ", "v", Keys.ControlM]),
+        (False, [Keys.ControlP, Keys.ControlA, Keys.ControlSpace, "v", Keys.ControlM]),
     ],
 )
 async def test_a_selection_of_lines_does_not_carry_the_break(vi, keys):
@@ -404,6 +421,73 @@ async def test_nothing_is_handed_over_when_the_selection_is_empty():
     await press(terminal, "0", " ", Keys.ControlM)
 
     assert copied == []
+
+
+@pytest.mark.parametrize("keys", [[Keys.ControlW], [Keys.Escape, "w"]])
+async def test_the_two_copy_keys_of_emacs(keys):
+    "`C-w` and `M-w` are the two tmux binds, and the two such a person knows."
+    terminal = a_terminal("hello world")
+    app = await press(terminal, Keys.ControlA, Keys.ControlSpace, Keys.Right, *keys)
+    assert app.clipboard.get_data().text == "h"
+    assert not terminal.is_copying
+
+
+# ----------------------------------------------------------------------
+# Space. Lillecarl/pymux#379.
+
+
+def _render(terminal, rows=LINES):
+    """
+    Draw the copy window once, so that it has a `render_info`.
+
+    Everything that scrolls reads one: how far the page reaches is a
+    fact about the window on the screen, and a window that was never
+    drawn has none.
+    """
+    terminal.copy_window.write_to_screen(
+        PtScreen(),
+        MouseHandlers(),
+        WritePosition(xpos=0, ypos=0, width=COLUMNS, height=rows),
+        "",
+        False,
+        None,
+    )
+
+
+async def test_space_pages_down_with_emacs_keys():
+    """
+    tmux gives `Space` to the page with emacs keys and to the
+    selection with vi keys. Both tables started a selection here.
+    """
+    terminal = a_terminal("\r\n".join("row %d" % number for number in range(40)))
+
+    app = DummyApplication()
+    app.layout = Layout(terminal.container)
+    with set_app(app):
+        terminal.enter_copy_mode()
+        terminal.copy_buffer.cursor_position = 0
+        _render(terminal)
+        app.key_processor.feed(KeyPress(" ", " "))
+        app.key_processor.process_keys()
+
+    assert terminal.copy_buffer.document.cursor_position_row >= LINES - 1
+    assert terminal.copy_buffer.selection_state is None
+    assert terminal.is_copying
+
+
+async def test_space_starts_a_selection_with_vi_keys():
+    "Which is what tmux binds there, and what both tables did."
+    terminal = a_terminal("hello world")
+    await press(terminal, "0", " ", "l", vi=True)
+    assert terminal.copy_buffer.selection_state is not None
+
+
+async def test_control_space_starts_a_selection_with_emacs_keys():
+    "prompt_toolkit binds it, and tmux binds the same key."
+    terminal = a_terminal("hello world")
+    app = await press(terminal, Keys.ControlA, Keys.ControlSpace, Keys.Right)
+    assert terminal.copy_buffer.selection_state is not None
+    assert app.clipboard.get_data().text == ""
 
 
 async def test_v_is_vis_own_key_with_vi_keys():
