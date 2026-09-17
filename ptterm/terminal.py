@@ -433,6 +433,14 @@ class _TerminalControl(UIControl):
             """
             Handle any key binding -> write it to the stdin of this terminal.
             """
+            # `NotImplemented` is prompt_toolkit's own answer for "the
+            # handler changed nothing of the application's, so do not
+            # invalidate". A key that reaches this was forwarded and
+            # nothing else: the frame that shows its effect is drawn
+            # when the program answers, so the key's own invalidate
+            # could only ever redraw nothing -- and on a loaded machine
+            # it is a whole redraw that draws nothing.
+            # Lillecarl/pymux#246.
             key_press = event.key_sequence[0]
             if key_press.data:
                 # Forward the raw data. It preserves modifiers that
@@ -445,10 +453,14 @@ class _TerminalControl(UIControl):
                         key_press.data, report=self.unreadable_key_func
                     )
                 )
+            return NotImplemented
 
         @bindings.add(Keys.BracketedPaste)
         def _(event):
             self.process.write_input(self.screen.wrap_paste(event.data))
+            # A paste reaches a program as well, and the answer is the
+            # redraw. Same answer as a key. Lillecarl/pymux#246.
+            return NotImplemented
 
         return bindings
 
