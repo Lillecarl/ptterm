@@ -33,6 +33,7 @@ from prompt_toolkit.keys import Keys
 from prompt_toolkit.layout.layout import Layout
 from prompt_toolkit.layout.mouse_handlers import MouseHandlers
 from prompt_toolkit.layout.screen import Screen as PtScreen, WritePosition
+from prompt_toolkit.mouse_events import MouseEventType
 from prompt_toolkit.selection import SelectionType
 
 from no_backend import NoBackend
@@ -575,3 +576,47 @@ async def test_leaving_copy_mode_forgets_what_was_styled():
         terminal.exit_copy_mode()
 
     assert not terminal._styled_lines
+
+
+# ----------------------------------------------------------------------
+# The wheel. Lillecarl/pymux#422.
+
+
+def a_wheel(control, kind):
+    from prompt_toolkit.data_structures import Point
+    from prompt_toolkit.mouse_events import MouseButton, MouseEvent
+
+    return control.mouse_handler(
+        MouseEvent(
+            position=Point(x=0, y=0),
+            event_type=kind,
+            button=MouseButton.NONE,
+            modifiers=frozenset(),
+        )
+    )
+
+
+def test_the_wheel_moves_the_caret_and_the_bottom_leaves():
+    """
+    Wheel up in copy mode moves the caret up, wheel down brings it
+    back, and the wheel down that finds the caret at the bottom leaves
+    copy mode: the live screen is where the program stands, and the
+    way back to it is the same wheel.
+    """
+    terminal = a_terminal("\r\n".join("row %d" % n for n in range(40)))
+    app = DummyApplication()
+    app.layout = Layout(terminal.container)
+
+    with set_app(app):
+        terminal.enter_copy_mode()
+        control = terminal.copy_buffer_control
+        bottom = terminal.copy_buffer.cursor_position
+
+        a_wheel(control, MouseEventType.SCROLL_UP)
+        assert terminal.copy_buffer.cursor_position < bottom
+
+        a_wheel(control, MouseEventType.SCROLL_DOWN)
+        assert terminal.copy_buffer.cursor_position == bottom
+
+        a_wheel(control, MouseEventType.SCROLL_DOWN)
+        assert not terminal.is_copying

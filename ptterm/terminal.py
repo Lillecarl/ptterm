@@ -256,6 +256,11 @@ class _TerminalControl(UIControl):
         self.on_content_changed = Event(self)
         self._running = False
 
+        #: The `Terminal` this control is the screen of, set by it when
+        #: it builds this control. The wheel that enters copy mode goes
+        #: through it, because copy mode and its buffer live there.
+        self.terminal: "Terminal" = None
+
         # What this control drew for each row, and the write count of
         # the screen that it drew it at. A row whose count has not
         # moved is a row it does not build again. The state is here and
@@ -534,6 +539,17 @@ class _TerminalControl(UIControl):
                                 _one_byte(y + _COORDINATE_OFFSET),
                             )
                         )
+            elif mouse_event.event_type == MouseEventType.SCROLL_UP:
+                # The app asked for no mouse at all, and the wheel
+                # belongs to the person. The live screen does not hold
+                # the history of this pane, so the wheel up opens the
+                # copy buffer over it, scrolled half a window -- the
+                # rule tmux runs: a wheel over a pane whose program
+                # wants no mouse is copy mode. The way back down is the
+                # same wheel in copy mode, which ends at the bottom.
+                # Lillecarl/pymux#422.
+                self.terminal.enter_copy_mode()
+                self.terminal.scroll_copy(-self.terminal.copy_half_window())
 
     def is_focusable(self) -> bool:
         return not self.process.suspended
@@ -620,6 +636,43 @@ def create_backend(
             before_exec_func=_in_the_child(before_exec_func),
             cell=(ASSUMED_CELL_WIDTH, ASSUMED_CELL_HEIGHT),
         )
+
+
+class _CopyBufferControl(BufferControl):
+    """
+    The buffer of copy mode, and the wheel over it.
+
+    A subclass because the base `BufferControl` refuses the wheel
+    (`prompt_toolkit/layout/controls.py:901`): here the wheel moves the
+    caret half a window, and the wheel down that reaches the bottom is
+    the live screen again -- tmux's `-e`, which leaves copy mode when
+    the person scrolls back to where the program stands.
+    """
+
+    def __init__(self, terminal: "Terminal", **kw) -> None:
+        super().__init__(**kw)
+        self.terminal = terminal
+
+    def mouse_handler(self, mouse_event):
+        buffer = self.buffer
+        at_the_bottom = buffer.cursor_position >= len(buffer.document.text)
+
+        if mouse_event.event_type == MouseEventType.SCROLL_UP:
+            self.terminal.scroll_copy(-self.terminal.copy_half_window())
+            return None
+
+        if mouse_event.event_type == MouseEventType.SCROLL_DOWN:
+            if at_the_bottom:
+                self.terminal.exit_copy_mode()
+            else:
+                self.terminal.scroll_copy(self.terminal.copy_half_window())
+                if buffer.cursor_position >= len(buffer.document.text):
+                    # The scroll that reached the bottom leaves copy
+                    # mode with it.
+                    self.terminal.exit_copy_mode()
+            return None
+
+        return super().mouse_handler(mouse_event)
 
 
 class _CopyBuffer(Buffer):
@@ -734,6 +787,10 @@ class Terminal:
             get_history_limit=get_history_limit,
             unreadable_key_func=unreadable_key_func,
         )
+        # The wheel over a pane whose program wants no mouse enters
+        # copy mode, and the control is what the wheel arrives at.
+        # Lillecarl/pymux#422.
+        self.terminal_control.terminal = self
 
         self.terminal_window = _Window(
             terminal_control=self.terminal_control,
@@ -825,7 +882,8 @@ class Terminal:
         )
 
         self.copy_buffer = _CopyBuffer(read_only=True)
-        self.copy_buffer_control = BufferControl(
+        self.copy_buffer_control = _CopyBufferControl(
+            self,
             buffer=self.copy_buffer,
             search_buffer_control=self.search_toolbar.control,
             include_default_input_processors=False,
@@ -986,6 +1044,45 @@ class Terminal:
         self.read_the_screen_into_the_copy_buffer()
         self.is_copying = True
         get_app().layout.focus(self.copy_window)
+
+    def copy_half_window(self) -> int:
+        """
+        Half of what the copy window shows, in lines of the document.
+
+        That is what the wheel scrolls by, and tmux's half-up and
+        half-down are the same. Before the window has been drawn once
+        there is no height to read, and the pane's own row count
+        stands in for it.
+        """
+        info = self.copy_window.render_info
+        height = info.window_height if info else self.terminal_control.screen.lines
+        return max(1, height // 2)
+
+    def scroll_copy(self, lines: int) -> None:
+        """
+        Move the caret of the copy buffer this many lines, up when the
+        number is negative.
+
+        A move past either end stops there. The arithmetic is local and
+        not `Document.get_cursor_up_position`, on purpose: the caret
+        copy mode opens with stands one past the last character (#189),
+        and from there the document answers with a negative position,
+        which the buffer then reads back clamped to nothing -- the view
+        froze at the top of the history and every wheel after it moved
+        from a caret nobody could see.
+        """
+        buffer = self.copy_buffer
+        text = buffer.document.text
+        position = max(0, min(buffer.cursor_position, len(text)))
+        index = text.count("\n", 0, position)
+        column = position - (text.rfind("\n", 0, position) + 1)
+        split = text.split("\n")
+        target = max(0, min(len(split) - 1, index + lines))
+        new_position = (
+            sum(len(line) + 1 for line in split[:target])
+            + min(column, len(split[target]))
+        )
+        buffer.cursor_position = new_position
 
     def read_the_screen_into_the_copy_buffer(self) -> None:
         """
