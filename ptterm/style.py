@@ -24,6 +24,7 @@ from functools import lru_cache
 from typing import TYPE_CHECKING, Dict, List
 
 from prompt_toolkit.layout.screen import Char
+from prompt_toolkit.token import KeepWhitespace
 
 from pyte.cells import appearance_of
 from pyte.colors import SgrColor
@@ -36,6 +37,7 @@ __all__ = (
     "PALETTE_NAMES",
     "DEFAULT_COLOR_NAME",
     "UNDERLINE_WORDS",
+    "drawn_as",
     "style_of",
     "style_word",
     "visible_char",
@@ -209,3 +211,45 @@ def visible_char(char: str) -> str:
     if char in NOT_FOR_A_SCREEN:
         return " "
     return char
+
+
+def _drawn_as(
+    char: str, appearance: "Appearance", reverse_video: bool, written: bool
+) -> "tuple[str, str]":
+    """
+    The style and the character that one cell draws with.
+
+    **A blank that a program wrote carries `KeepWhitespace`.** The
+    renderer drops a blank at the end of a row when nothing styles it,
+    so that a person who copies the output gets no trailing spaces.
+    That guess is wrong for a pane: a space a program wrote is content,
+    and a terminal that reads its own screen back has to find the
+    column.
+    """
+    shown = visible_char(char)
+    style = style_of(appearance)
+
+    if reverse_video and appearance.rendition.reverse:
+        style += " noreverse"
+    if shown == " " and written:
+        style += " " + KeepWhitespace
+
+    return style, shown
+
+
+#: How a cell draws, answered once per way of drawing rather than once
+#: per cell.
+#:
+#: **A frame asks this for every cell, and a screen holds a handful of
+#: answers.** The arguments are what a cell is made of, and both parts
+#: are interned -- `pyte.cells` hands out one `Appearance` per way of
+#: drawing, and CPython caches a string's hash -- so a hit costs one
+#: lookup in C and runs no bytecode at all. Without it every cell paid
+#: three Python calls and two string concatenations: `fragment`,
+#: `visible_char` and `style_of`, which together were a quarter of a
+#: frame of moving output at 400x150. Lillecarl/pymux#434.
+#:
+#: The size is a whole wide screen and then some. 400x150 is sixty
+#: thousand cells, so a cache this big answers every cell of one
+#: without evicting an answer it is about to be asked for again.
+drawn_as = lru_cache(maxsize=64 * 1024)(_drawn_as)

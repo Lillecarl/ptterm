@@ -77,7 +77,7 @@ from pyte.page import TextLine
 from pyte.screen import Screen
 from pyte.streams import Stream
 
-from .style import style_of, visible_char
+from .style import drawn_as, style_of
 
 __all__ = ["Terminal"]
 
@@ -331,25 +331,24 @@ class _TerminalControl(UIControl):
             """
             The style and the character that one cell draws with.
 
-            A blank that a program wrote carries `KeepWhitespace`. The
-            renderer drops a blank at the end of a row when nothing
-            styles it, so that a person who copies the output gets no
-            trailing spaces. That guess is wrong for a pane: a space a
-            program wrote is content, and a terminal that reads its own
-            screen back has to find the column.
+            **The answer is remembered per way of drawing, not per
+            cell.** `drawn_as` is keyed on what a cell is made of, and
+            a screen holds a handful of those, so all but the first
+            cell of a kind costs one lookup in C. This is the hot path
+            of a frame: the work it now skips was a quarter of a frame
+            of moving output at 400x150. Lillecarl/pymux#434.
 
             The test reads what the cell draws and not what it holds.
             The stand-in for a cell of an image and the blank for a
             control are both cells that a program made, and both keep
             their column.
             """
-            char = visible_char(cell.char)
-            style = style_of(cell.appearance)
-            if reverse_video and cell.appearance.rendition.reverse:
-                style += " noreverse"
-            if char == " " and isinstance(cell, WrittenCell):
-                style += " " + KeepWhitespace
-            return style, char
+            return drawn_as(
+                cell.char,
+                cell.appearance,
+                reverse_video,
+                isinstance(cell, WrittenCell),
+            )
 
         def build(number: int) -> StyleAndTextTuples:
             row = data_buffer[number]
