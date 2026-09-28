@@ -327,29 +327,6 @@ class _TerminalControl(UIControl):
         drawn = self._drawn
         drawn_at = self._drawn_at
 
-        def fragment(cell: Cell) -> tuple[str, str]:
-            """
-            The style and the character that one cell draws with.
-
-            **The answer is remembered per way of drawing, not per
-            cell.** `drawn_as` is keyed on what a cell is made of, and
-            a screen holds a handful of those, so all but the first
-            cell of a kind costs one lookup in C. This is the hot path
-            of a frame: the work it now skips was a quarter of a frame
-            of moving output at 400x150. Lillecarl/pymux#434.
-
-            The test reads what the cell draws and not what it holds.
-            The stand-in for a cell of an image and the blank for a
-            control are both cells that a program made, and both keep
-            their column.
-            """
-            return drawn_as(
-                cell.char,
-                cell.appearance,
-                reverse_video,
-                isinstance(cell, WrittenCell),
-            )
-
         def build(number: int) -> StyleAndTextTuples:
             row = data_buffer[number]
             empty = True
@@ -365,9 +342,22 @@ class _TerminalControl(UIControl):
 
             if empty:
                 return [("", " ")]
-            else:
-                cells = [row[i] for i in range(max_column + 1)]
-                return [fragment(cell) for cell in cells]
+
+            # **How each cell draws, with no call of our own per cell.**
+            # `drawn_as` is keyed on what a cell is made of, and a
+            # screen holds a handful of those, so all but the first
+            # cell of a kind is answered in C and runs no bytecode.
+            # A wrapper to call it, and `isinstance` to ask who wrote
+            # the cell, each cost a frame more than the work they did.
+            #
+            # The test reads what a cell draws and not what it holds.
+            # The stand-in for a cell of an image and the blank for a
+            # control are both cells that a program made, and both keep
+            # their column. Lillecarl/pymux#434.
+            return [
+                drawn_as(cell.char, cell.appearance, reverse_video, cell.written)
+                for cell in [row[i] for i in range(max_column + 1)]
+            ]
 
         def get_line(number: int) -> StyleAndTextTuples:
             """
