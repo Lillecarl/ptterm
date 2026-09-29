@@ -28,11 +28,13 @@ Lillecarl/pymux#84 asked for this.
 """
 
 import asyncio
+from types import SimpleNamespace
 
 import pytest
 from prompt_toolkit.application.current import set_app
 from prompt_toolkit.application.dummy import DummyApplication
 from prompt_toolkit.layout.mouse_handlers import MouseHandlers
+from prompt_toolkit.keys import Keys
 from prompt_toolkit.layout.screen import Char, Point, Screen, WritePosition
 from prompt_toolkit.mouse_events import MouseButton, MouseEvent, MouseEventType
 from prompt_toolkit.styles import Style
@@ -181,7 +183,12 @@ class _FocusedLayout:
 
 
 def clicked(
-    modes: str, lines: int = 8, columns: int = 12, x: int = 2, y: int = 1
+    modes: str,
+    lines: int = 8,
+    columns: int = 12,
+    x: int = 2,
+    y: int = 1,
+    may_type=None,
 ) -> bytes:
     """
     The bytes a mouse press writes back, after `modes` turns a mouse
@@ -192,7 +199,7 @@ def clicked(
     of it.
     """
     written = []
-    control = _TerminalControl(backend=_NoBackend())
+    control = _TerminalControl(backend=_NoBackend(), may_type=may_type)
     control.create_content(columns, lines)
     control.process.write_input = written.append
     control.screen.write_process_input = written.append
@@ -210,6 +217,98 @@ def clicked(
             )
         )
     return "".join(written).encode("utf-8", "surrogateescape")
+
+
+# ----------------------------------------------------------------------
+# What the embedder refuses.
+#
+# `may_type` answers whether the person at this keyboard may drive the
+# pane. pymux says no for a client that attached with `attach-session
+# -r`, and then the keys, a paste and the mouse all have to stop here:
+# the widget holds the only three writes a person reaches, and it is
+# asked once per event so an embedder with two people answers for
+# whichever of them this one came from. Lillecarl/pymux#467.
+
+
+def _written_while(may_type, *, paste: str | None = None) -> list:
+    """
+    What one key press, or one paste, writes to the program.
+
+    The event is built here rather than driven through a key processor:
+    the binding reads `data` off the press and nothing else, and a
+    processor would need an application and a layout to reach it.
+    """
+    written = []
+    control = _TerminalControl(backend=_NoBackend(), may_type=may_type)
+    control.create_content(12, 8)
+    control.process.write_input = written.append
+
+    if paste is None:
+        key, event = Keys.Any, SimpleNamespace(key_sequence=[SimpleNamespace(data="a")])
+    else:
+        key, event = Keys.BracketedPaste, SimpleNamespace(data=paste)
+
+    # By the keys it was added under, and not `get_bindings_for_keys`:
+    # an `Any` binding matches every question that method is asked, so
+    # the paste one is never the first answer.
+    for binding in control.get_key_bindings().bindings:
+        if binding.keys == (key,):
+            binding.handler(event)
+    return written
+
+
+def test_a_key_reaches_the_program_when_nobody_refuses_it():
+    "No `may_type` at all is the plain widget, and it types."
+    assert _written_while(None) == ["a"]
+
+
+def test_a_key_reaches_the_program_when_the_embedder_allows_it():
+    assert _written_while(lambda: True) == ["a"]
+
+
+def test_a_key_the_embedder_refuses_writes_nothing():
+    assert _written_while(lambda: False) == []
+
+
+def test_a_paste_the_embedder_refuses_writes_nothing():
+    "A paste is one write of many characters, so it needs its own guard."
+    assert _written_while(lambda: True, paste="hi") != []
+    assert _written_while(lambda: False, paste="hi") == []
+
+
+def test_a_mouse_report_the_embedder_refuses_writes_nothing():
+    """
+    The mouse is typing too: a report goes to the program on the same
+    stream a key does.
+    """
+    modes = set_mode(PrivateMode.MOUSE_REPORTING) + set_mode(PrivateMode.SGR_MOUSE)
+    assert clicked(modes, may_type=lambda: False) == b""
+
+
+def test_a_wheel_the_embedder_refuses_opens_no_copy_mode():
+    """
+    The whole mouse goes, and not the report alone. The wheel over a
+    pane whose program wants no mouse opens copy mode, which stops the
+    live screen for every viewer of that pane -- so a person who may
+    not type may not do it either.
+    """
+    terminal = Terminal(backend=_NoBackend(), may_type=lambda: False)
+    control = terminal.terminal_control
+    control.create_content(12, 8)
+
+    app = DummyApplication()
+    app.layout = _FocusedLayout(control)
+    with set_app(app):
+        control.mouse_handler(
+            MouseEvent(
+                position=Point(x=0, y=0),
+                event_type=MouseEventType.SCROLL_UP,
+                button=MouseButton.NONE,
+                modifiers=frozenset(),
+            )
+        )
+
+    assert terminal.is_copying is False
 
 
 def copy_mode_reversed_at(data: str, lines: int = 4, columns: int = 8):

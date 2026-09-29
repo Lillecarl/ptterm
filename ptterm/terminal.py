@@ -205,6 +205,7 @@ class _TerminalControl(UIControl):
         osc_func: Callable[[str, str], None] | None = None,
         resize_func: Callable[[int | None, int | None], None] | None = None,
         may_resize: Callable[[], bool] | None = None,
+        may_type: Callable[[], bool] | None = None,
         get_history_limit: Callable[[], int] | None = None,
         unreadable_key_func: Callable[[object, int, str], None] | None = None,
     ) -> None:
@@ -213,6 +214,11 @@ class _TerminalControl(UIControl):
         # way a keyboard does; this is how anything finds out.
         # Lillecarl/pymux#238.
         self.unreadable_key_func = unreadable_key_func
+
+        #: Whether the person at this keyboard may drive the pane.
+        #: Asked once per key, so an embedder that has more than one
+        #: person answers for whichever of them this key came from.
+        self.may_type = may_type
 
         def has_priority() -> bool:
             # Give priority to the processing of this terminal output, if this
@@ -419,6 +425,17 @@ class _TerminalControl(UIControl):
             apply_display_mappings=False,
         )
 
+    def may_be_driven(self) -> bool:
+        """
+        Whether what a person just did reaches the program in the pane.
+
+        Everything a person sends goes through here: the keys, a paste
+        and the mouse. The screen's own answers do not -- a reply to a
+        cursor query is the program asking itself, and an embedder that
+        refused it would hang the program rather than protect anything.
+        """
+        return self.may_type is None or self.may_type()
+
     def get_key_bindings(self) -> KeyBindings:
         bindings = KeyBindings()
 
@@ -427,6 +444,8 @@ class _TerminalControl(UIControl):
             """
             Handle any key binding -> write it to the stdin of this terminal.
             """
+            if not self.may_be_driven():
+                return NotImplemented
             # `NotImplemented` is prompt_toolkit's own answer for "the
             # handler changed nothing of the application's, so do not
             # invalidate". A key that reaches this was forwarded and
@@ -451,6 +470,8 @@ class _TerminalControl(UIControl):
 
         @bindings.add(Keys.BracketedPaste)
         def _(event):
+            if not self.may_be_driven():
+                return NotImplemented
             self.process.write_input(self.screen.wrap_paste(event.data))
             # A paste reaches a program as well, and the answer is the
             # redraw. Same answer as a key. Lillecarl/pymux#246.
@@ -466,7 +487,16 @@ class _TerminalControl(UIControl):
         Handle mouse events in a pane. A click in a non-active pane will select
         it. A click in active pane will send the mouse event to the application
         running inside it.
+
+        **The whole of it goes when `may_type` says no**, and not the
+        report alone. Every branch below is the person driving this
+        pane: two of them write to the program, one moves the focus,
+        and the wheel opens copy mode over a screen that every other
+        viewer of the pane shares.
         """
+        if not self.may_be_driven():
+            return
+
         app = get_app()
 
         process = self.process
@@ -738,6 +768,11 @@ class Terminal:
         ask. The private modes that only exist where a program can have
         a different page go away when it says no, so a program learns at
         once instead of laying its output out for room it will not get.
+    :param may_type: Returns whether the person at the keyboard may
+        drive this pane at all. False drops the keys, a paste and the
+        mouse, and leaves everything the pane draws. The embedder
+        decides because only it knows who is watching: pymux answers
+        for a client that attached with `attach-session -r`.
     :param get_history_limit: Returns how many rows of scrollback this
         pane keeps. The default is two thousand, which is what tmux
         keeps. It is a function and not a number, so the option can
@@ -758,6 +793,7 @@ class Terminal:
         copy_func: Callable[[str], None] | None = None,
         resize_func: Callable[[int | None, int | None], None] | None = None,
         may_resize: Callable[[], bool] | None = None,
+        may_type: Callable[[], bool] | None = None,
         get_history_limit: Callable[[], int] | None = None,
         unreadable_key_func: Callable[[object, int, str], None] | None = None,
     ) -> None:
@@ -772,6 +808,7 @@ class Terminal:
             osc_func=osc_func,
             resize_func=resize_func,
             may_resize=may_resize,
+            may_type=may_type,
             done_callback=done_callback,
             get_history_limit=get_history_limit,
             unreadable_key_func=unreadable_key_func,
