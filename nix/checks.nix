@@ -162,18 +162,27 @@ let
   # way the split can go quietly wrong, so it is the one thing to watch.
   #
   # The report stays beside the log, as the machine readable half of it.
+  #
+  # **No pipeline reads the report, and that is deliberate.** A run has
+  # `set -e` and `pipefail` both, so `sed ... | head -1` over a report with
+  # two matching lines ends 141: `head` leaves, `sed` writes again and takes
+  # SIGPIPE, and the whole suite goes red for reading its own output. awk
+  # stops itself instead. Lillecarl/pymux#464.
+  #
+  # pytest's own exit code needs no variable either: a failing run ends the
+  # script where it failed, which is what makes the count below mean
+  # something -- it is only ever read after a green run.
   runUnitPytest = ''
     ${runPytest} --junitxml="$out/report.xml"
-    status=$?
-    skipped="$(sed -n 's/.*[[:space:]]skipped="\([0-9]*\)".*/\1/p' \
-      "$out/report.xml" | head -1)"
-    if [ "$status" = 0 ] && [ "''${skipped:-0}" != "0" ]; then
+    skipped="$(awk 'match($0, /skipped="[0-9]+"/) {
+      print substr($0, RSTART + 9, RLENGTH - 10); exit
+    }' "$out/report.xml")"
+    if [ "''${skipped:-0}" != "0" ]; then
       echo "ptterm-unit skipped $skipped tests, and nothing here should skip."
       echo "A test that needs an oracle belongs in another group, and it"
       echo "gets there by importing that oracle. tests/conftest.py says how."
       exit 1
     fi
-    exit "$status"
   '';
 in
 {
