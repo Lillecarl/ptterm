@@ -135,6 +135,19 @@ _SHIFTED_BUTTONS = {
 }
 
 
+#: The key a wheel step is on the alternate screen, before the keyboard
+#: mode of the pane spells it.
+_WHEEL_ARROWS = {
+    MouseEventType.SCROLL_UP: "\x1b[A",
+    MouseEventType.SCROLL_DOWN: "\x1b[B",
+}
+
+#: What xterm (`scroll-back(5,line)`) and kitty (`wheel_scroll_multiplier`)
+#: send by default. The outer terminal reports one event per notch
+#: while pymux holds the mouse, so this is the whole step.
+_ARROWS_PER_WHEEL_STEP = 5
+
+
 def _one_byte(value: int) -> str:
     """
     One byte of an X10 mouse report, as a character the backend writes
@@ -558,6 +571,14 @@ class _TerminalControl(UIControl):
                                 _one_byte(y + _COORDINATE_OFFSET),
                             )
                         )
+            elif (
+                mouse_event.event_type in _WHEEL_ARROWS
+                and self.screen.wheel_sends_arrows
+            ):
+                # The alternate screen has no history, so copy mode
+                # would show the first screen's instead. Lillecarl/pymux#422.
+                arrow = self.screen.encode_key(_WHEEL_ARROWS[mouse_event.event_type])
+                self.process.write_input(arrow * _ARROWS_PER_WHEEL_STEP)
             elif mouse_event.event_type == MouseEventType.SCROLL_UP:
                 # The app asked for no mouse at all, and the wheel
                 # belongs to the person. The live screen does not hold

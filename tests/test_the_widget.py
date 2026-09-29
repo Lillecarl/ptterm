@@ -44,7 +44,7 @@ from prompt_toolkit.layout.layout import Layout
 
 from no_backend import NoBackend
 from pyte.cells import PLAIN_APPEARANCE, Cell
-from ptterm.terminal import Terminal, _TerminalControl, _Window
+from ptterm.terminal import _ARROWS_PER_WHEEL_STEP, Terminal, _TerminalControl, _Window
 from pyte.modes import PrivateMode
 from pyte.sequences import Csi, csi, set_mode
 from pyte import escape
@@ -309,6 +309,72 @@ def test_a_wheel_the_embedder_refuses_opens_no_copy_mode():
         )
 
     assert terminal.is_copying is False
+
+
+# ----------------------------------------------------------------------
+# The wheel on the alternate screen is arrows. Lillecarl/pymux#422.
+
+ALTERNATE = set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
+STEP = _ARROWS_PER_WHEEL_STEP
+
+
+def wheeled(modes: str, kind=MouseEventType.SCROLL_UP, may_type=None):
+    "Return (what one wheel step wrote to the program, is copy mode open)."
+    terminal = Terminal(backend=_NoBackend(), may_type=may_type)
+    control = terminal.terminal_control
+    control.create_content(12, 8)
+    written = []
+    control.process.write_input = written.append
+    control.screen.write_process_input = written.append
+    control.stream.feed(modes)
+
+    app = DummyApplication()
+    # A real layout, because copy mode moves the focus into it.
+    app.layout = Layout(terminal.container, focused_element=control)
+    with set_app(app):
+        control.mouse_handler(
+            MouseEvent(
+                position=Point(x=0, y=0),
+                event_type=kind,
+                button=MouseButton.NONE,
+                modifiers=frozenset(),
+            )
+        )
+    return "".join(written), terminal.is_copying
+
+
+def test_the_wheel_up_is_arrows_up():
+    assert wheeled(ALTERNATE) == ("\x1b[A" * STEP, False)
+
+
+def test_the_wheel_down_is_arrows_down():
+    assert wheeled(ALTERNATE, MouseEventType.SCROLL_DOWN) == ("\x1b[B" * STEP, False)
+
+
+def test_the_arrows_are_spelled_the_way_decckm_says():
+    modes = ALTERNATE + set_mode(PrivateMode.APPLICATION_CURSOR_KEYS)
+    assert wheeled(modes) == ("\x1bOA" * STEP, False)
+
+
+def test_a_program_that_turned_it_off_gets_copy_mode():
+    modes = ALTERNATE + reset_mode(PrivateMode.ALTERNATE_SCROLL)
+    assert wheeled(modes) == ("", True)
+
+
+def test_the_first_screen_gets_copy_mode_and_no_arrows():
+    "It has a history, and the wheel reads it."
+    assert wheeled("") == ("", True)
+
+
+def test_a_program_that_asked_for_the_mouse_gets_the_report():
+    modes = ALTERNATE + set_mode(PrivateMode.MOUSE_REPORTING) + set_mode(
+        PrivateMode.SGR_MOUSE
+    )
+    assert wheeled(modes) == ("\x1b[<64;1;1M", False)
+
+
+def test_arrows_the_embedder_refuses_are_not_written():
+    assert wheeled(ALTERNATE, may_type=lambda: False) == ("", False)
 
 
 def copy_mode_reversed_at(data: str, lines: int = 4, columns: int = 8):
