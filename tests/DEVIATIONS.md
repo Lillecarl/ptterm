@@ -1098,6 +1098,48 @@ they are worth keeping as state a pane never acts on.
 **As a setting:** no. Which slot a program shifted to is state the
 program set, not a preference.
 
+## What vttest tests and no judge implements
+
+### VT52 mode
+
+vttest item 7 is "Test of VT52 mode". ptterm ignores "ESC [ ? 2 l"
+(DECANM off) and has no VT52 command set, so "ESC Y row col", "ESC H",
+"ESC J", "ESC F" and "ESC G" fall through as unknown escapes and their
+arguments print. On a screen that reads like a fault, and it is not one.
+
+Four probes, each ending with "ESC <" to get back to ANSI, put the
+bytes to the panel:
+
+| probe | bytes |
+| --- | --- |
+| cursor address | `\x1b[?2l\x1bY !X` |
+| home | `\x1b[?2lAB\x1bHX` |
+| cursor keys | `\x1b[?2lAB\x1bA\x1bDX` |
+| graphics set | `\x1b[?2l\x1bFabc\x1bGdef` |
+
+**The verdict is "agree" on all four.** kitty, WezTerm, Alacritty,
+libvterm, Ghostty and xterm.js each draw exactly what ptterm draws. The
+six agree because none of them implements VT52 either: with DECANM off
+they read "ESC H" as HTS and "ESC D" as IND, so the screens show the
+ANSI meanings of those bytes. xterm was not asked. It does implement
+VT52, and the oracle reads a screen back through CSI, which a terminal
+in VT52 mode does not parse.
+
+**So there is nothing to follow, and the decision is to keep doing
+nothing.** No modern terminal implements VT52 and no program asks for
+it. vttest item 7 is named in `drive_with_vttest.py` as an item that is
+not entered, so no picture of it is taken and no garbage is written
+down as a difference. Lillecarl/pymux#113.
+
+**DA1 still names a VT500.** "CSI c" answers `65;...`, which is a VT500
+level, and a program that reads it and then asks for VT52 with
+"ESC [ ? 2 l" gets no mode change and no error. Every judge gives the
+same answer, so it is not a difference; it is the edge of the mode that
+is absent.
+
+**As a setting:** no. A whole mode is what is missing, and a setting
+would be implementing it.
+
 ## Where kitty looks wrong
 
 kitty puts the second character after a wrap into the cell of the

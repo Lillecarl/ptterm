@@ -238,6 +238,14 @@ NOT_OURS = (
         "it wrote itself.",
     ),
     (
+        r"^7 Test of VT52 mode",
+        "no terminal on the panel implements VT52, and the vote is six "
+        "to nothing against ptterm doing it. A VT52 sequence draws as "
+        "text, so every screen item 7 makes is garbage rather than a "
+        "difference to see. DEVIATIONS.md, \"What vttest tests and no "
+        "judge implements\", has the votes.",
+    ),
+    (
         r"^12 Modify test-parameters",
         "it changes what the run after it does. A recorded list has to "
         "be the same list every time.",
