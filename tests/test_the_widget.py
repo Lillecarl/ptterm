@@ -33,10 +33,12 @@ from types import SimpleNamespace
 import pytest
 from prompt_toolkit.application.current import set_app
 from prompt_toolkit.application.dummy import DummyApplication
+from prompt_toolkit.enums import EditingMode
 from prompt_toolkit.layout.mouse_handlers import MouseHandlers
 from prompt_toolkit.keys import Keys
 from prompt_toolkit.layout.screen import Char, Point, Screen, WritePosition
 from prompt_toolkit.mouse_events import MouseButton, MouseEvent, MouseEventType
+from prompt_toolkit.selection import SelectionType
 from prompt_toolkit.styles import Style
 from prompt_toolkit.token import KeepWhitespace
 
@@ -445,6 +447,45 @@ async def test_copy_mode_keeps_full_width_lines_on_one_row():
         for y in range(lines)
     ]
     assert rows[:3] == ["abcdefgh", "ABCDEFGH", "last"]
+
+
+async def test_copy_mode_a_line_selection_adds_no_row():
+    """
+    A vi line selection reaches the newline, and a processor that draws
+    the newline as a cell grows the line past the pane. A full-width
+    line grew a blank row under it. Lillecarl/pymux#483.
+    """
+    columns, lines = 8, 6
+    terminal = Terminal(backend=_NoBackend())
+    control = terminal.terminal_control
+    control.create_content(columns, lines)
+    control.stream.feed("abcdefgh\r\nABCDEFGH\r\n12345678\r\nlast")
+
+    app = DummyApplication()
+    app.editing_mode = EditingMode.VI
+    app.layout = Layout(terminal.container)
+    screen = Screen(default_char=None, initial_width=columns, initial_height=lines)
+    with set_app(app):
+        terminal.enter_copy_mode()
+        buffer = terminal.copy_buffer
+        buffer.cursor_position = 0
+        buffer.start_selection()
+        buffer.selection_state.type = SelectionType.LINES
+        buffer.cursor_position = 17
+        terminal.container.write_to_screen(
+            screen,
+            MouseHandlers(),
+            WritePosition(xpos=0, ypos=0, width=columns, height=lines),
+            "",
+            False,
+            None,
+        )
+
+    rows = [
+        "".join(screen.data_buffer[y][x].char for x in range(columns)).rstrip()
+        for y in range(lines)
+    ]
+    assert rows[:4] == ["abcdefgh", "ABCDEFGH", "12345678", "last"]
 
 
 async def test_copy_mode_draws_the_reverse_video_of_the_pane():

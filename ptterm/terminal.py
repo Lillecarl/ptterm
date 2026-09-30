@@ -936,7 +936,7 @@ class Terminal:
             include_default_input_processors=False,
             input_processors=[
                 _UseStyledTextProcessor(self),
-                HighlightSelectionProcessor(),
+                _HighlightSelectionWithoutTheWrap(),
                 HighlightSearchProcessor(),
                 HighlightIncrementalSearchProcessor(),
             ],
@@ -1281,6 +1281,29 @@ class Terminal:
     def screen(self) -> Screen:
         "What the program in this pane has drawn."
         return self.terminal_control.screen
+
+
+class _HighlightSelectionWithoutTheWrap(HighlightSelectionProcessor):
+    """
+    A selection highlights the cells of its line and no cell past them.
+
+    The base processor appends a space for the newline a selection
+    reaches, so an empty selected line shows as selected. Copy mode's
+    window wraps, so on a line that already fills the pane that space
+    is one cell too many: the line grows a second, blank row, and a vi
+    line selection over full-width lines drew an empty line under
+    each. Lillecarl/pymux#483.
+    """
+
+    def apply_transformation(self, transformation_input) -> Transformation:
+        cells = len(transformation_input.fragments)
+        result = super().apply_transformation(transformation_input)
+        fragments = result.fragments
+        if cells and len(fragments) == cells + 1:
+            style, text = fragments[-1][0], fragments[-1][1]
+            if text == " " and "class:selected" in style:
+                return Transformation(fragments[:-1])
+        return result
 
 
 class _UseStyledTextProcessor(Processor):
