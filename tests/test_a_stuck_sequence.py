@@ -3,9 +3,8 @@ A sequence that never finishes must not wedge a pane.
 
 A program can write a partial escape and then stop. The parser then
 reads every later byte as part of that sequence, and the pane shows
-the wrong screen for ever. A pane gives its parser a five second
-ground timer: the next bytes after that drop the unfinished sequence.
-Lillecarl/pymux#390.
+the wrong screen for ever. `GroundTimer` bounds that. The rule is
+pyte's; this checks the pane gives itself one. Lillecarl/pymux#390.
 """
 
 import asyncio
@@ -41,12 +40,18 @@ def row_text(made, number):
     return "".join(row[x].char for x in range(COLUMNS)).rstrip()
 
 
+def test_a_pane_gives_its_parser_a_ground_timer():
+    made = control()
+    assert made._ground_timer.timeout == 5
+    assert made.process.receive == made._ground_timer.feed
+
+
 def test_a_dangling_sequence_does_not_swallow_the_next_output():
     made = control()
     made.process.receive("abc\x1b[1;")
     assert made.stream.ground_timer_active
 
-    made._blocked_since -= 5  # The timeout passed with no byte.
+    made._ground_timer.since -= 5  # The timeout passed with no byte.
     made.process.receive("def")
 
     assert not made.stream.ground_timer_active

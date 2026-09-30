@@ -76,7 +76,7 @@ from pyte.images import ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH
 from pyte.cells import Cell, WrittenCell
 from pyte.page import TextLine
 from pyte.screen import Screen
-from pyte.streams import Stream
+from pyte.streams import GroundTimer, Stream
 
 from .style import drawn_as, style_of
 
@@ -270,15 +270,11 @@ class _TerminalControl(UIControl):
             get_history_limit=get_history_limit,
         )
         self.stream = Stream(self.screen)
-
-        #: When the parser stopped being plain text, or `None` when it
-        #: is reading plain text. `time.monotonic`. `_feed` reads it to
-        #: bound how long a sequence may stay open.
-        self._blocked_since: float | None = None
+        self._ground_timer = GroundTimer(self.stream, _GROUND_TIMEOUT, time.monotonic)
 
         self.process = Process(
             backend=backend,
-            receive=self._feed,
+            receive=self._ground_timer.feed,
             invalidate=lambda: self.on_content_changed.fire(),
             done_callback=done_callback,
             has_priority=has_priority,
@@ -300,33 +296,6 @@ class _TerminalControl(UIControl):
         self._drawn: dict[int, StyleAndTextTuples] = {}
         self._drawn_at: dict[int, int] = {}
         self._drawn_reversed = False
-
-    def _feed(self, data: str) -> None:
-        """
-        Feed the program's bytes to the screen.
-
-        **A sequence the program left open is dropped first.** A
-        program can write a partial escape and then stop. The parser
-        would then read every later byte as part of that sequence, and
-        the pane would show the wrong screen for ever. Five seconds
-        after the parser stopped being plain text, the next bytes drop
-        the unfinished sequence (`Stream.ground_timer_expired`), which
-        wastes only its own bytes. Lillecarl/pymux#390.
-        """
-        now = time.monotonic()
-        if (
-            self._blocked_since is not None
-            and now - self._blocked_since >= _GROUND_TIMEOUT
-        ):
-            self.stream.ground_timer_expired()
-
-        self.stream.feed(data)
-
-        if self.stream.ground_timer_active:
-            if self._blocked_since is None:
-                self._blocked_since = now
-        else:
-            self._blocked_since = None
 
     def set_size(self, width: int, height: int) -> None:
         "Tell the pty and the screen how big the pane is."
