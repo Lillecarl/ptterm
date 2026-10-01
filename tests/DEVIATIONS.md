@@ -702,23 +702,21 @@ it home. `DECSETTests.test_DECSET_ALTBUF` and
 `test_DECSET_OPT_ALTBUF` of esctest2 ask for the same thing, so xterm
 is with the five.
 
-For `?1049`, ptterm puts the cursor home, and so do kitty and WezTerm.
-Alacritty, Ghostty, libvterm and xterm.js leave it, and xterm describes
-the mode as a save, a switch and a clear, with no move. Nothing in
-esctest2 asks, so nothing forces the reading.
+For `?1049`, ptterm used to put the cursor home, and so do kitty and
+WezTerm. Alacritty, Ghostty, libvterm and xterm.js leave it, and xterm
+describes the mode as a save, a switch and a clear, with no move.
 
-The panel is four to two against ptterm here, so this is a choice
-ptterm has made and not an answer it has: the argument is that `?1049`
-saves the cursor on the way in and gives it back on the way out, so a
-program that uses the pair never has to know where the cursor stood in
-between. That argument does not cover a program that takes the screen
-and then reads the cursor. Lillecarl/pymux#34 holds the question.
+**ptterm leaves it now, so it is with the four.** The argument for home
+was that `?1049` saves the cursor on the way in and gives it back on
+the way out, so a program that uses the pair never has to know where
+the cursor stood in between. That argument does not cover a program
+that takes the screen and then reads the cursor, and the panel was four
+to two against with the documentation on the four's side.
+Lillecarl/pymux#34.
 
-**xterm leaves the cursor, so it is five to two now.**
 `test_xterm_itself.py::test_where_xterm_leaves_the_cursor_on_the_newest_alternate_mode`
-holds it: the "X" lands at row 1, column 2, where the cursor stood.
-The description that this entry quotes is xterm's own, and the terminal
-behaves the way it reads.
+holds xterm's answer: the "X" lands at row 1, column 2, where the
+cursor stood. With ptterm the "X" lands there too now.
 
 **As a setting:** the same argument as entry 2. A pane holds one
 cursor, so the choice belongs to the pane and is made once.

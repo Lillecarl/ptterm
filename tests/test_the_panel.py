@@ -679,11 +679,10 @@ def test_where_the_cursor_stands_after_the_older_alternate_modes():
 
 def test_where_the_cursor_stands_after_the_newest_alternate_mode():
     """
-    "?1049" splits the panel the other way, and ptterm is with the two.
-
-    ptterm sends the cursor home, because "?1049" saves it first and
-    gives it back on the way out. Four judges leave it. Nothing in
-    esctest2 asks, so the difference stands as a choice.
+    "?1049" leaves the cursor where it stands, like the two older modes
+    and like Alacritty, Ghostty, libvterm and xterm.js. kitty and
+    WezTerm put it home, and ptterm used to be with them.
+    Lillecarl/pymux#34.
     """
     against, with_us = sides(
         (
@@ -694,8 +693,8 @@ def test_where_the_cursor_stands_after_the_newest_alternate_mode():
         lines=3,
         columns=6,
     )
-    assert against == ["alacritty", "ghostty", "libvterm", "xtermjs"]
-    assert with_us == ["kitty", "wezterm"]
+    assert against == ["kitty", "wezterm"]
+    assert with_us == ["alacritty", "ghostty", "libvterm", "xtermjs"]
 
 
 def test_a_linefeed_at_the_bottom_paints_the_line_it_brings_in():
