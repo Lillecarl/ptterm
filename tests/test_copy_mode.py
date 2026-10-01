@@ -42,6 +42,8 @@ from pyte.modes import PrivateMode
 from pyte.sequences import set_mode
 from pyte import escape
 from pyte.sequences import csi
+from pyte.cells import WrittenCell
+from pyte.placeholders import PLACEHOLDER
 
 LINES = 6
 COLUMNS = 20
@@ -87,7 +89,7 @@ def every_line_the_eager_way(terminal):
             if row:
                 for column in range(0, max(row) + 1):
                     char = row[column]
-                    lines[-1].append((terminal._copy_cell_style(char), char.char))
+                    lines[-1].append(terminal._copy_cell(char))
     return lines
 
 
@@ -620,3 +622,65 @@ def test_the_wheel_moves_the_caret_and_the_bottom_leaves():
 
         a_wheel(control, MouseEventType.SCROLL_DOWN)
         assert not terminal.is_copying
+
+
+# ----------------------------------------------------------------------
+# What a copy holds, and what it only draws. Lillecarl/pymux#449.
+
+
+def test_a_placeholder_cell_draws_a_blank_and_copies_itself():
+    """
+    A cell of an image holds a character no font has. The pane blots it
+    out, because the embedder draws the image over it. Copy mode has no
+    image, so it draws a blank too, underlined to say the cell is not a
+    space a program wrote -- and the document keeps the placeholder, so
+    a copy carries it.
+    """
+    terminal = a_terminal("AB" + PLACEHOLDER + chr(0x0305) + "CD")
+
+    style, text = terminal.styled_line(0)[2]
+    assert text == " " + chr(0x0305)
+    assert "underline" in style
+    assert PLACEHOLDER + chr(0x0305) in terminal.copy_buffer.document.text
+
+
+def test_a_displayed_line_holds_as_many_characters_as_its_document():
+    """
+    prompt_toolkit puts a selection on a line by counting the characters
+    of the display, so a displayed line must hold as many as its line of
+    the document. The stand-in for a cell of an image keeps the marks
+    that carry its row and column for this reason.
+    """
+    terminal = a_terminal("AB" + PLACEHOLDER + chr(0x0305) + chr(0x030D) + "CD")
+
+    document = terminal.copy_buffer.document
+    for number, line in enumerate(document.lines):
+        displayed = sum(len(text) for _, text in terminal.styled_line(number))
+        assert displayed == len(line)
+
+
+def test_a_non_breaking_space_is_copied_itself():
+    """
+    prompt_toolkit marks a non-breaking space with `class:nbsp` when it
+    draws it, and the mark is a drawing and not text. The document keeps
+    the character, so a copy carries U+00A0 and no underline.
+    """
+    terminal = a_terminal("a\xa0b")
+
+    assert terminal.styled_line(0)[1][1] == "\xa0"
+    assert "a\xa0b" in terminal.copy_buffer.document.text
+
+
+def test_a_control_character_is_copied_as_it_stands():
+    """
+    A control should never be in a cell -- the parser eats those -- and
+    the pane draws a blank for one that is. Copy mode keeps the byte and
+    prompt_toolkit draws its own stand-in over it.
+    """
+    terminal = a_terminal("ab")
+    buffer = terminal.terminal_control.screen.page.data_buffer
+    buffer[0][1] = WrittenCell("\x01", buffer[0][0].appearance)
+    terminal.read_the_screen_into_the_copy_buffer()
+
+    assert terminal.styled_line(0)[1] == ("", "\x01")
+    assert "\x01" in terminal.copy_buffer.document.text

@@ -75,6 +75,7 @@ from pyte.environment import prepare
 from pyte.images import ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH
 from pyte.cells import Cell, WrittenCell
 from pyte.page import TextLine
+from pyte.placeholders import PLACEHOLDER
 from pyte.screen import Screen
 from pyte.streams import GroundTimer, Stream
 
@@ -1061,9 +1062,16 @@ class Terminal:
         """
         The style of one cell of the copy buffer, with DECSCNM folded in.
 
-        A blank that a program wrote carries `KeepWhitespace` here too.
-        Copy mode shows the screen of the pane stopped, so it holds the
-        same columns the pane holds.
+        **The character it decides on is the one the cell holds, not the
+        one it draws, and that is on purpose.** A pane blots out what a
+        terminal cannot read -- a blank for a control, a blank for the
+        image to go over (`style.visible_char`) -- because it has no copy
+        to protect and the outer terminal must not be handed a character
+        it cannot draw. Copy mode builds the text a person copies, so it
+        keeps the program's bytes and lays a stand-in over them instead
+        (`_copy_cell`). So a blank a program wrote keeps its column with
+        `KeepWhitespace`; a cell that only draws as blank is not blank,
+        and the document keeps what it holds. Lillecarl/pymux#449.
         """
         style = style_of(char.appearance)
         if self.copy_reverse_video and char.appearance.rendition.reverse:
@@ -1071,6 +1079,34 @@ class Terminal:
         if char.char == " " and isinstance(char, WrittenCell):
             style += " " + KeepWhitespace
         return style
+
+    def _copy_cell(self, cell: Cell) -> "tuple[str, str]":
+        """
+        How one cell of the copy buffer draws, and the character it holds.
+
+        **Copy mode copies the characters a program wrote, and draws a
+        stand-in for the ones a person cannot read.** A cell keeps the
+        character it holds, so a copy takes the program's own bytes.
+        prompt_toolkit supplies the stand-ins it knows -- `^A` for a
+        control, an underlined blank for a non-breaking space -- and the
+        one a cell of an image needs is drawn here. The pane does the
+        opposite: it blots such a cell out. Lillecarl/pymux#449.
+        """
+        style = self._copy_cell_style(cell)
+        char = cell.char
+        if char.startswith(PLACEHOLDER):
+            # A cell of an image, which is a character no font has. The
+            # pane draws a blank and the embedder puts the image over
+            # it; copy mode has no image, so it draws a blank too,
+            # underlined, to say the cell holds something and is not a
+            # space the program wrote. The marks that carry the image's
+            # row and column stay: a line of the display has to hold as
+            # many characters as its line of the document, or
+            # prompt_toolkit maps a selection position to the wrong
+            # cell. The document keeps the raw cell, so a copy still
+            # holds the placeholder.
+            return style + " underline", " " + char[len(PLACEHOLDER) :]
+        return style, char
 
     def copy_selection(self, buffer: Buffer) -> None:
         """
@@ -1242,7 +1278,7 @@ class Terminal:
             # The rows of one line hold one line, so the answer does.
             lines, _ = self.terminal_control.screen.page.unwrap(shown.first, shown.last)
             for cell in lines[0].cells:
-                line.append((self._copy_cell_style(cell), cell.char))
+                line.append(self._copy_cell(cell))
         self._styled_lines[number] = line
         return line
 
