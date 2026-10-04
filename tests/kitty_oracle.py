@@ -26,16 +26,16 @@ from pyte.streams import Stream
 from ptterm.style import style_of
 
 __all__ = [
+    "HISTORY",
+    "Cell",
     "as_seen",
     "as_text",
-    "without_a_baseline",
-    "Cell",
-    "HISTORY",
+    "differences",
+    "kitty_cells",
     "kitty_is_available",
     "number_the_links",
     "ptterm_cells",
-    "kitty_cells",
-    "differences",
+    "without_a_baseline",
 ]
 
 #: How many rows of history every judge keeps, ptterm included.

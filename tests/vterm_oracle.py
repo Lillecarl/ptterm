@@ -27,9 +27,9 @@ from kitty_oracle import HISTORY, Cell, as_seen, as_text, ptterm_cells
 
 __all__ = [
     "libvterm_is_available",
+    "three_way",
     "vterm_cells",
     "vterm_differences",
-    "three_way",
 ]
 
 #: How many code points libvterm keeps in one cell.

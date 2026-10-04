@@ -35,8 +35,8 @@ if TYPE_CHECKING:
     from pyte.cells import Appearance
 
 __all__ = (
-    "PALETTE_NAMES",
     "DEFAULT_COLOR_NAME",
+    "PALETTE_NAMES",
     "UNDERLINE_WORDS",
     "drawn_as",
     "style_of",

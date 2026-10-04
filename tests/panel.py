@@ -56,13 +56,13 @@ from kitty_oracle import (
 
 __all__ = [
     "Judge",
-    "judges",
-    "verdict",
-    "report",
     "abstained",
-    "xterm_is_here",
-    "what_xterm_draws",
+    "judges",
+    "report",
+    "verdict",
     "what_ptterm_draws",
+    "what_xterm_draws",
+    "xterm_is_here",
 ]
 
 #: A size to take after the data, as (lines, columns), or None.

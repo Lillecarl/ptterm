@@ -27,10 +27,10 @@ from kitty_oracle import (
 from line_judge import LineJudge
 
 __all__ = [
-    "judges_are_available",
     "JUDGE_NAMES",
     "judge_cells",
     "judge_differences",
+    "judges_are_available",
 ]
 
 #: The emulators that the program answers for.

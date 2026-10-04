@@ -52,7 +52,7 @@ from kitty_oracle import HISTORY, Cell
 from pyte import escape
 from pyte.sequences import esc
 
-__all__ = ["xterm_is_available", "xterm_cells"]
+__all__ = ["xterm_cells", "xterm_is_available"]
 
 #: What goes into a DECRQCRA checksum: the character, positive, for
 #: every cell, and not folded to eight bits. `xtermCheckRect` in

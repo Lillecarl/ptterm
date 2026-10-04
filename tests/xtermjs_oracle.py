@@ -39,7 +39,7 @@ from __future__ import annotations
 from kitty_oracle import Cell
 from line_judge import LineJudge
 
-__all__ = ["xtermjs_is_available", "xtermjs_cells", "_as_xtermjs_sees"]
+__all__ = ["_as_xtermjs_sees", "xtermjs_cells", "xtermjs_is_available"]
 
 _JUDGE = LineJudge("PTTERM_XTERMJS", ("xtermjs",))
 

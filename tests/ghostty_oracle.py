@@ -27,7 +27,7 @@ from __future__ import annotations
 from kitty_oracle import Cell
 from line_judge import LineJudge
 
-__all__ = ["ghostty_is_available", "ghostty_cells", "_as_ghostty_sees"]
+__all__ = ["_as_ghostty_sees", "ghostty_cells", "ghostty_is_available"]
 
 _JUDGE = LineJudge("PTTERM_GHOSTTY", ("ghostty",))
 
