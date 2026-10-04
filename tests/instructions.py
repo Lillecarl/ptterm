@@ -23,6 +23,8 @@ it counts, so the count is of plain bytecode. That is what makes it
 stable; it also means the count is not a time and does not become one.
 """
 
+from __future__ import annotations
+
 import sys
 
 __all__ = ["count_instructions"]
@@ -49,17 +51,13 @@ def count_instructions(work) -> int:
 
     sys.monitoring.use_tool_id(_TOOL, "ptterm-instructions")
     try:
-        sys.monitoring.register_callback(
-            _TOOL, sys.monitoring.events.INSTRUCTION, one_instruction
-        )
+        sys.monitoring.register_callback(_TOOL, sys.monitoring.events.INSTRUCTION, one_instruction)
         sys.monitoring.set_events(_TOOL, sys.monitoring.events.INSTRUCTION)
         try:
             work()
         finally:
             sys.monitoring.set_events(_TOOL, 0)
-            sys.monitoring.register_callback(
-                _TOOL, sys.monitoring.events.INSTRUCTION, None
-            )
+            sys.monitoring.register_callback(_TOOL, sys.monitoring.events.INSTRUCTION, None)
     finally:
         sys.monitoring.free_tool_id(_TOOL)
 

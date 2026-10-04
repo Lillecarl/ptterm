@@ -24,23 +24,20 @@ It is asked four kinds of question here.
   question: ptterm drops the wait to wrap where xterm keeps it.
 """
 
-import pytest
+from __future__ import annotations
 
+import pytest
 from panel import what_ptterm_draws, what_xterm_draws, xterm_is_here
-from pyte.sequences import Csi, csi
 from pyte import escape
-from pyte.sequences import Escape, Sharp, esc, sharp
 from pyte.modes import PrivateMode
-from pyte.sequences import reset_mode, set_mode
+from pyte.sequences import Csi, Escape, Sharp, csi, esc, reset_mode, set_mode, sharp
 
 pytestmark = pytest.mark.skipif(not xterm_is_here(), reason="xterm has no display here")
 
 
 def both(data, lines=3, columns=8):
     "What xterm draws and what ptterm draws, as rows of text."
-    return what_xterm_draws(data, lines, columns), what_ptterm_draws(
-        data, lines, columns
-    )
+    return what_xterm_draws(data, lines, columns), what_ptterm_draws(data, lines, columns)
 
 
 def test_xterm_answers_at_all():
@@ -65,18 +62,8 @@ def test_the_two_draw_the_same_plain_screen():
 #: three against three. `DEVIATIONS.md` entry 10 says the three that
 #: drop it are missing a feature, on the word of esctest2.
 MARGINS = [
-    (
-        "a\r\nb\r\nc\r\nd"
-        + set_mode(PrivateMode.LEFT_RIGHT_MARGIN)
-        + csi(Csi.DECSLRM, 2, 4)
-        + csi(Csi.SU, 2)
-    ),
-    (
-        "a\r\nb\r\nc\r\nd"
-        + set_mode(PrivateMode.LEFT_RIGHT_MARGIN)
-        + csi(Csi.DECSLRM, 2, 4)
-        + csi(Csi.SD, 2)
-    ),
+    ("a\r\nb\r\nc\r\nd" + set_mode(PrivateMode.LEFT_RIGHT_MARGIN) + csi(Csi.DECSLRM, 2, 4) + csi(Csi.SU, 2)),
+    ("a\r\nb\r\nc\r\nd" + set_mode(PrivateMode.LEFT_RIGHT_MARGIN) + csi(Csi.DECSLRM, 2, 4) + csi(Csi.SD, 2)),
     (
         "abcd\r\nefgh\r\nijkl"
         + set_mode(PrivateMode.LEFT_RIGHT_MARGIN)
@@ -229,14 +216,7 @@ def test_xterm_brings_the_wait_to_wrap_back_through_a_restore():
     # clears the wait and moves one column left, so the "b" lands one
     # left of the last column and the "a" there stays.
     with_a_move = what_xterm_draws(
-        fill
-        + (
-            esc(escape.DECSC)
-            + csi(escape.CUP, 1, 1)
-            + esc(escape.DECRC)
-            + csi(escape.CUB)
-            + "b"
-        ),
+        fill + (esc(escape.DECSC) + csi(escape.CUP, 1, 1) + esc(escape.DECRC) + csi(escape.CUB) + "b"),
         4,
         6,
     )
@@ -278,30 +258,14 @@ def test_xterm_wraps_rather_than_moving_back_over_a_tab_stop():
     assert [where(ours, one) for one in "xyz"] == [(0, 8), (0, 23), (1, 0)]
 
     with_a_move = what_xterm_draws(
-        (
-            csi(Csi.CHT)
-            + "x"
-            + csi(Csi.CHT, 2)
-            + "y"
-            + csi(Csi.CBT)
-            + csi(escape.CUB)
-            + "z"
-        ),
+        (csi(Csi.CHT) + "x" + csi(Csi.CHT, 2) + "y" + csi(Csi.CBT) + csi(escape.CUB) + "z"),
         8,
         24,
     )
     assert where(with_a_move, "z") == (0, 15)
 
     ours_with_a_move = what_ptterm_draws(
-        (
-            csi(Csi.CHT)
-            + "x"
-            + csi(Csi.CHT, 2)
-            + "y"
-            + csi(Csi.CBT)
-            + csi(escape.CUB)
-            + "z"
-        ),
+        (csi(Csi.CHT) + "x" + csi(Csi.CHT, 2) + "y" + csi(Csi.CBT) + csi(escape.CUB) + "z"),
         8,
         24,
     )
@@ -326,9 +290,7 @@ def test_xterm_keeps_the_wait_to_wrap_through_a_tab():
     in one place, and three more places still drop the wait.
     """
     drawn = what_xterm_draws(csi(escape.CUP, 1, 20) + "12345\tX", lines=8, columns=24)
-    assert [(y, row.index("X")) for y, row in enumerate(drawn) if "X" in row] == [
-        (1, 0)
-    ]
+    assert [(y, row.index("X")) for y, row in enumerate(drawn) if "X" in row] == [(1, 0)]
 
 
 def test_xterm_reads_the_parameters_it_needs_out_of_too_many():
@@ -374,9 +336,7 @@ def test_xterm_reads_the_parameters_it_needs_out_of_too_many():
         (6, "a\r\nb" + csi(Csi.SU, 0), 4, 8),
     ],
 )
-def test_a_settled_difference_reads_the_way_xterm_reads_it(
-    number, data, lines, columns
-):
+def test_a_settled_difference_reads_the_way_xterm_reads_it(number, data, lines, columns):
     "Entries 1, 2, 4, 5 and 6 of `DEVIATIONS.md`, in that order."
     drawn, ours = both(data, lines=lines, columns=columns)
     assert drawn == ours, number
@@ -404,17 +364,11 @@ def test_where_xterm_leaves_the_cursor_on_the_newest_alternate_mode():
     document the issue quotes is the terminal that wrote it.
     """
     drawn = what_xterm_draws(
-        (
-            csi(escape.CUP, 2, 3)
-            + set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
-            + "X"
-        ),
+        (csi(escape.CUP, 2, 3) + set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR) + "X"),
         lines=3,
         columns=6,
     )
-    assert [(y, row.index("X")) for y, row in enumerate(drawn) if "X" in row] == [
-        (1, 2)
-    ]
+    assert [(y, row.index("X")) for y, row in enumerate(drawn) if "X" in row] == [(1, 2)]
 
 
 def test_where_xterm_draws_after_the_screen_goes_back_under_another_name():
@@ -451,12 +405,7 @@ def test_where_xterm_draws_after_the_screen_goes_back_under_another_name():
     )
 
     def marks(rows):
-        return [
-            (y, x)
-            for y, row in enumerate(rows)
-            for x, one in enumerate(row)
-            if one != " "
-        ]
+        return [(y, x) for y, row in enumerate(rows) for x, one in enumerate(row) if one != " "]
 
     assert marks(what_xterm_draws(program, lines=8, columns=24)) == [(1, 0)]
     assert marks(what_ptterm_draws(program, lines=8, columns=24)) == [(1, 0)]

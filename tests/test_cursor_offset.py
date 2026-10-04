@@ -16,11 +16,14 @@ and only a terminal reading what pymux emitted disagreed.
 Lillecarl/pymux#62.
 """
 
-from pyte.screen import Screen
-from pyte.streams import Stream
-from ptterm.terminal import cursor_offset
+from __future__ import annotations
+
 from pyte import escape
+from pyte.screen import Screen
 from pyte.sequences import csi
+from pyte.streams import Stream
+
+from ptterm.terminal import cursor_offset
 
 COLUMNS = 8
 

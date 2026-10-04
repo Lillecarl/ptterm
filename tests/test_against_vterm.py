@@ -10,14 +10,14 @@ Where the two disagree, the difference is a choice, and
 `test_known_deviations.py` holds it.
 """
 
-import pytest
+from __future__ import annotations
 
+import pytest
 from kitty_oracle import kitty_is_available
-from vterm_oracle import libvterm_is_available, three_way, vterm_differences
 from pyte import escape
 from pyte.modes import PrivateMode
-from pyte.sequences import Csi, csi, esc, reset_mode
-from pyte.sequences import set_mode
+from pyte.sequences import Csi, csi, esc, reset_mode, set_mode
+from vterm_oracle import libvterm_is_available, three_way, vterm_differences
 
 pytestmark = pytest.mark.skipif(
     not (libvterm_is_available() and kitty_is_available()),
@@ -93,9 +93,7 @@ FOLLOWS_PTTERM = [
 ]
 
 
-@pytest.mark.parametrize(
-    "name,data,lines,columns", FOLLOWS_PTTERM, ids=[c[0] for c in FOLLOWS_PTTERM]
-)
+@pytest.mark.parametrize("name,data,lines,columns", FOLLOWS_PTTERM, ids=[c[0] for c in FOLLOWS_PTTERM])
 def test_libvterm_takes_the_side_of_ptterm(name, data, lines, columns):
     "kitty draws something else here; libvterm draws what ptterm draws."
     assert not vterm_differences(data, lines=lines, columns=columns)
@@ -118,9 +116,7 @@ def test_a_character_after_the_tab_shows_what_the_tab_did():
     regression.
     """
     assert three_way(csi(escape.CUP, 1, 20) + "12345\t", lines=4, columns=24) == "agree"
-    assert (
-        three_way((csi(escape.CUP, 1, 20) + "12345\tX"), lines=4, columns=24) == "agree"
-    )
+    assert three_way((csi(escape.CUP, 1, 20) + "12345\tX"), lines=4, columns=24) == "agree"
 
 
 def test_the_two_emulators_disagree_about_a_mark_on_an_erased_cell():
@@ -131,12 +127,7 @@ def test_the_two_emulators_disagree_about_a_mark_on_an_erased_cell():
     it, and libvterm hangs it on the character that the erase was meant
     to take away. Nothing to follow here.
     """
-    assert (
-        three_way(
-            ("0" + csi(escape.SGR, 40) + csi(escape.EL, 1) + "́"), lines=3, columns=6
-        )
-        == "split"
-    )
+    assert three_way(("0" + csi(escape.SGR, 40) + csi(escape.EL, 1) + "́"), lines=3, columns=6) == "split"
 
 
 def test_the_alternate_screen_keeps_what_it_held():
@@ -164,12 +155,7 @@ def test_libvterm_does_not_take_the_alternate_screen_on_the_oldest_name():
     """
     # The "X" of the alternate screen shows up on the first screen.
     assert vterm_differences(
-        (
-            "M"
-            + set_mode(PrivateMode.ALTERNATE_SCREEN)
-            + "X"
-            + reset_mode(PrivateMode.ALTERNATE_SCREEN)
-        ),
+        ("M" + set_mode(PrivateMode.ALTERNATE_SCREEN) + "X" + reset_mode(PrivateMode.ALTERNATE_SCREEN)),
         lines=3,
         columns=6,
     )

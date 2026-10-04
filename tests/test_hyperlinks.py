@@ -10,26 +10,24 @@ that a line break cuts in two is one link and not two. A cell carries
 the id the same way it carries the target.
 """
 
+from __future__ import annotations
+
 import base64
 
 import pytest
-
+from pyte import escape
+from pyte.modes import PrivateMode
 from pyte.osc import (
     MAX_HYPERLINK_ID_LENGTH,
     MAX_HYPERLINK_LENGTH,
+    Osc,
     parse_hyperlink,
 )
 from pyte.screen import Screen
+from pyte.sequences import Terminator, csi, esc, osc, reset_mode, set_mode
 from pyte.streams import Stream
+
 from ptterm.style import style_of
-from pyte import escape
-from pyte.sequences import csi
-from pyte.sequences import esc
-from pyte.modes import PrivateMode
-from pyte.sequences import set_mode
-from pyte.sequences import reset_mode
-from pyte.osc import Osc
-from pyte.sequences import Terminator, osc
 
 LINK = "https://example.com/a"
 

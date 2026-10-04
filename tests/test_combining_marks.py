@@ -6,15 +6,14 @@ cell. The cell before can be the empty second half of a double width
 character, and the character then sits one cell further back.
 """
 
-import pytest
+from __future__ import annotations
 
+import pytest
 from kitty_oracle import differences, kitty_is_available, ptterm_cells
 from pyte import escape
 from pyte.sequences import csi
 
-pytestmark = pytest.mark.skipif(
-    not kitty_is_available(), reason="the kitty python package is not there"
-)
+pytestmark = pytest.mark.skipif(not kitty_is_available(), reason="the kitty python package is not there")
 
 
 def test_a_mark_on_the_character_before_it():

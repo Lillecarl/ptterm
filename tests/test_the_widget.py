@@ -27,31 +27,30 @@ sees clamped.
 Lillecarl/pymux#84 asked for this.
 """
 
+from __future__ import annotations
+
 import asyncio
 from types import SimpleNamespace
 
 import pytest
+from no_backend import NoBackend
 from prompt_toolkit.application.current import set_app
 from prompt_toolkit.application.dummy import DummyApplication
 from prompt_toolkit.enums import EditingMode
-from prompt_toolkit.layout.mouse_handlers import MouseHandlers
 from prompt_toolkit.keys import Keys
-from prompt_toolkit.layout.screen import Char, Point, Screen, WritePosition
+from prompt_toolkit.layout.layout import Layout
+from prompt_toolkit.layout.mouse_handlers import MouseHandlers
+from prompt_toolkit.layout.screen import Point, Screen, WritePosition
 from prompt_toolkit.mouse_events import MouseButton, MouseEvent, MouseEventType
 from prompt_toolkit.selection import SelectionType
 from prompt_toolkit.styles import Style
 from prompt_toolkit.token import KeepWhitespace
-
-from prompt_toolkit.layout.layout import Layout
-
-from no_backend import NoBackend
-from pyte.cells import PLAIN_APPEARANCE, Cell
-from ptterm.terminal import _ARROWS_PER_WHEEL_STEP, Terminal, _TerminalControl, _Window
-from pyte.modes import PrivateMode
-from pyte.sequences import Csi, csi, set_mode
 from pyte import escape
-from pyte.sequences import Sharp, announce, reset_mode, sharp
+from pyte.cells import PLAIN_APPEARANCE, Cell
+from pyte.modes import PrivateMode
+from pyte.sequences import Csi, Sharp, announce, csi, reset_mode, set_mode, sharp
 
+from ptterm.terminal import _ARROWS_PER_WHEEL_STEP, Terminal, _TerminalControl, _Window
 
 #: `measure_instructions.py` builds the same widget to measure what the
 #: projection costs, so the stub lives beside both.
@@ -117,10 +116,7 @@ def reversed_at(data: str, lines: int = 8, columns: int = 12):
     screen = rendered(data, lines, columns)
     style = Style([])
     return [
-        [
-            style.get_attrs_for_style_str(screen.data_buffer[y][x].style).reverse
-            for x in range(columns)
-        ]
+        [style.get_attrs_for_style_str(screen.data_buffer[y][x].style).reverse for x in range(columns)]
         for y in range(lines)
     ]
 
@@ -152,9 +148,7 @@ def test_reverse_video_cancels_a_reverse_that_a_program_set():
     the cell beside it goes reversed. libvterm's `64screen_pen` asks
     this at lines 50 and 51.
     """
-    assert reversed_at(
-        set_mode(PrivateMode.REVERSE_VIDEO) + "a" + csi(escape.SGR, 7) + "b"
-    )[0][:2] == [True, False]
+    assert reversed_at(set_mode(PrivateMode.REVERSE_VIDEO) + "a" + csi(escape.SGR, 7) + "b")[0][:2] == [True, False]
 
 
 def test_a_cell_that_a_program_reversed_stays_reversed_without_the_mode():
@@ -165,11 +159,7 @@ def test_a_cell_that_a_program_reversed_stays_reversed_without_the_mode():
 def test_reverse_video_goes_away_again():
     '"CSI ? 5 l" puts the screen back.'
     assert (
-        reversed_at(
-            set_mode(PrivateMode.REVERSE_VIDEO)
-            + "hi"
-            + reset_mode(PrivateMode.REVERSE_VIDEO)
-        )[0]
+        reversed_at(set_mode(PrivateMode.REVERSE_VIDEO) + "hi" + reset_mode(PrivateMode.REVERSE_VIDEO))[0]
         == [False] * 12
     )
 
@@ -369,9 +359,7 @@ def test_the_first_screen_gets_copy_mode_and_no_arrows():
 
 
 def test_a_program_that_asked_for_the_mouse_gets_the_report():
-    modes = ALTERNATE + set_mode(PrivateMode.MOUSE_REPORTING) + set_mode(
-        PrivateMode.SGR_MOUSE
-    )
+    modes = ALTERNATE + set_mode(PrivateMode.MOUSE_REPORTING) + set_mode(PrivateMode.SGR_MOUSE)
     assert wheeled(modes) == ("\x1b[<64;1;1M", False)
 
 
@@ -413,10 +401,7 @@ def copy_mode_reversed_at(data: str, lines: int = 4, columns: int = 8):
 
     style = Style([])
     return [
-        [
-            style.get_attrs_for_style_str(screen.data_buffer[y][x].style).reverse
-            for x in range(columns)
-        ]
+        [style.get_attrs_for_style_str(screen.data_buffer[y][x].style).reverse for x in range(columns)]
         for y in range(lines)
     ]
 
@@ -442,10 +427,7 @@ async def test_copy_mode_keeps_full_width_lines_on_one_row():
             None,
         )
 
-    rows = [
-        "".join(screen.data_buffer[y][x].char for x in range(columns)).rstrip()
-        for y in range(lines)
-    ]
+    rows = ["".join(screen.data_buffer[y][x].char for x in range(columns)).rstrip() for y in range(lines)]
     assert rows[:3] == ["abcdefgh", "ABCDEFGH", "last"]
 
 
@@ -481,10 +463,7 @@ async def test_copy_mode_a_line_selection_adds_no_row():
             None,
         )
 
-    rows = [
-        "".join(screen.data_buffer[y][x].char for x in range(columns)).rstrip()
-        for y in range(lines)
-    ]
+    rows = ["".join(screen.data_buffer[y][x].char for x in range(columns)).rstrip() for y in range(lines)]
     assert rows[:4] == ["abcdefgh", "ABCDEFGH", "12345678", "last"]
 
 
@@ -493,17 +472,15 @@ async def test_copy_mode_draws_the_reverse_video_of_the_pane():
     Copy mode shows the same screen, stopped. A screen that changes
     appearance when the user scrolls it is a screen nobody can trust.
     """
-    assert (
-        copy_mode_reversed_at(set_mode(PrivateMode.REVERSE_VIDEO) + "hi")[0]
-        == [True] * 8
-    )
+    assert copy_mode_reversed_at(set_mode(PrivateMode.REVERSE_VIDEO) + "hi")[0] == [True] * 8
 
 
 async def test_copy_mode_cancels_a_reverse_that_a_program_set():
     "DECSCNM xors here as well."
-    assert copy_mode_reversed_at(
-        set_mode(PrivateMode.REVERSE_VIDEO) + "a" + csi(escape.SGR, 7) + "b"
-    )[0][:2] == [True, False]
+    assert copy_mode_reversed_at(set_mode(PrivateMode.REVERSE_VIDEO) + "a" + csi(escape.SGR, 7) + "b")[0][:2] == [
+        True,
+        False,
+    ]
 
 
 async def test_copy_mode_draws_no_reverse_without_the_mode():
@@ -511,40 +488,26 @@ async def test_copy_mode_draws_no_reverse_without_the_mode():
 
 
 def test_the_sgr_mouse_report_reaches_the_program():
-    assert (
-        clicked(set_mode(PrivateMode.MOUSE_REPORTING) + set_mode(PrivateMode.SGR_MOUSE))
-        == b"\x1b[<0;3;2M"
-    )
+    assert clicked(set_mode(PrivateMode.MOUSE_REPORTING) + set_mode(PrivateMode.SGR_MOUSE)) == b"\x1b[<0;3;2M"
 
 
 def test_the_sgr_mouse_report_takes_eight_bit_controls():
     "It is a control the terminal sends, so S8C1T reaches it."
     assert (
-        clicked(
-            announce(escape.S8C1T)
-            + set_mode(PrivateMode.MOUSE_REPORTING)
-            + set_mode(PrivateMode.SGR_MOUSE)
-        )
+        clicked(announce(escape.S8C1T) + set_mode(PrivateMode.MOUSE_REPORTING) + set_mode(PrivateMode.SGR_MOUSE))
         == b"\x9b<0;3;2M"
     )
 
 
 def test_the_urxvt_mouse_report_takes_eight_bit_controls():
     assert (
-        clicked(
-            announce(escape.S8C1T)
-            + set_mode(PrivateMode.MOUSE_REPORTING)
-            + set_mode(PrivateMode.URXVT_MOUSE)
-        )
+        clicked(announce(escape.S8C1T) + set_mode(PrivateMode.MOUSE_REPORTING) + set_mode(PrivateMode.URXVT_MOUSE))
         == b"\x9b32;3;2M"
     )
 
 
 def test_the_old_mouse_report_takes_eight_bit_controls():
-    assert (
-        clicked(announce(escape.S8C1T) + set_mode(PrivateMode.MOUSE_REPORTING))
-        == b"\x9bM \x23\x22"
-    )
+    assert clicked(announce(escape.S8C1T) + set_mode(PrivateMode.MOUSE_REPORTING)) == b"\x9bM \x23\x22"
 
 
 #: What turns the X10 report on, with nothing after it. The three tests
@@ -723,10 +686,7 @@ def test_a_no_break_space_reaches_the_screen_as_it_stands():
 def keeps_a_blank_at(data: str, lines: int = 8, columns: int = 12):
     "Which cells ask the renderer to keep them, as a row of booleans each."
     screen = rendered(data, lines, columns)
-    return [
-        [KeepWhitespace in screen.data_buffer[y][x].style for x in range(columns)]
-        for y in range(lines)
-    ]
+    return [[KeepWhitespace in screen.data_buffer[y][x].style for x in range(columns)] for y in range(lines)]
 
 
 def test_a_space_that_a_program_wrote_asks_to_stay():

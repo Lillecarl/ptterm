@@ -7,17 +7,15 @@ eats the whole payload: a payload that leaks writes text on the screen
 that the program never meant to show.
 """
 
-import pytest
+from __future__ import annotations
 
+import pytest
 from kitty_oracle import differences, kitty_is_available
 from pyte import escape
-from pyte.sequences import csi
 from pyte.osc import Osc
-from pyte.sequences import Terminator, apc, dcs, osc
+from pyte.sequences import Terminator, apc, csi, dcs, osc
 
-pytestmark = pytest.mark.skipif(
-    not kitty_is_available(), reason="the kitty python package is not there"
-)
+pytestmark = pytest.mark.skipif(not kitty_is_available(), reason="the kitty python package is not there")
 
 #: A sequence of each kind, with a payload that has to stay invisible.
 SEQUENCES = [
@@ -55,15 +53,11 @@ def test_a_string_sequence_between_two_words(sequence):
 
 @pytest.mark.parametrize("sequence", SEQUENCES)
 def test_a_string_sequence_does_not_move_the_cursor(sequence):
-    assert not differences(
-        ("abc" + csi(escape.CUP, 1, 2)) + sequence + "X", lines=4, columns=12
-    )
+    assert not differences(("abc" + csi(escape.CUP, 1, 2)) + sequence + "X", lines=4, columns=12)
 
 
 def test_a_payload_that_holds_a_semicolon():
-    assert not differences(
-        (osc(Osc.NOTIFICATION, "i=1", "a", "b", "c") + "X"), lines=4, columns=12
-    )
+    assert not differences((osc(Osc.NOTIFICATION, "i=1", "a", "b", "c") + "X"), lines=4, columns=12)
 
 
 def test_an_empty_payload():

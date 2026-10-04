@@ -44,24 +44,25 @@ Run it through the check, not by hand:
     nix build --file . checks.ptterm-vterm
 """
 
+from __future__ import annotations
+
 import codecs
 import sys
 import traceback
 from pathlib import Path
-from typing import List
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from kitty_oracle import (  # noqa: E402
+from kitty_oracle import (
     ANSI_COLOR_NAMES,
     _color_of_style,
     _underline_of_style,
 )
+from pyte.cells import WrittenCell, appearance_of
+from pyte.screen import Screen
+from pyte.streams import Stream
 
-from pyte.cells import WrittenCell, appearance_of  # noqa: E402
-from pyte.screen import Screen  # noqa: E402
-from pyte.streams import Stream  # noqa: E402
-from ptterm.style import style_of  # noqa: E402
+from ptterm.style import style_of
 
 #: The screen that libvterm's `INIT` makes.
 ROWS, COLUMNS = 25, 80
@@ -100,7 +101,7 @@ class Harness:
         self.default_foreground = DEFAULT_FOREGROUND
         self.default_background = DEFAULT_BACKGROUND
         #: What the terminal has written back since the last command.
-        self.written: List[str] = []
+        self.written: list[str] = []
 
     # -- the screen -----------------------------------------------------
 
@@ -132,9 +133,7 @@ class Harness:
         answers, self.written[:] = "".join(self.written), []
         if not answers:
             return None
-        return "output " + ",".join(
-            "%x" % byte for byte in answers.encode("utf-8", "surrogateescape")
-        )
+        return "output " + ",".join("%x" % byte for byte in answers.encode("utf-8", "surrogateescape"))
 
     def cell(self, row: int, column: int):
         "The cell at a place on the visible screen."
@@ -380,10 +379,7 @@ class Harness:
         while first > 0 and _rendition_of(self.cell(row, first - 1)) == style:
             first -= 1
         last = column
-        while (
-            last + 1 < screen.columns
-            and _rendition_of(self.cell(row, last + 1)) == style
-        ):
+        while last + 1 < screen.columns and _rendition_of(self.cell(row, last + 1)) == style:
             last += 1
         return "%d,%d-%d,%d" % (row, first, row + 1, last)
 
@@ -493,9 +489,7 @@ def _baseline_of_style(style: str) -> str:
 
 def _rendition_of(cell) -> str:
     "The style of a cell, without the hyperlink that is not a style."
-    return " ".join(
-        part for part in style_of(cell.appearance).split() if not part.startswith(_LINK)
-    )
+    return " ".join(part for part in style_of(cell.appearance).split() if not part.startswith(_LINK))
 
 
 def _read_colour(text: str):

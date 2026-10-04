@@ -9,14 +9,15 @@ The picture harness of pymux found it: the same program in the same
 xterm drew a line through "struck" without a pane and no line with one.
 """
 
-import pytest
+from __future__ import annotations
 
-from pyte.screen import Screen
-from pyte.streams import Stream
-from ptterm.style import style_of as spell
+import pytest
 from pyte import escape
-from pyte.sequences import csi
-from pyte.sequences import decrqss
+from pyte.screen import Screen
+from pyte.sequences import csi, decrqss
+from pyte.streams import Stream
+
+from ptterm.style import style_of as spell
 
 
 def screen(lines=2, columns=20):
@@ -71,9 +72,7 @@ def test_twenty_nine_leaves_the_other_attributes_alone():
     assert "underline" in style
 
 
-@pytest.mark.parametrize(
-    "sequence", [csi(escape.SGR, 9), csi(escape.SGR, 0, 9), csi(escape.SGR, 39, 9)]
-)
+@pytest.mark.parametrize("sequence", [csi(escape.SGR, 9), csi(escape.SGR, 0, 9), csi(escape.SGR, 39, 9)])
 def test_every_way_a_program_writes_it(sequence):
     made, stream = screen()
     stream.feed(sequence + "x")

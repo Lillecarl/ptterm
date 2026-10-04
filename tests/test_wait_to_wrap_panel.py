@@ -32,8 +32,9 @@ so the judges that differ here are the ones that drop it.
 what ptterm does; this file is the record of what the others do.
 """
 
-import pytest
+from __future__ import annotations
 
+import pytest
 from panel import abstained, report
 
 #: `CSI I` twice, then one tab stop back, then a character. The "y"

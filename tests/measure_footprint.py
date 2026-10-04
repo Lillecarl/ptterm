@@ -72,6 +72,8 @@ Two knobs reach this file from `ptterm/nix/checks.nix`:
     PTTERM_FOOTPRINT_TOLERANCE=10 nix build --file . checks.ptterm-footprint
 """
 
+from __future__ import annotations
+
 import asyncio
 import gc
 import os
@@ -82,7 +84,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from measure_instructions import DEPTHS, a_filled_pane  # noqa: E402
+from measure_instructions import DEPTHS, a_filled_pane
 
 HERE = Path(__file__).parent
 
@@ -257,10 +259,7 @@ def main() -> int:
             continue
         moved = abs(count - budget) * 100.0 / max(1, budget)
         if moved > tolerance:
-            over.append(
-                "%s holds %d, and its budget is %d: %.1f%% away"
-                % (name, count, budget, moved)
-            )
+            over.append("%s holds %d, and its budget is %d: %.1f%% away" % (name, count, budget, moved))
 
     if over:
         print("\n--- past the budget ---")

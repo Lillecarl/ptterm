@@ -10,17 +10,19 @@ reference: what it shows is what the user sees outside pymux.
 tests skip when it is not set.
 """
 
+from __future__ import annotations
+
 import base64
 import os
 import re
 import sys
 import unicodedata
-from typing import Dict, List, NamedTuple, Optional, Tuple
+from typing import NamedTuple
 
 from prompt_toolkit.styles import palette_color_number
-
 from pyte.screen import Screen
 from pyte.streams import Stream
+
 from ptterm.style import style_of
 
 __all__ = [
@@ -75,8 +77,8 @@ class Cell(NamedTuple):
     "One cell of a screen, in a form that both sides can produce."
 
     char: str
-    fg: Optional[Tuple]
-    bg: Optional[Tuple]
+    fg: tuple | None
+    bg: tuple | None
     bold: bool
     italic: bool
     #: The shape of the underline, as kitty numbers it: none, single,
@@ -85,10 +87,10 @@ class Cell(NamedTuple):
     reverse: bool
     #: The colour of the underline itself, or None for the colour of
     #: the text.
-    underline_color: Optional[Tuple] = None
+    underline_color: tuple | None = None
     #: The target of the link that this cell belongs to, or None. It is
     #: the text that the program wrote, so it compares as it stands.
-    hyperlink: Optional[str] = None
+    hyperlink: str | None = None
     #: Which link this cell belongs to, as a number of this screen: 1
     #: for the first link the reader meets, 2 for the next.
     #:
@@ -97,7 +99,7 @@ class Cell(NamedTuple):
     #: link. `number_the_links` writes the numbers, as the last step of
     #: every reader. Until it runs the field holds the name that the
     #: emulator gave.
-    hyperlink_id: Optional[int] = None
+    hyperlink_id: int | None = None
     #: Where the glyph sits, as libvterm numbers it: 0 on the baseline,
     #: 1 raised ("SGR 73"), 2 lowered ("SGR 74"). WezTerm numbers its
     #: own enum the same way.
@@ -167,7 +169,7 @@ _settings_are_given = False
 _HYPERLINK = re.compile(r"\[hyperlink(-id)?:([^\]]*)\]")
 
 
-def _link_of_style(style: str) -> Tuple[Optional[str], str]:
+def _link_of_style(style: str) -> tuple[str | None, str]:
     """
     The target of the link that a style string carries, and its name.
 
@@ -189,7 +191,7 @@ def _link_of_style(style: str) -> Tuple[Optional[str], str]:
     return target, "%s\x00%s" % (link_id, target)
 
 
-def number_the_links(rows: List[List[Cell]]) -> List[List[Cell]]:
+def number_the_links(rows: list[list[Cell]]) -> list[list[Cell]]:
     """
     Turn the name that an emulator gives a link into a number.
 
@@ -204,21 +206,19 @@ def number_the_links(rows: List[List[Cell]]) -> List[List[Cell]]:
     reader meets it. Two judges then agree when they group the cells
     the same way.
     """
-    numbers: Dict[str, int] = {}
+    numbers: dict[str, int] = {}
     return [
         [
             cell
             if cell.hyperlink_id is None
-            else cell._replace(
-                hyperlink_id=numbers.setdefault(cell.hyperlink_id, len(numbers) + 1)
-            )
+            else cell._replace(hyperlink_id=numbers.setdefault(cell.hyperlink_id, len(numbers) + 1))
             for cell in row
         ]
         for row in rows
     ]
 
 
-def _color_of_style(style: str, prefix: str) -> Optional[Tuple]:
+def _color_of_style(style: str, prefix: str) -> tuple | None:
     """
     The colour that a prompt_toolkit style string names.
 
@@ -271,19 +271,17 @@ def _baseline_of_style(style: str) -> int:
     return 0
 
 
-def ptterm_cells(
-    data: str, lines: int, columns: int, resize: Optional[Tuple[int, int]] = None
-) -> List[List[Cell]]:
+def ptterm_cells(data: str, lines: int, columns: int, resize: tuple[int, int] | None = None) -> list[list[Cell]]:
     "Feed `data` to ptterm and read the screen back."
     return ptterm_cells_in_pieces([data], lines, columns, resize)
 
 
 def ptterm_cells_in_pieces(
-    pieces: List[str],
+    pieces: list[str],
     lines: int,
     columns: int,
-    resize: Optional[Tuple[int, int]] = None,
-) -> List[List[Cell]]:
+    resize: tuple[int, int] | None = None,
+) -> list[list[Cell]]:
     """
     Feed ptterm one piece at a time, and read the screen back.
 
@@ -339,7 +337,7 @@ def ptterm_cells_in_pieces(
     return number_the_links(rows)
 
 
-def _kitty_color(value: int) -> Optional[Tuple]:
+def _kitty_color(value: int) -> tuple | None:
     """
     The colour that kitty stores in a cell.
 
@@ -359,9 +357,7 @@ def _kitty_color(value: int) -> Optional[Tuple]:
     return None
 
 
-def kitty_cells(
-    data: str, lines: int, columns: int, resize: Optional[Tuple[int, int]] = None
-) -> List[List[Cell]]:
+def kitty_cells(data: str, lines: int, columns: int, resize: tuple[int, int] | None = None) -> list[list[Cell]]:
     "Feed `data` to kitty and read the screen back."
     from kitty.fast_data_types import Screen
 
@@ -400,11 +396,7 @@ def kitty_cells(
                     reverse=bool(cursor.reverse),
                     # kitty keeps the colour of a line that it does not
                     # draw. Nobody sees that, so it goes away.
-                    underline_color=(
-                        _kitty_color(cursor.decoration_fg)
-                        if cursor.decoration
-                        else None
-                    ),
+                    underline_color=(_kitty_color(cursor.decoration_fg) if cursor.decoration else None),
                     hyperlink=(screen.hyperlink_at(x, y) if link_numbers[x] else None),
                     hyperlink_id=str(link_numbers[x]) if link_numbers[x] else None,
                 )
@@ -423,7 +415,7 @@ def _is_a_mark(char: str) -> bool:
     )
 
 
-def _split_a_double_cell(row: List[Cell]) -> None:
+def _split_a_double_cell(row: list[Cell]) -> None:
     """
     Move a second character out of a cell that holds two.
 
@@ -443,11 +435,7 @@ def _split_a_double_cell(row: List[Cell]) -> None:
             # moves one cell to the right, up to the first blank. That
             # blank goes away and nothing is lost.
             blank = next(
-                (
-                    column
-                    for column in range(index + 1, len(row))
-                    if row[column].char == " "
-                ),
+                (column for column in range(index + 1, len(row)) if row[column].char == " "),
                 None,
             )
             if blank is None:
@@ -507,7 +495,7 @@ def differences(
     columns: int = 20,
     strict: bool = False,
     blank_style: bool = True,
-) -> List[str]:
+) -> list[str]:
     """
     Every cell where ptterm and kitty do not agree, as readable lines.
 
@@ -526,9 +514,9 @@ def differences(
     if strict:
         keep = without_a_baseline
     elif blank_style:
-        keep = lambda cell: without_a_baseline(as_seen(cell))  # noqa: E731
+        keep = lambda cell: without_a_baseline(as_seen(cell))
     else:
-        keep = lambda cell: without_a_baseline(as_text(cell))  # noqa: E731
+        keep = lambda cell: without_a_baseline(as_text(cell))
 
     reported = []
     for y in range(lines):

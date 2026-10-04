@@ -19,13 +19,14 @@ is remembered. A screen makes one appearance per SGR sequence, and a
 frame draws thousands of cells carrying a handful of them.
 """
 
+from __future__ import annotations
+
 import base64
 from functools import lru_cache
-from typing import TYPE_CHECKING, Dict, List
+from typing import TYPE_CHECKING
 
 from prompt_toolkit.layout.screen import Char
 from prompt_toolkit.token import KeepWhitespace
-
 from pyte.cells import appearance_of
 from pyte.colors import SgrColor
 from pyte.placeholders import PLACEHOLDER
@@ -45,7 +46,7 @@ __all__ = (
 
 #: The names that prompt_toolkit gives the first sixteen colours of the
 #: palette, in the order that "CSI 38 ; 5 ; n m" numbers them.
-PALETTE_NAMES: List[str] = [
+PALETTE_NAMES: list[str] = [
     "ansiblack",
     "ansired",
     "ansigreen",
@@ -96,7 +97,7 @@ def style_word(color: SgrColor) -> str:
 
 
 #: The word that prompt_toolkit reads for each shape of underline.
-UNDERLINE_WORDS: Dict[str, str] = {
+UNDERLINE_WORDS: dict[str, str] = {
     "": "underline",
     "double": "underdouble",
     "curly": "undercurl",
@@ -115,7 +116,7 @@ def _encoded(text: str) -> str:
     return base64.b64encode(text.encode("utf-8")).decode("ascii")
 
 
-def _spelled(appearance: "Appearance") -> str:
+def _spelled(appearance: Appearance) -> str:
     """
     The prompt_toolkit style string that draws one cell.
 
@@ -213,9 +214,7 @@ def visible_char(char: str) -> str:
     return char
 
 
-def _drawn_as(
-    char: str, appearance: "Appearance", reverse_video: bool, written: bool
-) -> "tuple[str, str]":
+def _drawn_as(char: str, appearance: Appearance, reverse_video: bool, written: bool) -> tuple[str, str]:
     """
     The style and the character that one cell draws with.
 

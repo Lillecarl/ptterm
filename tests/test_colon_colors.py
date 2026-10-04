@@ -7,11 +7,14 @@ reach the screen as one tuple, so the screen has to read a tuple as
 well as a row of numbers.
 """
 
-from pyte.screen import Screen
-from pyte.streams import Stream
-from ptterm.style import style_of as spell
+from __future__ import annotations
+
 from pyte import escape
+from pyte.screen import Screen
 from pyte.sequences import csi
+from pyte.streams import Stream
+
+from ptterm.style import style_of as spell
 
 
 def style_of(data, column=0):

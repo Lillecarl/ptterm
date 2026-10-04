@@ -5,11 +5,12 @@ A blank that one of these leaves takes the background that is set, the
 same way an erased cell does.
 """
 
-from pyte.screen import Screen
-from pyte.streams import Stream
-from ptterm.style import style_of
+from __future__ import annotations
+
 from pyte import escape
+from pyte.screen import Screen
 from pyte.sequences import csi
+from pyte.streams import Stream
 
 
 def _screen(lines=4, columns=8):
@@ -22,8 +23,7 @@ def _rows(screen):
     buffer = screen.page.data_buffer
     offset = screen.line_offset
     return [
-        "".join(buffer[y][x].char for x in range(screen.columns)).rstrip()
-        for y in range(offset, offset + screen.lines)
+        "".join(buffer[y][x].char for x in range(screen.columns)).rstrip() for y in range(offset, offset + screen.lines)
     ]
 
 
@@ -34,9 +34,7 @@ def _background(row, column):
 
 def test_inserted_characters_take_the_background():
     screen, stream = _screen()
-    stream.feed(
-        "abcdef" + csi(escape.CUP, 1, 3) + csi(escape.SGR, 42) + csi(escape.ICH, 2)
-    )
+    stream.feed("abcdef" + csi(escape.CUP, 1, 3) + csi(escape.SGR, 42) + csi(escape.ICH, 2))
     row = screen.page.data_buffer[screen.line_offset]
     assert row[0].char == "a"
     assert _background(row, 2) is not None and row[2].char == " "
@@ -52,9 +50,7 @@ def test_inserted_characters_fall_off_the_right_edge():
 
 def test_deleted_characters_take_the_background_at_the_edge():
     screen, stream = _screen(columns=6)
-    stream.feed(
-        "abcdef" + csi(escape.CUP, 1, 1) + csi(escape.SGR, 41) + csi(escape.DCH, 2)
-    )
+    stream.feed("abcdef" + csi(escape.CUP, 1, 1) + csi(escape.SGR, 41) + csi(escape.DCH, 2))
     row = screen.page.data_buffer[screen.line_offset]
     assert row[0].char == "c"
     assert _background(row, 4) is not None and row[4].char == " "

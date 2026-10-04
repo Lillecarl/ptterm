@@ -13,16 +13,17 @@ no opinion on what parses the bytes. Lillecarl/pymux#125.
 thinks the code passes down.
 """
 
+from __future__ import annotations
+
 import asyncio
 import os
 
 import pytest
-
+from ptyhost import Process
 from pyte.environment import DEFAULT_DATABASE, terminal_name
 from pyte.screen import Screen
-from pyte.terminfo import TERMINAL_NAME
 from pyte.streams import Stream
-from ptyhost import Process
+from pyte.terminfo import TERMINAL_NAME
 
 from ptterm.terminal import _in_the_child, create_backend
 
@@ -89,9 +90,7 @@ async def run_and_read() -> dict:
         deadline = asyncio.get_event_loop().time() + TIMEOUT
         while SENTINEL not in _read(screen):
             if asyncio.get_event_loop().time() > deadline:
-                raise AssertionError(
-                    "waited %g seconds; the screen holds %r" % (TIMEOUT, _read(screen))
-                )
+                raise AssertionError("waited %g seconds; the screen holds %r" % (TIMEOUT, _read(screen)))
             await asyncio.sleep(TICK)
     finally:
         process.kill()

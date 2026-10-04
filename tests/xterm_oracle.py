@@ -40,11 +40,13 @@ the window is there. That is the one thing it says on its own, and it
 is what says the terminal is ready.
 """
 
+from __future__ import annotations
+
 import os
 import re
 import select
 import time
-from typing import Callable, List, Optional, Tuple
+from typing import Callable
 
 from kitty_oracle import HISTORY, Cell
 from pyte import escape
@@ -91,7 +93,7 @@ def _always(said: str) -> bool:
     return True
 
 
-def _argv(path: str, lines: int, columns: int, slave: str, fd: int) -> List[str]:
+def _argv(path: str, lines: int, columns: int, slave: str, fd: int) -> list[str]:
     """
     xterm, told to read a pty that somebody else made.
 
@@ -142,7 +144,7 @@ class _Xterm:
 
     def __init__(self, path: str) -> None:
         self.path = path
-        self.fd: Optional[int] = None
+        self.fd: int | None = None
         self.process = None
         #: What xterm has said since the last thing this side wrote.
         self.said = ""
@@ -210,9 +212,7 @@ class _Xterm:
                     return found
             left = deadline - time.monotonic()
             if left <= 0:
-                raise RuntimeError(
-                    "xterm answered %r and no more" % (self.said[-400:],)
-                )
+                raise RuntimeError("xterm answered %r and no more" % (self.said[-400:],))
             writable = [self.fd] if sent < len(payload) else []
             readable, ready, _ = select.select([self.fd], writable, [], min(left, 0.5))
             if ready:
@@ -243,7 +243,7 @@ class _Xterm:
                     % (found.group(1), found.group(2), lines, columns)
                 )
 
-    def cells(self, lines: int, columns: int) -> List[List[Cell]]:
+    def cells(self, lines: int, columns: int) -> list[list[Cell]]:
         "Read every cell of the screen that is there now."
         wanted = lines * columns
         queries = []
@@ -252,9 +252,7 @@ class _Xterm:
                 # The identifier is the number of the cell, so an
                 # answer says which cell it is about.
                 where = y * columns + x + 1
-                queries.append(
-                    "\x1b[%d;0;%d;%d;%d;%d*y" % (where, y + 1, x + 1, y + 1, x + 1)
-                )
+                queries.append("\x1b[%d;0;%d;%d;%d;%d*y" % (where, y + 1, x + 1, y + 1, x + 1))
 
         def enough(said: str):
             found = _ANSWER.findall(said)
@@ -278,8 +276,8 @@ class _Xterm:
         data: str,
         lines: int,
         columns: int,
-        resize: Optional[Tuple[int, int]] = None,
-    ) -> List[List[Cell]]:
+        resize: tuple[int, int] | None = None,
+    ) -> list[list[Cell]]:
         """
         Clear the screen, write `data` on it, and read every cell back.
 
@@ -296,7 +294,7 @@ class _Xterm:
         return self.cells(lines, columns)
 
 
-_XTERM: Optional[_Xterm] = None
+_XTERM: _Xterm | None = None
 _FAILED = False
 
 
@@ -327,9 +325,7 @@ def xterm_is_available() -> bool:
     return True
 
 
-def xterm_cells(
-    data: str, lines: int, columns: int, resize: Optional[Tuple[int, int]] = None
-) -> List[List[Cell]]:
+def xterm_cells(data: str, lines: int, columns: int, resize: tuple[int, int] | None = None) -> list[list[Cell]]:
     """
     Feed `data` to xterm and read the screen back.
 

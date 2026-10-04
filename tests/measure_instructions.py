@@ -96,6 +96,8 @@ Two knobs reach this file from `ptterm/nix/checks.nix`:
 `PTTERM_INSTRUCTIONS_OUT` is where the run leaves its report.
 """
 
+from __future__ import annotations
+
 import asyncio
 import json
 import os
@@ -106,16 +108,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from instructions import count_instructions  # noqa: E402
-from no_backend import NoBackend  # noqa: E402
-
-from pyte.screen import Screen  # noqa: E402
-from pyte.streams import Stream  # noqa: E402
-from ptterm.terminal import Terminal, _TerminalControl  # noqa: E402
+from instructions import count_instructions
+from no_backend import NoBackend
 from pyte import escape
-from pyte.sequences import csi
 from pyte.modes import PrivateMode
-from pyte.sequences import reset_mode, set_mode
+from pyte.screen import Screen
+from pyte.sequences import csi, reset_mode, set_mode
+from pyte.streams import Stream
+
+from ptterm.terminal import Terminal, _TerminalControl
 
 HERE = Path(__file__).parent
 
@@ -266,10 +267,7 @@ PAST_THE_DEPTH = 3 * LINEFEED_ROWS
 #: A line that is wider than the pane, so the screen wraps it. Two rows
 #: of the buffer hold one line of the program, and the second of them is
 #: in `wrapped_lines`.
-A_WRAPPING_LINE = (
-    "a line of output that is wider than eighty columns "
-    "and so the screen wraps it onto a second row"
-)
+A_WRAPPING_LINE = "a line of output that is wider than eighty columns and so the screen wraps it onto a second row"
 
 
 def _fill(control, depth: int, wrapping: bool = False):
@@ -279,11 +277,7 @@ def _fill(control, depth: int, wrapping: bool = False):
     if wrapping:
         # Each line takes two rows, so half as many lines fill the same
         # history.
-        control.stream.feed(
-            "".join(
-                "%d %s\r\n" % (number, A_WRAPPING_LINE) for number in range(rows // 2)
-            )
-        )
+        control.stream.feed("".join("%d %s\r\n" % (number, A_WRAPPING_LINE) for number in range(rows // 2)))
     else:
         control.stream.feed("".join("line %d\r\n" % number for number in range(rows)))
 
@@ -357,9 +351,7 @@ def resize_work(depth: int):
     move.
     """
     control = a_filled_pane(depth)
-    return lambda: control.screen.resize(
-        lines=HISTORY_LINES, columns=HISTORY_COLUMNS - 1
-    )
+    return lambda: control.screen.resize(lines=HISTORY_LINES, columns=HISTORY_COLUMNS - 1)
 
 
 def wrapped_resize_work(depth: int):
@@ -372,9 +364,7 @@ def wrapped_resize_work(depth: int):
     wrapping costs a reflow.
     """
     control = a_filled_pane(depth, wrapping=True)
-    return lambda: control.screen.resize(
-        lines=HISTORY_LINES, columns=HISTORY_COLUMNS - 1
-    )
+    return lambda: control.screen.resize(lines=HISTORY_LINES, columns=HISTORY_COLUMNS - 1)
 
 
 def copy_work(depth: int):
@@ -457,9 +447,7 @@ def main() -> int:
         return 1
 
     include = os.environ.get("PTTERM_INSTRUCTIONS_INCLUDE", "")
-    tolerance = float(
-        os.environ.get("PTTERM_INSTRUCTIONS_TOLERANCE", "") or DEFAULT_TOLERANCE
-    )
+    tolerance = float(os.environ.get("PTTERM_INSTRUCTIONS_TOLERANCE", "") or DEFAULT_TOLERANCE)
 
     found = recordings(Path(root), include)
     histories = [
@@ -492,10 +480,7 @@ def main() -> int:
             return
         moved = 100.0 * (counted - budget) / budget
         mark = "ok " if abs(moved) <= tolerance else "OFF"
-        print(
-            "%-40s %12d  budget %12d  %+6.2f%%  %s%s"
-            % (name, counted, budget, moved, mark, clock)
-        )
+        print("%-40s %12d  budget %12d  %+6.2f%%  %s%s" % (name, counted, budget, moved, mark, clock))
         if abs(moved) > tolerance:
             wrong.append(name)
 
@@ -521,30 +506,24 @@ def main() -> int:
 
     out = os.environ.get("PTTERM_INSTRUCTIONS_OUT", "")
     if out:
-        report = HEADER + "".join(
-            "%-40s %d\n" % (name, counts[name]) for name in sorted(counts)
-        )
+        report = HEADER + "".join("%-40s %d\n" % (name, counts[name]) for name in sorted(counts))
         (Path(out) / "instruction-budgets.txt").write_text(report)
 
     if include:
         print(
             "\nThis run measured %d of the recordings and %d of the "
-            "histories, so it makes no claim about the rest."
-            % (len(found), len(histories))
+            "histories, so it makes no claim about the rest." % (len(found), len(histories))
         )
 
     if wrong:
         print(
-            "\n%d of %d moved by more than %.1f%%: %s"
-            % (len(wrong), len(counts), tolerance, ", ".join(sorted(wrong)))
+            "\n%d of %d moved by more than %.1f%%: %s" % (len(wrong), len(counts), tolerance, ", ".join(sorted(wrong)))
         )
         print(
             "A count that climbed is what this check is for. A count that "
             "fell is a budget nobody updated. Read the numbers, then:"
         )
-        print(
-            "    cp result/instruction-budgets.txt ptterm/tests/instruction-budgets.txt"
-        )
+        print("    cp result/instruction-budgets.txt ptterm/tests/instruction-budgets.txt")
         return 1
 
     print("\nEvery measurement is within %.1f%% of its budget." % tolerance)

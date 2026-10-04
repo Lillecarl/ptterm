@@ -89,10 +89,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from pty_host import Host  # noqa: E402
-
-from ptyhost import Process  # noqa: E402
-from pyte.cells import WrittenCell  # noqa: E402
+from pty_host import Host
+from ptyhost import Process
+from pyte.cells import WrittenCell
 
 #: The screen vttest draws on. Its own default is 24 by 80, with 132
 #: as the wide setting, and it prints the size in the title when it is
@@ -242,13 +241,12 @@ NOT_OURS = (
         "no terminal on the panel implements VT52, and the vote is six "
         "to nothing against ptterm doing it. A VT52 sequence draws as "
         "text, so every screen item 7 makes is garbage rather than a "
-        "difference to see. DEVIATIONS.md, \"What vttest tests and no "
-        "judge implements\", has the votes.",
+        'difference to see. DEVIATIONS.md, "What vttest tests and no '
+        'judge implements", has the votes.',
     ),
     (
         r"^12 Modify test-parameters",
-        "it changes what the run after it does. A recorded list has to "
-        "be the same list every time.",
+        "it changes what the run after it does. A recorded list has to be the same list every time.",
     ),
     (
         r"/ \d+ Test VT\d+ features$",
@@ -271,8 +269,7 @@ NOT_OURS = (
     ),
     (
         r"/ \d+ Test Send/Receive mode \(SRM\)$",
-        "it turns the local echo off and on and asks a person to type "
-        "and say what they saw.",
+        "it turns the local echo off and on and asks a person to type and say what they saw.",
     ),
     (
         r"/ \d+ Set/Reset Mode - LineFeed / Newline$",
@@ -289,8 +286,7 @@ NOT_OURS = (
     ),
     (
         r"/ \d+ Test Checksum of Rectangular Area \(DECRQCRA\): G[LR]$",
-        "the same shape: a run of queries, each waited for. esctest2 "
-        "already covers DECRQCRA one assertion at a time.",
+        "the same shape: a run of queries, each waited for. esctest2 already covers DECRQCRA one assertion at a time.",
     ),
     (
         r"/ \d+ Select Flow Control Type \(DECSFC\)$",
@@ -298,8 +294,7 @@ NOT_OURS = (
     ),
     (
         r"/ 4 Bug D: Narrow to wide screen$",
-        "it resizes and then waits, and what it waits for depends on "
-        "the terminal answering the resize before it asks.",
+        "it resizes and then waits, and what it waits for depends on the terminal answering the resize before it asks.",
     ),
     (
         r"/ 13 Test Keyboard Layout with G0 Selection$",
@@ -380,9 +375,7 @@ class Shutter:
             except BlockingIOError:
                 pass
             if time.monotonic() - started > PICTURE_TIMEOUT:
-                raise Failed(
-                    "no picture of %r came in %g seconds" % (identity, PICTURE_TIMEOUT)
-                )
+                raise Failed("no picture of %r came in %g seconds" % (identity, PICTURE_TIMEOUT))
             await asyncio.sleep(TICK)
 
 
@@ -979,10 +972,7 @@ class Walk:
             self.spent.append((step, here))
             self.awake += step
             if self.awake > RUN_TIMEOUT:
-                raise Failed(
-                    "the walk spent more than %g seconds waiting for vttest"
-                    % RUN_TIMEOUT
-                )
+                raise Failed("the walk spent more than %g seconds waiting for vttest" % RUN_TIMEOUT)
             if self.ended:
                 return
 
@@ -1007,9 +997,7 @@ class Walk:
             # so write it down once and work through the escapes.
             if here not in self.asked:
                 self.asked.add(here)
-                await self.keep(
-                    rows, "no menu and no return; the pty is %s" % self.mode()
-                )
+                await self.keep(rows, "no menu and no return; the pty is %s" % self.mode())
                 self.stuck.append(here)
 
             keys = asked_for(rows)
@@ -1111,9 +1099,7 @@ def keep(directory: Path, walk: Walk, log: Path) -> None:
     for path in walk.again:
         head.append("# Walked already, so not walked again: %s" % path)
 
-    (directory / "screens.txt").write_text(
-        "\n".join(head) + "\n" + "\n".join(walk.screens) + "\n"
-    )
+    (directory / "screens.txt").write_text("\n".join(head) + "\n" + "\n".join(walk.screens) + "\n")
     if log.exists():
         (directory / "vttest.log").write_text(log.read_text(errors="replace"))
 
@@ -1147,37 +1133,26 @@ def report(walk: Walk, include: str) -> int:
     """
     print(
         "vttest: %d screens, %d menu paths left out, %d without a prompt, "
-        "%d menus met a second time"
-        % (len(walk.screens), len(walk.left_out), len(walk.stuck), len(walk.again))
+        "%d menus met a second time" % (len(walk.screens), len(walk.left_out), len(walk.stuck), len(walk.again))
     )
     for path, reason in walk.left_out:
         print("vttest: left out %s: %s" % (path, reason))
     for path in walk.stuck:
         print("vttest: no prompt came at: %s" % path)
     if walk.narrowed:
-        print(
-            "vttest: the include left out %d items of the main menu"
-            % len(walk.narrowed)
-        )
+        print("vttest: the include left out %d items of the main menu" % len(walk.narrowed))
 
     if walk.shutter is not None:
         print(
-            "vttest: %d screens were photographed, which took %.1f seconds"
-            % (len(walk.identities), walk.shutter.spent)
+            "vttest: %d screens were photographed, which took %.1f seconds" % (len(walk.identities), walk.shutter.spent)
         )
 
-    print(
-        "vttest: %d steps took %.1f seconds. The slowest ten:"
-        % (len(walk.spent), sum(one for one, _ in walk.spent))
-    )
+    print("vttest: %d steps took %.1f seconds. The slowest ten:" % (len(walk.spent), sum(one for one, _ in walk.spent)))
     for seconds, path in sorted(walk.spent, reverse=True)[:10]:
         print("vttest:   %5.1fs  %s" % (seconds, path))
     for edge in (0.02, 0.05, 0.2, 1.0):
         over = [one for one, _ in walk.spent if one > edge]
-        print(
-            "vttest:   %4d steps over %.2fs, %.1f seconds of the total"
-            % (len(over), edge, sum(over))
-        )
+        print("vttest:   %4d steps over %.2fs, %.1f seconds of the total" % (len(over), edge, sum(over)))
 
     if not walk.screens:
         print("vttest: the walk drew nothing at all")
@@ -1188,10 +1163,7 @@ def report(walk: Walk, include: str) -> int:
     if include == ".*":
         for pattern, _ in NOT_OURS:
             if not any(re.search(pattern, path) for path, _ in walk.left_out):
-                print(
-                    "vttest: NOT_OURS leaves out %r, and no menu item has "
-                    "that name." % pattern
-                )
+                print("vttest: NOT_OURS leaves out %r, and no menu item has that name." % pattern)
                 return 1
 
     return 0
@@ -1227,10 +1199,7 @@ def main() -> int:
         # finished drawing. Guessing costs a wait on every one of four
         # hundred screens and gets the answer wrong sometimes. A walk
         # that cannot be exact is not worth running.
-        print(
-            "vttest: this machine has no /proc/<pid>/syscall, so there is "
-            "no fence and the walk does not run."
-        )
+        print("vttest: this machine has no /proc/<pid>/syscall, so there is no fence and the walk does not run.")
         return 0
 
     include = os.environ.get("PTTERM_VTTEST_INCLUDE", ".*")
@@ -1249,8 +1218,7 @@ def main() -> int:
     through = os.environ.get("PTTERM_VTTEST_THROUGH") == "1"
     if room and not through:
         print(
-            "vttest: PTTERM_VTTEST_PAUSE waits for pictures of a terminal "
-            "that PTTERM_VTTEST_THROUGH is not drawing on."
+            "vttest: PTTERM_VTTEST_PAUSE waits for pictures of a terminal that PTTERM_VTTEST_THROUGH is not drawing on."
         )
         return 1
 

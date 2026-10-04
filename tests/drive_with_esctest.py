@@ -54,6 +54,8 @@ regular expression of test names to run. `PTTERM_ESCTEST_OUT` names the
 directory to write the list and the log into.
 """
 
+from __future__ import annotations
+
 import asyncio
 import os
 import re
@@ -64,7 +66,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from pty_host import Host  # noqa: E402
+from pty_host import Host
 
 HERE = Path(__file__).parent
 
@@ -352,16 +354,12 @@ def report(log: str, include: str) -> int:
     chosen = {name for name in known if re.search(include, name)}
     out = left_out(log)
 
-    print(
-        "esctest: %d tests ran, %d failed, %d left out"
-        % (len(ran), len(failed), len(out))
-    )
+    print("esctest: %d tests ran, %d failed, %d left out" % (len(ran), len(failed), len(out)))
     for pattern, reason in NOT_OURS:
         print(
             "esctest: left out %s, because %s"
             % (
-                ", ".join(sorted(name for name in out if re.search(pattern, name)))
-                or "nothing",
+                ", ".join(sorted(name for name in out if re.search(pattern, name))) or "nothing",
                 reason,
             )
         )
@@ -379,11 +377,7 @@ def report(log: str, include: str) -> int:
     # chooses too few tests to say either, so it says neither.
     stale = []
     if include == ".*":
-        stale = [
-            pattern
-            for pattern, _ in NOT_OURS
-            if not any(re.search(pattern, name) for name in out)
-        ]
+        stale = [pattern for pattern, _ in NOT_OURS if not any(re.search(pattern, name) for name in out)]
     both = sorted(out & known)
 
     for name in new:
@@ -398,10 +392,7 @@ def report(log: str, include: str) -> int:
         print("esctest: left out, and named in the list as well: " + name)
 
     if stale or both:
-        print(
-            "\nesctest: NOT_OURS in %s no longer describes the suite."
-            % Path(__file__).name
-        )
+        print("\nesctest: NOT_OURS in %s no longer describes the suite." % Path(__file__).name)
         return 1
 
     if new or fixed or missing:
@@ -409,8 +400,7 @@ def report(log: str, include: str) -> int:
             "\nesctest: %s no longer describes the run. Write it again with:\n"
             "    nix build --file . checks.ptterm-esctest.run\n"
             "    cp result/failures.txt ptterm/tests/%s\n"
-            "and read result/esctest.log for what each one did."
-            % (BASELINE.name, BASELINE.name)
+            "and read result/esctest.log for what each one did." % (BASELINE.name, BASELINE.name)
         )
         return 1
 

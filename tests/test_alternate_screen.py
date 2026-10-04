@@ -7,16 +7,15 @@ came from is still there when it ends. Three private modes name it:
 what an older one sends.
 """
 
-import pytest
+from __future__ import annotations
 
+import pytest
 from kitty_oracle import differences, kitty_is_available
 from pyte import escape
 from pyte.modes import PrivateMode
 from pyte.sequences import csi, esc, reset_mode, set_mode
 
-pytestmark = pytest.mark.skipif(
-    not kitty_is_available(), reason="the kitty python package is not there"
-)
+pytestmark = pytest.mark.skipif(not kitty_is_available(), reason="the kitty python package is not there")
 
 
 @pytest.mark.parametrize("mode", ["47", "1047", "1049"])
@@ -93,12 +92,7 @@ def test_the_cursor_comes_back_with_the_mode_that_saved_it():
 def test_a_cursor_that_was_never_saved_does_not_come_back():
     "'?47' takes the screen without a cursor, so '?1049l' has none to read."
     assert not differences(
-        (
-            "0"
-            + set_mode(PrivateMode.ALTERNATE_SCREEN)
-            + reset_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
-            + "0"
-        ),
+        ("0" + set_mode(PrivateMode.ALTERNATE_SCREEN) + reset_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR) + "0"),
         lines=3,
         columns=8,
     )
@@ -145,13 +139,7 @@ def test_a_region_set_on_the_alternate_screen_holds_after_the_leave():
 def test_each_screen_has_its_own_saved_cursor():
     "A restore on the alternate screen may not read the cursor of the first."
     assert not differences(
-        (
-            "0"
-            + esc(escape.DECSC)
-            + set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
-            + esc(escape.DECRC)
-            + "0"
-        ),
+        ("0" + esc(escape.DECSC) + set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR) + esc(escape.DECRC) + "0"),
         lines=5,
         columns=6,
     )
@@ -217,12 +205,7 @@ def test_the_older_modes_bring_no_rendition_back():
 def test_the_leave_of_1049_reads_the_saved_cursor_of_the_first_screen():
     "'?47' saved none, so '?1049l' finds nothing and goes home."
     assert not differences(
-        (
-            set_mode(PrivateMode.ALTERNATE_SCREEN)
-            + "0"
-            + reset_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
-            + "0"
-        ),
+        (set_mode(PrivateMode.ALTERNATE_SCREEN) + "0" + reset_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR) + "0"),
         lines=4,
         columns=6,
     )

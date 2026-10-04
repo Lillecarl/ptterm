@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+from __future__ import annotations
+
 from prompt_toolkit.application import Application
 from prompt_toolkit.layout import Layout
 
@@ -9,9 +11,7 @@ def main():
     def done():
         application.exit()
 
-    application = Application(
-        layout=Layout(container=Terminal(done_callback=done)), full_screen=True
-    )
+    application = Application(layout=Layout(container=Terminal(done_callback=done)), full_screen=True)
     application.run()
 
 

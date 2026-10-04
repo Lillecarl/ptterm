@@ -27,8 +27,9 @@ Nothing here changes ptterm. This is the record of what the others do,
 the way `test_wait_to_wrap_panel.py` is.
 """
 
-import pytest
+from __future__ import annotations
 
+import pytest
 from panel import (
     abstained,
     report,
@@ -61,9 +62,7 @@ def test_ptterm_gives_back_the_original_row():
     ptterm answers with the original screen's row 0, which is empty
     here: nothing was written to it before `?1049h`.
     """
-    assert WRITTEN_ON_THE_ALTERNATE not in _row_zero(
-        what_ptterm_draws(GIVING_BACK_THE_SCREEN, LINES, COLUMNS)
-    )
+    assert WRITTEN_ON_THE_ALTERNATE not in _row_zero(what_ptterm_draws(GIVING_BACK_THE_SCREEN, LINES, COLUMNS))
 
 
 @pytest.mark.skipif(not xterm_is_here(), reason="xterm has no display here")
@@ -75,9 +74,7 @@ def test_xterm_gives_back_the_original_row():
     with the two mixed is the closest thing to a rule there is.
     """
     row = _row_zero(what_xterm_draws(GIVING_BACK_THE_SCREEN, LINES, COLUMNS))
-    assert WRITTEN_ON_THE_ALTERNATE not in row, (
-        "xterm keeps the alternate content: row 0 is %r" % (row,)
-    )
+    assert WRITTEN_ON_THE_ALTERNATE not in row, "xterm keeps the alternate content: row 0 is %r" % (row,)
 
 
 def test_the_split_is_who_the_issue_says():
@@ -91,7 +88,6 @@ def test_the_split_is_who_the_issue_says():
     kept = {
         name
         for name, found in said.items()
-        if name not in blind
-        and any(WRITTEN_ON_THE_ALTERNATE[0] in line for line in found)
+        if name not in blind and any(WRITTEN_ON_THE_ALTERNATE[0] in line for line in found)
     }
     assert kept == {"alacritty", "libvterm"}

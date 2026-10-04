@@ -20,12 +20,13 @@ terminal it was made on, because a program asks what the terminal can
 do and draws what the answers allow.
 """
 
+from __future__ import annotations
+
 import codecs
 import json
 import pathlib
 
 import pytest
-
 from kitty_oracle import ptterm_cells, ptterm_cells_in_pieces
 from panel import (
     judges,
@@ -40,9 +41,7 @@ CORPUS = pathlib.Path(__file__).parent / "corpus"
 
 #: The panel is worth asking with two judges. With one it is the
 #: comparison that `test_corpus_against_kitty` already does.
-pytestmark = pytest.mark.skipif(
-    len(judges()) < 2, reason="fewer than two judges are here"
-)
+pytestmark = pytest.mark.skipif(len(judges()) < 2, reason="fewer than two judges are here")
 
 
 def captures():
@@ -64,11 +63,7 @@ def test_no_judge_stands_against_ptterm_alone(name):
             "%s\n%s"
             % (
                 name,
-                "\n".join(
-                    "%s: %s" % (judge, found[0])
-                    for judge, found in answers.items()
-                    if found
-                ),
+                "\n".join("%s: %s" % (judge, found[0]) for judge, found in answers.items() if found),
             )
         )
 
@@ -122,6 +117,4 @@ def test_the_reads_of_the_capture_draw_the_same_screen(name):
     pieces.append(decoder.decode(raw[at:], True))
 
     lines, columns = kept["lines"], kept["columns"]
-    assert ptterm_cells_in_pieces(pieces, lines, columns) == ptterm_cells(
-        data, lines, columns
-    )
+    assert ptterm_cells_in_pieces(pieces, lines, columns) == ptterm_cells(data, lines, columns)

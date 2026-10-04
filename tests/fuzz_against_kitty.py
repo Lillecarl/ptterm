@@ -14,25 +14,23 @@ follow kitty or xterm. `nix build --file . checks.fuzz` runs it, and
 `PTTERM_FUZZ` says how many examples to try.
 """
 
+from __future__ import annotations
+
 import os
 
 import pytest
 
 hypothesis = pytest.importorskip("hypothesis")
 
-from hypothesis import HealthCheck, given, settings  # noqa: E402
-from hypothesis import strategies as st  # noqa: E402
-
-from kitty_oracle import differences, kitty_is_available  # noqa: E402
-from panel import judges, report, verdict  # noqa: E402
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
+from kitty_oracle import differences, kitty_is_available
+from panel import judges, report, verdict
 from pyte import escape
 from pyte.modes import PrivateMode
-from pyte.sequences import csi, reset_mode, set_mode
-from pyte.sequences import Sharp, esc, sharp
+from pyte.sequences import Sharp, csi, esc, reset_mode, set_mode, sharp
 
-pytestmark = pytest.mark.skipif(
-    not kitty_is_available(), reason="the kitty python package is not there"
-)
+pytestmark = pytest.mark.skipif(not kitty_is_available(), reason="the kitty python package is not there")
 
 LINES, COLUMNS = 8, 24
 
@@ -189,9 +187,7 @@ pieces = st.one_of(
     st.just(esc(escape.IND)),
     st.just(esc(escape.RI)),
     st.sampled_from([set_mode(PrivateMode.AUTOWRAP), reset_mode(PrivateMode.AUTOWRAP)]),
-    st.builds(
-        lambda n, c: "\x1b[%d%s" % (n, c), small, st.sampled_from("ABCDEFGLM@PXIZ")
-    ),
+    st.builds(lambda n, c: "\x1b[%d%s" % (n, c), small, st.sampled_from("ABCDEFGLM@PXIZ")),
     # SU and SD take their count from one, because kitty reads a zero
     # as no scroll and xterm reads it as one. See
     # `test_known_deviations`.
@@ -301,9 +297,7 @@ def test_a_random_program_never_leaves_ptterm_alone(data):
         data,
         "\n".join(
             "%s: %s" % (name, found[0])
-            for name, found in report(
-                data, lines=LINES, columns=COLUMNS, blank_style=False
-            ).items()
+            for name, found in report(data, lines=LINES, columns=COLUMNS, blank_style=False).items()
             if found
         ),
     )

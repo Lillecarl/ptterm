@@ -8,13 +8,15 @@ after "ul:". prompt_toolkit reads them back and writes the sequences
 again on the terminal of the user.
 """
 
-import pytest
+from __future__ import annotations
 
-from pyte.screen import Screen
-from pyte.streams import Stream
-from ptterm.style import style_of
+import pytest
 from pyte import escape
+from pyte.screen import Screen
 from pyte.sequences import csi
+from pyte.streams import Stream
+
+from ptterm.style import style_of
 
 
 def screen_of(data, lines=2, columns=20):
@@ -61,13 +63,9 @@ def test_a_plain_four_draws_a_single_line():
 
 def test_the_colour_of_the_line():
     assert styles("\x1b[4;58:2::255:0:0mA", 1) == ["underline ul:#ff0000 "]
-    assert styles((csi(escape.SGR, 4, 58, 2, 255, 0, 0) + "A"), 1) == [
-        "underline ul:#ff0000 "
-    ]
+    assert styles((csi(escape.SGR, 4, 58, 2, 255, 0, 0) + "A"), 1) == ["underline ul:#ff0000 "]
     assert styles("\x1b[4;58:5:9mA", 1) == ["underline ul:#ansibrightred "]
-    assert styles((csi(escape.SGR, 4, 58, 5, 9) + "A"), 1) == [
-        "underline ul:#ansibrightred "
-    ]
+    assert styles((csi(escape.SGR, 4, 58, 5, 9) + "A"), 1) == ["underline ul:#ansibrightred "]
 
 
 def test_the_colour_goes_away_again():
@@ -129,6 +127,4 @@ def test_a_private_marker_makes_another_sequence():
     # them: the marker belongs to that one sequence alone.
     assert styles(csi(escape.SGR, 4, private="?") + "A", 1) == [""]
     assert styles(csi(escape.SGR, 4, private="<") + "A", 1) == [""]
-    assert styles((csi(escape.SGR, 4, private=">") + csi(escape.SGR, 4) + "A"), 1) == [
-        "underline "
-    ]
+    assert styles((csi(escape.SGR, 4, private=">") + csi(escape.SGR, 4) + "A"), 1) == ["underline "]

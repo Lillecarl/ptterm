@@ -38,6 +38,8 @@ Ghostty draws neither answer here, because it does not lay these rows
 out again at all. It says nothing about the mark, so it does not vote.
 """
 
+from __future__ import annotations
+
 from kitty_oracle import ptterm_cells
 from panel import judges
 

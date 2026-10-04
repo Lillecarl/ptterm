@@ -6,16 +6,14 @@ screen is. A stop past the last column may not carry the cursor off
 the line.
 """
 
+from __future__ import annotations
+
 import pytest
-
 from kitty_oracle import differences, kitty_is_available
-from pyte.sequences import Csi, csi
 from pyte import escape
-from pyte.sequences import esc
+from pyte.sequences import Csi, csi, esc
 
-pytestmark = pytest.mark.skipif(
-    not kitty_is_available(), reason="the kitty python package is not there"
-)
+pytestmark = pytest.mark.skipif(not kitty_is_available(), reason="the kitty python package is not there")
 
 
 def test_a_tab_reaches_the_next_stop():
@@ -44,9 +42,7 @@ def test_a_stop_that_a_program_sets():
 
 
 def test_a_stop_that_a_program_clears():
-    assert not differences(
-        (csi(escape.TBC, 3) + csi(escape.CHA, 1) + "\tx"), lines=3, columns=12
-    )
+    assert not differences((csi(escape.TBC, 3) + csi(escape.CHA, 1) + "\tx"), lines=3, columns=12)
 
 
 # ----------------------------------------------------------------------
@@ -68,15 +64,11 @@ def test_forward_past_the_last_stop():
 
 
 def test_back_over_one_stop():
-    assert not differences(
-        (csi(escape.CUP, 1, 12) + "ab" + csi(Csi.CBT) + "x"), lines=3, columns=24
-    )
+    assert not differences((csi(escape.CUP, 1, 12) + "ab" + csi(Csi.CBT) + "x"), lines=3, columns=24)
 
 
 def test_back_over_several_stops():
-    assert not differences(
-        (csi(escape.CUP, 1, 20) + csi(Csi.CBT, 2) + "x"), lines=3, columns=24
-    )
+    assert not differences((csi(escape.CUP, 1, 20) + csi(Csi.CBT, 2) + "x"), lines=3, columns=24)
 
 
 def test_back_from_the_first_column():
@@ -86,31 +78,17 @@ def test_back_from_the_first_column():
 
 def test_a_count_of_zero_moves_over_one_stop():
     assert not differences(csi(Csi.CHT, 0) + "x", lines=3, columns=24)
-    assert not differences(
-        (csi(escape.CUP, 1, 20) + csi(Csi.CBT, 0) + "x"), lines=3, columns=24
-    )
+    assert not differences((csi(escape.CUP, 1, 20) + csi(Csi.CBT, 0) + "x"), lines=3, columns=24)
 
 
 def test_they_follow_the_stops_that_a_program_sets():
     assert not differences(
-        (
-            csi(escape.TBC, 3)
-            + csi(escape.CUP, 1, 3)
-            + esc(escape.HTS)
-            + csi(escape.CUP, 1, 1)
-            + csi(Csi.CHT)
-            + "x"
-        ),
+        (csi(escape.TBC, 3) + csi(escape.CUP, 1, 3) + esc(escape.HTS) + csi(escape.CUP, 1, 1) + csi(Csi.CHT) + "x"),
         lines=3,
         columns=24,
     )
     assert not differences(
-        csi(escape.TBC, 3)
-        + csi(escape.CUP, 1, 3)
-        + esc(escape.HTS)
-        + csi(escape.CUP, 1, 20)
-        + csi(Csi.CBT)
-        + "x",
+        csi(escape.TBC, 3) + csi(escape.CUP, 1, 3) + esc(escape.HTS) + csi(escape.CUP, 1, 20) + csi(Csi.CBT) + "x",
         lines=3,
         columns=24,
     )

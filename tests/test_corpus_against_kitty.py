@@ -11,17 +11,16 @@ difference can also come from a query that ptterm answers differently.
 Keep that in mind when one of these fails.
 """
 
+from __future__ import annotations
+
 import pathlib
 
 import pytest
-
 from kitty_oracle import differences, kitty_is_available
 
 CORPUS = pathlib.Path(__file__).parent / "corpus"
 
-pytestmark = pytest.mark.skipif(
-    not kitty_is_available(), reason="the kitty python package is not there"
-)
+pytestmark = pytest.mark.skipif(not kitty_is_available(), reason="the kitty python package is not there")
 
 
 def _captures():

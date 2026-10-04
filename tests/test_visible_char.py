@@ -16,10 +16,12 @@ with an underline under it. `checks.pymux-pictures` measured five
 pixels, in xterm and in foot alike.
 """
 
+from __future__ import annotations
+
 import pytest
 from prompt_toolkit.layout.screen import Char
-
 from pyte.placeholders import PLACEHOLDER
+
 from ptterm.style import visible_char
 
 

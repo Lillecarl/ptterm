@@ -40,7 +40,9 @@ equal, so the difference is exactly what that judge misses.
   the difference is a choice and not a bug.
 """
 
-from typing import Callable, Dict, List, NamedTuple, Optional, Tuple
+from __future__ import annotations
+
+from typing import Callable, NamedTuple
 
 from kitty_oracle import (
     Cell,
@@ -63,7 +65,7 @@ __all__ = [
 ]
 
 #: A size to take after the data, as (lines, columns), or None.
-Resize = Optional[Tuple[int, int]]
+Resize = tuple[int, int] | None
 
 
 class Judge(NamedTuple):
@@ -72,9 +74,9 @@ class Judge(NamedTuple):
     name: str
     #: Feed data to it and read the screen back. The last argument is a
     #: size to take after the data; every judge acts on it.
-    cells: Callable[[str, int, int, Resize], List[List[Cell]]]
+    cells: Callable[[str, int, int, Resize], list[list[Cell]]]
     #: Drop what this judge cannot hold, or None when it holds all.
-    projection: Optional[Callable[[Cell], Cell]]
+    projection: Callable[[Cell], Cell] | None
 
 
 #: The judges that hold no baseline. Neither kitty nor Alacritty knows
@@ -87,7 +89,7 @@ class Judge(NamedTuple):
 _NO_BASELINE = frozenset(["kitty", "alacritty"])
 
 
-def judges() -> List[Judge]:
+def judges() -> list[Judge]:
     "Every judge that this machine can run, in a stable order."
     found = []
 
@@ -106,8 +108,8 @@ def judges() -> List[Judge]:
                 found.append(
                     Judge(
                         name,
-                        lambda data, lines, columns, resize=None, name=name: (
-                            judge_cells(name, data, lines, columns, resize)
+                        lambda data, lines, columns, resize=None, name=name: judge_cells(
+                            name, data, lines, columns, resize
                         ),
                         without_a_baseline if name in _NO_BASELINE else None,
                     )
@@ -158,9 +160,9 @@ class _Answer(NamedTuple):
     "What one judge says about one program."
 
     #: Every cell where the judge and ptterm differ, as readable lines.
-    found: List[str]
+    found: list[str]
     #: The judge, as this comparison reads it.
-    screen: List[List[Cell]]
+    screen: list[list[Cell]]
     #: True when the two screens differ and the projection hides it.
     #: The judge cannot hold what the difference is about, so it says
     #: nothing and does not vote.
@@ -172,9 +174,9 @@ def _ask(
     lines: int,
     columns: int,
     keep,
-    panel: List[Judge],
+    panel: list[Judge],
     resize: Resize = None,
-) -> Dict[str, _Answer]:
+) -> dict[str, _Answer]:
     """
     Put one program to every judge, and read each answer.
 
@@ -186,14 +188,15 @@ def _ask(
     read_lines, read_columns = resize if resize is not None else (lines, columns)
 
     def shaped(name: str, rows):
-        assert len(rows) == read_lines and all(
-            len(row) == read_columns for row in rows
-        ), "%s answered a screen of %d by %d, not %d by %d" % (
-            name,
-            len(rows),
-            len(rows[0]) if rows else 0,
-            read_lines,
-            read_columns,
+        assert len(rows) == read_lines and all(len(row) == read_columns for row in rows), (
+            "%s answered a screen of %d by %d, not %d by %d"
+            % (
+                name,
+                len(rows),
+                len(rows[0]) if rows else 0,
+                read_lines,
+                read_columns,
+            )
         )
         return [[keep(cell) for cell in row] for row in rows]
 
@@ -212,9 +215,7 @@ def _ask(
                     raw_differs = True
                 seen, shown = project(mine), project(other)
                 if seen != shown:
-                    found.append(
-                        "cell %d,%d: ptterm %r, %s %r" % (y, x, seen, judge.name, shown)
-                    )
+                    found.append("cell %d,%d: ptterm %r, %s %r" % (y, x, seen, judge.name, shown))
         answers[judge.name] = _Answer(found, theirs, raw_differs and not found)
     return answers
 
@@ -226,7 +227,7 @@ def report(
     strict: bool = False,
     blank_style: bool = True,
     resize: Resize = None,
-) -> Dict[str, List[str]]:
+) -> dict[str, list[str]]:
     """
     What every judge says about one program, as readable lines.
 
@@ -236,10 +237,7 @@ def report(
     panel = judges()
     assert panel, "no judge is available"
     keep = _keeper(strict, blank_style)
-    return {
-        name: answer.found
-        for name, answer in _ask(data, lines, columns, keep, panel, resize).items()
-    }
+    return {name: answer.found for name, answer in _ask(data, lines, columns, keep, panel, resize).items()}
 
 
 def abstained(
@@ -249,7 +247,7 @@ def abstained(
     strict: bool = False,
     blank_style: bool = True,
     resize: Resize = None,
-) -> List[str]:
+) -> list[str]:
     """
     The judges that cannot see the difference, in name order.
 
@@ -334,22 +332,18 @@ def xterm_is_here() -> bool:
     return xterm_is_available()
 
 
-def _as_text(rows: List[List[Cell]]) -> List[str]:
+def _as_text(rows: list[list[Cell]]) -> list[str]:
     "One string per row, which is all that a character judge answers."
     return ["".join(cell.char or " " for cell in row) for row in rows]
 
 
-def what_xterm_draws(
-    data: str, lines: int = 6, columns: int = 20, resize: Resize = None
-) -> List[str]:
+def what_xterm_draws(data: str, lines: int = 6, columns: int = 20, resize: Resize = None) -> list[str]:
     "The screen of xterm itself, one string per row."
     from xterm_oracle import xterm_cells
 
     return _as_text(xterm_cells(data, lines, columns, resize))
 
 
-def what_ptterm_draws(
-    data: str, lines: int = 6, columns: int = 20, resize: Resize = None
-) -> List[str]:
+def what_ptterm_draws(data: str, lines: int = 6, columns: int = 20, resize: Resize = None) -> list[str]:
     "The screen of ptterm, read the way xterm can be read."
     return _as_text(ptterm_cells(data, lines, columns, resize))

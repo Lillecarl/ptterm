@@ -7,13 +7,12 @@ letters "lqk" for the top of a box. Without the translation the reader
 sees the letters.
 """
 
-import pytest
+from __future__ import annotations
 
+import pytest
 from kitty_oracle import differences, kitty_is_available
 
-pytestmark = pytest.mark.skipif(
-    not kitty_is_available(), reason="the kitty python package is not there"
-)
+pytestmark = pytest.mark.skipif(not kitty_is_available(), reason="the kitty python package is not there")
 
 
 def test_the_line_drawing_set_as_g0():

@@ -9,25 +9,24 @@ The stack of kitty is driveable from python, so these compare against
 it directly.
 """
 
+from __future__ import annotations
+
 import os
 import sys
 
 import pytest
-
+from kitty_oracle import kitty_is_available
+from pyte.modes import PrivateMode
 from pyte.osc import (
     MAX_POINTER_SHAPES,
-    POINTER_SHAPES,
     POINTER_SHAPE_ALIASES,
+    POINTER_SHAPES,
+    Osc,
     pointer_shape_name,
 )
 from pyte.screen import Screen
+from pyte.sequences import osc, reset_mode, set_mode
 from pyte.streams import Stream
-
-from kitty_oracle import kitty_is_available
-from pyte.modes import PrivateMode
-from pyte.sequences import reset_mode, set_mode
-from pyte.osc import Osc
-from pyte.sequences import osc
 
 
 def _screen(lines=4, columns=8):
@@ -172,9 +171,7 @@ CASES = [
 ]
 
 
-@pytest.mark.skipif(
-    not kitty_is_available(), reason="the kitty python package is not there"
-)
+@pytest.mark.skipif(not kitty_is_available(), reason="the kitty python package is not there")
 @pytest.mark.parametrize("steps", CASES, ids=range(len(CASES)))
 def test_the_stack_of_kitty_agrees(steps):
     screen, _ = feed(steps)

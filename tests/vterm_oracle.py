@@ -18,9 +18,10 @@ The shape of a cell, and the readers that turn a screen into cells,
 live in `kitty_oracle`. This adds one more reader.
 """
 
+from __future__ import annotations
+
 import ctypes
 import os
-from typing import List, Optional, Tuple
 
 from kitty_oracle import HISTORY, Cell, as_seen, as_text, ptterm_cells
 
@@ -93,12 +94,8 @@ class _Pos(ctypes.Structure):
 #: row that leaves the top to `sb_pushline` and asks `sb_popline` for
 #: one back when a reflow frees a row. `vterm.h` lines 534 to 544 give
 #: the order, and the six before them are not set.
-_PushLine = ctypes.CFUNCTYPE(
-    ctypes.c_int, ctypes.c_int, ctypes.POINTER(_Cell), ctypes.c_void_p
-)
-_PopLine = ctypes.CFUNCTYPE(
-    ctypes.c_int, ctypes.c_int, ctypes.POINTER(_Cell), ctypes.c_void_p
-)
+_PushLine = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_int, ctypes.POINTER(_Cell), ctypes.c_void_p)
+_PopLine = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_int, ctypes.POINTER(_Cell), ctypes.c_void_p)
 _Clear = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_void_p)
 
 
@@ -132,7 +129,7 @@ class _Scrollback:
 
     def __init__(self, limit: int) -> None:
         self.limit = limit
-        self.rows: List = []
+        self.rows: list = []
         self.callbacks = _ScreenCallbacks(
             sb_pushline=_PushLine(self._push),
             sb_popline=_PopLine(self._pop),
@@ -209,7 +206,7 @@ def libvterm_is_available() -> bool:
     return True
 
 
-def _color(value: _Color, background: bool) -> Optional[Tuple]:
+def _color(value: _Color, background: bool) -> tuple | None:
     """
     The colour that libvterm holds, in the form that `kitty_oracle`
     uses.
@@ -226,9 +223,7 @@ def _color(value: _Color, background: bool) -> Optional[Tuple]:
     return ("rgb", value.first, value.second, value.third)
 
 
-def vterm_cells(
-    data: str, lines: int, columns: int, resize: Optional[Tuple[int, int]] = None
-) -> List[List[Cell]]:
+def vterm_cells(data: str, lines: int, columns: int, resize: tuple[int, int] | None = None) -> list[list[Cell]]:
     """
     Feed `data` to libvterm and read the screen back.
 
@@ -258,9 +253,7 @@ def vterm_cells(
         library.vterm_screen_enable_altscreen(screen, 1)
         library.vterm_screen_enable_reflow(screen, True)
         scrollback = _Scrollback(HISTORY)
-        library.vterm_screen_set_callbacks(
-            screen, ctypes.byref(scrollback.callbacks), None
-        )
+        library.vterm_screen_set_callbacks(screen, ctypes.byref(scrollback.callbacks), None)
         library.vterm_screen_reset(screen, 1)
         raw = data.encode("utf-8")
         library.vterm_input_write(term, raw, len(raw))
@@ -274,11 +267,7 @@ def vterm_cells(
             for x in range(columns):
                 cell = _Cell()
                 library.vterm_screen_get_cell(screen, _Pos(y, x), ctypes.byref(cell))
-                text = "".join(
-                    chr(point)
-                    for point in cell.chars
-                    if point and point != _WIDE_CHARACTER_FILLER
-                )
+                text = "".join(chr(point) for point in cell.chars if point and point != _WIDE_CHARACTER_FILLER)
                 cells.append(
                     Cell(
                         char=text or " ",
@@ -340,7 +329,7 @@ def vterm_differences(
     columns: int = 20,
     strict: bool = False,
     blank_style: bool = True,
-) -> List[str]:
+) -> list[str]:
     "Every cell where ptterm and libvterm do not agree, as readable lines."
     ours = ptterm_cells(data, lines, columns)
     theirs = vterm_cells(data, lines, columns)
@@ -351,9 +340,7 @@ def vterm_differences(
         for x in range(columns):
             mine, other = keep(ours[y][x]), keep(theirs[y][x])
             if mine != other:
-                reported.append(
-                    "cell %d,%d: ptterm %r, libvterm %r" % (y, x, mine, other)
-                )
+                reported.append("cell %d,%d: ptterm %r, libvterm %r" % (y, x, mine, other))
     return reported
 
 

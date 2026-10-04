@@ -48,6 +48,8 @@ files, and the check does nothing when it is not set.
 into.
 """
 
+from __future__ import annotations
+
 import os
 import re
 import subprocess
@@ -256,8 +258,7 @@ def keep(directory: Path, failed: Counter, log: str) -> None:
         "#\n"
         "# This is what the run saw. To make it what the check expects:\n"
         "#     nix build --file . checks.ptterm-vterm.run\n"
-        "#     cp result/failures.txt ptterm/tests/vterm-failures.txt\n"
-        + "".join(line + "\n" for line in lines)
+        "#     cp result/failures.txt ptterm/tests/vterm-failures.txt\n" + "".join(line + "\n" for line in lines)
     )
     (directory / "vterm.log").write_text(log)
 
@@ -275,13 +276,7 @@ def report(failed: Counter, ran, include: str) -> int:
     file it left out.
     """
     known = read_baseline()
-    chosen = Counter(
-        {
-            entry: count
-            for entry, count in known.items()
-            if re.search(include, entry.split(":")[0])
-        }
-    )
+    chosen = Counter({entry: count for entry, count in known.items() if re.search(include, entry.split(":")[0])})
 
     new = sorted((failed - chosen).elements())
     fixed = sorted((chosen - failed).elements())
@@ -296,8 +291,7 @@ def report(failed: Counter, ran, include: str) -> int:
             "\nvterm: %s no longer describes the run. Write it again with:\n"
             "    nix build --file . checks.ptterm-vterm.run\n"
             "    cp result/failures.txt ptterm/tests/%s\n"
-            "and read result/vterm.log for what each answer was."
-            % (BASELINE.name, BASELINE.name)
+            "and read result/vterm.log for what each answer was." % (BASELINE.name, BASELINE.name)
         )
         return 1
 
@@ -332,10 +326,7 @@ def check_the_exclusions(names, include: str) -> int:
         status = 1
 
     if status:
-        print(
-            "\nvterm: NOT_OURS in %s no longer describes the suite."
-            % Path(__file__).name
-        )
+        print("\nvterm: NOT_OURS in %s no longer describes the suite." % Path(__file__).name)
     return status
 
 
@@ -393,10 +384,7 @@ def main() -> int:
     status = check_the_exclusions(names, include)
 
     for name in sorted(set(broken)):
-        print(
-            "vterm: the harness raised while %s ran. Read the log: this "
-            "is a fault here and not a deviation." % name
-        )
+        print("vterm: the harness raised while %s ran. Read the log: this is a fault here and not a deviation." % name)
         status = 1
 
     return report(failed, ran, include) or status

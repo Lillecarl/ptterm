@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+from __future__ import annotations
+
 from prompt_toolkit.application import Application
 from prompt_toolkit.key_binding import KeyBindings, merge_key_bindings
 from prompt_toolkit.key_binding.defaults import load_key_bindings
@@ -21,9 +23,7 @@ def main():
     term1 = Terminal()
 
     text_area = TextArea(
-        text="Press Control-W to switch focus.\n"
-        "Then you can edit this text area.\n"
-        "Press Control-X to exit"
+        text="Press Control-W to switch focus.\nThen you can edit this text area.\nPress Control-X to exit"
     )
 
     kb = KeyBindings()
@@ -50,9 +50,7 @@ def main():
                     Window(
                         height=1,
                         style="class:title",
-                        content=FormattedTextControl(
-                            " Press Control-W to switch focus."
-                        ),
+                        content=FormattedTextControl(" Press Control-W to switch focus."),
                     ),
                     VSplit(
                         [

@@ -10,15 +10,14 @@ These tests skip when `PTTERM_KITTY` does not name a directory holding
 the `kitty` package.
 """
 
-import pytest
+from __future__ import annotations
 
-from kitty_oracle import differences, kitty_is_available, ptterm_cells
+import pytest
+from kitty_oracle import differences, kitty_is_available
 from pyte import escape
 from pyte.sequences import csi, esc
 
-pytestmark = pytest.mark.skipif(
-    not kitty_is_available(), reason="the kitty python package is not there"
-)
+pytestmark = pytest.mark.skipif(not kitty_is_available(), reason="the kitty python package is not there")
 
 
 def check(data, lines=6, columns=20):
@@ -63,14 +62,7 @@ def test_text_and_the_cursor(data):
         csi(escape.SGR, 38, 2, 10, 20, 30) + csi(escape.SGR, 48, 2, 40, 50, 60) + "x",
         csi(escape.SGR, 38, 5, 9) + csi(escape.SGR, 48, 5, 12) + "x",
         csi(escape.SGR, 90) + "bright" + csi(escape.SGR),
-        (
-            csi(escape.SGR, 41, 32)
-            + "mix"
-            + csi(escape.SGR, 39)
-            + "fg"
-            + csi(escape.SGR, 49)
-            + "bg"
-        ),
+        (csi(escape.SGR, 41, 32) + "mix" + csi(escape.SGR, 39) + "fg" + csi(escape.SGR, 49) + "bg"),
         # The shape of an underline, and the colour of the line.
         "\x1b[4:2mdouble\x1b[4:3mcurly\x1b[4:4mdotted\x1b[4:5mdashed\x1b[4:0m",
         csi(escape.SGR, 21) + "double" + csi(escape.SGR, 24) + " plain",

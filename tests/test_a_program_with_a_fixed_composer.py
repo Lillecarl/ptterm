@@ -18,14 +18,16 @@ This is the end of that story: the rows are history, and copy mode is
 where a person reads them.
 """
 
+from __future__ import annotations
+
 import asyncio
 
 import pytest
-
 from no_backend import NoBackend
-from ptterm.terminal import Terminal
 from pyte import escape
 from pyte.sequences import csi
+
+from ptterm.terminal import Terminal
 
 LINES = 8
 COLUMNS = 20
@@ -90,10 +92,7 @@ def test_the_composer_is_the_bottom_of_the_pane_and_not_the_document():
     offset = screen.line_offset
 
     bottom = [
-        "".join(
-            screen.page.data_buffer[offset + row][column].char
-            for column in range(COLUMNS)
-        ).rstrip()
+        "".join(screen.page.data_buffer[offset + row][column].char for column in range(COLUMNS)).rstrip()
         for row in range(LINES - COMPOSER, LINES)
     ]
     assert bottom == ["composer %d" % row for row in range(COMPOSER)]

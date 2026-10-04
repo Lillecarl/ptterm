@@ -21,9 +21,12 @@ lazy about there.
 pane. The window wraps it again for the eye. Lillecarl/pymux#135.
 """
 
+from __future__ import annotations
+
 import asyncio
 
 import pytest
+from no_backend import NoBackend
 from prompt_toolkit.application.current import set_app
 from prompt_toolkit.application.dummy import DummyApplication
 from prompt_toolkit.enums import EditingMode
@@ -32,18 +35,17 @@ from prompt_toolkit.key_binding.vi_state import InputMode
 from prompt_toolkit.keys import Keys
 from prompt_toolkit.layout.layout import Layout
 from prompt_toolkit.layout.mouse_handlers import MouseHandlers
-from prompt_toolkit.layout.screen import Screen as PtScreen, WritePosition
+from prompt_toolkit.layout.screen import Screen as PtScreen
+from prompt_toolkit.layout.screen import WritePosition
 from prompt_toolkit.mouse_events import MouseEventType
 from prompt_toolkit.selection import SelectionType
-
-from no_backend import NoBackend
-from ptterm.terminal import Terminal
-from pyte.modes import PrivateMode
-from pyte.sequences import set_mode
 from pyte import escape
-from pyte.sequences import csi
 from pyte.cells import WrittenCell
+from pyte.modes import PrivateMode
 from pyte.placeholders import PLACEHOLDER
+from pyte.sequences import csi, set_mode
+
+from ptterm.terminal import Terminal
 
 LINES = 6
 COLUMNS = 20
@@ -87,7 +89,7 @@ def every_line_the_eager_way(terminal):
             if not (row is not None and row.wrapped) or not lines:
                 lines.append([])
             if row:
-                for column in range(0, max(row) + 1):
+                for column in range(max(row) + 1):
                     char = row[column]
                     lines[-1].append(terminal._copy_cell(char))
     return lines
@@ -155,8 +157,7 @@ def test_copy_mode_on_the_alternate_screen_shows_the_screen():
     Lillecarl/pymux#132.
     """
     terminal = a_terminal(
-        set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
-        + "".join("row %d\r\n" % number for number in range(60))
+        set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR) + "".join("row %d\r\n" % number for number in range(60))
     )
     document = terminal.copy_buffer.document
 
@@ -180,8 +181,7 @@ def test_copy_mode_and_the_pane_agree_after_a_narrowing():
     control = terminal.terminal_control
     control.create_content(wide, LINES)
     control.stream.feed(
-        set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
-        + "\r\n".join(letter * (wide - 1) for letter in "ABCDE")
+        set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR) + "\r\n".join(letter * (wide - 1) for letter in "ABCDE")
     )
 
     # The resize a person makes by dragging the edge of the window.
@@ -196,9 +196,7 @@ def test_copy_mode_and_the_pane_agree_after_a_narrowing():
     # The row the pane draws at the top of the screen is the row copy
     # mode offers at the top of its document.
     top = screen.line_offset
-    drawn = "".join(
-        cell.char or " " for cell in screen.page.data_buffer[top].values()
-    ).rstrip()
+    drawn = "".join(cell.char or " " for cell in screen.page.data_buffer[top].values()).rstrip()
     assert document.lines[0] == drawn, (document.lines, drawn)
 
 
@@ -222,9 +220,7 @@ def test_copy_mode_opens_where_the_pane_cursor_is():
     so a full screen program saw the view pop as copy mode opened.
     """
     terminal = a_terminal(
-        set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
-        + "one\r\ntwo\r\nthree"
-        + csi(escape.CUP, 2, 2)
+        set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR) + "one\r\ntwo\r\nthree" + csi(escape.CUP, 2, 2)
     )
 
     assert _cursor(terminal) == (1, 1)

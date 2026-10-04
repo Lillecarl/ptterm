@@ -16,7 +16,7 @@ The shape of a cell, and the reader that turns a ptterm screen into
 cells, live in `kitty_oracle`. This adds two more readers.
 """
 
-from typing import List, Optional, Tuple
+from __future__ import annotations
 
 from kitty_oracle import (
     Cell,
@@ -49,8 +49,8 @@ def judge_cells(
     data: str,
     lines: int,
     columns: int,
-    resize: Optional[Tuple[int, int]] = None,
-) -> List[List[Cell]]:
+    resize: tuple[int, int] | None = None,
+) -> list[list[Cell]]:
     "Feed `data` to one of the judges and read the screen back."
     return _JUDGE.cells(name, data, lines, columns, resize)
 
@@ -68,7 +68,7 @@ def judge_differences(
     columns: int = 20,
     strict: bool = False,
     blank_style: bool = True,
-) -> List[str]:
+) -> list[str]:
     "Every cell where ptterm and one judge do not agree, as readable lines."
     ours = ptterm_cells(data, lines, columns)
     theirs = judge_cells(name, data, lines, columns)
@@ -79,7 +79,5 @@ def judge_differences(
         for x in range(columns):
             mine, other = keep(ours[y][x]), keep(theirs[y][x])
             if mine != other:
-                reported.append(
-                    "cell %d,%d: ptterm %r, %s %r" % (y, x, mine, name, other)
-                )
+                reported.append("cell %d,%d: ptterm %r, %s %r" % (y, x, mine, name, other))
     return reported

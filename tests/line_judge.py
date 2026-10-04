@@ -39,18 +39,20 @@ and agree with every other judge with none, which says how the judges
 were built and nothing about the emulators.
 """
 
+from __future__ import annotations
+
 import atexit
 import json
 import os
 import subprocess
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Sequence
 
 from kitty_oracle import Cell, number_the_links
 
 __all__ = ["LineJudge", "color_of"]
 
 
-def color_of(value) -> Optional[Tuple]:
+def color_of(value) -> tuple | None:
     """
     The colour that a judge holds, in the form that `kitty_oracle` uses.
 
@@ -77,7 +79,7 @@ class LineJudge:
     def __init__(self, variable: str, names: Sequence[str]) -> None:
         self.variable = variable
         self.names = tuple(names)
-        self._process: Optional[subprocess.Popen] = None
+        self._process: subprocess.Popen | None = None
         self._failed = False
 
     def is_available(self) -> bool:
@@ -122,8 +124,8 @@ class LineJudge:
         data: str,
         lines: int,
         columns: int,
-        resize: Optional[Tuple[int, int]] = None,
-    ) -> Dict[str, List[List[Cell]]]:
+        resize: tuple[int, int] | None = None,
+    ) -> dict[str, list[list[Cell]]]:
         "One request, and the screens that come back."
         assert self.is_available(), "%s names no program" % (self.variable,)
         asked = {"data": data, "lines": lines, "columns": columns}
@@ -168,7 +170,7 @@ class LineJudge:
         data: str,
         lines: int,
         columns: int,
-        resize: Optional[Tuple[int, int]] = None,
-    ) -> List[List[Cell]]:
+        resize: tuple[int, int] | None = None,
+    ) -> list[list[Cell]]:
         "Feed `data` to one emulator of this judge and read the screen back."
         return self.ask(data, lines, columns, resize)[name]

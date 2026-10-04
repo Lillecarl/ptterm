@@ -25,10 +25,12 @@ spells one as a prompt_toolkit style string. That is the whole of what
 this layer adds to a cell.
 """
 
+from __future__ import annotations
+
 import os
 import time
 from bisect import bisect_right
-from typing import Callable, Iterable, List
+from typing import Callable, Iterable
 
 from prompt_toolkit.application.current import get_app, get_app_or_none
 from prompt_toolkit.buffer import Buffer
@@ -67,13 +69,11 @@ from prompt_toolkit.selection import SelectionType
 from prompt_toolkit.token import KeepWhitespace
 from prompt_toolkit.utils import Event, is_windows
 from prompt_toolkit.widgets.toolbars import SearchToolbar
-
 from ptyhost import Process
 from ptyhost.backends import Backend
-
+from pyte.cells import Cell, WrittenCell
 from pyte.environment import prepare
 from pyte.images import ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH
-from pyte.cells import Cell, WrittenCell
 from pyte.page import TextLine
 from pyte.placeholders import PLACEHOLDER
 from pyte.screen import Screen
@@ -196,7 +196,7 @@ def cursor_offset(screen) -> int:
     a pane draws the cursor where a program is told it stands.
     """
     row = screen.page.data_buffer[screen.pt_cursor_position.y]
-    return len("".join(row[x].char for x in range(0, screen.reported_column)))
+    return len("".join(row[x].char for x in range(screen.reported_column)))
 
 
 class _TerminalControl(UIControl):
@@ -287,7 +287,7 @@ class _TerminalControl(UIControl):
         #: The `Terminal` this control is the screen of, set by it when
         #: it builds this control. The wheel that enters copy mode goes
         #: through it, because copy mode and its buffer live there.
-        self.terminal: "Terminal" = None
+        self.terminal: Terminal = None
 
         # What this control drew for each row, and the write count of
         # the screen that it drew it at. A row whose count has not
@@ -483,11 +483,7 @@ class _TerminalControl(UIControl):
                 # alt+char), so that they can be re-encoded for the
                 # keyboard mode of this pane. (The empty-data presses
                 # are the remainders of such split sequences.)
-                self.process.write_input(
-                    self.screen.encode_key(
-                        key_press.data, report=self.unreadable_key_func
-                    )
-                )
+                self.process.write_input(self.screen.encode_key(key_press.data, report=self.unreadable_key_func))
             return NotImplemented
 
         @bindings.add(Keys.BracketedPaste)
@@ -580,10 +576,7 @@ class _TerminalControl(UIControl):
                                 _one_byte(y + _COORDINATE_OFFSET),
                             )
                         )
-            elif (
-                mouse_event.event_type in _WHEEL_ARROWS
-                and self.screen.wheel_sends_arrows
-            ):
+            elif mouse_event.event_type in _WHEEL_ARROWS and self.screen.wheel_sends_arrows:
                 # The alternate screen has no history, so copy mode
                 # would show the first screen's instead. Lillecarl/pymux#422.
                 arrow = self.screen.encode_key(_WHEEL_ARROWS[mouse_event.event_type])
@@ -667,9 +660,7 @@ def _in_the_child(
     return hook
 
 
-def create_backend(
-    command: List[str], before_exec_func: Callable[[], None] | None
-) -> Backend:
+def create_backend(command: list[str], before_exec_func: Callable[[], None] | None) -> Backend:
     if is_windows():
         from ptyhost.backends.win32 import Win32Backend
 
@@ -698,7 +689,7 @@ class _CopyBufferControl(BufferControl):
     the person scrolls back to where the program stands.
     """
 
-    def __init__(self, terminal: "Terminal", **kw) -> None:
+    def __init__(self, terminal: Terminal, **kw) -> None:
         super().__init__(**kw)
         self.terminal = terminal
 
@@ -933,9 +924,7 @@ class Terminal:
             else:
                 selection_state.type = SelectionType.CHARACTERS
 
-        self.search_toolbar = SearchToolbar(
-            forward_search_prompt="Search down: ", backward_search_prompt="Search up: "
-        )
+        self.search_toolbar = SearchToolbar(forward_search_prompt="Search down: ", backward_search_prompt="Search up: ")
 
         self.copy_buffer = _CopyBuffer(read_only=True)
         self.copy_buffer_control = _CopyBufferControl(
@@ -1021,9 +1010,7 @@ class Terminal:
                     height=1,
                     content=ConditionalContainer(
                         Window(
-                            content=FormattedTextControl(
-                                text=self._copy_position_formatted_text
-                            ),
+                            content=FormattedTextControl(text=self._copy_position_formatted_text),
                             style="class:copy-mode-cursor-position",
                         ),
                         filter=is_copying,
@@ -1080,7 +1067,7 @@ class Terminal:
             style += " " + KeepWhitespace
         return style
 
-    def _copy_cell(self, cell: Cell) -> "tuple[str, str]":
+    def _copy_cell(self, cell: Cell) -> tuple[str, str]:
         """
         How one cell of the copy buffer draws, and the character it holds.
 
@@ -1169,10 +1156,7 @@ class Terminal:
         column = position - (text.rfind("\n", 0, position) + 1)
         split = text.split("\n")
         target = max(0, min(len(split) - 1, index + lines))
-        new_position = (
-            sum(len(line) + 1 for line in split[:target])
-            + min(column, len(split[target]))
-        )
+        new_position = sum(len(line) + 1 for line in split[:target]) + min(column, len(split[target]))
         buffer.cursor_position = new_position
 
     def read_the_screen_into_the_copy_buffer(self) -> None:

@@ -7,11 +7,13 @@ the wrong screen for ever. `GroundTimer` bounds that. The rule is
 pyte's; this checks the pane gives itself one. Lillecarl/pymux#390.
 """
 
+from __future__ import annotations
+
 import asyncio
 
 import pytest
-
 from no_backend import NoBackend
+
 from ptterm.terminal import _TerminalControl
 
 LINES = 4

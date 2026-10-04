@@ -13,14 +13,15 @@ same: `test_the_panel.py` holds the tally, and the four judges that
 cannot see a baseline abstain. Lillecarl/pymux#59.
 """
 
-import pytest
+from __future__ import annotations
 
-from pyte.screen import Screen
-from pyte.streams import Stream
-from ptterm.style import style_of as spell
+import pytest
 from pyte import escape
-from pyte.sequences import csi
-from pyte.sequences import esc
+from pyte.screen import Screen
+from pyte.sequences import csi, esc
+from pyte.streams import Stream
+
+from ptterm.style import style_of as spell
 
 
 def screen(lines=2, columns=20):
@@ -122,11 +123,5 @@ def test_a_saved_cursor_brings_the_baseline_back():
     back with it. The savepoint holds the whole of `_rendition`.
     """
     made, stream = screen()
-    stream.feed(
-        csi(escape.SGR, 73)
-        + esc(escape.DECSC)
-        + csi(escape.SGR, 75)
-        + esc(escape.DECRC)
-        + "x"
-    )
+    stream.feed(csi(escape.SGR, 73) + esc(escape.DECSC) + csi(escape.SGR, 75) + esc(escape.DECRC) + "x")
     assert "superscript" in style_of(made).split()

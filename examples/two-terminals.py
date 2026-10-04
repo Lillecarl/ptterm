@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+from __future__ import annotations
+
 from prompt_toolkit.application import Application
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.key_binding import KeyBindings
@@ -62,9 +64,7 @@ def main():
                         height=1,
                         style="class:title",
                         content=FormattedTextControl(
-                            HTML(
-                                ' Press <u fg="#ff8888"><b>Control-W</b></u> to <b>switch focus</b>.'
-                            )
+                            HTML(' Press <u fg="#ff8888"><b>Control-W</b></u> to <b>switch focus</b>.')
                         ),
                     ),
                     VSplit(

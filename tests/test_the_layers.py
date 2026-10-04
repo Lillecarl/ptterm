@@ -20,6 +20,8 @@ fails here instead. `pyte/tests/test_the_layers.py` is the other half:
 it holds the pure layer to importing no toolkit at all.
 """
 
+from __future__ import annotations
+
 import ast
 from pathlib import Path
 
@@ -152,9 +154,5 @@ def test_only_the_widget_runs_a_program():
     widget, so it is what starts the program and hands the bytes to a
     screen. Lillecarl/pymux#85.
     """
-    reaching = sorted(
-        name
-        for name in MODULES
-        if any(_root(module) == "ptyhost" for module in _imports(MODULES[name]))
-    )
+    reaching = sorted(name for name in MODULES if any(_root(module) == "ptyhost" for module in _imports(MODULES[name])))
     assert reaching == ["terminal"]

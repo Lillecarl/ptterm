@@ -11,9 +11,11 @@ words through a whole screen. This file judges the spelling alone, so
 a failure says which half is wrong.
 """
 
-import pytest
+from __future__ import annotations
 
+import pytest
 from pyte.colors import DEFAULT_COLOR, PALETTE, Color, SgrColor
+
 from ptterm.style import style_word
 
 

@@ -15,18 +15,15 @@ is, why ptterm takes the side it takes, and whether it could become a
 setting. Change a tally here and change it there.
 """
 
-import pytest
+from __future__ import annotations
 
-from panel import abstained, judges, report, verdict
+import pytest
 from kitty_oracle import ptterm_cells
+from panel import abstained, judges, report, verdict
 from pyte import charsets, escape
-from pyte.sequences import Csi, csi
-from pyte.sequences import Sharp, sharp
-from pyte.sequences import Escape, esc
 from pyte.modes import PrivateMode
-from pyte.sequences import reset_mode, set_mode
 from pyte.osc import Osc
-from pyte.sequences import osc
+from pyte.sequences import Csi, Escape, Sharp, csi, esc, osc, reset_mode, set_mode, sharp
 
 #: Every judge that this file wants. With fewer, a tally means nothing.
 WANTED = {"kitty", "wezterm", "alacritty", "libvterm", "ghostty", "xtermjs"}
@@ -51,9 +48,7 @@ def sides(data, lines=8, columns=24, blank_style=True, resize=None):
     screens are then read at that size, and what they hold is what each
     reflow made of the rows before.
     """
-    answers = report(
-        data, lines=lines, columns=columns, blank_style=blank_style, resize=resize
-    )
+    answers = report(data, lines=lines, columns=columns, blank_style=blank_style, resize=resize)
     blind = set(
         cannot_see(
             data,
@@ -64,9 +59,7 @@ def sides(data, lines=8, columns=24, blank_style=True, resize=None):
         )
     )
     against = sorted(name for name, found in answers.items() if found)
-    with_us = sorted(
-        name for name, found in answers.items() if not found and name not in blind
-    )
+    with_us = sorted(name for name, found in answers.items() if not found and name not in blind)
     return against, with_us
 
 
@@ -164,9 +157,7 @@ def test_an_erase_keeps_the_background():
     Programs count on it: htop draws the header of its table with
     "CSI K" and expects the colour to reach the end of the line.
     """
-    against, with_us = sides(
-        (csi(escape.SGR, 41) + "AB" + csi(escape.ED, 2)), lines=3, columns=6
-    )
+    against, with_us = sides((csi(escape.SGR, 41) + "AB" + csi(escape.ED, 2)), lines=3, columns=6)
     assert against == ["ghostty"]
     assert with_us == ["alacritty", "kitty", "libvterm", "wezterm", "xtermjs"]
 
@@ -179,9 +170,7 @@ def test_whether_an_erase_keeps_reverse_video_is_a_choice():
     that turns reverse on and then erases means the block to be seen,
     and that is the reading kitty and WezTerm take.
     """
-    against, with_us = sides(
-        (csi(escape.SGR, 7) + "AB" + csi(escape.ED, 2)), lines=3, columns=6
-    )
+    against, with_us = sides((csi(escape.SGR, 7) + "AB" + csi(escape.ED, 2)), lines=3, columns=6)
     assert against == ["alacritty", "ghostty", "libvterm", "xtermjs"]
     assert with_us == ["kitty", "wezterm"]
 
@@ -231,10 +220,7 @@ def test_a_double_height_line_is_a_double_width_line_too():
 
 def test_single_width_gives_the_columns_back():
     "DECSWL puts libvterm back with the rest of the panel."
-    assert (
-        columns_before_the_wrap((sharp(Sharp.DECDWL) + sharp(Sharp.DECSWL)) + "a" * 15)
-        == WHOLE_WIDTH
-    )
+    assert columns_before_the_wrap((sharp(Sharp.DECDWL) + sharp(Sharp.DECSWL)) + "a" * 15) == WHOLE_WIDTH
 
 
 def test_a_tab_at_the_right_margin_follows_the_panel():
@@ -347,9 +333,7 @@ def test_a_mark_on_an_erased_cell_splits_the_panel():
 
     Three against three. ptterm sits with the three that drop it.
     """
-    against, with_us = sides(
-        ("0" + csi(escape.SGR, 40) + csi(escape.EL, 1) + "́"), lines=3, columns=6
-    )
+    against, with_us = sides(("0" + csi(escape.SGR, 40) + csi(escape.EL, 1) + "́"), lines=3, columns=6)
     assert against == ["alacritty", "ghostty", "libvterm"]
     assert with_us == ["kitty", "wezterm", "xtermjs"]
 
@@ -450,18 +434,8 @@ WITHOUT_MARGINS = ["alacritty", "kitty", "xtermjs"]
     "data",
     [
         # SU and SD carry the columns of the region.
-        (
-            "a\r\nb\r\nc\r\nd"
-            + set_mode(PrivateMode.LEFT_RIGHT_MARGIN)
-            + csi(Csi.DECSLRM, 2, 4)
-            + csi(Csi.SU, 2)
-        ),
-        (
-            "a\r\nb\r\nc\r\nd"
-            + set_mode(PrivateMode.LEFT_RIGHT_MARGIN)
-            + csi(Csi.DECSLRM, 2, 4)
-            + csi(Csi.SD, 2)
-        ),
+        ("a\r\nb\r\nc\r\nd" + set_mode(PrivateMode.LEFT_RIGHT_MARGIN) + csi(Csi.DECSLRM, 2, 4) + csi(Csi.SU, 2)),
+        ("a\r\nb\r\nc\r\nd" + set_mode(PrivateMode.LEFT_RIGHT_MARGIN) + csi(Csi.DECSLRM, 2, 4) + csi(Csi.SD, 2)),
         # IL and DL do the same, from inside the region.
         (
             "abcd\r\nefgh\r\nijkl"
@@ -685,11 +659,7 @@ def test_where_the_cursor_stands_after_the_newest_alternate_mode():
     Lillecarl/pymux#34.
     """
     against, with_us = sides(
-        (
-            csi(escape.CUP, 2, 3)
-            + set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
-            + "X"
-        ),
+        (csi(escape.CUP, 2, 3) + set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR) + "X"),
         lines=3,
         columns=6,
     )
@@ -707,9 +677,7 @@ def test_a_linefeed_at_the_bottom_paints_the_line_it_brings_in():
     not for a screen with no region, so the same linefeed painted or
     did not paint by whether a program had set a region.
     """
-    against, with_us = sides(
-        (csi(escape.CUP, 4, 1) + csi(escape.SGR, 42) + "\n"), lines=4, columns=6
-    )
+    against, with_us = sides((csi(escape.CUP, 4, 1) + csi(escape.SGR, 42) + "\n"), lines=4, columns=6)
     assert against == ["ghostty", "kitty"]
     assert with_us == ["alacritty", "libvterm", "wezterm", "xtermjs"]
 
@@ -818,25 +786,13 @@ def test_whether_a_reset_forgets_the_saved_cursor():
         held = _cells(data, lines=4, columns=8)
         return {name: rows[0][0].char == "z" for name, rows in held.items()}
 
-    after_ris = home(
-        csi(escape.CUP, 3, 5)
-        + esc(escape.DECSC)
-        + esc(escape.RIS)
-        + esc(escape.DECRC)
-        + "z"
-    )
+    after_ris = home(csi(escape.CUP, 3, 5) + esc(escape.DECSC) + esc(escape.RIS) + esc(escape.DECRC) + "z")
     for name in ("ptterm", "alacritty", "ghostty", "kitty", "xtermjs"):
         assert after_ris[name], name
     for name in ("libvterm", "wezterm"):
         assert not after_ris[name], name
 
-    after_decstr = home(
-        csi(escape.CUP, 3, 5)
-        + esc(escape.DECSC)
-        + csi(Csi.DECSTR)
-        + esc(escape.DECRC)
-        + "z"
-    )
+    after_decstr = home(csi(escape.CUP, 3, 5) + esc(escape.DECSC) + csi(Csi.DECSTR) + esc(escape.DECRC) + "z")
     for name in ("ptterm", "kitty", "wezterm", "xtermjs"):
         assert after_decstr[name], name
     for name in ("alacritty", "ghostty", "libvterm"):
@@ -860,9 +816,7 @@ def test_whether_a_restore_brings_the_wait_to_wrap_back():
         held = _cells(data, lines=4, columns=6)
         return {name: rows[0][5].char for name, rows in held.items()}
 
-    through_decsc = where_b_landed(
-        fill + (esc(escape.DECSC) + csi(escape.CUP, 1, 1) + esc(escape.DECRC) + "b")
-    )
+    through_decsc = where_b_landed(fill + (esc(escape.DECSC) + csi(escape.CUP, 1, 1) + esc(escape.DECRC) + "b"))
     for name in ("ptterm", "alacritty", "ghostty", "wezterm"):
         assert through_decsc[name] == "a", name
     for name in ("kitty", "libvterm", "xtermjs"):
@@ -910,20 +864,13 @@ def test_what_a_delete_leaves_at_the_right_edge():
     This is the whole of `delete_chars_reset` in
     `checks.pymux-alacritty`: twelve cells at the end of one row.
     """
-    keeps_background = _cells(
-        csi(escape.SGR, 41) + "abcdef" + csi(escape.CUP, 1, 1) + csi(escape.DCH, 1)
-    )
+    keeps_background = _cells(csi(escape.SGR, 41) + "abcdef" + csi(escape.CUP, 1, 1) + csi(escape.DCH, 1))
     for name in ("ptterm", "alacritty", "kitty", "libvterm", "xtermjs"):
         assert keeps_background[name][0][7].bg == ("index", 1), name
     for name in ("ghostty", "wezterm"):
         assert keeps_background[name][0][7].bg is None, name
 
-    reversed_cells = _cells(
-        csi(escape.SGR, 31, 1, 7, 4, 9)
-        + "abcdef"
-        + csi(escape.CUP, 1, 1)
-        + csi(escape.DCH, 1)
-    )
+    reversed_cells = _cells(csi(escape.SGR, 31, 1, 7, 4, 9) + "abcdef" + csi(escape.CUP, 1, 1) + csi(escape.DCH, 1))
     for name in ("ptterm", "kitty"):
         assert reversed_cells[name][0][7].reverse, name
     for name in ("alacritty", "ghostty", "libvterm", "wezterm", "xtermjs"):
@@ -944,9 +891,7 @@ def rows_of(data, lines, columns, resize):
     def text(rows):
         return ["".join(cell.char or " " for cell in row).rstrip() for row in rows]
 
-    return {
-        name: text(rows) for name, rows in _cells(data, lines, columns, resize).items()
-    }
+    return {name: text(rows) for name, rows in _cells(data, lines, columns, resize).items()}
 
 
 def test_what_the_line_drawing_set_draws_for_h():
@@ -1139,9 +1084,7 @@ def test_a_link_overwrites_the_shape_of_a_line():
         assert held[name][0][0].underline == 0, name
 
     over_a_curly = OPEN_LINK % ("id=1", A_TARGET) + "\x1b[4:3mab\x1b[m" + CLOSE_LINK
-    under_a_curly = (
-        "\x1b[4:3m" + OPEN_LINK % ("id=1", A_TARGET) + ("ab" + csi(escape.SGR))
-    )
+    under_a_curly = "\x1b[4:3m" + OPEN_LINK % ("id=1", A_TARGET) + ("ab" + csi(escape.SGR))
     for data in (over_a_curly, under_a_curly):
         held = _cells(data, lines=2, columns=4)
         assert held["xtermjs"][0][0].underline == DASHED
@@ -1174,13 +1117,7 @@ def test_a_link_that_a_wrap_cuts_in_two_is_one_link():
 
 def test_two_ids_on_one_target_are_two_links():
     "The id says which link, and the target says where it goes."
-    data = (
-        OPEN_LINK % ("id=1", A_TARGET)
-        + "ab"
-        + OPEN_LINK % ("id=2", A_TARGET)
-        + "cd"
-        + CLOSE_LINK
-    )
+    data = OPEN_LINK % ("id=1", A_TARGET) + "ab" + OPEN_LINK % ("id=2", A_TARGET) + "cd" + CLOSE_LINK
     held = link_shape(data)
     for name in LINK_HOLDERS:
         assert held[name] == [(1, 1, 2, 2), (None, None, None, None)], name
@@ -1188,13 +1125,7 @@ def test_two_ids_on_one_target_are_two_links():
 
 def test_two_targets_under_one_id_are_two_links():
     "One id and two targets is two links, the same way round."
-    data = (
-        OPEN_LINK % ("id=1", A_TARGET)
-        + "ab"
-        + OPEN_LINK % ("id=1", ANOTHER_TARGET)
-        + "cd"
-        + CLOSE_LINK
-    )
+    data = OPEN_LINK % ("id=1", A_TARGET) + "ab" + OPEN_LINK % ("id=1", ANOTHER_TARGET) + "cd" + CLOSE_LINK
     held = link_shape(data)
     for name in LINK_HOLDERS:
         assert held[name] == [(1, 1, 2, 2), (None, None, None, None)], name
@@ -1205,14 +1136,7 @@ def test_the_same_id_opened_again_is_the_same_link():
     A link closes, plain text follows, and the same id and target open
     again. Three judges call the two runs one link, and so does ptterm.
     """
-    data = (
-        OPEN_LINK % ("id=1", A_TARGET)
-        + "ab"
-        + CLOSE_LINK
-        + "xy"
-        + OPEN_LINK % ("id=1", A_TARGET)
-        + "cd"
-    )
+    data = OPEN_LINK % ("id=1", A_TARGET) + "ab" + CLOSE_LINK + "xy" + OPEN_LINK % ("id=1", A_TARGET) + "cd"
     held = link_shape(data)
     for name in LINK_HOLDERS:
         assert held[name] == [(1, 1, None, None), (1, 1, None, None)], name
@@ -1243,14 +1167,7 @@ def test_two_judges_split_a_link_that_carries_no_id():
 
     Two against two is a split, so nothing changes here.
     """
-    data = (
-        OPEN_LINK % ("", A_TARGET)
-        + "ab"
-        + CLOSE_LINK
-        + "xy"
-        + OPEN_LINK % ("", A_TARGET)
-        + "cd"
-    )
+    data = OPEN_LINK % ("", A_TARGET) + "ab" + CLOSE_LINK + "xy" + OPEN_LINK % ("", A_TARGET) + "cd"
     held = link_shape(data)
     for name in ("alacritty", "xtermjs"):
         assert held[name] == [(1, 1, None, None), (2, 2, None, None)], name
@@ -1452,9 +1369,7 @@ BASELINE_BLIND = ("alacritty", "ghostty", "kitty", "xtermjs")
 
 def baseline_of(data, lines=1, columns=4):
     "Where each judge puts the glyph of the first cell, and ptterm."
-    return {
-        name: rows[0][0].baseline for name, rows in _cells(data, lines, columns).items()
-    }
+    return {name: rows[0][0].baseline for name, rows in _cells(data, lines, columns).items()}
 
 
 def test_two_judges_raise_a_glyph_for_sgr_73():
@@ -1494,9 +1409,7 @@ def test_a_raised_glyph_leaves_ptterm_alone():
     do not hold.
     """
     assert verdict(csi(escape.SGR, 73) + "x", lines=1, columns=4) == "agree"
-    assert cannot_see((csi(escape.SGR, 73) + "x"), lines=1, columns=4) == list(
-        BASELINE_BLIND
-    )
+    assert cannot_see((csi(escape.SGR, 73) + "x"), lines=1, columns=4) == list(BASELINE_BLIND)
 
 
 # ----------------------------------------------------------------------
@@ -1562,11 +1475,7 @@ def test_who_holds_the_same_table_as_ptterm(name):
     expected = _drawn_by_pyte(name)
     assert found["ptterm"].rstrip() == expected
 
-    agreeing = sorted(
-        judge.name
-        for judge in judges()
-        if found[judge.name].rstrip() == expected
-    )
+    agreeing = sorted(judge.name for judge in judges() if found[judge.name].rstrip() == expected)
     assert agreeing == JUDGES_WITH_A_NATIONAL_SET.get(name, [])
 
 
@@ -1629,9 +1538,7 @@ def test_a_locking_shift_brings_g2_in():
     """
     found = characters_in_row("\x1b*0\x1bnl", columns=4)
     assert found["ptterm"].rstrip() == CORNER
-    holds_it = sorted(
-        judge.name for judge in judges() if found[judge.name].rstrip() == CORNER
-    )
+    holds_it = sorted(judge.name for judge in judges() if found[judge.name].rstrip() == CORNER)
     assert holds_it == ["ghostty", "libvterm", "xtermjs"]
     for name in ("kitty", "wezterm", "alacritty"):
         assert found[name].rstrip() == "l", name
@@ -1641,11 +1548,7 @@ def test_a_single_shift_lends_g2_for_one_character():
     "SS2, `ESC N`. The second `l` comes from G0 again."
     found = characters_in_row("\x1b*0\x1bNll", columns=4)
     assert found["ptterm"].rstrip() == CORNER + "l"
-    holds_it = sorted(
-        judge.name
-        for judge in judges()
-        if found[judge.name].rstrip() == CORNER + "l"
-    )
+    holds_it = sorted(judge.name for judge in judges() if found[judge.name].rstrip() == CORNER + "l")
     assert holds_it == ["ghostty", "libvterm"]
     # The rest draw both letters, which is what never shifting looks
     # like. xterm.js has the locking shift and not this one.

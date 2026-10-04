@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+from __future__ import annotations
+
 import asyncio
 
 import asyncssh
@@ -8,9 +10,9 @@ from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.layout import HSplit, Layout, Window
 from prompt_toolkit.layout.controls import FormattedTextControl
 from prompt_toolkit.styles import Style
+from ptyhost.backends.asyncssh import AsyncSSHBackend
 
 from ptterm import Terminal
-from ptyhost.backends.asyncssh import AsyncSSHBackend
 
 
 async def main():
@@ -20,9 +22,7 @@ async def main():
         ]
     )
 
-    async with asyncssh.connect(
-        "localhost", port=2222, username="jonathan"
-    ) as client_connection:
+    async with asyncssh.connect("localhost", port=2222, username="jonathan") as client_connection:
         backend = AsyncSSHBackend(client_connection)
 
         kb = KeyBindings()
@@ -48,9 +48,7 @@ async def main():
                             height=1,
                             style="class:title",
                             content=FormattedTextControl(
-                                HTML(
-                                    ' AsyncSSH: Press <u fg="#ff8888"><b>Control-X</b></u> to <b>exit</b>.'
-                                )
+                                HTML(' AsyncSSH: Press <u fg="#ff8888"><b>Control-X</b></u> to <b>exit</b>.')
                             ),
                         ),
                         term,

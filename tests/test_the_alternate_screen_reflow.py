@@ -31,6 +31,8 @@ libvterm still reflows, and that is a setting and not an opinion:
 takes it for both buffers, and `vterm_oracle.py` turns it on.
 """
 
+from __future__ import annotations
+
 from kitty_oracle import ptterm_cells
 from panel import judges
 from pyte.modes import PrivateMode

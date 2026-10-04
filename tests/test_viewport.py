@@ -7,15 +7,14 @@ content, and never the cursor: a cursor that moves up may not drag the
 screen back into the history and hide the last line.
 """
 
+from __future__ import annotations
+
 import pytest
-
-from pyte.screen import Screen
-from pyte.streams import Stream
-
 from kitty_oracle import differences, kitty_is_available
 from pyte import escape
-from pyte.sequences import csi, esc
-from pyte.sequences import Sharp, sharp
+from pyte.screen import Screen
+from pyte.sequences import Sharp, csi, esc, sharp
+from pyte.streams import Stream
 
 
 def _screen(lines=4, columns=8):
@@ -44,9 +43,7 @@ def test_a_reverse_index_at_the_top_does_not_take_the_screen_with_it():
     assert screen.line_offset == 1
 
 
-@pytest.mark.skipif(
-    not kitty_is_available(), reason="the kitty python package is not there"
-)
+@pytest.mark.skipif(not kitty_is_available(), reason="the kitty python package is not there")
 def test_the_last_line_stays_in_sight():
     assert not differences(
         (csi(escape.VPA, 8) + "\n0" + csi(escape.DECSTBM, 2, 3) + esc(escape.RI)),
@@ -69,6 +66,4 @@ def test_a_position_past_the_bottom_stays_on_the_screen():
 
 def test_a_position_past_the_bottom_of_a_full_screen():
     "The same, with every cell drawn: DECALN is how the hunt found it."
-    assert not differences(
-        (sharp(Sharp.DECALN) + csi(escape.CUP, 9, 9) + "X"), lines=4, columns=8
-    )
+    assert not differences((sharp(Sharp.DECALN) + csi(escape.CUP, 9, 9) + "X"), lines=4, columns=8)

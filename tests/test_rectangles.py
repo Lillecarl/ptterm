@@ -11,14 +11,13 @@ origin mode counts them from the margins, and a margin does not hold
 the rectangle in. None of the four moves the cursor.
 """
 
-from pyte.screen import Screen
-from pyte.streams import Stream
-from ptterm.style import style_of
+from __future__ import annotations
+
 from pyte import escape
-from pyte.sequences import Csi, csi
 from pyte.modes import PrivateMode
-from pyte.sequences import Escape, esc, reset_mode
-from pyte.sequences import set_mode
+from pyte.screen import Screen
+from pyte.sequences import Csi, Escape, csi, esc, reset_mode, set_mode
+from pyte.streams import Stream
 
 #: The screen that esctest draws before it takes a rectangle.
 DATA = [
@@ -41,10 +40,7 @@ def _screen(lines=8, columns=8):
 
 def _line(screen, row):
     buffer = screen.data_buffer[row + screen.line_offset]
-    return "".join(
-        (buffer[column].char or " ") if column in buffer else " "
-        for column in range(screen.columns)
-    )
+    return "".join((buffer[column].char or " ") if column in buffer else " " for column in range(screen.columns))
 
 
 def _lines(screen):
@@ -101,11 +97,7 @@ def test_a_fill_counts_the_corners_from_the_margins_in_origin_mode():
         + set_mode(PrivateMode.ORIGIN)
     )
     stream.feed(csi(Csi.DECFRA, 37, 1, 1, 3, 3))
-    stream.feed(
-        reset_mode(PrivateMode.LEFT_RIGHT_MARGIN)
-        + csi(escape.DECSTBM)
-        + reset_mode(PrivateMode.ORIGIN)
-    )
+    stream.feed(reset_mode(PrivateMode.LEFT_RIGHT_MARGIN) + csi(escape.DECSTBM) + reset_mode(PrivateMode.ORIGIN))
     assert _lines(screen) == [
         "abcdefgh",
         "i%%%mnop",
@@ -136,11 +128,7 @@ def test_a_fill_does_not_move_the_cursor():
 def test_a_fill_reaches_past_a_margin():
     screen, stream = _screen()
     _prepare(stream)
-    stream.feed(
-        set_mode(PrivateMode.LEFT_RIGHT_MARGIN)
-        + csi(Csi.DECSLRM, 3, 6)
-        + csi(escape.DECSTBM, 3, 6)
-    )
+    stream.feed(set_mode(PrivateMode.LEFT_RIGHT_MARGIN) + csi(Csi.DECSLRM, 3, 6) + csi(escape.DECSTBM, 3, 6))
     stream.feed(csi(Csi.DECFRA, 37, 5, 5, 7, 7))
     stream.feed(reset_mode(PrivateMode.LEFT_RIGHT_MARGIN) + csi(escape.DECSTBM))
     assert _lines(screen) == [
@@ -178,9 +166,7 @@ def test_a_filled_cell_takes_the_rendition_that_is_set_now():
 
 def test_a_filled_cell_carries_the_mark_of_decsca():
     screen, stream = _screen()
-    stream.feed(
-        csi(Csi.DECSCA, 1) + csi(Csi.DECFRA, 37, 1, 1, 1, 3) + csi(Csi.DECSCA, 0)
-    )
+    stream.feed(csi(Csi.DECSCA, 1) + csi(Csi.DECFRA, 37, 1, 1, 1, 3) + csi(Csi.DECSCA, 0))
     stream.feed(csi(escape.CUP, 1, 1) + csi(escape.EL, 2, private="?"))
     assert _line(screen, 0).rstrip() == "%%%"
 
@@ -375,11 +361,7 @@ def test_a_copy_counts_the_corners_from_the_margins_in_origin_mode():
         + set_mode(PrivateMode.ORIGIN)
     )
     stream.feed(csi(Csi.DECCRA, 1, 1, 3, 3, 1, 4, 4, 1))
-    stream.feed(
-        reset_mode(PrivateMode.LEFT_RIGHT_MARGIN)
-        + csi(escape.DECSTBM)
-        + reset_mode(PrivateMode.ORIGIN)
-    )
+    stream.feed(reset_mode(PrivateMode.LEFT_RIGHT_MARGIN) + csi(escape.DECSTBM) + reset_mode(PrivateMode.ORIGIN))
     assert _lines(screen) == [
         "abcdefgh",
         "ijklmnop",
@@ -395,11 +377,7 @@ def test_a_copy_counts_the_corners_from_the_margins_in_origin_mode():
 def test_a_copy_reaches_past_a_margin():
     screen, stream = _screen()
     _prepare(stream)
-    stream.feed(
-        set_mode(PrivateMode.LEFT_RIGHT_MARGIN)
-        + csi(Csi.DECSLRM, 3, 6)
-        + csi(escape.DECSTBM, 3, 6)
-    )
+    stream.feed(set_mode(PrivateMode.LEFT_RIGHT_MARGIN) + csi(Csi.DECSLRM, 3, 6) + csi(escape.DECSTBM, 3, 6))
     stream.feed(csi(Csi.DECCRA, 2, 2, 4, 4, 1, 5, 5, 1))
     stream.feed(reset_mode(PrivateMode.LEFT_RIGHT_MARGIN) + csi(escape.DECSTBM))
     assert _lines(screen)[4:7] == [

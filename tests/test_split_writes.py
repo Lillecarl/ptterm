@@ -10,17 +10,16 @@ The comparison needs no other emulator: the screen of one feed against
 the screen of many is a property of ptterm alone.
 """
 
+from __future__ import annotations
+
 import pathlib
 
 import pytest
-
 from kitty_oracle import ptterm_cells, ptterm_cells_in_pieces
 from pyte import escape
 from pyte.modes import PrivateMode
-from pyte.sequences import Sharp, csi, set_mode, sharp
-from pyte.sequences import reset_mode
 from pyte.osc import Osc
-from pyte.sequences import Terminator, apc, dcs, osc
+from pyte.sequences import Sharp, Terminator, apc, csi, dcs, osc, reset_mode, set_mode, sharp
 
 CORPUS = pathlib.Path(__file__).parent / "corpus"
 
@@ -35,11 +34,7 @@ PROGRAMS = [
     csi(escape.SGR, 38, 2, 10, 20, 30) + "truecolor",
     "\x1b[38:2::10:20:30mcolons",
     osc("0", "a title", end=Terminator.BEL) + "after",
-    (
-        osc(Osc.HYPERLINK, "", "https://example.com/a")
-        + "link"
-        + osc(Osc.HYPERLINK, "", "")
-    ),
+    (osc(Osc.HYPERLINK, "", "https://example.com/a") + "link" + osc(Osc.HYPERLINK, "", "")),
     dcs("0;0;0q#0;2;0;0;0#0~~"),
     apc("Ga=T,f=24,s=1,v=1;AAAA"),
     (

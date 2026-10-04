@@ -22,7 +22,7 @@ anyway is worse than one that abstains, because the panel counts its
 vote.
 """
 
-from typing import List, Optional, Tuple
+from __future__ import annotations
 
 from kitty_oracle import Cell
 from line_judge import LineJudge
@@ -37,9 +37,7 @@ def ghostty_is_available() -> bool:
     return _JUDGE.is_available()
 
 
-def ghostty_cells(
-    data: str, lines: int, columns: int, resize: Optional[Tuple[int, int]] = None
-) -> List[List[Cell]]:
+def ghostty_cells(data: str, lines: int, columns: int, resize: tuple[int, int] | None = None) -> list[list[Cell]]:
     "Feed `data` to Ghostty and read the screen back."
     return _JUDGE.cells("ghostty", data, lines, columns, resize)
 

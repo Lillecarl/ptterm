@@ -13,11 +13,13 @@ it would be taking room from the panes beside it, so ptterm hands the
 ask to the embedder instead.
 """
 
+from __future__ import annotations
+
+from ptyhost import Process
+from ptyhost.backends.posix import PosixBackend
 from pyte.images import ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH
 from pyte.screen import Screen
 from pyte.streams import Stream
-from ptyhost import Process
-from ptyhost.backends.posix import PosixBackend
 
 __all__ = ("Host",)
 
@@ -51,9 +53,7 @@ class Host:
         self.smallest = smallest
         self.largest = largest
 
-        self.backend = PosixBackend.from_command(
-            command, cell=(ASSUMED_CELL_WIDTH, ASSUMED_CELL_HEIGHT)
-        )
+        self.backend = PosixBackend.from_command(command, cell=(ASSUMED_CELL_WIDTH, ASSUMED_CELL_HEIGHT))
         if prepare is not None:
             prepare(self.backend)
 

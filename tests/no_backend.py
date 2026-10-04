@@ -6,6 +6,8 @@ want the screen and the widget around it, and neither wants a child on
 a pty: nothing forks, so nothing has to be waited for or cleaned up.
 """
 
+from __future__ import annotations
+
 __all__ = ("NoBackend",)
 
 

@@ -11,11 +11,13 @@ The limit is a function and not a number so that a change reaches a
 pane that is already running. `Screen` calls it on every cleanup.
 """
 
+from __future__ import annotations
+
 import asyncio
 
 import pytest
-
 from no_backend import NoBackend
+
 from ptterm.terminal import _TerminalControl
 
 LINES = 24

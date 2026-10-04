@@ -7,14 +7,16 @@ underlined in yellow. A pane is not a widget. What a program wrote is
 what the cell holds, and every emulator agrees.
 """
 
-import pytest
+from __future__ import annotations
 
+import pytest
 from kitty_oracle import differences, kitty_is_available, ptterm_cells
-from pyte.screen import Screen
-from pyte.streams import Stream
-from ptterm.style import style_of
 from pyte import escape
+from pyte.screen import Screen
 from pyte.sequences import csi
+from pyte.streams import Stream
+
+from ptterm.style import style_of
 
 NBSP = "\xa0"
 
@@ -35,9 +37,7 @@ def test_a_no_break_space_carries_no_style_of_its_own():
     assert "nbsp" not in style_of(cell.appearance)
 
 
-@pytest.mark.skipif(
-    not kitty_is_available(), reason="the kitty python package is not there"
-)
+@pytest.mark.skipif(not kitty_is_available(), reason="the kitty python package is not there")
 def test_kitty_keeps_it_as_well():
     assert not differences("a" + NBSP + "b", lines=3, columns=8)
     assert not differences("│" + NBSP + NBSP + " x", lines=3, columns=8)

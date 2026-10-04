@@ -17,16 +17,18 @@ because both run the same code; the only question is which rows they
 run it on.
 """
 
+from __future__ import annotations
+
 import asyncio
 import pathlib
 
 import pytest
-
 from no_backend import NoBackend
-from ptterm.terminal import _TerminalControl
 from pyte import escape
 from pyte.modes import PrivateMode
 from pyte.sequences import csi, set_mode
+
+from ptterm.terminal import _TerminalControl
 
 CORPUS = pathlib.Path(__file__).parent / "corpus"
 
