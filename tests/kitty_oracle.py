@@ -442,7 +442,7 @@ def _split_a_double_cell(row: list[Cell]) -> None:
                 break
             tail = row[index]._replace(char=text[position:])
             row[index] = row[index]._replace(char=text[:position])
-            row[index + 1 : blank + 1] = [tail] + row[index + 1 : blank]
+            row[index + 1 : blank + 1] = [tail, *row[index + 1 : blank]]
             break
 
 

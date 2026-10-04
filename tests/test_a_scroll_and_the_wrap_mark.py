@@ -100,7 +100,7 @@ def test_the_row_that_lands_on_top_starts_a_line_of_its_own():
     found = rows_of(A_SCROLL, LINES, NARROW, (LINES, WIDE))
     apart = ["ZZZZ", "a" * 16, "", ""]
 
-    for name in THE_ONES_THAT_KEEP_THEM_APART + ("ptterm",):
+    for name in (*THE_ONES_THAT_KEEP_THEM_APART, "ptterm"):
         assert found[name] == apart, "%s\n%s" % (name, a_dump(found))
 
 
@@ -134,7 +134,7 @@ def test_a_wrapped_line_that_survives_whole_is_still_one_line():
     written = "\x1b[1;1HZZZZ" + "\x1b[2;1H" + "a" * 24
     found = rows_of(written, LINES, NARROW, (LINES, WIDE))
 
-    for name in THE_ONES_THAT_KEEP_THEM_APART + ("ptterm",):
+    for name in (*THE_ONES_THAT_KEEP_THEM_APART, "ptterm"):
         assert found[name][:2] == ["ZZZZ", "a" * 16], "%s\n%s" % (
             name,
             a_dump(found),

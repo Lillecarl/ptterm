@@ -86,7 +86,7 @@ def test_a_narrowing_cuts_the_alternate_screen_down():
     found = rows_of(ALTERNATE, LINES, WIDE, (LINES, NARROW))
     cut_down = [letter * NARROW for letter in "ABCDEFG"] + [""]
 
-    for name in THE_ONES_THAT_CLIP + ("ptterm",):
+    for name in (*THE_ONES_THAT_CLIP, "ptterm"):
         assert found[name] == cut_down, "%s\n%s" % (name, a_dump(found))
 
 

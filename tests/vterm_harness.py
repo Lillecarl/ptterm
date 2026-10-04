@@ -437,7 +437,7 @@ class Harness:
         which stands for no colour as much as `None` does.
         """
         if value is None or value.index is None and value.rgb is None:
-            return "rgb(%d,%d,%d,is_default_%s)" % (default + (side,))
+            return "rgb(%d,%d,%d,is_default_%s)" % ((*default, side))
         if value.index is not None:
             return "idx(%d)" % value.index
         return "rgb(%d,%d,%d)" % value.rgb
