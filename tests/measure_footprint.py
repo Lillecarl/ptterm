@@ -143,10 +143,7 @@ def _where(frame) -> str:
     stays: `pyte/screen.py:1990`.
     """
     parts = Path(frame.filename).parts
-    if "site-packages" in parts:
-        parts = parts[parts.index("site-packages") + 1 :]
-    else:
-        parts = parts[-2:]
+    parts = parts[parts.index("site-packages") + 1 :] if "site-packages" in parts else parts[-2:]
     return "%s:%d" % ("/".join(parts), frame.lineno)
 
 
