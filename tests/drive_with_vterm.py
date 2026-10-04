@@ -86,61 +86,81 @@ FILE_TIMEOUT = 120
 #: other.
 NOT_OURS = (
     (
-        r"^(10state_putglyph|14state_encoding|16state_resize|20state_wrapping"
-        r"|21state_tabstops|28state_dbl_wh|31state_rep)\.test$",
-        "libvterm reports every glyph it lays down, and the file is a "
-        "list of those reports. ptterm writes into a screen and the "
-        "embedder reads the screen, so there is no glyph to report.",
+        (
+            r"^(10state_putglyph|14state_encoding|16state_resize|20state_wrapping"
+            r"|21state_tabstops|28state_dbl_wh|31state_rep)\.test$"
+        ),
+        (
+            "libvterm reports every glyph it lays down, and the file is a "
+            "list of those reports. ptterm writes into a screen and the "
+            "embedder reads the screen, so there is no glyph to report."
+        ),
     ),
     (
-        r"^(12state_scroll|13state_edit|15state_mode|27state_reset"
-        r"|60screen_ascii|62screen_damage|63screen_resize"
-        r"|69screen_sb_clear)\.test$",
-        "the file says how libvterm chose to redraw: which rectangle it "
-        "damaged, scrolled or moved, and which line it pushed into the "
-        "scrollback. ptterm has no redraw to report, and none of it is a "
-        "property of the screen that a program can read.",
+        (
+            r"^(12state_scroll|13state_edit|15state_mode|27state_reset"
+            r"|60screen_ascii|62screen_damage|63screen_resize"
+            r"|69screen_sb_clear)\.test$"
+        ),
+        (
+            "the file says how libvterm chose to redraw: which rectangle it "
+            "damaged, scrolled or moved, and which line it pushed into the "
+            "scrollback. ptterm has no redraw to report, and none of it is a "
+            "property of the screen that a program can read."
+        ),
     ),
     (
         r"^(02parser|29state_fallback)\.test$",
-        "the file reads the parser, not the terminal: each CSI, OSC, DCS "
-        "and string sequence as libvterm hands it to an embedder. pyte "
-        "parses for ptterm and reports nothing, so this needs a second "
-        "harness on the parser. It is worth having later.",
+        (
+            "the file reads the parser, not the terminal: each CSI, OSC, DCS "
+            "and string sequence as libvterm hands it to an embedder. pyte "
+            "parses for ptterm and reports nothing, so this needs a second "
+            "harness on the parser. It is worth having later."
+        ),
     ),
     (
         r"^03encoding_utf8\.test$",
-        "the file reads libvterm's own encoder, which turns key presses "
-        "into bytes. ptterm has no such thing: prompt_toolkit encodes "
-        "the keys of a pane.",
+        (
+            "the file reads libvterm's own encoder, which turns key presses "
+            "into bytes. ptterm has no such thing: prompt_toolkit encodes "
+            "the keys of a pane."
+        ),
     ),
     (
         r"^(18state_termprops|22state_save|68screen_termprops)\.test$",
-        "the file reads which terminal properties libvterm changed: the "
-        "title, whether the cursor is visible, which shape it takes. "
-        "Those go to an embedder as callbacks. ptterm holds them on the "
-        "screen and pymux reads them, so there is no report to make. "
-        "22state_save is here for the same reason: it saves and restores "
-        "the cursor, and every line it reads is a `settermprop`.",
+        (
+            "the file reads which terminal properties libvterm changed: the "
+            "title, whether the cursor is visible, which shape it takes. "
+            "Those go to an embedder as callbacks. ptterm holds them on the "
+            "screen and pymux reads them, so there is no report to make. "
+            "22state_save is here for the same reason: it saves and restores "
+            "the cursor, and every line it reads is a `settermprop`."
+        ),
     ),
     (
         r"^25state_input\.test$",
-        "the file reads libvterm's own encoder, which turns a key press "
-        "into bytes. ptterm has no such thing: prompt_toolkit encodes "
-        "the keys of a pane. It is the same reason as 03encoding_utf8.",
+        (
+            "the file reads libvterm's own encoder, which turns a key press "
+            "into bytes. ptterm has no such thing: prompt_toolkit encodes "
+            "the keys of a pane. It is the same reason as 03encoding_utf8."
+        ),
     ),
     (
         r"^(17state_mouse|92lp1640917)\.test$",
-        "the file drives libvterm's `vterm_mouse_move` and "
-        "`vterm_mouse_button` and reads what they write. ptterm takes a "
-        "mouse event from prompt_toolkit and has no such entry point, "
-        "so the file has nothing to drive.",
+        (
+            "the file drives libvterm's `vterm_mouse_move` and "
+            "`vterm_mouse_button` and reads what they write. ptterm takes a "
+            "mouse event from prompt_toolkit and has no such entry point, "
+            "so the file has nothing to drive."
+        ),
     ),
     (
         r"^40state_selection\.test$",
-        "the file reads the clipboard of libvterm. ptterm hands a "
-        "selection sequence to whoever embeds it and keeps no clipboard "
-        "of its own. DEVIATIONS.md entry 19.",
+        (
+            "the file reads the clipboard of libvterm. ptterm hands a "
+            "selection sequence to whoever embeds it and keeps no clipboard "
+            "of its own. DEVIATIONS.md entry 19."
+        ),
     ),
 )
 

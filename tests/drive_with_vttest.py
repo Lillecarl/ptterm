@@ -232,17 +232,21 @@ PICTURE_TIMEOUT = 120.0
 NOT_OURS = (
     (
         r"^5 Test of keyboard",
-        "it reads keys, one at a time, and says what it got. A walker "
-        "has no fingers, and the answers it would send are the answers "
-        "it wrote itself.",
+        (
+            "it reads keys, one at a time, and says what it got. A walker "
+            "has no fingers, and the answers it would send are the answers "
+            "it wrote itself."
+        ),
     ),
     (
         r"^7 Test of VT52 mode",
-        "no terminal on the panel implements VT52, and the vote is six "
-        "to nothing against ptterm doing it. A VT52 sequence draws as "
-        "text, so every screen item 7 makes is garbage rather than a "
-        'difference to see. DEVIATIONS.md, "What vttest tests and no '
-        'judge implements", has the votes.',
+        (
+            "no terminal on the panel implements VT52, and the vote is six "
+            "to nothing against ptterm doing it. A VT52 sequence draws as "
+            "text, so every screen item 7 makes is garbage rather than a "
+            'difference to see. DEVIATIONS.md, "What vttest tests and no '
+            'judge implements", has the votes.'
+        ),
     ),
     (
         r"^12 Modify test-parameters",
@@ -250,22 +254,28 @@ NOT_OURS = (
     ),
     (
         r"/ \d+ Test VT\d+ features$",
-        "vttest builds each level out of the level below it, so the "
-        "VT220 menu is a submenu of the VT320 menu and that one is a "
-        "submenu of the VT420 menu. The main menu reaches each level "
-        'directly, under "Test of VT<n> features", and this pattern '
-        "matches only the nested copies. Walking all three is the same "
-        "screens three times over and most of the run.",
+        (
+            "vttest builds each level out of the level below it, so the "
+            "VT220 menu is a submenu of the VT320 menu and that one is a "
+            "submenu of the VT420 menu. The main menu reaches each level "
+            'directly, under "Test of VT<n> features", and this pattern '
+            "matches only the nested copies. Walking all three is the same "
+            "screens three times over and most of the run."
+        ),
     ),
     (
         r"/ \d+ Test keyboard-control / ",
-        "DECBKM, DECNKM, DECKBUM and DECKPM each ask for a key on a "
-        "keyboard and say what came back. A walker has no fingers.",
+        (
+            "DECBKM, DECNKM, DECKBUM and DECKPM each ask for a key on a "
+            "keyboard and say what came back. A walker has no fingers."
+        ),
     ),
     (
         r"/ \d+ Test User-Defined Keys \(DECUDK\)$",
-        "it loads a function key and asks a person to press it. "
-        "`tst_udk` in vttest's vt220.c reads until it gets a 'q'.",
+        (
+            "it loads a function key and asks a person to press it. "
+            "`tst_udk` in vttest's vt220.c reads until it gets a 'q'."
+        ),
     ),
     (
         r"/ \d+ Test Send/Receive mode \(SRM\)$",
@@ -273,16 +283,20 @@ NOT_OURS = (
     ),
     (
         r"/ \d+ Set/Reset Mode - LineFeed / Newline$",
-        "it asks for the RETURN key and reads what the keyboard sent, "
-        "which is what LNM changes. The walker writes bytes to the pty "
-        "and never encodes a key, so it can only send itself back.",
+        (
+            "it asks for the RETURN key and reads what the keyboard sent, "
+            "which is what LNM changes. The walker writes bytes to the pty "
+            "and never encodes a key, so it can only send itself back."
+        ),
     ),
     (
         r"/ \d+ Request Mode \(DECRQM\)/Report Mode \(DECRPM\)",
-        "vttest asks about sixty modes in a row and waits a tenth of a "
-        "second for each reply. It comes out by itself and costs most "
-        "of a walk to watch. Which of those ptterm answers is worth "
-        "its own measurement, and this is not it.",
+        (
+            "vttest asks about sixty modes in a row and waits a tenth of a "
+            "second for each reply. It comes out by itself and costs most "
+            "of a walk to watch. Which of those ptterm answers is worth "
+            "its own measurement, and this is not it."
+        ),
     ),
     (
         r"/ \d+ Test Checksum of Rectangular Area \(DECRQCRA\): G[LR]$",
@@ -298,9 +312,11 @@ NOT_OURS = (
     ),
     (
         r"/ 13 Test Keyboard Layout with G0 Selection$",
-        "it is the keyboard test again, with a character set chosen. "
-        "`tst_keyboard_layout` in vttest's keyboard.c reads a key at a "
-        "time until it gets a carriage return.",
+        (
+            "it is the keyboard test again, with a character set chosen. "
+            "`tst_keyboard_layout` in vttest's keyboard.c reads a key at a "
+            "time until it gets a carriage return."
+        ),
     ),
 )
 
