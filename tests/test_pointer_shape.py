@@ -11,6 +11,7 @@ it directly.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import sys
 
@@ -57,10 +58,8 @@ def kitty_shape(steps):
         if operation in "=>":
             for name in value.split(","):
                 if name or operation == "=":
-                    try:
+                    with contextlib.suppress(KeyError):
                         screen.change_pointer_shape(operation, name)
-                    except KeyError:
-                        pass
         elif operation == "<":
             screen.change_pointer_shape("<", "")
     return screen.current_pointer_shape()
