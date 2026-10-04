@@ -9,9 +9,8 @@ description = "Terminal emulator for prompt_toolkit."
 readme = "README.rst"
 license = "BSD-3-Clause"
 license-files = ["LICENSE"]
-# pyte needs 3.10, so ptterm has needed 3.10 for a while. Nothing said so
-# until the `python_requires` of `setup.py`, and this is where it lives now.
-requires-python = ">=3.10"
+# The floor is 3.14 everywhere but prompt-toolkit.
+requires-python = ">=3.14"
 authors = [{ name = "Jonathan Slenders" }]
 dependencies = [
     "prompt_toolkit>=3.0.52,<3.1.0",
@@ -70,10 +69,8 @@ anyio_mode = "auto"
 # sees only this tree, so discovery from a file under it must end
 # here. Keep the two in step; the why lives up there.
 #
-# The floor here is 3.10, not the umbrella's 3.14: pyte needs 3.10,
-# so this has needed 3.10 for a while. The same rules, applied for
-# what this interpreter runs.
-target-version = "py310"
+# The floor is 3.14, like the umbrella's.
+target-version = "py314"
 # Pinned: a ruff upgrade must never silently reflow the tree.
 line-length = 120
 

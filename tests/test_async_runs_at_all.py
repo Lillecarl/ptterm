@@ -55,11 +55,7 @@ async def test_a_task_group_carries_what_a_child_raised():
     try:
         async with anyio.create_task_group() as group:
             group.start_soon(fails)
-    except BaseException as caught:
-        # `except*` is 3.11 syntax and this package still runs 3.10:
-        # the group wraps what a child raised either way, so read
-        # the wrapper rather than matching it.
-        leaves = getattr(caught, "exceptions", None)
-        assert leaves and str(leaves[0]) == "from the child"
+    except* ValueError as caught:
+        assert str(caught.exceptions[0]) == "from the child"
     else:
         raise AssertionError("the task group swallowed what the child raised")
