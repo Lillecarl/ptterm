@@ -665,17 +665,16 @@ def create_backend(command: list[str], before_exec_func: Callable[[], None] | No
         from ptyhost.backends.win32 import Win32Backend
 
         return Win32Backend()
-    else:
-        from ptyhost.backends.posix import PosixBackend
+    from ptyhost.backends.posix import PosixBackend
 
-        # The size of a cell goes into the size of the pty, so that a
-        # program that draws images reads the same answer there as
-        # "CSI 16 t" gives it.
-        return PosixBackend.from_command(
-            command,
-            before_exec_func=_in_the_child(before_exec_func),
-            cell=(ASSUMED_CELL_WIDTH, ASSUMED_CELL_HEIGHT),
-        )
+    # The size of a cell goes into the size of the pty, so that a
+    # program that draws images reads the same answer there as
+    # "CSI 16 t" gives it.
+    return PosixBackend.from_command(
+        command,
+        before_exec_func=_in_the_child(before_exec_func),
+        cell=(ASSUMED_CELL_WIDTH, ASSUMED_CELL_HEIGHT),
+    )
 
 
 class _CopyBufferControl(BufferControl):
@@ -1026,8 +1025,7 @@ class Terminal:
         render_info = self.copy_window.render_info
         if render_info:
             return f"[{render_info.cursor_position.y + 1}/{render_info.content_height}]"
-        else:
-            return "[0/0]"
+        return "[0/0]"
 
     def _copy_style(self) -> str:
         """
