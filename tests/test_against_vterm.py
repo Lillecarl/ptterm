@@ -93,7 +93,7 @@ FOLLOWS_PTTERM = [
 ]
 
 
-@pytest.mark.parametrize("name,data,lines,columns", FOLLOWS_PTTERM, ids=[c[0] for c in FOLLOWS_PTTERM])
+@pytest.mark.parametrize(("name", "data", "lines", "columns"), FOLLOWS_PTTERM, ids=[c[0] for c in FOLLOWS_PTTERM])
 def test_libvterm_takes_the_side_of_ptterm(name, data, lines, columns):
     "kitty draws something else here; libvterm draws what ptterm draws."
     assert not vterm_differences(data, lines=lines, columns=columns)

@@ -84,7 +84,7 @@ def _where_the_cursor_went(drawn) -> tuple:
     return tuple(line for line in drawn if "<judge> Cell(char=' '" in line)
 
 
-@pytest.mark.parametrize("name,data,lines,columns", CASES)
+@pytest.mark.parametrize(("name", "data", "lines", "columns"), CASES)
 def test_every_judge_that_differs_draws_the_same_cursor(name, data, lines, columns):
     """
     The measurement Lillecarl/pymux#106 asked for.
@@ -99,7 +99,7 @@ def test_every_judge_that_differs_draws_the_same_cursor(name, data, lines, colum
 
 
 @pytest.mark.parametrize(
-    "name,data,lines,columns,drop_the_wait",
+    ("name", "data", "lines", "columns", "drop_the_wait"),
     [
         ("over a tab stop", OVER_A_TAB_STOP, 8, 24, {"kitty", "libvterm", "wezterm"}),
         (

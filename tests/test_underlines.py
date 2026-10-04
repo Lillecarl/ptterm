@@ -35,7 +35,7 @@ def styles(data, count):
 
 
 @pytest.mark.parametrize(
-    "parameter, word",
+    ("parameter", "word"),
     [
         ("4", "underline"),
         ("4:1", "underline"),

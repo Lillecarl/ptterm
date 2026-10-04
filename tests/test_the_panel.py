@@ -394,7 +394,7 @@ def test_the_panel_agrees(data):
 
 
 @pytest.mark.parametrize(
-    "name, data",
+    ("name", "data"),
     [
         # libvterm reads a colour of its own as "38:2:r:g:b" only, and
         # takes the empty colour space of the ISO form for the red.
@@ -502,7 +502,7 @@ def test_a_soft_reset_takes_the_margins_away_for_everybody():
 
 
 @pytest.mark.parametrize(
-    "data, against",
+    ("data", "against"),
     [
         # DECIC and DECDC insert and delete columns. Only libvterm and
         # xterm.js carry them.

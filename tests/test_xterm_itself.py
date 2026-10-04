@@ -316,7 +316,7 @@ def test_xterm_reads_the_parameters_it_needs_out_of_too_many():
 
 
 @pytest.mark.parametrize(
-    "number, data, lines, columns",
+    ("number", "data", "lines", "columns"),
     [
         (1, csi(escape.CUP, 8, 20) + "12345\t", 6, 20),
         (

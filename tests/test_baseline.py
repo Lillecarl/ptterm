@@ -94,7 +94,7 @@ def test_seventy_five_leaves_the_other_attributes_alone():
 
 
 @pytest.mark.parametrize(
-    "sequence,word",
+    ("sequence", "word"),
     [
         (csi(escape.SGR, 73), "superscript"),
         (csi(escape.SGR, 0, 73), "superscript"),

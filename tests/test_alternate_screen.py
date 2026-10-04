@@ -66,7 +66,7 @@ def test_the_lines_of_the_alternate_screen_go_away():
 
 
 @pytest.mark.parametrize(
-    "taken,given_back",
+    ("taken", "given_back"),
     [("1049", "47"), ("47", "1049"), ("1047", "47"), ("1049", "1047")],
 )
 def test_any_of_the_three_gives_the_screen_back(taken, given_back):

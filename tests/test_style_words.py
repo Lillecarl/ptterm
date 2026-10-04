@@ -20,7 +20,7 @@ from ptterm.style import style_word
 
 
 @pytest.mark.parametrize(
-    "index, word",
+    ("index", "word"),
     [
         (0, "#ansiblack"),
         (1, "#ansired"),

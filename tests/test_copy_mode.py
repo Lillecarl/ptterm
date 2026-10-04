@@ -341,7 +341,7 @@ def _begin_selection(vi):
     return " " if vi else Keys.ControlSpace
 
 
-@pytest.mark.parametrize("vi, copied", [(False, "h"), (True, "he")])
+@pytest.mark.parametrize(("vi", "copied"), [(False, "h"), (True, "he")])
 async def test_enter_leaves_copy_mode_with_the_copy_made(vi, copied):
     """
     tmux leaves: `Enter` is `copy-pipe-and-cancel` in both of its key
@@ -376,7 +376,7 @@ async def test_y_copies_and_leaves_with_vi_keys():
 
 
 @pytest.mark.parametrize(
-    "vi, keys",
+    ("vi", "keys"),
     [
         (True, ["g", "g", "V", "y"]),
         (False, [Keys.ControlP, Keys.ControlA, Keys.ControlSpace, "v", Keys.ControlM]),
