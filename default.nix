@@ -23,6 +23,8 @@
   mkVirtualEnv,
   mkProject,
   callPackage,
+  # The linter and formatter that the `ruff` check runs.
+  ruff,
 }:
 let
   package =
@@ -73,6 +75,10 @@ let
     fileset = lib.fileset.unions [
       ./tests
       ./pyproject.toml
+      # The `ruff` check reads the package, where the suites above
+      # read the installed one and never look here.
+      ./ptterm
+      ./examples
     ];
   };
 
@@ -143,6 +149,7 @@ let
       esctest2
       vtermSuite
       alacrittySuite
+      ruff
       ;
   };
 in

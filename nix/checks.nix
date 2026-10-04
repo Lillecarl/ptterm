@@ -31,6 +31,8 @@
   esctest2,
   vtermSuite,
   alacrittySuite,
+  # The linter and formatter that the `ruff` check runs.
+  ruff,
 }:
 let
   inherit (callPackage ./suite.nix { }) suite;
@@ -379,4 +381,36 @@ in
         export PTTERM_FUZZ="$examples"
       '';
     } "python -m pytest tests/fuzz_against_kitty.py -q -p no:cacheprovider";
+
+  # The style of ptterm, held by the linter and the formatter rather
+  # than by a run.
+  #
+  # `ruff check` holds the selected rules and `ruff format --check`
+  # holds the layout at width 120, both read from the `pyproject.toml`
+  # beside them. Neither can see the one thing the lazy annotations
+  # rest on -- the presence of `from __future__ import annotations`
+  # in every file -- so a grep holds that: UP037 unquotes only where
+  # the import made the annotation lazy, and stays silent without it.
+  # `ruff.toml` beside the umbrella says what each rule is for.
+  #
+  # The package stays out of the shared `prepare`: a `ptterm/` beside
+  # the tests shadows the installed package, and the suites above
+  # judge the artifact, not the tree. The `ruff` check never imports.
+  ruff = suite {
+    name = "ptterm-ruff";
+    inputs = [ ruff ];
+    setup = prepare + ''
+      cp -r ${testSources}/ptterm ${testSources}/examples .
+    '';
+  } ''
+    export RUFF_CACHE_DIR="$TMPDIR/ruff"
+    ruff check ptterm tests examples
+    ruff format --check ptterm tests examples
+    missing=$(grep -rL '^from __future__ import annotations' --include='*.py' --exclude-dir='.*' --exclude-dir='__pycache__' ptterm tests examples || true)
+    if [ -n "$missing" ]; then
+      echo "files without the future import:"
+      echo "$missing"
+      exit 1
+    fi
+  '';
 }
