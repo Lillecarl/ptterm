@@ -514,9 +514,13 @@ def differences(
     if strict:
         keep = without_a_baseline
     elif blank_style:
-        keep = lambda cell: without_a_baseline(as_seen(cell))
+
+        def keep(cell):
+            return without_a_baseline(as_seen(cell))
     else:
-        keep = lambda cell: without_a_baseline(as_text(cell))
+
+        def keep(cell):
+            return without_a_baseline(as_text(cell))
 
     reported = []
     for y in range(lines):
