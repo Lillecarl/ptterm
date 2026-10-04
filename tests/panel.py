@@ -42,7 +42,8 @@ equal, so the difference is exactly what that judge misses.
 
 from __future__ import annotations
 
-from typing import Callable, NamedTuple
+from collections.abc import Callable
+from typing import NamedTuple
 
 from kitty_oracle import (
     Cell,

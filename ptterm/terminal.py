@@ -30,7 +30,7 @@ from __future__ import annotations
 import os
 import time
 from bisect import bisect_right
-from typing import Callable, Iterable
+from collections.abc import Callable, Iterable
 
 from prompt_toolkit.application.current import get_app, get_app_or_none
 from prompt_toolkit.buffer import Buffer

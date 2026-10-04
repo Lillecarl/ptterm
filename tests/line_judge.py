@@ -45,7 +45,7 @@ import atexit
 import json
 import os
 import subprocess
-from typing import Sequence
+from collections.abc import Sequence
 
 from kitty_oracle import Cell, number_the_links
 

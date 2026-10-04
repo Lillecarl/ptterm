@@ -46,7 +46,7 @@ import os
 import re
 import select
 import time
-from typing import Callable
+from collections.abc import Callable
 
 from kitty_oracle import HISTORY, Cell
 from pyte import escape
