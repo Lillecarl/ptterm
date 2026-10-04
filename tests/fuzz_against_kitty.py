@@ -113,7 +113,7 @@ osc = st.builds(
 string_sequence = st.builds(
     lambda opener, param: "\x1b%s%s\x1b\\" % (opener, param),
     st.sampled_from("P_^X"),
-    payload.filter(lambda value: not value[:1] in ("q", "G")),
+    payload.filter(lambda value: value[:1] not in ("q", "G")),
 )
 
 #: The renditions that a program really uses. The first sixteen colours

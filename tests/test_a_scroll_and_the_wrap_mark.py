@@ -57,8 +57,8 @@ WIDE = 16
 #: the "a"s and a cleared one leaves them apart.
 A_SCROLL = (
     "\x1b[2;4r"  # the region is the last three rows
-    + "\x1b[1;1HZZZZ"  # a line of its own, outside the region
-    + "\x1b[2;1H"
+    "\x1b[1;1HZZZZ"  # a line of its own, outside the region
+    "\x1b[2;1H"
     + "a" * 24  # three full rows, the last two wrapped
     + "\x1b[S"  # scroll the region up: the top row's line is dropped
 )

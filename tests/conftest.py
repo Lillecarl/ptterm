@@ -59,7 +59,7 @@ GROUPS = ("unit", "panel")
 def _imports(source: str, names) -> bool:
     "True when the source imports any of these modules by name."
     for name in names:
-        if re.search(r"^\s*(?:from|import)\s+%s\b" % re.escape(name), source, re.M):
+        if re.search(r"^\s*(?:from|import)\s+%s\b" % re.escape(name), source, re.MULTILINE):
             return True
     return False
 
