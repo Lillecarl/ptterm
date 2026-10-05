@@ -15,7 +15,6 @@ every blank. The wire is the same either way.
 from __future__ import annotations
 
 import pytest
-
 from pyte.runs import runs_of
 from pyte.screen import Screen
 from pyte.streams import Stream
@@ -94,9 +93,7 @@ def test_a_row_built_from_runs_draws_what_cells_drew(number: int) -> None:
     new_styles, new_text = _expanded(_new(number, screen, cursor_x, cursor_y, reverse))
 
     assert new_text == old_text
-    assert [style.replace(KEEP, "") for style in new_styles] == [
-        style.replace(KEEP, "") for style in old_styles
-    ]
+    assert [style.replace(KEEP, "") for style in new_styles] == [style.replace(KEEP, "") for style in old_styles]
     # The new build marks a subset of what the old one marked --
     # interior blanks lose a mark that changes no attribute -- and
     # the trailing marks, which the trim reads, agree exactly.

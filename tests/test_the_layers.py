@@ -34,13 +34,13 @@ import ptterm
 PACKAGE = Path(ptterm.__file__).parent
 
 #: What this package takes from `pyte`, and `txterm` takes almost the
-#: same six.
+#: same seven.
 #:
-#: Five of them are the pure layer. A front end draws cells and sends
-#: keys, so what it needs is the screen, the parser that feeds it, and
-#: the tables that say what a cell holds.
+#: Six of them are the pure layer. A front end draws cells and sends
+#: keys, so what it needs is the screen, the parser that feeds it, the
+#: runs it draws a row with, and the tables that say what a cell holds.
 #:
-#: `pyte.environment` is the sixth and is not pure: it says what a
+#: `pyte.environment` is the seventh and is not pure: it says what a
 #: program run on this screen sees. A widget owns both a screen and a
 #: `Process`, so a widget is the only layer that can say it.
 #: Lillecarl/pymux#125.
@@ -51,6 +51,7 @@ FROM_PYTE = {
     "pyte.images",
     "pyte.page",
     "pyte.placeholders",
+    "pyte.runs",
     "pyte.screen",
     "pyte.streams",
 }

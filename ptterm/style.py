@@ -33,7 +33,6 @@ from pyte.placeholders import PLACEHOLDER
 
 if TYPE_CHECKING:
     from prompt_toolkit.formatted_text import StyleAndTextTuples
-
     from pyte.cells import Appearance
     from pyte.runs import Run
 
@@ -272,9 +271,7 @@ def _drawn_as(char: str, appearance: Appearance, reverse_video: bool, written: b
 drawn_as = lru_cache(maxsize=64 * 1024)(_drawn_as)
 
 
-def fragments_of_runs(
-    runs: list[Run], end: int, reverse_video: bool
-) -> StyleAndTextTuples:
+def fragments_of_runs(runs: list[Run], end: int, reverse_video: bool) -> StyleAndTextTuples:
     """
     One row built from runs: one fragment per run.
 
@@ -307,9 +304,7 @@ def fragments_of_runs(
             # A cell that draws as something else stands on its own
             # run, and is mapped the way one cell at a time always
             # was: a wide character, a control, a cell of an image.
-            fragments.append(
-                drawn_as(run.text, run.appearance, reverse_video, run.written)
-            )
+            fragments.append(drawn_as(run.text, run.appearance, reverse_video, run.written))
         at = run.end
     if at < end:
         fragments.append((gap, " " * (end - at)))
