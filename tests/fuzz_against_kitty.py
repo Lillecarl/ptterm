@@ -247,6 +247,12 @@ KITTY_DISAGREES = frozenset(
         set_mode(PrivateMode.ALTERNATE_SCREEN),
         set_mode(PrivateMode.ALTERNATE_SCREEN_AGAIN),
         reset_mode(PrivateMode.ALTERNATE_SCREEN_AGAIN),
+        # "?1049" leaves the cursor where it stands and kitty sends
+        # it home. xterm describes the mode as a save, a switch and a
+        # clear with no move, and the unit test pins the leave.
+        # Lillecarl/pymux#34.
+        set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR),
+        reset_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR),
     ]
 )
 
