@@ -76,10 +76,11 @@ from pyte.environment import prepare
 from pyte.images import ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH
 from pyte.page import TextLine
 from pyte.placeholders import PLACEHOLDER
+from pyte.runs import runs_of
 from pyte.screen import Screen
 from pyte.streams import GroundTimer, Stream
 
-from .style import drawn_as, style_of
+from .style import fragments_of_runs, style_of
 
 __all__ = ["Terminal"]
 
@@ -357,35 +358,20 @@ class _TerminalControl(UIControl):
 
         def build(number: int) -> StyleAndTextTuples:
             row = data_buffer[number]
-            empty = True
-            if row:
-                max_column = max(row)
-                empty = False
-            else:
-                max_column = 0
-
-            if number == cursor_y:
-                max_column = max(max_column, cursor_x)
-                empty = False
-
-            if empty:
+            if not row and number != cursor_y:
+                return [("", " ")]
+            runs = runs_of(row)
+            if not runs and number != cursor_y:
                 return [("", " ")]
 
-            # **How each cell draws, with no call of our own per cell.**
-            # `drawn_as` is keyed on what a cell is made of, and a
-            # screen holds a handful of those, so all but the first
-            # cell of a kind is answered in C and runs no bytecode.
-            # A wrapper to call it, and `isinstance` to ask who wrote
-            # the cell, each cost a frame more than the work they did.
-            #
-            # The test reads what a cell draws and not what it holds.
-            # The stand-in for a cell of an image and the blank for a
-            # control are both cells that a program made, and both keep
-            # their column. Lillecarl/pymux#434.
-            return [
-                drawn_as(cell.char, cell.appearance, reverse_video, cell.written)
-                for cell in [row[i] for i in range(max_column + 1)]
-            ]
+            # The columns the runs cover, and the furthest one drawn:
+            # the runs carry their positions because a row is sparse,
+            # and the cursor pads its row out to where it stands.
+            end = runs[-1].end if runs else 0
+            if number == cursor_y:
+                end = max(end, cursor_x + 1)
+
+            return fragments_of_runs(runs, end, reverse_video)
 
         def get_line(number: int) -> StyleAndTextTuples:
             """
@@ -433,7 +419,7 @@ class _TerminalControl(UIControl):
         # buffer, which holds the history. Lillecarl/pymux#130.
         line_count = self.screen.highest_row() + 1
 
-        return UIContent(
+        content = UIContent(
             get_line,
             line_count=line_count,
             show_cursor=page.show_cursor,
@@ -446,6 +432,11 @@ class _TerminalControl(UIControl):
             # yellow space in its place.
             apply_display_mappings=False,
         )
+        # The lines above are the same objects while their rows stand
+        # still -- `get_line` says so -- so a window may store what it
+        # drew for them instead of looking every cell up again.
+        content.stable_lines = True
+        return content
 
     def may_be_driven(self) -> bool:
         """

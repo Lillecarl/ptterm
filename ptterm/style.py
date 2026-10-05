@@ -27,18 +27,23 @@ from typing import TYPE_CHECKING
 
 from prompt_toolkit.layout.screen import Char
 from prompt_toolkit.token import KeepWhitespace
-from pyte.cells import appearance_of
+from pyte.cells import PLAIN_APPEARANCE, appearance_of
 from pyte.colors import SgrColor
 from pyte.placeholders import PLACEHOLDER
 
 if TYPE_CHECKING:
+    from prompt_toolkit.formatted_text import StyleAndTextTuples
+
     from pyte.cells import Appearance
+    from pyte.runs import Run
 
 __all__ = (
     "DEFAULT_COLOR_NAME",
     "PALETTE_NAMES",
     "UNDERLINE_WORDS",
     "drawn_as",
+    "fragments_of_runs",
+    "run_style",
     "style_of",
     "style_word",
     "visible_char",
@@ -214,26 +219,39 @@ def visible_char(char: str) -> str:
     return char
 
 
-def _drawn_as(char: str, appearance: Appearance, reverse_video: bool, written: bool) -> tuple[str, str]:
-    """
-    The style and the character that one cell draws with.
-
-    **A blank that a program wrote carries `KeepWhitespace`.** The
-    renderer drops a blank at the end of a row when nothing styles it,
-    so that a person who copies the output gets no trailing spaces.
-    That guess is wrong for a pane: a space a program wrote is content,
-    and a terminal that reads its own screen back has to find the
-    column.
-    """
-    shown = visible_char(char)
+def _run_style(appearance: Appearance, reverse_video: bool, keep: bool) -> str:
     style = style_of(appearance)
 
     if reverse_video and appearance.rendition.reverse:
         style += " noreverse"
-    if shown == " " and written:
+    if keep:
         style += " " + KeepWhitespace
 
-    return style, shown
+    return style
+
+
+#: The style string for a run of one appearance.
+#:
+#: `keep` says a blank this styles carries `KeepWhitespace`: the
+#: renderer drops a blank at the end of a row when nothing styles
+#: it, so that a person who copies the output gets no trailing
+#: spaces. That guess is wrong for a pane: a space a program wrote
+#: is content, and a terminal that reads its own screen back has to
+#: find the column.
+#:
+#: Answered once per way of styling rather than once per run: a
+#: frame styles the same appearances row after row, so all but the
+#: first sighting of one is answered in C and runs no bytecode.
+run_style = lru_cache(maxsize=1024)(_run_style)
+
+
+def _drawn_as(char: str, appearance: Appearance, reverse_video: bool, written: bool) -> tuple[str, str]:
+    """
+    The style and the character that one cell draws with.
+    """
+    shown = visible_char(char)
+
+    return run_style(appearance, reverse_video, shown == " " and written), shown
 
 
 #: How a cell draws, answered once per way of drawing rather than once
@@ -252,3 +270,48 @@ def _drawn_as(char: str, appearance: Appearance, reverse_video: bool, written: b
 #: thousand cells, so a cache this big answers every cell of one
 #: without evicting an answer it is about to be asked for again.
 drawn_as = lru_cache(maxsize=64 * 1024)(_drawn_as)
+
+
+def fragments_of_runs(
+    runs: list[Run], end: int, reverse_video: bool
+) -> StyleAndTextTuples:
+    """
+    One row built from runs: one fragment per run.
+
+    A run of one appearance is one piece of text in one style, and a
+    gap between two runs holds cells nobody wrote, so it draws blanks.
+    A blank a program wrote keeps only its trailing column, anywhere
+    else the mark changes no attribute.
+    """
+    # What an unwritten column draws: the blank nobody wrote.
+    gap = run_style(PLAIN_APPEARANCE, reverse_video, False)
+
+    fragments: StyleAndTextTuples = []
+    at = 0
+    last = len(runs) - 1
+    for index, run in enumerate(runs):
+        if run.start > at:
+            fragments.append((gap, " " * (run.start - at)))
+        if run.plain:
+            fragments.append(
+                (
+                    run_style(
+                        run.appearance,
+                        reverse_video,
+                        run.blank and run.written and index == last,
+                    ),
+                    run.text,
+                )
+            )
+        else:
+            # A cell that draws as something else stands on its own
+            # run, and is mapped the way one cell at a time always
+            # was: a wide character, a control, a cell of an image.
+            fragments.append(
+                drawn_as(run.text, run.appearance, reverse_video, run.written)
+            )
+        at = run.end
+    if at < end:
+        fragments.append((gap, " " * (end - at)))
+
+    return fragments
