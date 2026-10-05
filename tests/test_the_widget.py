@@ -80,6 +80,11 @@ def rendered(data: str, lines: int = 8, columns: int = 12) -> Screen:
 
     screen = Screen(default_char=None, initial_width=columns, initial_height=lines)
     with set_app(DummyApplication()):
+        # `erase_bg` is what production passes: the renderer calls the
+        # layout with `False`, so a window that fills nothing leaves
+        # its empty cells transparent. A `True` here would fill the
+        # pane the way production never does, and hide exactly the
+        # faults this file exists to find.
         window.write_to_screen(
             screen,
             MouseHandlers(),
@@ -690,7 +695,13 @@ def keeps_a_blank_at(data: str, lines: int = 8, columns: int = 12):
 
 
 def test_a_space_that_a_program_wrote_asks_to_stay():
-    assert keeps_a_blank_at("a b")[0][:4] == [False, True, False, False]
+    "A written blank mid-row is drawn because the row goes on, not by a mark."
+    assert keeps_a_blank_at("a b")[0][:4] == [False, False, False, False]
+
+
+def test_a_trailing_space_that_a_program_wrote_asks_to_stay():
+    "The last run keeps its trailing blanks, which the trim reads."
+    assert keeps_a_blank_at("ab ")[0][:4] == [False, False, True, False]
 
 
 def test_a_cell_an_erase_left_asks_for_nothing():

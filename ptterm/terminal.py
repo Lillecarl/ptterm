@@ -594,6 +594,13 @@ class _Window(Window):
     def __init__(self, terminal_control: _TerminalControl, **kw) -> None:
         self.terminal_control = terminal_control
         kw.setdefault("style", self._pane_style)
+        # A pane owns every cell of its rectangle: a program left the
+        # ones it never wrote at the default background, and the
+        # terminal draws those. The fill writes them before the
+        # content lands over them, so what shows is the default and
+        # not whatever a layer below drew -- the layout background,
+        # which is for the margins where no pane draws.
+        kw.setdefault("char", " ")
         super().__init__(**kw)
 
     def _pane_style(self) -> str:
