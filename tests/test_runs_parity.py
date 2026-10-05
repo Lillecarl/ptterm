@@ -34,6 +34,9 @@ SEQUENCES = [
     "\x1b[5;5Hone\x1b[5;40Htwo\x1b[5;70H   ",
     # Trailing blanks a program wrote, spelled so no editor eats them.
     "\x1b[6;1Hleft\x20\x20\x20",
+    # Wide characters over a placeholder second half, which draws
+    # nothing on its own: the run of the character spans both columns.
+    "\x1b[8;1Habc 你好漢 def",
     # Reverse video over the whole screen.
     "\x1b[?5h",
 ]
@@ -82,7 +85,7 @@ def _expanded(fragments):
     return styles, "".join(text for _, text in fragments)
 
 
-@pytest.mark.parametrize("number", [0, 1, 2, 4, 5, 10, 23])
+@pytest.mark.parametrize("number", [0, 1, 2, 4, 5, 7, 10, 23])
 def test_a_row_built_from_runs_draws_what_cells_drew(number: int) -> None:
     screen = _screen()
     cursor_x = screen.pt_cursor_position.x
