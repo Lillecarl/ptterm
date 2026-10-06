@@ -306,6 +306,12 @@ class _TerminalControl(UIControl):
         self._drawn_at: dict[int, int] = {}
         self._drawn_reversed = False
 
+        # The sequence of the screen's scroll report consumed through.
+        # None is a control that never drew: it adopts the count and
+        # rotates nothing, because it remembers nothing.
+        # Lillecarl/pymux#516.
+        self._scroll_mark: int | None = None
+
     def set_size(self, width: int, height: int) -> None:
         "Tell the pty and the screen how big the pane is."
         self.process.set_size(width, height)
@@ -362,6 +368,60 @@ class _TerminalControl(UIControl):
         everything_at = self.screen.everything_at
         drawn = self._drawn
         drawn_at = self._drawn_at
+
+        def rotate(top: int, bottom: int, distance: int, at: int) -> None:
+            """
+            Move what was drawn for scrolled rows along with them.
+
+            The rows already stand in order; a scroll only moves them,
+            so rebuilding every one is the cost this skips. Only rows
+            no later write touched move: a row written after the
+            scroll carries a larger count and stays where it is, and
+            what it stood in the way of rebuilds instead. A moved row
+            takes the count its new row carries now, so the next frame
+            reads it as drawn and not as moved again. Two passes, so
+            a row nobody moved out of the way keeps its own over one
+            that moved into it.
+            """
+            written = written_at
+            everything = everything_at
+            kept: dict[int, StyleAndTextTuples] = {}
+            kept_at: dict[int, int] = {}
+            for row, line in drawn.items():
+                if not (top <= row <= bottom) or written.get(row, everything) > at:
+                    kept[row] = line
+                    kept_at[row] = drawn_at.get(row, everything)
+            for row, line in drawn.items():
+                if top <= row <= bottom and written.get(row, everything) <= at:
+                    dest = row - distance
+                    if top <= dest <= bottom and dest not in kept:
+                        kept[dest] = line
+                        kept_at[dest] = written.get(dest, everything)
+            drawn.clear()
+            drawn.update(kept)
+            drawn_at.clear()
+            drawn_at.update(kept_at)
+
+        # The scrolls since this drew last, oldest first. What they
+        # moved is rotated above; what they uncovered, and every row
+        # when a scroll went unreported, rebuilds below as before.
+        # The mark is per reader: two windows draw one screen, and
+        # each rotates for itself.
+        mark = self._scroll_mark
+        logged = self.screen.scrolls
+        logged_seq = self.screen.scroll_seq
+        if mark is None:
+            self._scroll_mark = logged_seq
+        else:
+            new = [s for s in logged if s[4] > mark]
+            if new and new[0][4] == mark + 1:
+                for top, bottom, distance, at, _seq in new:
+                    rotate(top, bottom, distance, at)
+                self._scroll_mark = new[-1][4]
+            elif logged_seq != mark:
+                drawn.clear()
+                drawn_at.clear()
+                self._scroll_mark = logged_seq
 
         def build(number: int) -> StyleAndTextTuples:
             row = data_buffer[number]
@@ -443,6 +503,10 @@ class _TerminalControl(UIControl):
         # still -- `get_line` says so -- so a window may store what it
         # drew for them instead of looking every cell up again.
         content.stable_lines = True
+        # The screen's scroll report and sequence, live: a window that
+        # stores what it drew rotates those rows the same way, with
+        # its own mark. Lillecarl/pymux#516.
+        content.scrolled = (self.screen.scrolls, self.screen.scroll_seq)
         return content
 
     def may_be_driven(self) -> bool:
