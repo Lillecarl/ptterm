@@ -38,6 +38,7 @@ from prompt_toolkit.application.current import set_app
 from prompt_toolkit.application.dummy import DummyApplication
 from prompt_toolkit.enums import EditingMode
 from prompt_toolkit.keys import Keys
+from prompt_toolkit.layout.containers import HSplit, Window
 from prompt_toolkit.layout.layout import Layout
 from prompt_toolkit.layout.mouse_handlers import MouseHandlers
 from prompt_toolkit.layout.screen import Point, Screen, WritePosition
@@ -757,3 +758,55 @@ def test_the_first_render_sizes_the_pane_before_it_starts_the_program():
 )
 def test_the_sequence_costs_the_row_no_column(sequence):
     assert drawn(sequence + "abcde")[0] == "abcde"
+
+
+# ----------------------------------------------------------------------
+# A click focuses, and the embedder selects. Lillecarl/pymux#527.
+
+
+def _two_panes():
+    """
+    Two terminals in one layout, the second one focused, and the calls
+    the first one's mouse hook drew.
+    """
+    first = Terminal(backend=_NoBackend())
+    second = Terminal(backend=_NoBackend())
+    calls = []
+    first.terminal_control.on_mouse_focus = lambda: calls.append(1)
+    layout = Layout(
+        HSplit([Window(content=first.terminal_control), Window(content=second.terminal_control)]),
+        focused_element=second.terminal_control,
+    )
+    app = DummyApplication()
+    app.layout = layout
+    return first, second, calls, app
+
+
+def _click(kind):
+    return MouseEvent(position=Point(x=0, y=0), event_type=kind, button=MouseButton.LEFT, modifiers=frozenset())
+
+
+def test_a_press_in_an_unfocused_pane_selects_nothing():
+    "The press lands the focus on the release, the way the clock does."
+    first, second, calls, app = _two_panes()
+    with set_app(app):
+        first.terminal_control.mouse_handler(_click(MouseEventType.MOUSE_DOWN))
+    assert app.layout.current_control is second.terminal_control
+    assert calls == []
+
+
+def test_a_click_in_an_unfocused_pane_focuses_it_and_tells_the_embedder():
+    first, second, calls, app = _two_panes()
+    with set_app(app):
+        first.terminal_control.mouse_handler(_click(MouseEventType.MOUSE_UP))
+    assert app.layout.current_control is first.terminal_control
+    assert calls == [1]
+
+
+def test_a_click_with_no_hook_set_focuses_all_the_same():
+    "A standalone widget, or an embedder with one pane, keeps the focus."
+    first, second, calls, app = _two_panes()
+    first.terminal_control.on_mouse_focus = None
+    with set_app(app):
+        first.terminal_control.mouse_handler(_click(MouseEventType.MOUSE_UP))
+    assert app.layout.current_control is first.terminal_control

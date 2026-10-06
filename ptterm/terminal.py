@@ -242,6 +242,13 @@ class _TerminalControl(UIControl):
         #: person answers for whichever of them this key came from.
         self.may_type = may_type
 
+        #: Called when the mouse focused this pane: a click in it while
+        #: another control had the focus. The widget moves the layout
+        #: focus itself; the embedder follows with whatever selecting
+        #: means where this pane sits. None (a standalone widget, or
+        #: an embedder with one pane) does nothing.
+        self.on_mouse_focus: Callable[[], None] | None = None
+
         def has_priority() -> bool:
             # Give priority to the processing of this terminal output, if this
             # user control has the focus.
@@ -521,6 +528,8 @@ class _TerminalControl(UIControl):
             # Focus this process when the mouse has been clicked.
             if mouse_event.event_type == MouseEventType.MOUSE_UP:
                 app.layout.focus(self)
+                if self.on_mouse_focus is not None:
+                    self.on_mouse_focus()
         else:
             # Already focussed, send event to application when it requested
             # mouse support.
