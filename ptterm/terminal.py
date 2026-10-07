@@ -319,6 +319,19 @@ class _TerminalControl(UIControl):
         self.screen.lines = height
         self.screen.columns = width
 
+    def feed_output(self, data: str) -> None:
+        """
+        Feed output from something that is not the process, and say
+        the screen may have changed.
+
+        A job viewer feeds the tail of a job this way: the same
+        stream the program writes to, with the same ground timer, but
+        no pty behind it. What the screen cannot take is the caller's
+        to survive, the way the process read survives it.
+        """
+        self._ground_timer.feed(data)
+        self.on_content_changed.fire()
+
     def create_content(self, width: int, height: int) -> UIContent:
         # Report dimensions to the process.
         self.set_size(width, height)
