@@ -21,6 +21,13 @@ class NoBackend:
         #: program holds queries, and the screen replies to them, so a
         #: backend that cannot take an answer stops the run.
         self.written = []
+        #: Whether there is anything more to read. Nothing here ever
+        #: writes, so there never is and never was.
+        self.closed = False
+        #: The program ending. Nothing here ends, so there is none:
+        #: `Process` waits on it for `done_callback`, and a backend
+        #: with no end starts without a task group to watch it.
+        self.ready_f = None
 
     def write_text(self, text: str) -> None:
         self.written.append(text)
