@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 from __future__ import annotations
 
-import asyncio
-
+import anyio
 import asyncssh
 from prompt_toolkit.application import Application, get_app
 from prompt_toolkit.formatted_text import HTML
@@ -61,8 +60,13 @@ async def main():
             full_screen=True,
             mouse_support=True,
         )
-        await application.run_async()
+        async with anyio.create_task_group() as task_group:
+            await term.start(task_group)
+            await application.run_async()
+            # The application is gone, and the session may not be:
+            # leaving the scope waits for its tasks, so end them.
+            task_group.cancel_scope.cancel()
 
 
 if __name__ == "__main__":
-    asyncio.get_event_loop().run_until_complete(main())
+    anyio.run(main())

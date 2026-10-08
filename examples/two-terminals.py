@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 from __future__ import annotations
 
+import anyio
 from prompt_toolkit.application import Application
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.key_binding import KeyBindings
@@ -12,7 +13,7 @@ from prompt_toolkit.styles import Style
 from ptterm import Terminal
 
 
-def main():
+async def main():
     style = Style(
         [
             ("terminal not-focused", "#888888"),
@@ -83,8 +84,14 @@ def main():
         full_screen=True,
         mouse_support=True,
     )
-    application.run()
+    async with anyio.create_task_group() as task_group:
+        await term1.start(task_group)
+        await term2.start(task_group)
+        await application.run_async()
+        # The application is gone, and the programs may not be: leaving
+        # the scope waits for their tasks, so end them.
+        task_group.cancel_scope.cancel()
 
 
 if __name__ == "__main__":
-    main()
+    anyio.run(main)

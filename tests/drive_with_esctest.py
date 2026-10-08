@@ -61,11 +61,11 @@ import os
 import re
 import sys
 import tempfile
-import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
+import anyio
 from pty_host import Host
 
 HERE = Path(__file__).parent
@@ -118,12 +118,6 @@ NOT_OURS = (
         ),
     ),
 )
-
-#: How often the driver looks at the run. The loop has to turn for the
-#: reader to read at all, and `PosixBackend` reports the end of the
-#: child from a thread, with a call that does not wake a loop that
-#: sleeps. So the loop is never allowed to sleep for long.
-TICK = 0.02
 
 #: The program on the pty. It runs the suite and exits.
 #:
@@ -273,16 +267,7 @@ async def drive(runner: Path) -> None:
     """
     Run the suite on a pty, with ptterm as the terminal on the other
     side of it.
-
-    The backend and the process are made here and not before, because
-    both take the loop that is running.
     """
-    ended = False
-
-    def done() -> None:
-        nonlocal ended
-        ended = True
-
     # `Host` answers a resize itself, because it owns the pty. ptterm
     # hands the ask on instead, because a pane cannot take room from
     # the panes beside it.
@@ -292,18 +277,18 @@ async def drive(runner: Path) -> None:
         lines=ROWS,
         smallest=SMALLEST,
         largest=LARGEST,
-        done_callback=done,
     )
-    host.start()
+    async with anyio.create_task_group() as task_group:
+        await host.start(task_group)
 
-    # The loop has to keep turning: it is what reads the pty, and the
-    # end of the child is reported by a call that does not wake it.
-    deadline = time.monotonic() + RUN_TIMEOUT
-    while not ended:
-        if time.monotonic() > deadline:
+        # The suite ends when the child does. Past the timeout it is
+        # killed, and the group going away takes the pump with it.
+        try:
+            with anyio.fail_after(RUN_TIMEOUT):
+                await host.backend.ready_f.wait()
+        except TimeoutError:
             host.kill()
             raise Failed("the suite did not end in %g seconds" % RUN_TIMEOUT)
-        await asyncio.sleep(TICK)
 
 
 def run(tmp: Path, directory: Path) -> str:

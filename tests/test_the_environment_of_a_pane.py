@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import os
 
+import anyio
 import pytest
 from ptyhost import Process
 from pyte.environment import DEFAULT_DATABASE, terminal_name
@@ -84,16 +85,17 @@ async def run_and_read() -> dict:
         receive=stream.feed,
     )
     process.set_size(COLUMNS, len(REPORT) + 3)
-    process.start()
+    async with anyio.create_task_group() as task_group:
+        await process.start(task_group)
 
-    try:
-        deadline = asyncio.get_event_loop().time() + TIMEOUT
-        while SENTINEL not in _read(screen):
-            if asyncio.get_event_loop().time() > deadline:
-                raise AssertionError("waited %g seconds; the screen holds %r" % (TIMEOUT, _read(screen)))
-            await asyncio.sleep(TICK)
-    finally:
-        process.kill()
+        try:
+            deadline = anyio.current_time() + TIMEOUT
+            while SENTINEL not in _read(screen):
+                if anyio.current_time() > deadline:
+                    raise AssertionError("waited %g seconds; the screen holds %r" % (TIMEOUT, _read(screen)))
+                await anyio.sleep(TICK)
+        finally:
+            process.kill()
 
     return _read(screen)
 

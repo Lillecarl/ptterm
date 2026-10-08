@@ -15,6 +15,7 @@ ask to the embedder instead.
 
 from __future__ import annotations
 
+import anyio
 from ptyhost import Process
 from ptyhost.backends.posix import PosixBackend
 from pyte.images import ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH
@@ -94,10 +95,9 @@ class Host:
             return
         self.set_size(width, height)
 
-    def start(self) -> None:
-        "Fork the child onto the pty, and start reading it."
-        self.backend.start()
-        self.backend.connect_reader()
+    async def start(self, task_group: anyio.TaskGroup) -> None:
+        "Fork the child onto the pty, and start reading it, watched by the group."
+        await self.process.start(task_group)
 
     def write(self, text: str) -> None:
         "Send text to the program, as it stands."

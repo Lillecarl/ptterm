@@ -31,11 +31,11 @@ class NoBackend:
     def set_size(self, width: int, height: int) -> None:
         self.sizes.append((width, height))
 
-    def start(self) -> None:
+    async def start(self, task_group) -> None:
         pass
 
-    def connect_reader(self) -> None:
+    def pause_reading(self) -> None:
         pass
 
-    def disconnect_reader(self) -> None:
+    def resume_reading(self) -> None:
         "Copy mode suspends the process, which stops the reader."

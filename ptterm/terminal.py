@@ -32,6 +32,7 @@ import time
 from bisect import bisect_right
 from collections.abc import Callable, Iterable
 
+import anyio
 from prompt_toolkit.application.current import get_app, get_app_or_none
 from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.document import Document
@@ -332,15 +333,21 @@ class _TerminalControl(UIControl):
         self._ground_timer.feed(data)
         self.on_content_changed.fire()
 
+    async def start(self, task_group: anyio.TaskGroup) -> None:
+        """
+        Start the program on the pty, watched by `task_group`.
+
+        Starting is the embedder's to do, from an async scope: the
+        render path is synchronous and cannot await it. A control that
+        was never started renders an empty screen.
+        """
+        if not self._running:
+            await self.process.start(task_group)
+            self._running = True
+
     def create_content(self, width: int, height: int) -> UIContent:
         # Report dimensions to the process.
         self.set_size(width, height)
-
-        # The first time that this user control is rendered. Keep track of the
-        # 'app' object and start the process.
-        if not self._running:
-            self.process.start()
-            self._running = True
 
         if not self.screen:
             return UIContent()
@@ -1101,6 +1108,15 @@ class Terminal:
                 )
             ],
         )
+
+    async def start(self, task_group: anyio.TaskGroup) -> None:
+        """
+        Start the program on the pty, watched by `task_group`.
+
+        Starting is the embedder's to do, from an async scope. The
+        widget renders an empty screen until it is started.
+        """
+        await self.terminal_control.start(task_group)
 
     def _copy_position_formatted_text(self) -> str:
         """

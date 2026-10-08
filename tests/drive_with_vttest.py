@@ -89,6 +89,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
+import anyio
 from pty_host import Host
 from ptyhost import Process
 from pyte.cells import WrittenCell
@@ -730,7 +731,7 @@ class Walk:
         except OSError:
             return
 
-    def start(self, command: list[str]) -> None:
+    async def start(self, command: list[str], task_group: anyio.TaskGroup) -> None:
         def prepare(backend) -> None:
             self.hush(backend)
             if self.through:
@@ -751,7 +752,7 @@ class Walk:
         )
         self.process = self.host.process
         self.screen = self.host.screen
-        self.host.start()
+        await self.host.start(task_group)
 
     def answer(self, text: str) -> None:
         "Send one line to vttest. `readnl` waits for the newline."
@@ -1195,13 +1196,14 @@ async def drive(walk: Walk, command: list[str]) -> None:
     not a walk that is running slowly, and hundreds of pictures take
     far longer than the walk itself.
     """
-    walk.start(command)
-    try:
-        await walk.run()
-    finally:
-        assert walk.process is not None
-        if not walk.ended:
-            walk.process.kill()
+    async with anyio.create_task_group() as task_group:
+        await walk.start(command, task_group)
+        try:
+            await walk.run()
+        finally:
+            assert walk.process is not None
+            if not walk.ended:
+                walk.process.kill()
 
 
 def main() -> int:
