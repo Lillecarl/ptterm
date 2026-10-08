@@ -13,9 +13,6 @@ pane that is already running. `Screen` calls it on every cleanup.
 
 from __future__ import annotations
 
-import asyncio
-
-import pytest
 from no_backend import NoBackend
 
 from ptterm.terminal import _TerminalControl
@@ -27,16 +24,6 @@ COLUMNS = 80
 #: linefeeds. So a buffer holds up to a hundred rows more than the
 #: limit, and a test that asks for exactly the limit is wrong.
 BETWEEN_CLEANUPS = 100
-
-
-@pytest.fixture(autouse=True)
-def _a_loop():
-    "`Process` reads the running event loop, and pytest starts none."
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    yield
-    asyncio.set_event_loop(None)
-    loop.close()
 
 
 def control(get_history_limit=None):

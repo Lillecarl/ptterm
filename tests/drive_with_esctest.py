@@ -56,7 +56,6 @@ directory to write the list and the log into.
 
 from __future__ import annotations
 
-import asyncio
 import os
 import re
 import sys
@@ -309,7 +308,7 @@ def run(tmp: Path, directory: Path) -> str:
     os.environ["LANG"] = "C.UTF-8"
 
     try:
-        asyncio.run(drive(runner))
+        anyio.run(drive, runner)
     except BaseException:
         stderr = Path(str(log) + ".stderr")
         if stderr.exists():

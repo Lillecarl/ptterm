@@ -29,7 +29,6 @@ Lillecarl/pymux#84 asked for this.
 
 from __future__ import annotations
 
-import asyncio
 from types import SimpleNamespace
 
 import pytest
@@ -56,16 +55,6 @@ from ptterm.terminal import _ARROWS_PER_WHEEL_STEP, Terminal, _TerminalControl, 
 #: `measure_instructions.py` builds the same widget to measure what the
 #: projection costs, so the stub lives beside both.
 _NoBackend = NoBackend
-
-
-@pytest.fixture(autouse=True)
-def _a_loop():
-    "`Process` reads the running event loop, and pytest starts none."
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    yield
-    asyncio.set_event_loop(None)
-    loop.close()
 
 
 def rendered(data: str, lines: int = 8, columns: int = 12) -> Screen:

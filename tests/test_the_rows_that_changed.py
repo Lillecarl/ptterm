@@ -19,7 +19,6 @@ run it on.
 
 from __future__ import annotations
 
-import asyncio
 import pathlib
 
 import pytest
@@ -39,16 +38,6 @@ CHUNK = 256
 
 LINES = 24
 COLUMNS = 80
-
-
-@pytest.fixture(autouse=True)
-def _a_loop():
-    "`Process` reads the running event loop, and pytest starts none."
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    yield
-    asyncio.set_event_loop(None)
-    loop.close()
 
 
 def _captures():

@@ -23,8 +23,6 @@ pane. The window wraps it again for the eye. Lillecarl/pymux#135.
 
 from __future__ import annotations
 
-import asyncio
-
 import pytest
 from no_backend import NoBackend
 from prompt_toolkit.application.current import set_app
@@ -49,16 +47,6 @@ from ptterm.terminal import Terminal
 
 LINES = 6
 COLUMNS = 20
-
-
-@pytest.fixture(autouse=True)
-def _a_loop():
-    "`Process` reads the running event loop, and pytest starts none."
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    yield
-    asyncio.set_event_loop(None)
-    loop.close()
 
 
 def a_terminal(data: str, copy_func=None) -> Terminal:

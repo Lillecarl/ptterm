@@ -98,7 +98,6 @@ Two knobs reach this file from `ptterm/nix/checks.nix`:
 
 from __future__ import annotations
 
-import asyncio
 import json
 import os
 import re
@@ -488,21 +487,14 @@ def main() -> int:
         "Judge one history measurement, and print its clock as well."
         judge(name, *history_cost(depth, prepare))
 
-    # `Process` reads the running event loop, and a script starts none.
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        for name, data, lines, columns in found:
-            judge(name, cost(data, lines, columns))
-            judge(RENDER % name, render_cost(data, lines, columns))
-            judge(REDRAW % name, redraw_cost(data, lines, columns))
-        if histories:
-            print()
-        for name, measure, depth in histories:
-            judge_over_time(name, measure, depth)
-    finally:
-        asyncio.set_event_loop(None)
-        loop.close()
+    for name, data, lines, columns in found:
+        judge(name, cost(data, lines, columns))
+        judge(RENDER % name, render_cost(data, lines, columns))
+        judge(REDRAW % name, redraw_cost(data, lines, columns))
+    if histories:
+        print()
+    for name, measure, depth in histories:
+        judge_over_time(name, measure, depth)
 
     out = os.environ.get("PTTERM_INSTRUCTIONS_OUT", "")
     if out:

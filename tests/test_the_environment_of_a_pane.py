@@ -15,7 +15,6 @@ thinks the code passes down.
 
 from __future__ import annotations
 
-import asyncio
 import os
 
 import anyio
@@ -111,7 +110,7 @@ def answers() -> dict:
     os.environ.update(OF_THE_OUTER_TERMINAL)
     os.environ.update(OF_THE_USER)
     try:
-        return asyncio.run(run_and_read())
+        return anyio.run(run_and_read)
     finally:
         os.environ.clear()
         os.environ.update(kept)

@@ -74,7 +74,6 @@ Two knobs reach this file from `ptterm/nix/checks.nix`:
 
 from __future__ import annotations
 
-import asyncio
 import gc
 import os
 import re
@@ -194,22 +193,14 @@ def main() -> int:
     counts: dict[str, int] = {}
     sites: dict[str, list] = {}
 
-    # `Process` reads the running event loop, and a script starts none.
-    # `measure_instructions.py` does the same for the same reason.
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        for depth in DEPTHS:
-            for shape, wrapping in SHAPES:
-                name = "%s %d rows" % (shape, depth)
-                if include and not re.search(include, name):
-                    continue
+    for depth in DEPTHS:
+        for shape, wrapping in SHAPES:
+            name = "%s %d rows" % (shape, depth)
+            if include and not re.search(include, name):
+                continue
 
-                print("measuring %s..." % (name,))
-                counts[name], sites[name] = held(depth, wrapping)
-    finally:
-        asyncio.set_event_loop(None)
-        loop.close()
+            print("measuring %s..." % (name,))
+            counts[name], sites[name] = held(depth, wrapping)
 
     if not counts:
         print("Nothing matched %r." % (include,))

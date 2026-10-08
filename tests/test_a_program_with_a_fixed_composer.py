@@ -20,9 +20,6 @@ where a person reads them.
 
 from __future__ import annotations
 
-import asyncio
-
-import pytest
 from no_backend import NoBackend
 from pyte import escape
 from pyte.sequences import csi
@@ -36,16 +33,6 @@ COLUMNS = 20
 COMPOSER = 3
 
 MESSAGES = 20
-
-
-@pytest.fixture(autouse=True)
-def _a_loop():
-    "`Process` reads the running event loop, and pytest starts none."
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    yield
-    asyncio.set_event_loop(None)
-    loop.close()
 
 
 def _what_a_composer_draws() -> str:

@@ -76,7 +76,6 @@ and without one.
 
 from __future__ import annotations
 
-import asyncio
 import os
 import platform
 import re
@@ -393,7 +392,7 @@ class Shutter:
                 pass
             if time.monotonic() - started > PICTURE_TIMEOUT:
                 raise Failed("no picture of %r came in %g seconds" % (identity, PICTURE_TIMEOUT))
-            await asyncio.sleep(TICK)
+            await anyio.sleep(TICK)
 
 
 class Frame:
@@ -864,7 +863,7 @@ class Walk:
                 return rows
             if time.monotonic() > deadline:
                 return rows
-            await asyncio.sleep(TICK)
+            await anyio.sleep(TICK)
         return rows_of(self.screen)
 
     # -- what a screen means --------------------------------------------
@@ -1030,7 +1029,7 @@ class Walk:
             # A key this screen did not want leaves it blocked in the
             # same read, and the fence would say so again in the same
             # millisecond.
-            await asyncio.sleep(ESCAPE_GRACE)
+            await anyio.sleep(ESCAPE_GRACE)
 
         raise Failed("the walk took more than %d steps" % MOST_STEPS)
 
@@ -1248,7 +1247,7 @@ def main() -> int:
         sys.stdout = sys.stderr
     failed = None
     try:
-        asyncio.run(drive(walk, command))
+        anyio.run(drive, walk, command)
     except Failed as error:
         # A walk that stopped early still drew the screens up to where
         # it stopped, and it still knows where its time went. Say both,

@@ -12,9 +12,6 @@ pane left empty.
 
 from __future__ import annotations
 
-import asyncio
-
-import pytest
 from no_backend import NoBackend
 from prompt_toolkit.application.current import set_app
 from prompt_toolkit.application.dummy import DummyApplication
@@ -26,16 +23,6 @@ from pyte.sequences import Csi, csi
 from test_the_widget import rendered
 
 from ptterm.terminal import _TerminalControl, _Window
-
-
-@pytest.fixture(autouse=True)
-def _a_loop():
-    "`Process` reads the running event loop, and pytest starts none."
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    yield
-    asyncio.set_event_loop(None)
-    loop.close()
 
 
 def backgrounds(data: str, lines: int = 8, columns: int = 12) -> list[list[bool]]:
