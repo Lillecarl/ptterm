@@ -89,6 +89,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 import anyio
+import anyio.abc
 from pty_host import Host
 from ptyhost import Process
 from pyte.cells import WrittenCell
@@ -730,7 +731,7 @@ class Walk:
         except OSError:
             return
 
-    async def start(self, command: list[str], task_group: anyio.TaskGroup) -> None:
+    async def start(self, command: list[str], task_group: anyio.abc.TaskGroup) -> None:
         def prepare(backend) -> None:
             self.hush(backend)
             if self.through:

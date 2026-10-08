@@ -33,6 +33,7 @@ from bisect import bisect_right
 from collections.abc import Callable, Iterable
 
 import anyio
+import anyio.abc
 from prompt_toolkit.application.current import get_app, get_app_or_none
 from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.document import Document
@@ -333,7 +334,7 @@ class _TerminalControl(UIControl):
         self._ground_timer.feed(data)
         self.on_content_changed.fire()
 
-    async def start(self, task_group: anyio.TaskGroup) -> None:
+    async def start(self, task_group: anyio.abc.TaskGroup) -> None:
         """
         Start the program on the pty, watched by `task_group`.
 
@@ -1109,7 +1110,7 @@ class Terminal:
             ],
         )
 
-    async def start(self, task_group: anyio.TaskGroup) -> None:
+    async def start(self, task_group: anyio.abc.TaskGroup) -> None:
         """
         Start the program on the pty, watched by `task_group`.
 
