@@ -80,7 +80,7 @@ from pyte.images import ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH
 from pyte.page import TextLine
 from pyte.placeholders import PLACEHOLDER
 from pyte.runs import runs_of
-from pyte.screen import Screen
+from pyte.screen import RegionCounts, Screen
 from pyte.streams import GroundTimer, Stream
 
 from .style import fragments_of_runs, style_of
@@ -443,34 +443,38 @@ class _TerminalControl(UIControl):
         drawn = self._drawn
         drawn_at = self._drawn_at
 
-        def rotate(top: int, bottom: int, distance: int, at: int) -> None:
+        def rotate(top: int, bottom: int, distance: int, counts: RegionCounts) -> None:
             """
             Move what was drawn for scrolled rows along with them.
 
             The rows already stand in order; a scroll only moves them,
-            so rebuilding every one is the cost this skips. Only rows
-            no later write touched move: a row written after the
-            scroll carries a larger count and stays where it is, and
-            what it stood in the way of rebuilds instead. A moved row
-            takes the count its new row carries now, so the next frame
-            reads it as drawn and not as moved again. Two passes, so
-            a row nobody moved out of the way keeps its own over one
-            that moved into it.
+            so rebuilding every one is the cost this skips.
+
+            **Only a line that still shows its row moves**, which is a
+            line drawn at the count the row held just before the
+            scroll. A row written between the draw and the scroll
+            holds something the line does not, and the scroll's own
+            writes would hide that from any later count. A program
+            that writes the bottom row of a region and then scrolls,
+            in one frame, does exactly that.
+
+            A moved line takes the count its new row has once the
+            scroll is done, so a write after the scroll still rebuilds
+            it. What the scroll uncovered, and what did not move, has
+            no line and builds.
             """
-            written = written_at
-            everything = everything_at
+            before, after = counts
             kept: dict[int, StyleAndTextTuples] = {}
             kept_at: dict[int, int] = {}
             for row, line in drawn.items():
-                if not (top <= row <= bottom) or written.get(row, everything) > at:
+                if not (top <= row <= bottom):
                     kept[row] = line
-                    kept_at[row] = drawn_at.get(row, everything)
-            for row, line in drawn.items():
-                if top <= row <= bottom and written.get(row, everything) <= at:
+                    kept_at[row] = drawn_at[row]
+                elif drawn_at[row] == before[row - top]:
                     dest = row - distance
-                    if top <= dest <= bottom and dest not in kept:
+                    if top <= dest <= bottom:
                         kept[dest] = line
-                        kept_at[dest] = written.get(dest, everything)
+                        kept_at[dest] = after[dest - top]
             drawn.clear()
             drawn.update(kept)
             drawn_at.clear()
@@ -489,8 +493,8 @@ class _TerminalControl(UIControl):
         else:
             new = [s for s in logged if s[4] > mark]
             if new and new[0][4] == mark + 1:
-                for top, bottom, distance, at, _seq in new:
-                    rotate(top, bottom, distance, at)
+                for top, bottom, distance, counts, _seq in new:
+                    rotate(top, bottom, distance, counts)
                 self._scroll_mark = new[-1][4]
             elif logged_seq != mark:
                 drawn.clear()

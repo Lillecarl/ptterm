@@ -137,11 +137,11 @@ def test_uncovered_rows_are_built_again():
     assert "".join(text for _, text in after[3]).strip() == ""
 
 
-def test_a_row_written_after_the_scroll_stays_where_it_is():
+def test_a_row_written_after_the_scroll_is_built_again():
     """
-    Rotation is for rows no later write touched. A row written after
-    the scroll carries a larger count: it stays where it is and is
-    built again, and the row its content left rebuilds too.
+    A write after the scroll gives its row a larger count than the
+    scroll left there, so the line that moved onto it rebuilds. The
+    row above it still moves.
     """
     control = _control()
     _feed(control, "a\r\nb\r\nc\r\nd\r\ne")
@@ -152,9 +152,25 @@ def test_a_row_written_after_the_scroll_stays_where_it_is():
 
     assert "".join(text for _, text in after[2]).startswith("z")
     assert "".join(text for _, text in after[1]) == "c"
-    assert after[1] is not before[1]
-    assert after[1] is not before[2]
-    assert after[2] is not before[2]
+    assert after[1] is before[2]
+    assert after[2] is not before[3]
+
+
+def test_a_row_written_before_the_scroll_moves_what_it_holds_now():
+    """
+    A row written after the last frame and then scrolled, both
+    between two frames, holds what the write put there and not what
+    was drawn for it. So its old line must not move: the row it lands
+    on would read it as current. libvterm's vttest movement test does
+    this at the bottom of a region, line after line.
+    """
+    control = _control()
+    _feed(control, "a\r\nb\r\nc\r\nd\r\ne")
+    _rows(control)
+    _feed(control, csi(escape.CUP, 4, 1) + "z" + csi(escape.DECSTBM, 2, 4) + csi(Csi.SU, 1))
+    after = _rows(control)
+
+    assert "".join(text for _, text in after[2]) == "z"
 
 
 def _visible(control, columns=10, lines=6):
