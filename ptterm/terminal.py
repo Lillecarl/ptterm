@@ -31,6 +31,7 @@ import os
 import time
 from bisect import bisect_right
 from collections.abc import Callable, Iterable
+from typing import Protocol
 
 import anyio
 import anyio.abc
@@ -84,9 +85,61 @@ from pyte.streams import GroundTimer, Stream
 
 from .style import fragments_of_runs, style_of
 
-__all__ = ["Terminal"]
+__all__ = ["Machinery", "Program", "Terminal"]
 
 E = KeyPressEvent
+
+
+class Machinery(Protocol):
+    "What a reader may ask of the machinery under a program."
+
+    @property
+    def pid(self) -> int | None: ...
+
+
+class Program(Protocol):
+    """
+    What a terminal and its embedder ask of whatever runs behind it.
+
+    A `ptyhost.Process` is one. An embedder may put something else in
+    its place, which writes to the screen through `feed_output`: pymux
+    shows a job that way, with no pty behind the pane.
+
+    The data members are read-only here, so each implementation keeps
+    its own attribute type.
+    """
+
+    @property
+    def suspended(self) -> bool: ...
+
+    @property
+    def sx(self) -> int: ...
+
+    @property
+    def sy(self) -> int: ...
+
+    @property
+    def backend(self) -> Machinery: ...
+
+    async def start(self, task_group: anyio.abc.TaskGroup) -> None: ...
+
+    def get_name(self) -> str: ...
+
+    def get_cwd(self) -> str | None: ...
+
+    def kill(self) -> None: ...
+
+    @property
+    def is_terminated(self) -> bool: ...
+
+    def set_size(self, width: int, height: int) -> None: ...
+
+    def write_input(self, data: str) -> None: ...
+
+    def suspend(self) -> None: ...
+
+    def resume(self) -> None: ...
+
 
 #: How long a sequence may stay open in a pane before the next bytes
 #: drop it and return the parser to plain text. A program that writes a
@@ -283,7 +336,7 @@ class _TerminalControl(UIControl):
         self.stream = Stream(self.screen)
         self._ground_timer = GroundTimer(self.stream, _GROUND_TIMEOUT, time.monotonic)
 
-        self.process = Process(
+        self.process: Program = Process(
             backend=backend,
             receive=self._ground_timer.feed,
             invalidate=lambda: self.on_content_changed.fire(),
