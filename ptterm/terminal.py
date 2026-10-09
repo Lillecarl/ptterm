@@ -31,7 +31,7 @@ import os
 import time
 from bisect import bisect_right
 from collections.abc import Callable, Iterable
-from typing import Protocol
+from typing import ClassVar, Protocol
 
 import anyio
 import anyio.abc
@@ -77,6 +77,7 @@ from ptyhost.backends import Backend
 from pyte.cells import Cell, WrittenCell
 from pyte.environment import prepare
 from pyte.images import ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH
+from pyte.keep import Keep
 from pyte.page import TextLine
 from pyte.placeholders import PLACEHOLDER
 from pyte.runs import runs_of
@@ -256,6 +257,27 @@ def cursor_offset(screen) -> int:
 
 
 class _TerminalControl(UIControl):
+    #: What a hot upgrade does with each attribute; `pyte.keep` says.
+    #: Everything a frame remembers is rebuilt by the first frame after
+    #: a load. Lillecarl/pymux#399.
+    KEEP: ClassVar[dict[str, Keep]] = {
+        "screen": Keep.SAVED,
+        "stream": Keep.SAVED,
+        "process": Keep.SAVED,
+        "terminal": Keep.REBUILT,
+        "keep_rows": Keep.REBUILT,
+        "may_type": Keep.REBUILT,
+        "unreadable_key_func": Keep.REBUILT,
+        "on_content_changed": Keep.REBUILT,
+        "on_mouse_focus": Keep.REBUILT,
+        "_ground_timer": Keep.REBUILT,
+        "_running": Keep.REBUILT,
+        "_drawn": Keep.REBUILT,
+        "_drawn_at": Keep.REBUILT,
+        "_drawn_reversed": Keep.REBUILT,
+        "_scroll_mark": Keep.DROPPED,
+    }
+
     #: How many rows this control remembers having drawn.
     #:
     #: A pane draws the rows of the screen, so it remembers about a
@@ -960,6 +982,25 @@ class Terminal:
         keeps. It is a function and not a number, so the option can
         change while the pane runs.
     """
+
+    #: What a hot upgrade does with each attribute; `pyte.keep` says.
+    #: Copy mode keeps its caret and selection in `copy_buffer`; the
+    #: document under them is read from the screen again.
+    #: Lillecarl/pymux#399.
+    KEEP: ClassVar[dict[str, Keep]] = {
+        "terminal_control": Keep.SAVED,
+        "is_copying": Keep.SAVED,
+        "copy_buffer": Keep.SAVED,
+        "copy_reverse_video": Keep.SAVED,
+        "_copy_lines": Keep.REBUILT,
+        "_styled_lines": Keep.REBUILT,
+        "_copy_func": Keep.REBUILT,
+        "container": Keep.REBUILT,
+        "terminal_window": Keep.REBUILT,
+        "copy_window": Keep.REBUILT,
+        "copy_buffer_control": Keep.REBUILT,
+        "search_toolbar": Keep.REBUILT,
+    }
 
     def __init__(
         self,
