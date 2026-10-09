@@ -1096,6 +1096,37 @@ they are worth keeping as state a pane never acts on.
 **As a setting:** no. Which slot a program shifted to is state the
 program set, not a preference.
 
+### 27. A variation selector does not widen a text emoji
+
+`✳️X` (and the same with `⚠`, `❤`, `⏺`) on one line.
+
+U+FE0F asks for the emoji presentation of the character before it.
+`✳`, `⚠`, `❤` and `⏺` default to text presentation, one column wide,
+and a pane keeps them one column wide with the selector after them.
+Lillecarl/pymux#539.
+
+| probe | one column | two columns |
+| --- | --- | --- |
+| text emoji + U+FE0F | ptterm, WezTerm, Alacritty, libvterm, Ghostty, xterm.js | kitty |
+| the same, bare or + U+FE0E | all seven | |
+| `✅`, emoji presentation by default | xterm.js | ptterm, kitty, WezTerm, Alacritty, libvterm, Ghostty |
+
+**kitty means it.** `kitty/screen.c` widens the cell when the selector
+arrives, under the comment "emoji presentation variation marker makes
+default text presentation emoji (narrow emoji) into wide emoji". It is
+a choice, and the five judges beside a pane make the other one.
+WezTerm and Ghostty widen as kitty does only under grapheme clustering
+(mode 2027), which nothing turns on here.
+
+**What it costs pymux is not here.** A program that counts the pair as
+two columns -- Node's `string-width`, which Claude Code uses -- draws
+one column past where a pane holds it, and kitty, drawing pymux's
+output, widens the glyph over the next cell. That is the renderer
+meeting one outer terminal, and Lillecarl/pymux#539 holds it.
+
+**As a setting:** not yet. Mode 2027 is the protocol for a program to
+ask for the wide reading, and a pane does not have it.
+
 ## What vttest tests and no judge implements
 
 ### VT52 mode

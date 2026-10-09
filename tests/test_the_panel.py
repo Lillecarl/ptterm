@@ -338,6 +338,18 @@ def test_a_mark_on_an_erased_cell_splits_the_panel():
     assert with_us == ["kitty", "wezterm", "xtermjs"]
 
 
+@pytest.mark.parametrize("emoji", ["✳", "⚠", "❤", "⏺"])
+def test_a_variation_selector_widens_a_text_emoji_for_kitty_alone(emoji):
+    """
+    Five keep a text emoji one column wide with U+FE0F after it, and
+    kitty widens it, on purpose. DEVIATIONS.md, number 27.
+    Lillecarl/pymux#539.
+    """
+    against, with_us = sides(emoji + "️X", lines=2, columns=6)
+    assert against == ["kitty"]
+    assert with_us == ["alacritty", "ghostty", "libvterm", "wezterm", "xtermjs"]
+
+
 def test_moving_back_over_a_tab_stop_splits_the_panel():
     """
     CBT and CHT ("CSI Ps Z" and "CSI Ps I") move over the tab stops
