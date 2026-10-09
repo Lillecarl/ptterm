@@ -28,20 +28,20 @@ history 10000 (alternate)                2719
 history 10000 (copy)                     1550770
 history 10000 (linefeed)                 188354
 history 10000 (redraw)                   1972
-history 10000 (resize)                   13688
-history 10000 (wrapped resize)           100927
+history 10000 (resize)                   14408
+history 10000 (wrapped resize)           105833
 history 2000 (alternate)                 2719
 history 2000 (copy)                      307845
 history 2000 (linefeed)                  188354
 history 2000 (redraw)                    1913
-history 2000 (resize)                    12745
-history 2000 (wrapped resize)            100927
+history 2000 (resize)                    13419
+history 2000 (wrapped resize)            105833
 history 50000 (alternate)                2719
 history 50000 (copy)                     8110776
 history 50000 (linefeed)                 188354
 history 50000 (redraw)                   1972
-history 50000 (resize)                   13688
-history 50000 (wrapped resize)           101870
+history 50000 (resize)                   14408
+history 50000 (wrapped resize)           106822
 indexed_256_colors                       970226
 indexed_256_colors (redraw)              7405
 indexed_256_colors (render)              99653
