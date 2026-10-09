@@ -367,6 +367,14 @@ class _TerminalControl(UIControl):
         # Lillecarl/pymux#516.
         self._scroll_mark: int | None = None
 
+        #: Whether a frame reuses what earlier frames built: the rows
+        #: drawn before, moved along with a scroll, and the stable lines
+        #: and scroll report that let a window keep what it copied. Off,
+        #: every frame builds every row from the screen and the window
+        #: copies all of it, which is the slow answer the fast one is
+        #: held against.
+        self.keep_rows = True
+
     def set_size(self, width: int, height: int) -> None:
         "Tell the pty and the screen how big the pane is."
         self.process.set_size(width, height)
@@ -488,7 +496,11 @@ class _TerminalControl(UIControl):
         mark = self._scroll_mark
         logged = self.screen.scrolls
         logged_seq = self.screen.scroll_seq
-        if mark is None:
+        if not self.keep_rows:
+            drawn.clear()
+            drawn_at.clear()
+            self._scroll_mark = logged_seq
+        elif mark is None:
             self._scroll_mark = logged_seq
         else:
             new = [s for s in logged if s[4] > mark]
@@ -580,11 +592,12 @@ class _TerminalControl(UIControl):
         # The lines above are the same objects while their rows stand
         # still -- `get_line` says so -- so a window may store what it
         # drew for them instead of looking every cell up again.
-        content.stable_lines = True
+        content.stable_lines = self.keep_rows
         # The screen's scroll report and sequence, live: a window that
         # stores what it drew rotates those rows the same way, with
         # its own mark. Lillecarl/pymux#516.
-        content.scrolled = (self.screen.scrolls, self.screen.scroll_seq)
+        if self.keep_rows:
+            content.scrolled = (self.screen.scrolls, self.screen.scroll_seq)
         return content
 
     def may_be_driven(self) -> bool:
