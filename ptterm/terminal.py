@@ -267,6 +267,7 @@ class _TerminalControl(UIControl):
         "terminal": Keep.REBUILT,
         "keep_rows": Keep.REBUILT,
         "may_type": Keep.REBUILT,
+        "takes_key_first": Keep.REBUILT,
         "unreadable_key_func": Keep.REBUILT,
         "on_content_changed": Keep.REBUILT,
         "on_mouse_focus": Keep.REBUILT,
@@ -307,6 +308,7 @@ class _TerminalControl(UIControl):
         may_type: Callable[[], bool] | None = None,
         get_history_limit: Callable[[], int] | None = None,
         unreadable_key_func: Callable[[object, int, str], None] | None = None,
+        takes_key_first: Callable[[], bool] | None = None,
     ) -> None:
         # Called for a key this pane reads as something else, or not at
         # all. What a person presses still degrades on the way in, the
@@ -318,6 +320,14 @@ class _TerminalControl(UIControl):
         #: Asked once per key, so an embedder that has more than one
         #: person answers for whichever of them this key came from.
         self.may_type = may_type
+
+        #: Whether the embedder takes the next key before the pane does.
+        #: prompt_toolkit gives the focused control's bindings priority
+        #: over the application's, so the pane's any-key binding beats
+        #: the embedder's own: pymux's "a key after the prefix that the
+        #: prefix does not bind ends the prefix" never ran, and the key
+        #: went to the program. Lillecarl/pymux#540.
+        self.takes_key_first = takes_key_first
 
         #: Called when the mouse focused this pane: a click in it while
         #: another control had the focus. The widget moves the layout
@@ -636,7 +646,11 @@ class _TerminalControl(UIControl):
     def get_key_bindings(self) -> KeyBindings:
         bindings = KeyBindings()
 
-        @bindings.add(Keys.Any)
+        @Condition
+        def the_pane_takes_it() -> bool:
+            return self.takes_key_first is None or not self.takes_key_first()
+
+        @bindings.add(Keys.Any, filter=the_pane_takes_it)
         def handle_key(event):
             """
             Handle any key binding -> write it to the stdin of this terminal.
@@ -977,6 +991,11 @@ class Terminal:
         mouse, and leaves everything the pane draws. The embedder
         decides because only it knows who is watching: pymux answers
         for a client that attached with `attach-session -r`.
+    :param takes_key_first: Returns whether the embedder wants the next
+        key before this pane. Yes takes the pane's key binding out of
+        the way, so the embedder's own catch-all binding answers: the
+        focused pane's would otherwise win. pymux answers for a client
+        that holds its prefix.
     :param get_history_limit: Returns how many rows of scrollback this
         pane keeps. The default is two thousand, which is what tmux
         keeps. It is a function and not a number, so the option can
@@ -1019,6 +1038,7 @@ class Terminal:
         may_type: Callable[[], bool] | None = None,
         get_history_limit: Callable[[], int] | None = None,
         unreadable_key_func: Callable[[object, int, str], None] | None = None,
+        takes_key_first: Callable[[], bool] | None = None,
     ) -> None:
         if backend is None:
             backend = create_backend(command, before_exec_func)
@@ -1035,6 +1055,7 @@ class Terminal:
             done_callback=done_callback,
             get_history_limit=get_history_limit,
             unreadable_key_func=unreadable_key_func,
+            takes_key_first=takes_key_first,
         )
         # The wheel over a pane whose program wants no mouse enters
         # copy mode, and the control is what the wheel arrives at.
