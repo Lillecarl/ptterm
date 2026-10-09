@@ -1191,12 +1191,15 @@ class Terminal:
 
     def _copy_position_formatted_text(self) -> str:
         """
-        Return the cursor position text to be displayed in copy mode.
+        The line of the history the copy cursor is on, and how many there
+        are, counted from the top: "[1/N]" is the oldest line.
+
+        Not the window's `render_info.cursor_position`, which is the
+        cursor's row on the screen and says nothing of where in the
+        history the view stands.
         """
-        render_info = self.copy_window.render_info
-        if render_info:
-            return f"[{render_info.cursor_position.y + 1}/{render_info.content_height}]"
-        return "[0/0]"
+        document = self.copy_buffer.document
+        return f"[{document.cursor_position_row + 1}/{document.line_count}]"
 
     def _copy_style(self) -> str:
         """

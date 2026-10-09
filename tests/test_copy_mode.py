@@ -222,6 +222,20 @@ def test_the_cursor_of_a_shell_is_still_at_the_end():
     assert (row, column) == (2, 5)
 
 
+def test_the_position_counts_lines_of_the_history():
+    """
+    The indicator says which line of the history the cursor is on, from
+    the oldest, and does not depend on where the window has scrolled.
+    """
+    terminal = a_terminal("\r\n".join("line %d" % number for number in range(60)))
+
+    assert terminal._copy_position_formatted_text() == "[60/60]"
+    terminal.scroll_copy(-10)
+    assert terminal._copy_position_formatted_text() == "[50/60]"
+    terminal.scroll_copy(-1000)
+    assert terminal._copy_position_formatted_text() == "[1/60]"
+
+
 def test_a_cursor_on_a_row_a_wrap_made():
     """
     A line the pane wrapped is one line of the document, so the rows
