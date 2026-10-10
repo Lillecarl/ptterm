@@ -30,7 +30,7 @@ from __future__ import annotations
 import time
 from bisect import bisect_right
 from collections.abc import Callable, Iterable
-from typing import ClassVar, Protocol
+from typing import ClassVar, NamedTuple, Protocol
 
 import anyio
 import anyio.abc
@@ -263,6 +263,28 @@ def cursor_offset(screen) -> int:
     return len("".join(row[x].char for x in range(screen.reported_column)))
 
 
+class _Drawn(NamedTuple):
+    """
+    What a control built for one row: the line, the write count of the
+    screen it was built at, and an image of the row's cells then, so a
+    row that moved can find it again. Lillecarl/pymux#570.
+    """
+
+    line: StyleAndTextTuples
+    at: int
+    image: object
+
+
+#: Builds a `_Drawn` without the `__new__` that `NamedTuple` writes in
+#: Python, which a frame pays for every row it builds.
+_new_drawn = tuple.__new__
+
+
+#: How many rows a repaint has to have moved before it counts as a
+#: shift. Fewer is a coincidence of equal lines, such as two blank ones.
+_ROWS_THAT_MAKE_A_SHIFT = 3
+
+
 class _TerminalControl(UIControl):
     #: What a hot upgrade does with each attribute; `pyte.keep` says.
     #: Everything a frame remembers is rebuilt by the first frame after
@@ -281,7 +303,9 @@ class _TerminalControl(UIControl):
         "_ground_timer": Keep.REBUILT,
         "_running": Keep.REBUILT,
         "_drawn": Keep.REBUILT,
-        "_drawn_at": Keep.REBUILT,
+        "_report": Keep.DROPPED,
+        "_report_seq": Keep.DROPPED,
+        "_scanned_at": Keep.DROPPED,
         "_drawn_reversed": Keep.REBUILT,
         "_scroll_mark": Keep.DROPPED,
         "_held_since": Keep.DROPPED,
@@ -412,8 +436,15 @@ class _TerminalControl(UIControl):
         # moved is a row it does not build again. The state is here and
         # not on the screen, because a screen has more than one reader
         # and no way to know how many. Lillecarl/pymux#126.
-        self._drawn: dict[int, StyleAndTextTuples] = {}
-        self._drawn_at: dict[int, int] = {}
+        self._drawn: dict[int, _Drawn] = {}
+
+        # The scrolls this control hands a window, with a sequence of its
+        # own: the screen's logged scrolls, and the shifts a repaint made
+        # that it found by the images of the rows. Lillecarl/pymux#570.
+        self._report: list[tuple[int, int, int, object, int]] = []
+        self._report_seq = 0
+        # The screen's write count the last scan for a shift read.
+        self._scanned_at = -1
         self._drawn_reversed = False
 
         # The sequence of the screen's scroll report consumed through.
@@ -548,7 +579,6 @@ class _TerminalControl(UIControl):
         # Nothing else outside a row reaches `get_line`.
         if reverse_video != self._drawn_reversed:
             self._drawn.clear()
-            self._drawn_at.clear()
             self._drawn_reversed = reverse_video
 
         # The history grows and the rows that leave it never come back,
@@ -557,7 +587,6 @@ class _TerminalControl(UIControl):
         # thousands of.
         if len(self._drawn) > self._REMEMBER_AT_MOST:
             self._drawn.clear()
-            self._drawn_at.clear()
 
         written_at = self.screen.written_at
         # A row with no count of its own carries the one that
@@ -565,7 +594,6 @@ class _TerminalControl(UIControl):
         # every row at once and costs nothing to say.
         everything_at = self.screen.everything_at
         drawn = self._drawn
-        drawn_at = self._drawn_at
 
         def rotate(top: int, bottom: int, distance: int, counts: RegionCounts) -> None:
             """
@@ -588,21 +616,16 @@ class _TerminalControl(UIControl):
             no line and builds.
             """
             before, after = counts
-            kept: dict[int, StyleAndTextTuples] = {}
-            kept_at: dict[int, int] = {}
-            for row, line in drawn.items():
+            kept: dict[int, _Drawn] = {}
+            for row, entry in drawn.items():
                 if not (top <= row <= bottom):
-                    kept[row] = line
-                    kept_at[row] = drawn_at[row]
-                elif drawn_at[row] == before[row - top]:
+                    kept[row] = entry
+                elif entry.at == before[row - top]:
                     dest = row - distance
                     if top <= dest <= bottom:
-                        kept[dest] = line
-                        kept_at[dest] = after[dest - top]
+                        kept[dest] = entry._replace(at=after[dest - top])
             drawn.clear()
             drawn.update(kept)
-            drawn_at.clear()
-            drawn_at.update(kept_at)
 
         # The scrolls since this drew last, oldest first. What they
         # moved is rotated above; what they uncovered, and every row
@@ -612,9 +635,9 @@ class _TerminalControl(UIControl):
         mark = self._scroll_mark
         logged = self.screen.scrolls
         logged_seq = self.screen.scroll_seq
+        report = self._report
         if not self.keep_rows:
             drawn.clear()
-            drawn_at.clear()
             self._scroll_mark = logged_seq
         elif mark is None:
             self._scroll_mark = logged_seq
@@ -623,11 +646,20 @@ class _TerminalControl(UIControl):
             if new and new[0][4] == mark + 1:
                 for top, bottom, distance, counts, _seq in new:
                     rotate(top, bottom, distance, counts)
+                    self._report_seq += 1
+                    report.append((top, bottom, distance, counts, self._report_seq))
                 self._scroll_mark = new[-1][4]
             elif logged_seq != mark:
                 drawn.clear()
-                drawn_at.clear()
                 self._scroll_mark = logged_seq
+                # A gap in the sequence: a window that reads it forgets
+                # what it stored, as this control just did.
+                self._report_seq += 2
+        # The images of the rows this frame rewrote, when it wrote enough
+        # for a shift to be worth finding; a frame of a few writes takes
+        # none, which keeps a keystroke as cheap as it was.
+        images = self._find_a_shift(data_buffer, written_at, everything_at, cursor_y) if self.keep_rows else None
+        del report[:-32]
 
         def build(number: int) -> StyleAndTextTuples:
             row = data_buffer[number]
@@ -677,10 +709,13 @@ class _TerminalControl(UIControl):
                 return cursor_line[0]
 
             version = written_at.get(number, everything_at)
-            if drawn_at.get(number) != version:
-                drawn[number] = build(number)
-                drawn_at[number] = version
-            return drawn[number]
+            entry = drawn.get(number)
+            if entry is None or entry.at != version:
+                image = None
+                if images is not None:
+                    image = images.get(number) or data_buffer[number].image()
+                entry = drawn[number] = _new_drawn(_Drawn, (build(number), version, image))
+            return entry.line
 
         # The screen is the rows from `line_offset` to `max_y`, and the
         # buffer can end above `max_y`: an erase with no background
@@ -714,13 +749,73 @@ class _TerminalControl(UIControl):
         # still -- `get_line` says so -- so a window may store what it
         # drew for them instead of looking every cell up again.
         content.stable_lines = self.keep_rows
-        # The screen's scroll report and sequence, live: a window that
-        # stores what it drew rotates those rows the same way, with
-        # its own mark. Lillecarl/pymux#516.
+        # This control's scroll report and sequence: a window that stores
+        # what it drew rotates those rows the same way, with its own
+        # mark. Lillecarl/pymux#516.
         if self.keep_rows:
-            content.scrolled = (self.screen.scrolls, self.screen.scroll_seq)
+            content.scrolled = (self._report, self._report_seq)
         self._shown = (content, cursor_line, width, height)
         return content
+
+    def _find_a_shift(self, data_buffer, written_at, everything_at: int, cursor_y: int) -> dict | None:
+        """
+        Find rows a repaint moved, and keep what was drawn for them.
+
+        A program that scrolls by drawing its whole screen again -- fzf,
+        and vim for most scrolls -- writes every row, so every count
+        moves and every line would be built and copied again. When
+        enough of the rewritten rows hold exactly what other rows held
+        when they were drawn, by one distance, the screen shifted: each
+        of those rows takes the line that was drawn for its old place,
+        and the shift goes into the report, so a window moves what it
+        stored and the renderer may send a scroll instead of repainting.
+        The renderer proves every claimed shift before it uses one.
+        Lillecarl/pymux#570.
+        """
+        # The screen counts a write per row it writes, so fewer writes
+        # since the last scan than a shift needs rows cannot be one. That
+        # is a keystroke, and nearly every frame of a pane at rest, and it
+        # costs one subtraction. A frame of many writes takes images of
+        # what it builds even when nothing shifted, so the next repaint
+        # can find those rows.
+        writes = self.screen.writes
+        since = writes - self._scanned_at
+        self._scanned_at = writes
+        if since < _ROWS_THAT_MAKE_A_SHIFT:
+            return None
+        drawn = self._drawn
+        # Only the rows on the screen: a repaint moves nothing else, and
+        # what is remembered of the history can be thousands of rows.
+        first = self.screen.line_offset
+        shown = {row: drawn[row] for row in range(first, first + self.screen.lines) if row in drawn}
+        changed = [
+            row
+            for row, entry in shown.items()
+            if row != cursor_y and entry.at != written_at.get(row, everything_at) and row in data_buffer
+        ]
+        if len(changed) < _ROWS_THAT_MAKE_A_SHIFT:
+            return {}
+        where = {entry.image: row for row, entry in shown.items() if entry.image is not None}
+        images = {row: data_buffer[row].image() for row in changed}
+        votes: dict[int, int] = {}
+        for row, image in images.items():
+            source = where.get(image)
+            if source is not None and source != row:
+                votes[source - row] = votes.get(source - row, 0) + 1
+        if not votes:
+            return images
+        distance, count = max(votes.items(), key=lambda vote: vote[1])
+        if count < _ROWS_THAT_MAKE_A_SHIFT:
+            return images
+        moved = [row for row, image in images.items() if where.get(image) == row + distance]
+        old = {row: drawn[row + distance] for row in moved}
+        for row in moved:
+            drawn[row] = _Drawn(old[row].line, written_at.get(row, everything_at), images[row])
+        top = min(moved) + min(0, distance)
+        bottom = max(moved) + max(0, distance)
+        self._report_seq += 1
+        self._report.append((top, bottom, distance, None, self._report_seq))
+        return images
 
     def _held_picture(
         self,
@@ -745,7 +840,8 @@ class _TerminalControl(UIControl):
         def get_line(number: int) -> StyleAndTextTuples:
             if number == cursor_y:
                 return cursor_line[0] if cursor_line else blank
-            return drawn.get(number, blank)
+            entry = drawn.get(number)
+            return blank if entry is None else entry.line
 
         held = UIContent(
             get_line,

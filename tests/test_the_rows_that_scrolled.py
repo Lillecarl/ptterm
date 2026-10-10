@@ -49,7 +49,6 @@ def frame(control, forget: bool):
     """
     if forget:
         control._drawn.clear()
-        control._drawn_at.clear()
 
     content = control.create_content(COLUMNS, LINES)
     first = max(0, content.line_count - LINES)
