@@ -45,7 +45,6 @@ SEQUENCES = [
 def _screen() -> Screen:
     screen = Screen(100, 24, lambda part: None)
     stream = Stream(screen)
-    stream.attach(screen)
     for sequence in SEQUENCES:
         stream.feed(sequence)
     return screen
