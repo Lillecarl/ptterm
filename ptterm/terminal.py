@@ -30,7 +30,7 @@ from __future__ import annotations
 import time
 from bisect import bisect_right
 from collections.abc import Callable, Iterable
-from typing import TYPE_CHECKING, ClassVar, Protocol
+from typing import ClassVar, Protocol
 
 import anyio
 import anyio.abc
@@ -69,12 +69,14 @@ from prompt_toolkit.layout.screen import Point
 from prompt_toolkit.mouse_events import MouseEventType
 from prompt_toolkit.selection import SelectionType
 from prompt_toolkit.token import KeepWhitespace
-from prompt_toolkit.utils import Event, is_windows
+from prompt_toolkit.utils import Event
 from prompt_toolkit.widgets.toolbars import SearchToolbar
 from ptyhost import Process
 from ptyhost.backends import Backend
+from ptyhost.backends.posix import spawn_of
+from ptyhost.held import Holding, backend_of
 from pyte.cells import Cell, WrittenCell
-from pyte.environment import prepare
+from pyte.environment import preparing
 from pyte.images import ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH
 from pyte.keep import Keep
 from pyte.page import TextLine
@@ -84,10 +86,6 @@ from pyte.screen import RegionCounts, Screen
 from pyte.streams import GroundTimer, Stream
 
 from .style import fragments_of_runs, style_of
-
-if TYPE_CHECKING:
-    # Not at run time: it reaches `fcntl`, which Windows has not.
-    from ptyhost.held import Holding
 
 __all__ = ["Machinery", "Program", "Terminal"]
 
@@ -836,31 +834,6 @@ class _Window(Window):
         super().write_to_screen(*a, **kw)
 
 
-def _environment_of_a_pane(
-    theirs: Callable[[dict[str, str]], None] | None,
-) -> Callable[[dict[str, str]], None]:
-    """
-    What turns this process's environment into the program's.
-
-    The program runs on the screen of this widget and not in the
-    terminal that the application itself runs in, so the environment
-    has to say which one it is. Nothing else knows both: `pyte` has no
-    child to set an environment for, and `ptyhost` runs a program and
-    has no opinion on what parses the bytes. This widget owns a screen
-    and a `Process`, so this is the layer. Lillecarl/pymux#125.
-
-    The hook of the caller runs last, so an embedder can still say
-    something different. pymux does: it has an option for the name.
-    """
-
-    def edit(environment: dict[str, str]) -> None:
-        prepare(environment)
-        if theirs is not None:
-            theirs(environment)
-
-    return edit
-
-
 def create_backend(
     command: list[str],
     environment: Callable[[dict[str, str]], None] | None = None,
@@ -868,25 +841,20 @@ def create_backend(
     holding: Holding | None = None,
 ) -> Backend:
     """
-    A pty for `command`. With `holding`, the holder forks it and keeps it
-    for the next server (`ptyhost.held`). Lillecarl/pymux#553.
+    A pty for `command`, which runs on this widget's screen.
+
+    The program draws on this screen and not on the terminal the
+    application runs in, so its environment has to say which one it is
+    (`pyte.environment.preparing`). Nothing else knows both: `pyte` has
+    no child, and `ptyhost` has no opinion on what parses the bytes.
+    Lillecarl/pymux#125. With `holding`, the holder forks the program
+    and keeps it for the next server. Lillecarl/pymux#553.
     """
-    if is_windows():
-        from ptyhost.backends.win32 import Win32Backend
-
-        return Win32Backend()
-    from ptyhost.backends.posix import PosixBackend, spawn_of
-
     # The size of a cell goes into the size of the pty, so that a
     # program that draws images reads the same answer there as
     # "CSI 16 t" gives it.
-    cell = (ASSUMED_CELL_WIDTH, ASSUMED_CELL_HEIGHT)
-    spawn = spawn_of(command, _environment_of_a_pane(environment), directory)
-    if holding is not None:
-        from ptyhost.held import HeldBackend
-
-        return HeldBackend(holding, spawn, cell=cell)
-    return PosixBackend(spawn, cell=cell)
+    spawn = spawn_of(command, preparing(environment), directory)
+    return backend_of(spawn, (ASSUMED_CELL_WIDTH, ASSUMED_CELL_HEIGHT), holding)
 
 
 class _CopyBufferControl(BufferControl):

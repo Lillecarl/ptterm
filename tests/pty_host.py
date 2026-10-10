@@ -18,7 +18,7 @@ from __future__ import annotations
 import anyio
 import anyio.abc
 from ptyhost import Process
-from ptyhost.backends.posix import PosixBackend
+from ptyhost.backends.posix import PosixBackend, spawn_of
 from pyte.images import ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH
 from pyte.screen import Screen
 from pyte.streams import Stream
@@ -55,7 +55,7 @@ class Host:
         self.smallest = smallest
         self.largest = largest
 
-        self.backend = PosixBackend.from_command(command, cell=(ASSUMED_CELL_WIDTH, ASSUMED_CELL_HEIGHT))
+        self.backend = PosixBackend(spawn_of(command), cell=(ASSUMED_CELL_WIDTH, ASSUMED_CELL_HEIGHT))
         if prepare is not None:
             prepare(self.backend)
 

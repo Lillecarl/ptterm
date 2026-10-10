@@ -20,12 +20,12 @@ import os
 import anyio
 import pytest
 from ptyhost import Process
-from pyte.environment import DEFAULT_DATABASE, terminal_name
+from pyte.environment import DEFAULT_DATABASE
 from pyte.screen import Screen
 from pyte.streams import Stream
 from pyte.terminfo import TERMINAL_NAME
 
-from ptterm.terminal import _environment_of_a_pane, create_backend
+from ptterm.terminal import create_backend
 
 #: Wide enough that a store path does not wrap, so a row is one answer.
 COLUMNS = 400
@@ -162,39 +162,3 @@ def test_the_name_of_the_outer_terminal_is_gone(answers):
 
 def test_the_rest_of_the_environment_reaches_the_program(answers):
     assert answers["HOME"] == "/home/someone"
-
-
-# ----------------------------------------------------------------------
-# The hook itself, with no child around it.
-#
-# There is no fork here, so the hook writes the environment of the test
-# run itself. Every test below therefore gives it a copy: without one
-# it leaves `COLORTERM` and `TERMINFO_DIRS` behind, and drops the
-# variables that name a terminal, for every test after it.
-
-
-def test_the_hook_of_the_caller_runs_last():
-    """
-    An embedder can still say something different. pymux does: it has
-    an option for the name a pane is given.
-    """
-    environment = {"TERM": "nothing"}
-
-    def theirs(environment: dict[str, str]) -> None:
-        environment["TERM"] = "theirs"
-
-    _environment_of_a_pane(theirs)(environment)
-    assert environment["TERM"] == "theirs"
-
-
-def test_the_hook_works_without_one_of_their_own():
-    environment = {"TERM": "nothing"}
-    _environment_of_a_pane(None)(environment)
-    assert environment["TERM"] == terminal_name()
-
-
-def test_the_hook_leaves_this_process_alone():
-    "It edits the program's copy. Lillecarl/pymux#553."
-    before = dict(os.environ)
-    _environment_of_a_pane(None)({"TERM": "nothing"})
-    assert dict(os.environ) == before
