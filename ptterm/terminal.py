@@ -34,6 +34,7 @@ from typing import ClassVar, Protocol
 
 import anyio
 import anyio.abc
+import pyte.runs
 from prompt_toolkit.application.current import get_app, get_app_or_none
 from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.document import Document
@@ -81,7 +82,6 @@ from pyte.images import ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH
 from pyte.keep import Keep
 from pyte.page import TextLine
 from pyte.placeholders import PLACEHOLDER
-from pyte.runs import runs_of
 from pyte.screen import RegionCounts, Screen
 from pyte.streams import GroundTimer, Stream
 
@@ -633,7 +633,9 @@ class _TerminalControl(UIControl):
             row = data_buffer[number]
             if not row and number != cursor_y:
                 return [("", " ")]
-            runs = runs_of(row)
+            # Through the module, so that a kernel installed after this
+            # file was imported is the one that runs.
+            runs = pyte.runs.runs_of(row)
             if not runs and number != cursor_y:
                 return [("", " ")]
 
