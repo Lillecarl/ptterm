@@ -149,6 +149,12 @@ class Program(Protocol):
 #: through the wrong state. Lillecarl/pymux#390.
 _GROUND_TIMEOUT = 5
 
+#: How long a pane shows its last picture while its program draws a
+#: frame ("?2026"). A program that set the mode and died would
+#: otherwise freeze the pane. tmux waits the same second
+#: (`screen_write_start_sync`). Lillecarl/pymux#567.
+_FRAME_HELD_AT_MOST = 1.0
+
 
 #: Bit six of the button says the event came from the wheel, so the two
 #: wheel directions are the button numbers 64 and 65. kitty calls it
@@ -278,6 +284,12 @@ class _TerminalControl(UIControl):
         "_drawn_at": Keep.REBUILT,
         "_drawn_reversed": Keep.REBUILT,
         "_scroll_mark": Keep.DROPPED,
+        "_held_since": Keep.DROPPED,
+        "_held_too_long": Keep.DROPPED,
+        "_held_from": Keep.DROPPED,
+        "_shown": Keep.DROPPED,
+        "_let_go": Keep.DROPPED,
+        "_task_group": Keep.REBUILT,
     }
 
     #: How many rows this control remembers having drawn.
@@ -372,13 +384,23 @@ class _TerminalControl(UIControl):
         self.process: Program = Process(
             backend=backend,
             receive=self._ground_timer.feed,
-            invalidate=lambda: self.on_content_changed.fire(),
+            invalidate=lambda: self._after_a_feed(),
             done_callback=done_callback,
             has_priority=has_priority,
         )
 
         self.on_content_changed = Event(self)
         self._running = False
+        self._task_group: anyio.abc.TaskGroup | None = None
+
+        # While the program draws a frame, when it started to, and what
+        # the last frame showed, which draws until the frame ends.
+        # `_let_go` ends a hold that the program never ends.
+        self._held_since: float | None = None
+        self._held_too_long = False
+        self._held_from = 0
+        self._shown: tuple[UIContent, list[StyleAndTextTuples], int, int] | None = None
+        self._let_go: anyio.CancelScope | None = None
 
         #: The `Terminal` this control is the screen of, set by it when
         #: it builds this control. The wheel that enters copy mode goes
@@ -426,7 +448,63 @@ class _TerminalControl(UIControl):
         to survive, the way the process read survives it.
         """
         self._ground_timer.feed(data)
+        self._after_a_feed()
+
+    def _after_a_feed(self) -> None:
+        """
+        Say the screen changed, unless the program is drawing a frame.
+
+        A redraw then would show the frame half drawn. The picture is
+        held until the program ends the frame, or for
+        `_FRAME_HELD_AT_MOST`, whichever comes first. A frame that took
+        too long draws as it comes until the program ends it, the way
+        tmux drops the mode when its timer runs out.
+
+        A feed can end one frame and begin the next. It then ends with
+        the mode set, and only the screen's count of frames says a
+        frame ended in it, so that frame draws.
+        """
+        screen = self.screen
+        if not screen.draws_a_frame:
+            self._held_too_long = False
+        elif self._held_since is not None and screen.frames_drawn != self._held_from:
+            pass
+        elif not self._held_too_long:
+            if self._held_since is None:
+                self._held_since = time.monotonic()
+                self._held_from = screen.frames_drawn
+                if self._task_group is not None:
+                    # Made here and not in the task, so that a frame
+                    # that ends before the task first runs cancels it.
+                    self._let_go = anyio.CancelScope()
+                    self._task_group.start_soon(self._end_the_hold_later, self._let_go)
+            if self._holds_the_frame():
+                return
+            self._held_too_long = True
+        self._end_the_hold()
         self.on_content_changed.fire()
+
+    def _holds_the_frame(self) -> bool:
+        return (
+            self._held_since is not None
+            and self.screen.draws_a_frame
+            and self.screen.frames_drawn == self._held_from
+            and time.monotonic() - self._held_since < _FRAME_HELD_AT_MOST
+        )
+
+    def _end_the_hold(self) -> None:
+        self._held_since = None
+        if self._let_go is not None:
+            self._let_go.cancel()
+            self._let_go = None
+
+    async def _end_the_hold_later(self, scope: anyio.CancelScope) -> None:
+        with scope:
+            await anyio.sleep(_FRAME_HELD_AT_MOST)
+            self._let_go = None
+            self._held_since = None
+            self._held_too_long = True
+            self.on_content_changed.fire()
 
     async def start(self, task_group: anyio.abc.TaskGroup) -> None:
         """
@@ -437,6 +515,7 @@ class _TerminalControl(UIControl):
         was never started renders an empty screen.
         """
         if not self._running:
+            self._task_group = task_group
             await self.process.start(task_group)
             self._running = True
 
@@ -446,6 +525,10 @@ class _TerminalControl(UIControl):
 
         if not self.screen:
             return UIContent()
+
+        shown = self._shown
+        if shown is not None and shown[2:] == (width, height) and self._holds_the_frame():
+            return self._held_picture(*shown)
 
         page = self.screen.page
         pt_cursor_position = self.screen.pt_cursor_position
@@ -563,6 +646,8 @@ class _TerminalControl(UIControl):
 
             return fragments_of_runs(runs, end, reverse_video)
 
+        cursor_line: list[StyleAndTextTuples] = []
+
         def get_line(number: int) -> StyleAndTextTuples:
             """
             One row, built once and kept until the screen writes it
@@ -586,7 +671,8 @@ class _TerminalControl(UIControl):
             of its own.
             """
             if number == cursor_y:
-                return build(number)
+                cursor_line[:] = [build(number)]
+                return cursor_line[0]
 
             version = written_at.get(number, everything_at)
             if drawn_at.get(number) != version:
@@ -631,7 +717,46 @@ class _TerminalControl(UIControl):
         # its own mark. Lillecarl/pymux#516.
         if self.keep_rows:
             content.scrolled = (self.screen.scrolls, self.screen.scroll_seq)
+        self._shown = (content, cursor_line, width, height)
         return content
+
+    def _held_picture(
+        self,
+        content: UIContent,
+        cursor_line: list[StyleAndTextTuples],
+        width: int,
+        height: int,
+    ) -> UIContent:
+        """
+        What `content` showed, read again without the screen.
+
+        The rows come from `_drawn`, which holds the line built for each
+        row that frame asked for, and which only a frame that reads the
+        screen changes. The cursor row is never kept there, so the frame
+        kept it in `cursor_line`. The scroll report is empty at the
+        sequence that frame consumed, so a window rotates nothing.
+        """
+        drawn = self._drawn
+        cursor_y = content.cursor_position.y
+        blank: StyleAndTextTuples = [("", " ")]
+
+        def get_line(number: int) -> StyleAndTextTuples:
+            if number == cursor_y:
+                return cursor_line[0] if cursor_line else blank
+            return drawn.get(number, blank)
+
+        held = UIContent(
+            get_line,
+            line_count=content.line_count,
+            show_cursor=content.show_cursor,
+            cursor_position=content.cursor_position,
+            apply_display_mappings=False,
+        )
+        held.stable_lines = content.stable_lines
+        scrolled = getattr(content, "scrolled", None)
+        if scrolled is not None:
+            held.scrolled = ((), scrolled[1])
+        return held
 
     def may_be_driven(self) -> bool:
         """
