@@ -30,7 +30,7 @@ from __future__ import annotations
 import time
 from bisect import bisect_right
 from collections.abc import Callable, Iterable
-from typing import ClassVar, Protocol
+from typing import TYPE_CHECKING, ClassVar, Protocol
 
 import anyio
 import anyio.abc
@@ -84,6 +84,10 @@ from pyte.screen import RegionCounts, Screen
 from pyte.streams import GroundTimer, Stream
 
 from .style import fragments_of_runs, style_of
+
+if TYPE_CHECKING:
+    # Not at run time: it reaches `fcntl`, which Windows has not.
+    from ptyhost.held import Holding
 
 __all__ = ["Machinery", "Program", "Terminal"]
 
@@ -861,22 +865,28 @@ def create_backend(
     command: list[str],
     environment: Callable[[dict[str, str]], None] | None = None,
     directory: str | None = None,
+    holding: Holding | None = None,
 ) -> Backend:
+    """
+    A pty for `command`. With `holding`, the holder forks it and keeps it
+    for the next server (`ptyhost.held`). Lillecarl/pymux#553.
+    """
     if is_windows():
         from ptyhost.backends.win32 import Win32Backend
 
         return Win32Backend()
-    from ptyhost.backends.posix import PosixBackend
+    from ptyhost.backends.posix import PosixBackend, spawn_of
 
     # The size of a cell goes into the size of the pty, so that a
     # program that draws images reads the same answer there as
     # "CSI 16 t" gives it.
-    return PosixBackend.from_command(
-        command,
-        environment=_environment_of_a_pane(environment),
-        directory=directory,
-        cell=(ASSUMED_CELL_WIDTH, ASSUMED_CELL_HEIGHT),
-    )
+    cell = (ASSUMED_CELL_WIDTH, ASSUMED_CELL_HEIGHT)
+    spawn = spawn_of(command, _environment_of_a_pane(environment), directory)
+    if holding is not None:
+        from ptyhost.held import HeldBackend
+
+        return HeldBackend(holding, spawn, cell=cell)
+    return PosixBackend(spawn, cell=cell)
 
 
 class _CopyBufferControl(BufferControl):
@@ -973,6 +983,8 @@ class Terminal:
     :param environment: Edits the program's environment, a copy of
         this process's, when the program starts.
     :param directory: Where the program starts.
+    :param holding: The holder that forks the program and keeps it
+        for the next server. None forks here.
     :param osc_func: Called with the code and the payload of an OSC
         sequence that only the terminal of the user can serve. (The
         clipboard, a notification, the shape of the pointer.)
@@ -1030,6 +1042,7 @@ class Terminal:
         command=["/bin/bash"],
         environment: Callable[[dict[str, str]], None] | None = None,
         directory: str | None = None,
+        holding: Holding | None = None,
         backend: Backend | None = None,
         bell_func: Callable[[], None] | None = None,
         style: str = "",
@@ -1046,7 +1059,7 @@ class Terminal:
         takes_key_first: Callable[[], bool] | None = None,
     ) -> None:
         if backend is None:
-            backend = create_backend(command, environment, directory)
+            backend = create_backend(command, environment, directory, holding)
 
         self._copy_func = copy_func
 
