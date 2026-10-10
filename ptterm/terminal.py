@@ -27,7 +27,6 @@ this layer adds to a cell.
 
 from __future__ import annotations
 
-import os
 import time
 from bisect import bisect_right
 from collections.abc import Callable, Iterable
@@ -833,11 +832,11 @@ class _Window(Window):
         super().write_to_screen(*a, **kw)
 
 
-def _in_the_child(
-    before_exec_func: Callable[[], None] | None,
-) -> Callable[[], None]:
+def _environment_of_a_pane(
+    theirs: Callable[[dict[str, str]], None] | None,
+) -> Callable[[dict[str, str]], None]:
     """
-    What runs in the child, between the fork and the exec.
+    What turns this process's environment into the program's.
 
     The program runs on the screen of this widget and not in the
     terminal that the application itself runs in, so the environment
@@ -850,15 +849,19 @@ def _in_the_child(
     something different. pymux does: it has an option for the name.
     """
 
-    def hook() -> None:
-        prepare(os.environ)
-        if before_exec_func is not None:
-            before_exec_func()
+    def edit(environment: dict[str, str]) -> None:
+        prepare(environment)
+        if theirs is not None:
+            theirs(environment)
 
-    return hook
+    return edit
 
 
-def create_backend(command: list[str], before_exec_func: Callable[[], None] | None) -> Backend:
+def create_backend(
+    command: list[str],
+    environment: Callable[[dict[str, str]], None] | None = None,
+    directory: str | None = None,
+) -> Backend:
     if is_windows():
         from ptyhost.backends.win32 import Win32Backend
 
@@ -870,7 +873,8 @@ def create_backend(command: list[str], before_exec_func: Callable[[], None] | No
     # "CSI 16 t" gives it.
     return PosixBackend.from_command(
         command,
-        before_exec_func=_in_the_child(before_exec_func),
+        environment=_environment_of_a_pane(environment),
+        directory=directory,
         cell=(ASSUMED_CELL_WIDTH, ASSUMED_CELL_HEIGHT),
     )
 
@@ -966,9 +970,9 @@ class Terminal:
 
     :param command: List of command line arguments.
         For instance: `['python', '-c', 'print("test")']`
-    :param before_exec_func: Function which is called in the child process,
-        right before calling `exec`. Useful for instance for changing the
-        current working directory or setting environment variables.
+    :param environment: Edits the program's environment, a copy of
+        this process's, when the program starts.
+    :param directory: Where the program starts.
     :param osc_func: Called with the code and the payload of an OSC
         sequence that only the terminal of the user can serve. (The
         clipboard, a notification, the shape of the pointer.)
@@ -1024,7 +1028,8 @@ class Terminal:
     def __init__(
         self,
         command=["/bin/bash"],
-        before_exec_func=None,
+        environment: Callable[[dict[str, str]], None] | None = None,
+        directory: str | None = None,
         backend: Backend | None = None,
         bell_func: Callable[[], None] | None = None,
         style: str = "",
@@ -1041,7 +1046,7 @@ class Terminal:
         takes_key_first: Callable[[], bool] | None = None,
     ) -> None:
         if backend is None:
-            backend = create_backend(command, before_exec_func)
+            backend = create_backend(command, environment, directory)
 
         self._copy_func = copy_func
 

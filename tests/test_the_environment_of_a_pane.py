@@ -25,7 +25,7 @@ from pyte.screen import Screen
 from pyte.streams import Stream
 from pyte.terminfo import TERMINAL_NAME
 
-from ptterm.terminal import _in_the_child, create_backend
+from ptterm.terminal import _environment_of_a_pane, create_backend
 
 #: Wide enough that a store path does not wrap, so a row is one answer.
 COLUMNS = 400
@@ -173,26 +173,28 @@ def test_the_rest_of_the_environment_reaches_the_program(answers):
 # variables that name a terminal, for every test after it.
 
 
-@pytest.fixture
-def an_environment_of_its_own(monkeypatch):
-    monkeypatch.setattr(os, "environ", dict(os.environ))
-
-
-def test_the_hook_of_the_caller_runs_last(an_environment_of_its_own):
+def test_the_hook_of_the_caller_runs_last():
     """
     An embedder can still say something different. pymux does: it has
     an option for the name a pane is given.
     """
-    os.environ["TERM"] = "nothing"
+    environment = {"TERM": "nothing"}
 
-    def theirs() -> None:
-        os.environ["TERM"] = "theirs"
+    def theirs(environment: dict[str, str]) -> None:
+        environment["TERM"] = "theirs"
 
-    _in_the_child(theirs)()
-    assert os.environ["TERM"] == "theirs"
+    _environment_of_a_pane(theirs)(environment)
+    assert environment["TERM"] == "theirs"
 
 
-def test_the_hook_works_without_one_of_their_own(an_environment_of_its_own):
-    os.environ["TERM"] = "nothing"
-    _in_the_child(None)()
-    assert os.environ["TERM"] == terminal_name()
+def test_the_hook_works_without_one_of_their_own():
+    environment = {"TERM": "nothing"}
+    _environment_of_a_pane(None)(environment)
+    assert environment["TERM"] == terminal_name()
+
+
+def test_the_hook_leaves_this_process_alone():
+    "It edits the program's copy. Lillecarl/pymux#553."
+    before = dict(os.environ)
+    _environment_of_a_pane(None)({"TERM": "nothing"})
+    assert dict(os.environ) == before
