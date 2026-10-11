@@ -141,7 +141,6 @@ let
     chmod -R +w .
     export HOME="$TMPDIR"
     export LANG=C.UTF-8
-    export PYTHONDONTWRITEBYTECODE=1
   '';
 
   # A comparison that cannot run proves nothing, so say so loudly instead of
@@ -174,8 +173,14 @@ let
   # pytest's own exit code needs no variable either: a failing run ends the
   # script where it failed, which is what makes the count below mean
   # something -- it is only ever read after a green run.
+  #
+  # Four xdist workers, after one collection that writes the rewritten
+  # test modules to __pycache__. Lillecarl/pymux#579.
   runUnitPytest = ''
-    ${runPytest} --junitxml="$out/report.xml"
+    cores="''${NIX_BUILD_CORES:-0}"
+    if [ "$cores" = 0 ] || [ "$cores" -gt 4 ]; then cores=4; fi
+    ${runPytest} --collect-only > /dev/null || true
+    ${runPytest} -n "$cores" --dist worksteal --junitxml="$out/report.xml"
     skipped="$(awk 'match($0, /skipped="[0-9]+"/) {
       print substr($0, RSTART + 9, RLENGTH - 10); exit
     }' "$out/report.xml")"

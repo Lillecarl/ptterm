@@ -35,6 +35,7 @@ dependencies = [
 # sets.
 test = [
     "pytest",
+    "pytest-xdist",
     "anyio",
     "hypothesis",
 ]
