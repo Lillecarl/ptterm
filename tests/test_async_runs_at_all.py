@@ -16,27 +16,27 @@ tests here passed by hand and failed in the check.
 pytest says so out loud rather than skipping. A coroutine test with no
 plugin to run it fails with "async def functions are not natively
 supported", which is a real failure and not a silent pass. This file is
-here to make that failure say which of the three is missing, and
-because a plain test can read a mark that a coroutine left.
+here to make that failure say which of the three is missing.
+
+The plain test reads the settings and not a mark the coroutine leaves:
+xdist may run the two on different workers.
 """
 
 from __future__ import annotations
 
 import anyio
 
-#: What the coroutine below leaves behind.
-RAN = []
-
 
 async def test_a_coroutine_test_runs():
-    "The mark, left from inside a running event loop."
+    "From inside a running event loop."
     await anyio.sleep(0)
-    RAN.append(anyio.get_current_task().name)
+    assert anyio.get_current_task().name
 
 
-def test_the_coroutine_test_really_ran():
-    "Read the mark. Empty means the test above never got to run."
-    assert RAN, "the coroutine test did not run: is anyio_mode still auto?"
+def test_the_coroutine_tests_have_a_runner(request):
+    "The plugin is loaded, and it takes every coroutine test without a mark."
+    assert request.config.pluginmanager.has_plugin("anyio"), "anyio is not in the test environment"
+    assert request.config.getini("anyio_mode") == "auto", "anyio_mode is not auto: is pyproject.toml in testSources?"
 
 
 async def test_a_task_group_carries_what_a_child_raised():
