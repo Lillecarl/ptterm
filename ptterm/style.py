@@ -29,9 +29,11 @@ from prompt_toolkit.layout.screen import Char
 from prompt_toolkit.token import KeepWhitespace
 from pyte.cells import PLAIN_APPEARANCE, appearance_of
 from pyte.colors import SgrColor
-from pyte.placeholders import PLACEHOLDER
+from pyte.placeholders import PLACEHOLDER, runs_in_line, spelled
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from prompt_toolkit.formatted_text import StyleAndTextTuples
     from pyte.cells import Appearance
     from pyte.runs import Run
@@ -42,6 +44,7 @@ __all__ = (
     "UNDERLINE_WORDS",
     "drawn_as",
     "fragments_of_runs",
+    "placeholder_cells",
     "run_style",
     "style_of",
     "style_word",
@@ -271,7 +274,32 @@ def _drawn_as(char: str, appearance: Appearance, reverse_video: bool, written: b
 drawn_as = lru_cache(maxsize=64 * 1024)(_drawn_as)
 
 
-def fragments_of_runs(runs: list[Run], end: int, reverse_video: bool) -> StyleAndTextTuples:
+def placeholder_cells(row, columns: int, number: int, outer_id: Callable[[int], int]) -> dict[int, tuple[str, str]]:
+    """
+    The image cells of one row as an outer terminal that reads unicode
+    placeholders draws them: by column, the style to add and the text.
+
+    `outer_id` gives the id that terminal knows the image by. It has to
+    fit the 24 bits of a colour. Every cell names its row and column,
+    because the cell that a mark was left out after may be scrolled
+    away. Lillecarl/pymux#600.
+    """
+    cells: dict[int, tuple[str, str]] = {}
+    for run in runs_in_line(row, columns, number):
+        colour = " fg:#%06x" % outer_id(run.image_id)
+        for offset in range(run.columns):
+            text = spelled(run.image_row, run.image_column + offset)
+            if text:
+                cells[run.column + offset] = (colour, text)
+    return cells
+
+
+def fragments_of_runs(
+    runs: list[Run],
+    end: int,
+    reverse_video: bool,
+    images: Callable[[], dict[int, tuple[str, str]]] | None = None,
+) -> StyleAndTextTuples:
     """
     One row built from runs: one fragment per run.
 
@@ -279,10 +307,15 @@ def fragments_of_runs(runs: list[Run], end: int, reverse_video: bool) -> StyleAn
     gap between two runs holds cells nobody wrote, so it draws blanks.
     A blank a program wrote keeps only its trailing column, anywhere
     else the mark changes no attribute.
+
+    `images` gives `placeholder_cells` for the row. With it, a cell of
+    an image keeps its placeholder; without, it draws a space. It is
+    asked only when the row holds one, which most rows do not.
     """
     # What an unwritten column draws: the blank nobody wrote.
     gap = run_style(PLAIN_APPEARANCE, reverse_video, False)
 
+    cells = None
     fragments: StyleAndTextTuples = []
     at = 0
     last = len(runs) - 1
@@ -304,7 +337,14 @@ def fragments_of_runs(runs: list[Run], end: int, reverse_video: bool) -> StyleAn
             # A cell that draws as something else stands on its own
             # run, and is mapped the way one cell at a time always
             # was: a wide character, a control, a cell of an image.
-            fragments.append(drawn_as(run.text, run.appearance, reverse_video, run.written))
+            fragment = drawn_as(run.text, run.appearance, reverse_video, run.written)
+            if images is not None and run.text.startswith(PLACEHOLDER):
+                if cells is None:
+                    cells = images()
+                cell = cells.get(run.start)
+                if cell is not None:
+                    fragment = (fragment[0] + cell[0], cell[1])
+            fragments.append(fragment)
         at = run.end
     if at < end:
         fragments.append((gap, " " * (end - at)))

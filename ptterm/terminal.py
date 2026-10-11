@@ -85,7 +85,7 @@ from pyte.placeholders import PLACEHOLDER
 from pyte.screen import RegionCounts, Screen
 from pyte.streams import GroundTimer, Stream
 
-from .style import fragments_of_runs, style_of, visible_char
+from .style import fragments_of_runs, placeholder_cells, style_of, visible_char
 
 __all__ = ["Machinery", "Program", "Terminal"]
 
@@ -310,6 +310,7 @@ class _TerminalControl(UIControl):
         "unreadable_key_func": Keep.REBUILT,
         "on_content_changed": Keep.REBUILT,
         "on_mouse_focus": Keep.REBUILT,
+        "placeholder_ids": Keep.REBUILT,
         "_ground_timer": Keep.REBUILT,
         "_running": Keep.REBUILT,
         "_drawn": Keep.REBUILT,
@@ -383,6 +384,13 @@ class _TerminalControl(UIControl):
         #: means where this pane sits. None (a standalone widget, or
         #: an embedder with one pane) does nothing.
         self.on_mouse_focus: Callable[[], None] | None = None
+
+        #: The id an outer terminal knows a pane image by, for an
+        #: embedder that passes the image cells on as unicode
+        #: placeholders. It must be one answer for every client, because
+        #: a built row is shared by all of them. None draws a space in
+        #: each image cell. Lillecarl/pymux#600.
+        self.placeholder_ids: Callable[[int], int] | None = None
 
         def has_priority() -> bool:
             # Give priority to the processing of this terminal output, if this
@@ -672,6 +680,8 @@ class _TerminalControl(UIControl):
         # none, which keeps a keystroke as cheap as it was.
         images = self._find_a_shift(data_buffer, written_at, everything_at, cursor_y) if self.keep_rows else None
         del report[:-32]
+        placeholder_ids = self.placeholder_ids
+        columns = self.screen.columns
 
         def build(number: int) -> StyleAndTextTuples:
             row = data_buffer[number]
@@ -690,7 +700,14 @@ class _TerminalControl(UIControl):
             if number == cursor_y:
                 end = max(end, cursor_x + 1)
 
-            return fragments_of_runs(runs, end, reverse_video)
+            if placeholder_ids is None:
+                return fragments_of_runs(runs, end, reverse_video)
+            return fragments_of_runs(
+                runs,
+                end,
+                reverse_video,
+                lambda: placeholder_cells(row, columns, number, placeholder_ids),
+            )
 
         cursor_line: list[StyleAndTextTuples] = []
 
