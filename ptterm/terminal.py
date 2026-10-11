@@ -85,7 +85,7 @@ from pyte.placeholders import PLACEHOLDER
 from pyte.screen import RegionCounts, Screen
 from pyte.streams import GroundTimer, Stream
 
-from .style import fragments_of_runs, style_of
+from .style import fragments_of_runs, style_of, visible_char
 
 __all__ = ["Machinery", "Program", "Terminal"]
 
@@ -258,9 +258,19 @@ def cursor_offset(screen) -> int:
 
     `reported_column` is the same fold that a program reads with DSR, so
     a pane draws the cursor where a program is told it stands.
+
+    **The count is of what the line draws, not of what the cells hold.**
+    A kitty placeholder cell holds U+10EEEE and its diacritics and draws
+    one space (`style.visible_char`). Counting what it holds put a cursor
+    right of an image dozens of places past the edge, and the pane
+    scrolled sideways. Lillecarl/pymux#602.
     """
     row = screen.page.data_buffer[screen.pt_cursor_position.y]
-    return len("".join(row[x].char for x in range(screen.reported_column)))
+    chars = [row[x].char for x in range(screen.reported_column)]
+    text = "".join(chars)
+    if PLACEHOLDER in text:
+        text = "".join(map(visible_char, chars))
+    return len(text)
 
 
 class _Drawn(NamedTuple):

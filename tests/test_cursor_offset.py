@@ -19,6 +19,7 @@ Lillecarl/pymux#62.
 from __future__ import annotations
 
 from pyte import escape
+from pyte.placeholders import PLACEHOLDER
 from pyte.screen import Screen
 from pyte.sequences import csi
 from pyte.streams import Stream
@@ -66,6 +67,17 @@ def test_a_double_width_character_takes_one_place_and_two_columns():
     screen = _screen("你")
     assert screen.pt_cursor_position.x == 2
     assert cursor_offset(screen) == 1
+
+
+def test_an_image_placeholder_takes_one_place():
+    """
+    A kitty placeholder cell holds three code points and draws one
+    space. yazi leaves the cursor right of an image. Lillecarl/pymux#602.
+    """
+    cell = PLACEHOLDER + "̅̅"
+    screen = _screen(cell * 3 + "x", columns=20)
+    assert screen.pt_cursor_position.x == 4
+    assert cursor_offset(screen) == 4
 
 
 def test_a_wait_after_a_double_width_character():
