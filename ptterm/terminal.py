@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import time
 from bisect import bisect_right
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Hashable, Iterable
 from typing import ClassVar, NamedTuple, Protocol
 
 import anyio
@@ -312,6 +312,7 @@ class _TerminalControl(UIControl):
         "_held_too_long": Keep.DROPPED,
         "_held_from": Keep.DROPPED,
         "_shown": Keep.DROPPED,
+        "_shown_count": Keep.DROPPED,
         "_let_go": Keep.DROPPED,
         "_task_group": Keep.REBUILT,
     }
@@ -424,6 +425,7 @@ class _TerminalControl(UIControl):
         self._held_too_long = False
         self._held_from = 0
         self._shown: tuple[UIContent, list[StyleAndTextTuples], int, int] | None = None
+        self._shown_count = 0
         self._let_go: anyio.CancelScope | None = None
 
         #: The `Terminal` this control is the screen of, set by it when
@@ -755,7 +757,46 @@ class _TerminalControl(UIControl):
         if self.keep_rows:
             content.scrolled = (self._report, self._report_seq)
         self._shown = (content, cursor_line, width, height)
+        self._shown_count += 1
         return content
+
+    def content_version(self, width: int, height: int) -> Hashable | None:
+        """
+        What `create_content` draws from, so that a window which sees it
+        unchanged writes the cells it wrote before. Lillecarl/pymux#577.
+
+        A held frame draws only what was shown, so it answers which frame
+        that was. Not that frame's version: keeping it would cost every
+        frame that changes a second `_version`.
+        """
+        if not self.screen or not self.keep_rows:
+            return None
+        shown = self._shown
+        if shown is not None and shown[2:] == (width, height) and self._holds_the_frame():
+            return (self._shown_count,)
+        return self._version(width, height)
+
+    def _version(self, width: int, height: int) -> Hashable:
+        # The screen counts every write to a row, and a page swap or a
+        # reset moves `everything_at`. The cursor moves without a write,
+        # and the scroll report is this control's own count.
+        screen = self.screen
+        page = screen.page
+        return (
+            width,
+            height,
+            screen,
+            page,
+            screen.writes,
+            screen.everything_at,
+            screen.scroll_seq,
+            self._report_seq,
+            screen.pt_cursor_position.y,
+            cursor_offset(screen),
+            page.show_cursor,
+            screen.has_reverse_video,
+            screen.highest_row(),
+        )
 
     def _find_a_shift(self, data_buffer, written_at, everything_at: int, cursor_y: int) -> dict | None:
         """
