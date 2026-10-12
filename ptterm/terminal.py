@@ -1647,6 +1647,48 @@ class Terminal:
         height = info.window_height if info else self.terminal_control.screen.lines
         return max(1, height // 2)
 
+    def shown_rows(self) -> tuple[int, int] | None:
+        """
+        The first and the last row of the page this pane shows, live or
+        in copy mode, as of the last frame. None before one is drawn.
+        """
+        if self.is_copying:
+            info = self.copy_window.render_info
+            if info is None or not info.displayed_lines or not self._copy_lines:
+                return None
+            shown = [self._copy_lines[index] for index in info.displayed_lines if index < len(self._copy_lines)]
+            return (shown[0].first, shown[-1].last) if shown else None
+        info = self.terminal_window.render_info
+        if info is None:
+            return None
+        return info.vertical_scroll, info.vertical_scroll + info.window_height - 1
+
+    def where_shown(self, row: int, column: int) -> tuple[int, int] | None:
+        """
+        The cell of the application's screen, as (y, x), that a cell of
+        the page was drawn at in the last frame, or None when it was not.
+
+        Live, a row of the page is a line of the window. In copy mode a
+        line of the document is a whole line of the page, wrapped again
+        by the window, so the window's own map from text to screen says.
+        """
+        if self.is_copying:
+            info = self.copy_window.render_info
+            lines = self._copy_lines
+            index = bisect_right(lines, row, key=lambda line: line.first) - 1
+            if info is None or index < 0 or row > lines[index].last:
+                return None
+            page = self.terminal_control.screen.page
+            return info._rowcol_to_yx.get((index, page.offset_in_line(lines[index], row, column)))
+        info = self.terminal_window.render_info
+        if info is None:
+            return None
+        y = row - info.vertical_scroll
+        x = column - self.terminal_window.horizontal_scroll
+        if not (0 <= y < info.window_height and 0 <= x < info.window_width):
+            return None
+        return info._y_offset + y, info._x_offset + x
+
     def scroll_copy(self, lines: int) -> None:
         """
         Move the caret of the copy buffer this many lines, up when the
