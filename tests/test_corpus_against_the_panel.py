@@ -15,7 +15,7 @@ where a character landed, and that is most of what a real program
 does: every cursor move, every scroll and every wrap ends as a
 character in a place.
 
-`ptterm-record` makes a capture. A recording belongs to the
+`ptyhost-record` makes a capture. A recording belongs to the
 terminal it was made on, because a program asks what the terminal can
 do and draws what the answers allow.
 """
