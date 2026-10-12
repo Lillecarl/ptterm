@@ -206,6 +206,35 @@ def clicked(
     return "".join(written).encode("utf-8", "surrogateescape")
 
 
+def test_a_click_below_the_written_rows_reaches_the_program_at_its_cell():
+    "Through the window, not the control: the window maps the click. Lillecarl/pymux#654."
+    written = []
+    terminal = Terminal(backend=_NoBackend())
+    control = terminal.terminal_control
+    control.create_content(12, 8)
+    control.process.write_input = written.append
+    control.screen.write_process_input = written.append
+    control.stream.feed(set_mode(PrivateMode.MOUSE_REPORTING) + set_mode(PrivateMode.SGR_MOUSE) + "ready\r\n")
+
+    app = DummyApplication()
+    app.layout = _FocusedLayout(control)
+    screen = Screen(default_char=None, initial_width=12, initial_height=8)
+    handlers = MouseHandlers()
+    with set_app(app):
+        terminal.terminal_window.write_to_screen(
+            screen, handlers, WritePosition(xpos=2, ypos=1, width=12, height=8), "", False, None
+        )
+        handlers.mouse_handlers[1 + 6][2 + 9](
+            MouseEvent(
+                position=Point(x=2 + 9, y=1 + 6),
+                event_type=MouseEventType.MOUSE_DOWN,
+                button=MouseButton.LEFT,
+                modifiers=frozenset(),
+            )
+        )
+    assert "".join(written) == "\x1b[<0;10;7M"
+
+
 # ----------------------------------------------------------------------
 # What the embedder refuses.
 #

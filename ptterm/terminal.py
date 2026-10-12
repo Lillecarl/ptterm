@@ -67,7 +67,7 @@ from prompt_toolkit.layout.processors import (
     Transformation,
 )
 from prompt_toolkit.layout.screen import Point
-from prompt_toolkit.mouse_events import MouseEventType
+from prompt_toolkit.mouse_events import MouseEvent, MouseEventType
 from prompt_toolkit.selection import SelectionType
 from prompt_toolkit.token import KeepWhitespace
 from prompt_toolkit.utils import Event
@@ -1123,6 +1123,38 @@ class _Window(Window):
         self.vertical_scroll = screen.max_y - screen.lines + 1
 
         super().write_to_screen(*a, **kw)
+
+    def _write_to_screen_at_index(self, screen, mouse_handlers, write_position, parent_style, erase_bg) -> None:
+        """
+        A click goes to the control at the cell it was on.
+
+        prompt_toolkit's `Window` maps a click through the lines the
+        content holds and clamps one below them to the last: on a screen
+        with text on its first two rows, every click came to the cursor's
+        row, at the first column. A terminal reports cells, so the cell
+        is the answer. Lillecarl/pymux#654.
+        """
+        super()._write_to_screen_at_index(screen, mouse_handlers, write_position, parent_style, erase_bg)
+        control = self.terminal_control
+        left, top, scroll = write_position.xpos, write_position.ypos, self.vertical_scroll
+
+        def handler(mouse_event: MouseEvent):
+            return control.mouse_handler(
+                MouseEvent(
+                    position=Point(x=mouse_event.position.x - left, y=mouse_event.position.y - top + scroll),
+                    event_type=mouse_event.event_type,
+                    button=mouse_event.button,
+                    modifiers=mouse_event.modifiers,
+                )
+            )
+
+        mouse_handlers.set_mouse_handler_for_range(
+            x_min=left,
+            x_max=left + write_position.width,
+            y_min=top,
+            y_max=top + write_position.height,
+            handler=handler,
+        )
 
 
 def create_backend(
