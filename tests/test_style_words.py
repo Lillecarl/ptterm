@@ -55,6 +55,21 @@ def test_the_default_colour_has_a_word_of_its_own():
     assert style_word(DEFAULT_COLOR) == "#ansidefault"
 
 
+def test_a_cell_after_sgr_49_draws_like_a_cell_with_no_colour():
+    """
+    The word is not written for a cell. The pane's own style is what
+    draws a cell with no colour -- pymux paints it with the theme, and
+    DECSCNM reverses it -- and the terminal's colour asked for by name is
+    that same colour. Lillecarl/pymux#582.
+    """
+    from pyte.cells import PLAIN, appearance_of
+
+    from ptterm.style import style_of
+
+    named = PLAIN._replace(color=DEFAULT_COLOR, bgcolor=DEFAULT_COLOR)
+    assert style_of(appearance_of[named, "", ""]) == style_of(appearance_of[PLAIN, "", ""])
+
+
 def test_every_word_opens_with_a_hash():
     """
     It tells prompt_toolkit to take the colour and not to look it up.

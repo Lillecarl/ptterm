@@ -28,7 +28,7 @@ from typing import TYPE_CHECKING
 from prompt_toolkit.layout.screen import Char
 from prompt_toolkit.token import KeepWhitespace
 from pyte.cells import PLAIN_APPEARANCE, appearance_of
-from pyte.colors import SgrColor
+from pyte.colors import DEFAULT_COLOR, SgrColor
 from pyte.placeholders import PLACEHOLDER, runs_in_line, spelled
 
 if TYPE_CHECKING:
@@ -133,9 +133,14 @@ def _spelled(appearance: Appearance) -> str:
     rendition = appearance.rendition
     style = ""
 
-    if rendition.color:
+    # "SGR 39" and "SGR 49" ask for the terminal's own colour, which is
+    # what a cell with no colour draws. Spelled, it would beat the pane's
+    # background: pymux paints that with its theme, and every cell after
+    # an "SGR 49" showed the terminal's colour in the middle of the theme's.
+    # Lillecarl/pymux#582.
+    if rendition.color and rendition.color != DEFAULT_COLOR:
         style += "%s " % style_word(rendition.color)
-    if rendition.bgcolor:
+    if rendition.bgcolor and rendition.bgcolor != DEFAULT_COLOR:
         style += "bg:%s " % style_word(rendition.bgcolor)
     if rendition.bold:
         style += "bold "
