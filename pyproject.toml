@@ -25,6 +25,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# What the docs site builds with: Sphinx, MyST for the markdown, and
+# the theme. pyterm's `nix/docs/` reads it.
+docs = ["sphinx", "myst-parser", "furo"]
 # What a check installs, beside what ptterm itself needs. anyio carries the
 # pytest plugin that runs a coroutine test, and hypothesis drives the hunt
 # for deviations against kitty.

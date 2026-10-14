@@ -62,6 +62,6 @@ Thanks
 
 - Thanks to `pyte <https://github.com/selectel/pyte>`_: for implementing a
   vt100 emulator.
-- Thanks to `winpty <https://github.com/rprichard/winpty`_: for providing a PTY
+- Thanks to `winpty <https://github.com/rprichard/winpty>`_: for providing a PTY
   like interface for the Windows console.
 - Thank to `yawinpty` for creating a Winpty wrapper.
