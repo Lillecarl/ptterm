@@ -374,12 +374,10 @@ static void answer(const char *line, Buffer *out) {
   }
 
   GhosttyTerminal terminal;
-  GhosttyTerminalOptions options = {
-      .cols = (uint16_t)columns,
-      .rows = (uint16_t)rows,
-      .max_scrollback = HISTORY,
-  };
-  if (ghostty_terminal_new(NULL, &terminal, options) != GHOSTTY_SUCCESS) {
+  size_t max_scrollback = HISTORY;
+  if (ghostty_terminal_new(NULL, &terminal, (uint16_t)columns, (uint16_t)rows) != GHOSTTY_SUCCESS
+      || ghostty_terminal_set(terminal, GHOSTTY_TERMINAL_OPT_SCROLLBACK_MAX_LINES, &max_scrollback)
+          != GHOSTTY_SUCCESS) {
     put(out, "{\"ghostty\":[]}");
     free(data);
     return;
