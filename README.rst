@@ -1,6 +1,14 @@
 ptterm
 ======
 
+.. note::
+
+   This repository is a copy. Work on ptterm happens in
+   `pyterm <https://github.com/Lillecarl/pyterm>`_, which exports its
+   ``ptterm/`` directory here on every push. Send changes there, and issues to
+   `Lillecarl/pymux <https://github.com/Lillecarl/pymux/issues>`_.
+   ``nix build github:Lillecarl/ptterm`` builds it from this repository alone.
+
 *A terminal emulator widget for prompt_toolkit applications*
 
 Features
