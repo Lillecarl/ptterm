@@ -6,7 +6,7 @@
 name = "ptterm"
 version = "0.1"
 description = "Terminal emulator for prompt_toolkit."
-readme = "README.rst"
+readme = "README.md"
 license = "BSD-3-Clause"
 license-files = ["LICENSE"]
 # The floor is 3.14 everywhere but prompt-toolkit.
