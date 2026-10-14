@@ -51,7 +51,7 @@ let
 
         meta = rendered.meta // {
           description = "Terminal emulator for prompt_toolkit";
-          homepage = "https://github.com/prompt-toolkit/ptterm";
+          homepage = "https://github.com/Lillecarl/ptterm";
           license = lib.licenses.bsd3;
         };
       };
