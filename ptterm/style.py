@@ -13,10 +13,9 @@ it, which is the reason it is a file of its own.
 
 The two halves of a cell are here: `style_of` for what it looks like,
 and `visible_char` for what is drawn. `ptterm/terminal.py` calls both
-once per cell of a frame, and `ptterm/preview.py` calls them for a
-drawing of a pane that a person is not working in, so the style answer
-is remembered. A screen makes one appearance per SGR sequence, and a
-frame draws thousands of cells carrying a handful of them.
+once per cell of a frame. A screen makes one appearance per SGR
+sequence, and a frame draws thousands of cells carrying a handful
+of them.
 """
 
 from __future__ import annotations
