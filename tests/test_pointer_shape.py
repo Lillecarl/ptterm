@@ -163,6 +163,7 @@ CASES = [
     [">wait,pointer", "<", "<"],
     ["hand2"],
     ["beam"],
+    ["arrow"],
     ["nonsense"],
     ["pointer", "nonsense"],
     [">wait", "=pointer", "<"],
