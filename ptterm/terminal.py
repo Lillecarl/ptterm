@@ -80,6 +80,7 @@ from pyte.cells import Cell, WrittenCell
 from pyte.environment import preparing
 from pyte.images import ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH
 from pyte.keep import Keep
+from pyte.keys import DEFAULT_KEY_PROFILE, KeyProfile
 from pyte.page import TextLine
 from pyte.placeholders import PLACEHOLDER
 from pyte.screen import RegionCounts, Screen
@@ -310,6 +311,7 @@ class _TerminalControl(UIControl):
         "may_type": Keep.REBUILT,
         "takes_key_first": Keep.REBUILT,
         "unreadable_key_func": Keep.REBUILT,
+        "key_profile_func": Keep.REBUILT,
         "on_content_changed": Keep.REBUILT,
         "on_mouse_focus": Keep.REBUILT,
         "placeholder_ids": Keep.REBUILT,
@@ -360,12 +362,18 @@ class _TerminalControl(UIControl):
         get_history_limit: Callable[[], int] | None = None,
         unreadable_key_func: Callable[[object, int, str], None] | None = None,
         takes_key_first: Callable[[], bool] | None = None,
+        key_profile_func: Callable[[], KeyProfile] | None = None,
     ) -> None:
         # Called for a key this pane reads as something else, or not at
         # all. What a person presses still degrades on the way in, the
         # way a keyboard does; this is how anything finds out.
         # Lillecarl/pymux#238.
         self.unreadable_key_func = unreadable_key_func
+
+        #: Whose answer a legacy program gets where the terminals split,
+        #: asked once per key: the person pressing it may sit at any of
+        #: them. Lillecarl/pymux#706.
+        self.key_profile_func = key_profile_func
 
         #: Whether the person at this keyboard may drive the pane.
         #: Asked once per key, so an embedder that has more than one
@@ -937,6 +945,10 @@ class _TerminalControl(UIControl):
         """
         return self.may_type is None or self.may_type()
 
+    def key_profile(self) -> KeyProfile:
+        "The `KeyProfile` of the person pressing a key now."
+        return DEFAULT_KEY_PROFILE if self.key_profile_func is None else self.key_profile_func()
+
     def get_key_bindings(self) -> KeyBindings:
         bindings = KeyBindings()
 
@@ -966,7 +978,9 @@ class _TerminalControl(UIControl):
                 # alt+char), so that they can be re-encoded for the
                 # keyboard mode of this pane. (The empty-data presses
                 # are the remainders of such split sequences.)
-                self.process.write_input(self.screen.encode_key(key_press.data, report=self.unreadable_key_func))
+                self.process.write_input(
+                    self.screen.encode_key(key_press.data, report=self.unreadable_key_func, profile=self.key_profile())
+                )
             return NotImplemented
 
         @bindings.add(Keys.BracketedPaste)
@@ -1350,6 +1364,7 @@ class Terminal:
         get_history_limit: Callable[[], int] | None = None,
         unreadable_key_func: Callable[[object, int, str], None] | None = None,
         takes_key_first: Callable[[], bool] | None = None,
+        key_profile_func: Callable[[], KeyProfile] | None = None,
     ) -> None:
         if backend is None:
             backend = create_backend(command, environment, directory, holding)
@@ -1367,6 +1382,7 @@ class Terminal:
             get_history_limit=get_history_limit,
             unreadable_key_func=unreadable_key_func,
             takes_key_first=takes_key_first,
+            key_profile_func=key_profile_func,
         )
         # The wheel over a pane whose program wants no mouse enters
         # copy mode, and the control is what the wheel arrives at.

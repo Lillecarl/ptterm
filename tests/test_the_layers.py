@@ -50,6 +50,7 @@ FROM_PYTE = {
     "pyte.environment",
     "pyte.images",
     "pyte.keep",
+    "pyte.keys",
     "pyte.page",
     "pyte.placeholders",
     "pyte.runs",
