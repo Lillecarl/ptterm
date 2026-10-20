@@ -1116,16 +1116,19 @@ arrives, under the comment "emoji presentation variation marker makes
 default text presentation emoji (narrow emoji) into wide emoji". It is
 a choice, and the five judges beside a pane make the other one.
 WezTerm and Ghostty widen as kitty does only under grapheme clustering
-(mode 2027), which nothing turns on here.
+(mode 2027), which nothing turns on here. wcwidth's string width,
+`wcswidth("✳️")`, says 2 as well: the one column is the panel's
+reading, not Unicode's.
 
-**What it costs pymux is not here.** A program that counts the pair as
-two columns -- Node's `string-width`, which Claude Code uses -- draws
-one column past where a pane holds it, and kitty, drawing pymux's
-output, widens the glyph over the next cell. That is the renderer
-meeting one outer terminal, and Lillecarl/pymux#539 holds it.
+**pymux draws it for the terminal in front of it.** At attach it writes
+`✳️` to the client's terminal and asks where the cursor went. A
+terminal that widened it is sent the character without the selector
+(`pyte.cells.without_widening_selectors`), so it draws the one column
+the pane holds instead of drawing over the next cell. Lillecarl/pymux#539.
 
 **As a setting:** not yet. Mode 2027 is the protocol for a program to
 ask for the wide reading, and a pane does not have it.
+Lillecarl/pymux#709.
 
 ## What vttest tests and no judge implements
 
