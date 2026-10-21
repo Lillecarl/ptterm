@@ -45,6 +45,7 @@ from prompt_toolkit.layout.containers import (
     DynamicContainer,
     HSplit,
     Window,
+    WindowRenderInfo,
 )
 from prompt_toolkit.layout.controls import (
     UIContent,
@@ -1098,11 +1099,19 @@ class _TerminalControl(UIControl):
         return not self.process.suspended
 
 
+class _DrawnAt(NamedTuple):
+    info: WindowRenderInfo
+    horizontal_scroll: int
+
+
 class _Window(Window):
     """ """
 
     def __init__(self, terminal_control: _TerminalControl, **kw) -> None:
         self.terminal_control = terminal_control
+        # pymux puts this one window in the layout of every client, so
+        # `render_info` is whichever drew last. Lillecarl/pymux#713.
+        self.drawn_at: PerApplication[_DrawnAt] = PerApplication()
         kw.setdefault("style", self._pane_style)
         # A pane owns every cell of its rectangle: a program left the
         # ones it never wrote at the default background, and the
@@ -1153,6 +1162,10 @@ class _Window(Window):
         is the answer. Lillecarl/pymux#654.
         """
         super()._write_to_screen_at_index(screen, mouse_handlers, write_position, parent_style, erase_bg)
+        if write_position.width > 0 and write_position.height > 0 and self.render_info is not None:
+            self.drawn_at.set(_DrawnAt(self.render_info, self.horizontal_scroll))
+        else:
+            self.drawn_at.pop()
         control = self.terminal_control
         left, top, scroll = write_position.xpos, write_position.ypos, self.vertical_scroll
 
@@ -1399,9 +1412,10 @@ class Terminal:
         view = self.copy_views.get()
         if view is not None:
             return view.shown_rows()
-        info = self.terminal_window.render_info
-        if info is None:
+        drawn = self.terminal_window.drawn_at.get()
+        if drawn is None:
             return None
+        info = drawn.info
         return info.vertical_scroll, info.vertical_scroll + info.window_height - 1
 
     def where_shown(self, row: int, column: int) -> tuple[int, int] | None:
@@ -1415,11 +1429,12 @@ class Terminal:
         view = self.copy_views.get()
         if view is not None:
             return view.where_shown(row, column)
-        info = self.terminal_window.render_info
-        if info is None:
+        drawn = self.terminal_window.drawn_at.get()
+        if drawn is None:
             return None
+        info = drawn.info
         y = row - info.vertical_scroll
-        x = column - self.terminal_window.horizontal_scroll
+        x = column - drawn.horizontal_scroll
         if not (0 <= y < info.window_height and 0 <= x < info.window_width):
             return None
         return info._y_offset + y, info._x_offset + x
