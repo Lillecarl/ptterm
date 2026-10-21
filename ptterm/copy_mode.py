@@ -408,7 +408,10 @@ class CopyView:
         page = Page()
         rows = page.data_buffer
         rows.update(live)
-        for number in range(screen.line_offset, screen.line_offset + screen.lines):
+        # Every row from the top of the screen down, and not the screen's
+        # height of them: a row a shorter screen left below it is still
+        # one the program may write again.
+        for number in range(screen.line_offset, max(live, default=-1) + 1):
             row = live.get(number)
             if row is not None:
                 kept = type(row)()

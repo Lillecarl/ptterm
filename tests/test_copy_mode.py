@@ -23,6 +23,9 @@ pane. The window wraps it again for the eye. Lillecarl/pymux#135.
 
 from __future__ import annotations
 
+import gc
+import weakref
+
 import pytest
 from no_backend import NoBackend
 from prompt_toolkit.application.current import set_app
@@ -753,3 +756,27 @@ def test_a_row_of_the_screen_is_copied_and_not_shared():
     assert frozen[history] is live[history]
     assert frozen[screen.line_offset] is not live[screen.line_offset]
     assert dict(frozen[screen.line_offset]) == dict(live[screen.line_offset])
+
+
+async def test_an_application_that_goes_takes_its_copy_mode_with_it():
+    """
+    A client that detaches in copy mode leaves no copy of the history
+    behind. The views are keyed weakly by the application, which only
+    works while nothing in a view holds the application itself.
+    """
+    terminal = a_terminal("".join("row %d\r\n" % number for number in range(20)))
+    app = _an_application(terminal)
+    with set_app(app):
+        terminal.enter_copy_mode()
+    view_gone = weakref.ref(terminal.copy_views.of(app))
+    app_gone = weakref.ref(app)
+
+    del app
+    gc.collect()
+    assert app_gone() is None
+    # The view is a cycle of its own, and it is free only once the
+    # collection that freed the application has dropped its entry.
+    gc.collect()
+
+    assert view_gone() is None
+    assert [application for application, _ in terminal.copy_views.items() if application is not None] == []
