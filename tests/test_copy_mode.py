@@ -780,3 +780,70 @@ async def test_an_application_that_goes_takes_its_copy_mode_with_it():
 
     assert view_gone() is None
     assert [application for application, _ in terminal.copy_views.items() if application is not None] == []
+
+
+def _refresh_after(terminal, app, written: str, vi=False) -> None:
+    "The program writes under copy mode, and then the person presses `r`."
+    terminal.terminal_control.stream.feed(written)
+    with set_app(app):
+        if vi:
+            app.vi_state.input_mode = InputMode.NAVIGATION
+        app.key_processor.feed(KeyPress("r", "r"))
+        app.key_processor.process_keys()
+
+
+@pytest.mark.parametrize("vi", [False, True])
+async def test_r_takes_a_new_copy_with_the_caret_on_its_line(vi):
+    "tmux's `refresh-from-pane`, which both of its tables bind to `r`."
+    terminal = Terminal(backend=NoBackend())
+    terminal.terminal_control.create_content(COLUMNS, LINES)
+    terminal.terminal_control.stream.feed("".join("row %d\r\n" % number for number in range(10)))
+    app = _an_application(terminal)
+    if vi:
+        app.editing_mode = EditingMode.VI
+    with set_app(app):
+        view = terminal.enter_copy_mode()
+    document = view.buffer.document
+    view.buffer.cursor_position = document.translate_row_col_to_index(3, 2)
+
+    _refresh_after(terminal, app, "".join("more %d\r\n" % number for number in range(10)), vi=vi)
+
+    assert terminal.copy_views.of(app) is view
+    assert "more 9" in view.buffer.text
+    assert view.buffer.document.current_line == "row 3"
+    assert view.buffer.document.cursor_position_col == 2
+
+
+async def test_r_drops_the_selection():
+    "Its positions name the old copy, and the new one holds other text there."
+    terminal = Terminal(backend=NoBackend())
+    terminal.terminal_control.create_content(COLUMNS, LINES)
+    terminal.terminal_control.stream.feed("first\r\nsecond")
+    app = _an_application(terminal)
+    with set_app(app):
+        view = terminal.enter_copy_mode()
+    view.buffer.cursor_position = 0
+    view.buffer.start_selection()
+
+    _refresh_after(terminal, app, "\r\nthird")
+
+    assert view.buffer.selection_state is None
+    assert view.buffer.text.endswith("third")
+
+
+async def test_r_on_a_line_the_history_dropped_goes_to_the_first_line():
+    terminal = Terminal(backend=NoBackend())
+    control = terminal.terminal_control
+    control.create_content(COLUMNS, LINES)
+    control.screen.get_history_limit = lambda: 4
+    control.stream.feed("".join("row %d\r\n" % number for number in range(8)))
+    app = _an_application(terminal)
+    with set_app(app):
+        view = terminal.enter_copy_mode()
+    view.buffer.cursor_position = 0
+
+    # The screen trims its history once in a hundred lines.
+    _refresh_after(terminal, app, "".join("more %d\r\n" % number for number in range(120)))
+
+    assert view.buffer.document.cursor_position_row == 0
+    assert "row 0" not in view.buffer.text

@@ -54,9 +54,9 @@ class CopyView:
     """
     One person's copy mode over one terminal.
 
-    It opens on a copy of the buffer, and the copy never changes. The
-    program writes on under it, and a person who wants the new output
-    leaves and comes back.
+    It opens on a copy of the buffer, and the copy changes only when
+    the person asks: the program writes on under it, and `refresh`
+    takes a new copy.
     """
 
     def __init__(self, terminal: Terminal) -> None:
@@ -161,6 +161,11 @@ class CopyView:
             prompt_toolkit binds `C-Space` to the selection already.
             """
             scroll_page_down(event)
+
+        @kb.add("r")
+        def _refresh(event):
+            "tmux's `refresh-from-pane`, on the key both its tables give it."
+            self.refresh()
 
         @kb.add("enter", filter=has_selection)
         @kb.add("y", filter=has_selection & vi_mode)
@@ -436,6 +441,33 @@ class CopyView:
 
         self.lines = lines
         self._styled_lines = {}
+
+    def refresh(self) -> None:
+        """
+        Take a new copy of the buffer, and keep the caret where it was.
+
+        A row keeps its number while the program writes, so the caret
+        goes back to the line that starts at the same row, at the same
+        offset. A line the history limit dropped puts it on the first
+        line. A selection does not survive, because its positions name
+        the old document. tmux keeps the distance from the top of the
+        history (`window_copy_cmd_refresh_from_pane`), which is the
+        same place until the limit drops a row.
+        """
+        document = self.buffer.document
+        index = document.cursor_position_row
+        offset = document.cursor_position_col
+        first = self.lines[index].first if index < len(self.lines) else None
+
+        self.buffer.exit_selection()
+        self.freeze()
+
+        lines = self.lines
+        if first is None or not lines:
+            return
+        number = max(0, bisect_right(lines, first, key=lambda line: line.first) - 1)
+        offset = min(offset, len(lines[number].text))
+        self.buffer.cursor_position = self.buffer.document.translate_row_col_to_index(number, offset)
 
     def _where_the_pane_is(self, lines: list[TextLine], text: str) -> int:
         """
