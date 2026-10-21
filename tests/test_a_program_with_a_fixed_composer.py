@@ -59,14 +59,13 @@ def _a_terminal(data: str) -> Terminal:
     control = terminal.terminal_control
     control.create_content(COLUMNS, LINES)
     control.stream.feed(data)
-    terminal.copy_reverse_video = control.screen.has_reverse_video
-    terminal.read_the_screen_into_the_copy_buffer()
+    terminal.enter_copy_mode()
     return terminal
 
 
 def test_copy_mode_holds_every_message():
     terminal = _a_terminal(_what_a_composer_draws())
-    lines = terminal.copy_buffer.document.text.splitlines()
+    lines = terminal.copy_view.buffer.document.text.splitlines()
 
     for number in range(MESSAGES):
         assert "message %d" % number in lines

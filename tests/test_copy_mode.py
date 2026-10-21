@@ -55,8 +55,7 @@ def a_terminal(data: str, copy_func=None) -> Terminal:
     control = terminal.terminal_control
     control.create_content(COLUMNS, LINES)
     control.stream.feed(data)
-    terminal.copy_reverse_video = control.screen.has_reverse_video
-    terminal.read_the_screen_into_the_copy_buffer()
+    terminal.enter_copy_mode()
     return terminal
 
 
@@ -79,7 +78,7 @@ def every_line_the_eager_way(terminal):
             if row:
                 for column in range(max(row) + 1):
                     char = row[column]
-                    lines[-1].append(terminal._copy_cell(char))
+                    lines[-1].append(terminal.copy_view.cell(char))
     return lines
 
 
@@ -100,14 +99,14 @@ CHUNKS = [
 def test_every_line_is_what_the_eager_build_said(upto):
     terminal = a_terminal("".join(CHUNKS[:upto]))
     eager = every_line_the_eager_way(terminal)
-    lazy = [terminal.styled_line(number) for number in range(len(eager))]
+    lazy = [terminal.copy_view.styled_line(number) for number in range(len(eager))]
     assert lazy == eager
 
 
 def test_the_document_has_one_line_for_each_line_of_the_buffer():
     terminal = a_terminal("".join(CHUNKS))
     eager = every_line_the_eager_way(terminal)
-    assert terminal.copy_buffer.document.text.count("\n") + 1 == len(eager)
+    assert terminal.copy_view.buffer.document.text.count("\n") + 1 == len(eager)
 
 
 def test_a_line_the_pane_wrapped_is_one_line_of_the_document():
@@ -117,20 +116,20 @@ def test_a_line_the_pane_wrapped_is_one_line_of_the_document():
     """
     text = "a line that is longer than the pane is wide"
     terminal = a_terminal(text)
-    assert terminal.copy_buffer.document.text.rstrip() == text
+    assert terminal.copy_view.buffer.document.text.rstrip() == text
 
 
 def test_a_line_is_built_once():
     "The point of the whole thing: the second ask does no work."
     terminal = a_terminal("first\r\nsecond")
-    once = terminal.styled_line(0)
-    assert terminal.styled_line(0) is once
+    once = terminal.copy_view.styled_line(0)
+    assert terminal.copy_view.styled_line(0) is once
 
 
 def test_a_line_that_is_not_there_is_empty():
     "prompt_toolkit asks for the rows of the window, and a window is bigger."
     terminal = a_terminal("one line")
-    assert terminal.styled_line(1000) == []
+    assert terminal.copy_view.styled_line(1000) == []
 
 
 def test_copy_mode_on_the_alternate_screen_shows_the_screen():
@@ -147,7 +146,7 @@ def test_copy_mode_on_the_alternate_screen_shows_the_screen():
     terminal = a_terminal(
         set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR) + "".join("row %d\r\n" % number for number in range(60))
     )
-    document = terminal.copy_buffer.document
+    document = terminal.copy_view.buffer.document
 
     # Six rows of screen, and the last one holds nothing yet.
     assert document.line_count <= LINES
@@ -174,9 +173,9 @@ def test_copy_mode_and_the_pane_agree_after_a_narrowing():
 
     # The resize a person makes by dragging the edge of the window.
     control.create_content(COLUMNS, LINES)
-    terminal.read_the_screen_into_the_copy_buffer()
+    terminal.enter_copy_mode()
 
-    document = terminal.copy_buffer.document
+    document = terminal.copy_view.buffer.document
     screen = control.screen
 
     assert document.line_count <= LINES, document.lines
@@ -192,9 +191,9 @@ def test_copy_mode_and_the_pane_agree_after_a_narrowing():
 # Where copy mode opens. Lillecarl/pymux#189.
 
 
-def _cursor(terminal):
+def _cursor(view):
     "The row and the column the copy cursor opened on."
-    document = terminal.copy_buffer.document
+    document = view.buffer.document
     return document.cursor_position_row, document.cursor_position_col
 
 
@@ -211,14 +210,14 @@ def test_copy_mode_opens_where_the_pane_cursor_is():
         set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR) + "one\r\ntwo\r\nthree" + csi(escape.CUP, 2, 2)
     )
 
-    assert _cursor(terminal) == (1, 1)
+    assert _cursor(terminal.copy_view) == (1, 1)
 
 
 def test_the_cursor_of_a_shell_is_still_at_the_end():
     "Which is where it always was, because that is where a shell is."
     terminal = a_terminal("one\r\ntwo\r\nthree")
 
-    row, column = _cursor(terminal)
+    row, column = _cursor(terminal.copy_view)
     assert (row, column) == (2, 5)
 
 
@@ -229,11 +228,11 @@ def test_the_position_counts_lines_of_the_history():
     """
     terminal = a_terminal("\r\n".join("line %d" % number for number in range(60)))
 
-    assert terminal._copy_position_formatted_text() == "[60/60]"
-    terminal.scroll_copy(-10)
-    assert terminal._copy_position_formatted_text() == "[50/60]"
-    terminal.scroll_copy(-1000)
-    assert terminal._copy_position_formatted_text() == "[1/60]"
+    assert terminal.copy_view._position_formatted_text() == "[60/60]"
+    terminal.copy_view.scroll(-10)
+    assert terminal.copy_view._position_formatted_text() == "[50/60]"
+    terminal.copy_view.scroll(-1000)
+    assert terminal.copy_view._position_formatted_text() == "[1/60]"
 
 
 def test_a_cursor_on_a_row_a_wrap_made():
@@ -245,7 +244,7 @@ def test_a_cursor_on_a_row_a_wrap_made():
     text = "a line that is longer than the pane is wide"
     terminal = a_terminal(text)
 
-    document = terminal.copy_buffer.document
+    document = terminal.copy_view.buffer.document
     assert document.line_count == 1
     assert document.cursor_position == len(text)
 
@@ -254,7 +253,7 @@ def test_a_cursor_past_the_end_of_its_row():
     "It stands where the next character goes, which is past the cells."
     terminal = a_terminal("one\r\ntwo" + csi(escape.CUP, 1, 10))
 
-    assert _cursor(terminal) == (0, 3)
+    assert _cursor(terminal.copy_view) == (0, 3)
 
 
 async def press(terminal, *keys, vi=False):
@@ -293,8 +292,8 @@ async def press(terminal, *keys, vi=False):
 async def test_a_key_that_leaves_copy_mode(key):
     "tmux leaves copy mode on all of these, and pymux left on one."
     terminal = a_terminal("first\r\nsecond")
-    await press(terminal, key)
-    assert not terminal.is_copying
+    app = await press(terminal, key)
+    assert terminal.copy_views.of(app) is None
 
 
 async def test_escape_leaves_copy_mode():
@@ -314,14 +313,14 @@ async def test_escape_leaves_copy_mode():
         app.key_processor.feed(_Flush)
         app.key_processor.process_keys()
 
-    assert not terminal.is_copying
+    assert terminal.copy_views.of(app) is None
 
 
 async def test_v_swaps_what_a_selection_selects():
     terminal = a_terminal("first\r\nsecond")
-    await press(terminal, Keys.ControlSpace, "v")
-    assert terminal.copy_buffer.selection_state.type == SelectionType.LINES
-    assert terminal.is_copying
+    app = await press(terminal, Keys.ControlSpace, "v")
+    assert terminal.copy_views.of(app).buffer.selection_state.type == SelectionType.LINES
+    assert terminal.copy_views.of(app) is not None
 
 
 # ----------------------------------------------------------------------
@@ -362,7 +361,7 @@ async def test_enter_leaves_copy_mode_with_the_copy_made(vi, copied):
         Keys.ControlM,
         vi=vi,
     )
-    assert not terminal.is_copying
+    assert terminal.copy_views.of(app) is None
     assert app.clipboard.get_data().text == copied
 
 
@@ -374,7 +373,7 @@ async def test_y_copies_and_leaves_with_vi_keys():
     terminal = a_terminal("hello world")
     app = await press(terminal, "0", "v", "l", "y", vi=True)
     assert app.clipboard.get_data().text == "he"
-    assert not terminal.is_copying
+    assert terminal.copy_views.of(app) is None
 
 
 @pytest.mark.parametrize(
@@ -400,7 +399,7 @@ async def test_y_with_no_selection_is_still_the_vi_operator():
     terminal = a_terminal("hello world")
     app = await press(terminal, "y", "y", vi=True)
     assert app.clipboard.get_data().text == "hello world"
-    assert terminal.is_copying
+    assert terminal.copy_views.of(app) is not None
 
 
 async def test_the_copy_is_handed_to_the_embedder():
@@ -411,7 +410,7 @@ async def test_the_copy_is_handed_to_the_embedder():
     """
     copied = []
     terminal = a_terminal("hello world", copy_func=copied.append)
-    await press(terminal, "0", "v", "l", "y", vi=True)
+    app = await press(terminal, "0", "v", "l", "y", vi=True)
 
     assert copied == ["he"]
 
@@ -419,7 +418,7 @@ async def test_the_copy_is_handed_to_the_embedder():
 async def test_nothing_is_handed_over_when_the_selection_is_empty():
     copied = []
     terminal = a_terminal("hello world", copy_func=copied.append)
-    await press(terminal, "0", " ", Keys.ControlM)
+    app = await press(terminal, "0", " ", Keys.ControlM)
 
     assert copied == []
 
@@ -430,7 +429,7 @@ async def test_the_two_copy_keys_of_emacs(keys):
     terminal = a_terminal("hello world")
     app = await press(terminal, Keys.ControlA, Keys.ControlSpace, Keys.Right, *keys)
     assert app.clipboard.get_data().text == "h"
-    assert not terminal.is_copying
+    assert terminal.copy_views.of(app) is None
 
 
 # ----------------------------------------------------------------------
@@ -445,7 +444,7 @@ def _render(terminal, rows=LINES):
     fact about the window on the screen, and a window that was never
     drawn has none.
     """
-    terminal.copy_window.write_to_screen(
+    terminal.copy_view.window.write_to_screen(
         PtScreen(),
         MouseHandlers(),
         WritePosition(xpos=0, ypos=0, width=COLUMNS, height=rows),
@@ -466,36 +465,36 @@ async def test_space_pages_down_with_emacs_keys():
     app.layout = Layout(terminal.container)
     with set_app(app):
         terminal.enter_copy_mode()
-        terminal.copy_buffer.cursor_position = 0
+        terminal.copy_views.of(app).buffer.cursor_position = 0
         _render(terminal)
         app.key_processor.feed(KeyPress(" ", " "))
         app.key_processor.process_keys()
 
-    assert terminal.copy_buffer.document.cursor_position_row >= LINES - 1
-    assert terminal.copy_buffer.selection_state is None
-    assert terminal.is_copying
+    assert terminal.copy_views.of(app).buffer.document.cursor_position_row >= LINES - 1
+    assert terminal.copy_views.of(app).buffer.selection_state is None
+    assert terminal.copy_views.of(app) is not None
 
 
 async def test_space_starts_a_selection_with_vi_keys():
     "Which is what tmux binds there, and what both tables did."
     terminal = a_terminal("hello world")
-    await press(terminal, "0", " ", "l", vi=True)
-    assert terminal.copy_buffer.selection_state is not None
+    app = await press(terminal, "0", " ", "l", vi=True)
+    assert terminal.copy_views.of(app).buffer.selection_state is not None
 
 
 async def test_control_space_starts_a_selection_with_emacs_keys():
     "prompt_toolkit binds it, and tmux binds the same key."
     terminal = a_terminal("hello world")
     app = await press(terminal, Keys.ControlA, Keys.ControlSpace, Keys.Right)
-    assert terminal.copy_buffer.selection_state is not None
+    assert terminal.copy_views.of(app).buffer.selection_state is not None
     assert app.clipboard.get_data().text == ""
 
 
 async def test_v_is_vis_own_key_with_vi_keys():
     "It ends the selection, the way vi does. `V` selects lines."
     terminal = a_terminal("hello world")
-    await press(terminal, "0", "v", "l", "v", vi=True)
-    assert terminal.copy_buffer.selection_state is None
+    app = await press(terminal, "0", "v", "l", "v", vi=True)
+    assert terminal.copy_views.of(app).buffer.selection_state is None
 
 
 # ----------------------------------------------------------------------
@@ -510,8 +509,8 @@ async def test_the_caret_does_not_stand_on_the_line_break():
     mode keys, the last character of the row.
     """
     terminal = a_terminal("hello world\r\nsecond")
-    await press(terminal, "g", "g", "0", "$", vi=True)
-    assert terminal.copy_buffer.document.cursor_position == len("hello world") - 1
+    app = await press(terminal, "g", "g", "0", "$", vi=True)
+    assert terminal.copy_views.of(app).buffer.document.cursor_position == len("hello world") - 1
 
 
 async def test_a_selection_to_the_end_of_a_line_leaves_the_break_behind():
@@ -524,23 +523,23 @@ async def test_a_selection_to_the_end_of_a_line_leaves_the_break_behind():
 async def test_the_caret_stops_at_the_last_character_of_the_last_line():
     "There is no break under it, and a selected cell was drawn there."
     terminal = a_terminal("hello world")
-    await press(terminal, "0", "$", vi=True)
-    assert terminal.copy_buffer.document.cursor_position == len("hello world") - 1
+    app = await press(terminal, "0", "$", vi=True)
+    assert terminal.copy_views.of(app).buffer.document.cursor_position == len("hello world") - 1
 
 
 async def test_an_empty_line_holds_the_caret_at_its_start():
     "There is nowhere else to stand, and the line before is not it."
     terminal = a_terminal("one\r\n\r\nthree")
-    await press(terminal, "g", "g", "j", "$", vi=True)
-    assert terminal.copy_buffer.document.cursor_position_row == 1
-    assert terminal.copy_buffer.document.cursor_position_col == 0
+    app = await press(terminal, "g", "g", "j", "$", vi=True)
+    assert terminal.copy_views.of(app).buffer.document.cursor_position_row == 1
+    assert terminal.copy_views.of(app).buffer.document.cursor_position_col == 0
 
 
 async def test_emacs_keys_keep_the_caret_past_the_last_character():
     "tmux clamps for vi mode keys alone, and this is the other half."
     terminal = a_terminal("hello world\r\nsecond")
-    await press(terminal, Keys.ControlP, Keys.ControlE)
-    assert terminal.copy_buffer.document.cursor_position == len("hello world")
+    app = await press(terminal, Keys.ControlP, Keys.ControlE)
+    assert terminal.copy_views.of(app).buffer.document.cursor_position == len("hello world")
 
 
 async def test_copy_mode_opens_where_the_pane_is_with_vi_keys():
@@ -550,14 +549,14 @@ async def test_copy_mode_opens_where_the_pane_is_with_vi_keys():
     Lillecarl/pymux#189.
     """
     terminal = a_terminal("one\r\ntwo\r\nthree")
-    await press(terminal, vi=True)
-    assert _cursor(terminal) == (2, 5)
+    app = await press(terminal, vi=True)
+    assert _cursor(terminal.copy_views.of(app)) == (2, 5)
 
 
 async def test_leaving_copy_mode_forgets_what_was_styled():
     """
-    The program runs again, so a line that was styled says what the
-    screen held before it did.
+    The view goes, and what it styled goes with it: the next copy mode
+    copies the buffer again, as it stands then.
 
     The caller has to be a coroutine: the copy buffer starts a
     background task, and prompt_toolkit reads the running loop for it.
@@ -570,12 +569,11 @@ async def test_leaving_copy_mode_forgets_what_was_styled():
     app = DummyApplication()
     app.layout = Layout(terminal.container)
     with set_app(app):
-        terminal.enter_copy_mode()
-        assert terminal.styled_line(0)
-        assert terminal._styled_lines
+        view = terminal.enter_copy_mode()
+        assert view.styled_line(0)
         terminal.exit_copy_mode()
 
-    assert not terminal._styled_lines
+    assert terminal.copy_views.of(app) is None
 
 
 # ----------------------------------------------------------------------
@@ -598,28 +596,29 @@ def a_wheel(control, kind):
 
 def test_the_wheel_moves_the_caret_and_the_bottom_leaves():
     """
-    Wheel up in copy mode moves the caret up, wheel down brings it
-    back, and the wheel down that finds the caret at the bottom leaves
-    copy mode: the live screen is where the program stands, and the
-    way back to it is the same wheel.
+    Wheel up in copy mode moves the caret up, and the wheel down that
+    brings it back to the bottom leaves copy mode: the live screen is
+    where the program stands, and the way back to it is the same wheel.
+    So does a wheel down that finds the caret at the bottom already.
     """
     terminal = a_terminal("\r\n".join("row %d" % n for n in range(40)))
     app = DummyApplication()
     app.layout = Layout(terminal.container)
 
     with set_app(app):
-        terminal.enter_copy_mode()
-        control = terminal.copy_buffer_control
-        bottom = terminal.copy_buffer.cursor_position
+        view = terminal.enter_copy_mode()
+        bottom = view.buffer.cursor_position
 
-        a_wheel(control, MouseEventType.SCROLL_UP)
-        assert terminal.copy_buffer.cursor_position < bottom
+        a_wheel(view.control, MouseEventType.SCROLL_UP)
+        assert view.buffer.cursor_position < bottom
 
-        a_wheel(control, MouseEventType.SCROLL_DOWN)
-        assert terminal.copy_buffer.cursor_position == bottom
+        a_wheel(view.control, MouseEventType.SCROLL_DOWN)
+        assert view.buffer.cursor_position == bottom
+        assert terminal.copy_views.of(app) is None
 
-        a_wheel(control, MouseEventType.SCROLL_DOWN)
-        assert not terminal.is_copying
+        view = terminal.enter_copy_mode()
+        a_wheel(view.control, MouseEventType.SCROLL_DOWN)
+        assert terminal.copy_views.of(app) is None
 
 
 # ----------------------------------------------------------------------
@@ -636,10 +635,10 @@ def test_a_placeholder_cell_draws_a_blank_and_copies_itself():
     """
     terminal = a_terminal("AB" + PLACEHOLDER + chr(0x0305) + "CD")
 
-    style, text = terminal.styled_line(0)[2]
+    style, text = terminal.copy_view.styled_line(0)[2]
     assert text == " " + chr(0x0305)
     assert "underline" in style
-    assert PLACEHOLDER + chr(0x0305) in terminal.copy_buffer.document.text
+    assert PLACEHOLDER + chr(0x0305) in terminal.copy_view.buffer.document.text
 
 
 def test_a_displayed_line_holds_as_many_characters_as_its_document():
@@ -651,9 +650,9 @@ def test_a_displayed_line_holds_as_many_characters_as_its_document():
     """
     terminal = a_terminal("AB" + PLACEHOLDER + chr(0x0305) + chr(0x030D) + "CD")
 
-    document = terminal.copy_buffer.document
+    document = terminal.copy_view.buffer.document
     for number, line in enumerate(document.lines):
-        displayed = sum(len(text) for _, text in terminal.styled_line(number))
+        displayed = sum(len(text) for _, text in terminal.copy_view.styled_line(number))
         assert displayed == len(line)
 
 
@@ -665,8 +664,8 @@ def test_a_non_breaking_space_is_copied_itself():
     """
     terminal = a_terminal("a\xa0b")
 
-    assert terminal.styled_line(0)[1][1] == "\xa0"
-    assert "a\xa0b" in terminal.copy_buffer.document.text
+    assert terminal.copy_view.styled_line(0)[1][1] == "\xa0"
+    assert "a\xa0b" in terminal.copy_view.buffer.document.text
 
 
 def test_a_control_character_is_copied_as_it_stands():
@@ -678,7 +677,79 @@ def test_a_control_character_is_copied_as_it_stands():
     terminal = a_terminal("ab")
     buffer = terminal.terminal_control.screen.page.data_buffer
     buffer[0][1] = WrittenCell("\x01", buffer[0][0].appearance)
-    terminal.read_the_screen_into_the_copy_buffer()
+    terminal.copy_view.freeze()
 
-    assert terminal.styled_line(0)[1] == ("", "\x01")
-    assert "\x01" in terminal.copy_buffer.document.text
+    assert terminal.copy_view.styled_line(0)[1] == ("", "\x01")
+    assert "\x01" in terminal.copy_view.buffer.document.text
+
+
+# ----------------------------------------------------------------------
+# A copy mode for each application. Lillecarl/pymux#470.
+
+
+def _an_application(terminal):
+    app = DummyApplication()
+    app.layout = Layout(terminal.container)
+    return app
+
+
+async def test_one_application_reads_the_history_and_another_watches():
+    """
+    pymux puts one pane in the layout of every client, and each client
+    is an application. Copy mode is the one who opened it's, so the
+    other still has the screen and the keyboard of the pane.
+    """
+    terminal = Terminal(backend=NoBackend())
+    terminal.terminal_control.create_content(COLUMNS, LINES)
+    reading, watching = _an_application(terminal), _an_application(terminal)
+
+    with set_app(reading):
+        terminal.enter_copy_mode()
+        shown = reading.layout.current_window
+
+    assert shown is terminal.copy_views.of(reading).window
+    assert terminal.copy_views.of(watching) is None
+    with set_app(watching):
+        assert terminal.is_copying is False
+        assert terminal.terminal_window in watching.layout.find_all_windows()
+        assert terminal.copy_views.of(reading).window not in watching.layout.find_all_windows()
+
+
+async def test_the_program_writes_on_under_copy_mode():
+    """
+    Copy mode reads a copy, so the program is not stopped for it: what
+    it writes reaches the screen, and the history a person is reading
+    stays as it was when they opened it. tmux clones the pane's screen
+    the same way (`window_copy_init`).
+    """
+    terminal = a_terminal("first\r\nsecond")
+    control = terminal.terminal_control
+    view = terminal.copy_view
+    styled = view.styled_line(1)
+
+    assert not control.process.suspended
+    control.stream.feed("\rSECOND\r\n" + "".join("more %d\r\n" % number for number in range(LINES)))
+
+    assert view.buffer.document.text.splitlines()[:2] == ["first", "second"]
+    assert view.styled_line(1) is styled
+    assert "".join(text for _, text in styled) == "second"
+    assert any(
+        "more" in "".join(cell.char for cell in row.values()) for row in control.screen.page.data_buffer.values()
+    )
+
+
+def test_a_row_of_the_screen_is_copied_and_not_shared():
+    """
+    The program writes into a row of the screen in place, so the copy
+    holds a row of its own for each of those. A row of the history it
+    never writes again, so that one is shared.
+    """
+    terminal = a_terminal("".join("row %d\r\n" % number for number in range(20)))
+    screen = terminal.screen
+    live, frozen = screen.page.data_buffer, terminal.copy_view.page.data_buffer
+
+    history = min(live)
+    assert history < screen.line_offset
+    assert frozen[history] is live[history]
+    assert frozen[screen.line_offset] is not live[screen.line_offset]
+    assert dict(frozen[screen.line_offset]) == dict(live[screen.line_offset])

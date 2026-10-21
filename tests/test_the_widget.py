@@ -324,7 +324,7 @@ def test_a_wheel_the_embedder_refuses_opens_no_copy_mode():
             )
         )
 
-    assert terminal.is_copying is False
+    assert terminal.copy_views.of(app) is None
 
 
 # ----------------------------------------------------------------------
@@ -356,7 +356,7 @@ def wheeled(modes: str, kind=MouseEventType.SCROLL_UP, may_type=None):
                 modifiers=frozenset(),
             )
         )
-    return "".join(written), terminal.is_copying
+    return "".join(written), terminal.copy_views.of(app) is not None
 
 
 def test_the_wheel_up_is_arrows_up():
@@ -473,7 +473,7 @@ async def test_copy_mode_a_line_selection_adds_no_row():
     screen = Screen(default_char=None, initial_width=columns, initial_height=lines)
     with set_app(app):
         terminal.enter_copy_mode()
-        buffer = terminal.copy_buffer
+        buffer = terminal.copy_view.buffer
         buffer.cursor_position = 0
         buffer.start_selection()
         buffer.selection_state.type = SelectionType.LINES

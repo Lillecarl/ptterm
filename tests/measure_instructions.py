@@ -115,6 +115,7 @@ from pyte.screen import Screen
 from pyte.sequences import csi, reset_mode, set_mode
 from pyte.streams import Stream
 
+from ptterm.copy_mode import CopyView
 from ptterm.terminal import Terminal, _TerminalControl
 
 HERE = Path(__file__).parent
@@ -374,8 +375,7 @@ def copy_work(depth: int):
     cell of every row, into text and a list of styles. Nothing of it is
     lazy, so the rows a person never scrolls to are paid for as well.
     """
-    terminal = a_filled_terminal(depth)
-    return terminal.read_the_screen_into_the_copy_buffer
+    return CopyView(a_filled_terminal(depth)).freeze
 
 
 def redraw_work(depth: int):

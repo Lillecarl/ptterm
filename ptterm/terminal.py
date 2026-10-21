@@ -28,7 +28,6 @@ this layer adds to a cell.
 from __future__ import annotations
 
 import time
-from bisect import bisect_right
 from collections.abc import Callable, Hashable, Iterable
 from typing import ClassVar, NamedTuple, Protocol
 
@@ -36,57 +35,39 @@ import anyio
 import anyio.abc
 import pyte.runs
 from prompt_toolkit.application.current import get_app, get_app_or_none
-from prompt_toolkit.buffer import Buffer
-from prompt_toolkit.document import Document
-from prompt_toolkit.filters import Condition, has_selection, vi_mode
+from prompt_toolkit.filters import Condition
 from prompt_toolkit.formatted_text import StyleAndTextTuples
 from prompt_toolkit.key_binding import KeyBindings
-from prompt_toolkit.key_binding.bindings.scroll import scroll_page_down
 from prompt_toolkit.key_binding.key_processor import KeyPressEvent
 from prompt_toolkit.keys import Keys
 from prompt_toolkit.layout.containers import (
     AnyContainer,
-    ConditionalContainer,
     DynamicContainer,
-    Float,
-    FloatContainer,
     HSplit,
     Window,
 )
 from prompt_toolkit.layout.controls import (
-    BufferControl,
-    FormattedTextControl,
     UIContent,
     UIControl,
 )
-from prompt_toolkit.layout.processors import (
-    HighlightIncrementalSearchProcessor,
-    HighlightSearchProcessor,
-    HighlightSelectionProcessor,
-    Processor,
-    Transformation,
-)
 from prompt_toolkit.layout.screen import Point
 from prompt_toolkit.mouse_events import MouseEvent, MouseEventType
-from prompt_toolkit.selection import SelectionType
-from prompt_toolkit.token import KeepWhitespace
 from prompt_toolkit.utils import Event
-from prompt_toolkit.widgets.toolbars import SearchToolbar
 from ptyhost import Process
 from ptyhost.backends import Backend
 from ptyhost.backends.posix import spawn_of
 from ptyhost.held import Holding, backend_of
-from pyte.cells import Cell, WrittenCell
 from pyte.environment import preparing
 from pyte.images import ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH
 from pyte.keep import Keep
 from pyte.keys import DEFAULT_KEY_PROFILE, KeyProfile
-from pyte.page import TextLine
 from pyte.placeholders import PLACEHOLDER
 from pyte.screen import RegionCounts, Screen
 from pyte.streams import GroundTimer, Stream
 
-from .style import fragments_of_runs, placeholder_cells, style_of, visible_char
+from .copy_mode import CopyView
+from .per_application import PerApplication
+from .style import fragments_of_runs, placeholder_cells, visible_char
 
 __all__ = ["Machinery", "Program", "Terminal"]
 
@@ -1089,8 +1070,8 @@ class _TerminalControl(UIControl):
                 # wants no mouse is copy mode. The way back down is the
                 # same wheel in copy mode, which ends at the bottom.
                 # Lillecarl/pymux#422.
-                self.terminal.enter_copy_mode()
-                self.terminal.scroll_copy(-self.terminal.copy_half_window())
+                view = self.terminal.enter_copy_mode()
+                view.scroll(-view.half_window())
 
     def is_focusable(self) -> bool:
         return not self.process.suspended
@@ -1196,91 +1177,6 @@ def create_backend(
     return backend_of(spawn, (ASSUMED_CELL_WIDTH, ASSUMED_CELL_HEIGHT), holding)
 
 
-class _CopyBufferControl(BufferControl):
-    """
-    The buffer of copy mode, and the wheel over it.
-
-    A subclass because the base `BufferControl` refuses the wheel
-    (`prompt_toolkit/layout/controls.py:901`): here the wheel moves the
-    caret half a window, and the wheel down that reaches the bottom is
-    the live screen again -- tmux's `-e`, which leaves copy mode when
-    the person scrolls back to where the program stands.
-    """
-
-    def __init__(self, terminal: Terminal, **kw) -> None:
-        super().__init__(**kw)
-        self.terminal = terminal
-
-    def mouse_handler(self, mouse_event):
-        buffer = self.buffer
-        at_the_bottom = buffer.cursor_position >= len(buffer.document.text)
-
-        if mouse_event.event_type == MouseEventType.SCROLL_UP:
-            self.terminal.scroll_copy(-self.terminal.copy_half_window())
-            return None
-
-        if mouse_event.event_type == MouseEventType.SCROLL_DOWN:
-            if at_the_bottom:
-                self.terminal.exit_copy_mode()
-            else:
-                self.terminal.scroll_copy(self.terminal.copy_half_window())
-                if buffer.cursor_position >= len(buffer.document.text):
-                    # The scroll that reached the bottom leaves copy
-                    # mode with it.
-                    self.terminal.exit_copy_mode()
-            return None
-
-        return super().mouse_handler(mouse_event)
-
-
-class _CopyBuffer(Buffer):
-    """
-    The buffer of copy mode, whose caret never stands on a line break.
-
-    prompt_toolkit puts it there: `$` is `get_end_of_line_position()`,
-    which is one past the last character, and `l` stops in the same
-    place. That is where an editor puts what a person types next, and
-    copy mode has nothing to type. A vi selection takes the character
-    under the caret, so a selection to the end of a line took the break
-    with it: the copy carried a line ending nobody selected, and the
-    window drew one selected cell at the start of the row under it.
-    Lillecarl/pymux#377.
-
-    vi does not allow the caret there, and neither does tmux:
-    `window_copy_cursor_limit` returns `grid_line_limit`, the last
-    character of the row, and `window_copy_find_length`, one past it,
-    only when `mode-keys` is not vi. So this holds for vi keys alone.
-
-    **A move of the caret is clamped, and the opening of copy mode is
-    not.** Copy mode opens where the cursor of the pane stands, which is
-    where the next character goes and is past the last character of a
-    shell prompt. `read_the_screen_into_the_copy_buffer` sets the whole
-    document, which does not come through here. Lillecarl/pymux#189.
-    """
-
-    @property
-    def cursor_position(self) -> int:
-        return Buffer.cursor_position.fget(self)
-
-    @cursor_position.setter
-    def cursor_position(self, value: int) -> None:
-        Buffer.cursor_position.fset(self, self._off_the_line_break(value))
-
-    def _off_the_line_break(self, position: int) -> int:
-        if not vi_mode():
-            return position
-
-        text = self.text
-        if position < len(text) and text[position] != "\n":
-            return position
-
-        # The start of the line is as far back as this goes. An empty
-        # line has nowhere else to stand.
-        if position > 0 and text[position - 1] != "\n":
-            return position - 1
-        return position
-
-
 class Terminal:
     """
     Terminal widget for use in a prompt_toolkit layout.
@@ -1326,22 +1222,16 @@ class Terminal:
     """
 
     #: What a hot upgrade does with each attribute; `pyte.keep` says.
-    #: Copy mode keeps its caret and selection in `copy_buffer`; the
-    #: document under them is read from the screen again.
-    #: Lillecarl/pymux#399.
+    #: Copy mode belongs to an application, and a hot upgrade builds
+    #: every application again, so the embedder saves each copy mode
+    #: with what it serves. pymux saves it with the client.
+    #: Lillecarl/pymux#399, Lillecarl/pymux#470.
     KEEP: ClassVar[dict[str, Keep]] = {
         "terminal_control": Keep.SAVED,
-        "is_copying": Keep.SAVED,
-        "copy_buffer": Keep.SAVED,
-        "copy_reverse_video": Keep.SAVED,
-        "_copy_lines": Keep.REBUILT,
-        "_styled_lines": Keep.REBUILT,
+        "copy_views": Keep.DROPPED,
         "_copy_func": Keep.REBUILT,
         "container": Keep.REBUILT,
         "terminal_window": Keep.REBUILT,
-        "copy_window": Keep.REBUILT,
-        "copy_buffer_control": Keep.REBUILT,
-        "search_toolbar": Keep.REBUILT,
     }
 
     def __init__(
@@ -1395,135 +1285,12 @@ class Terminal:
             wrap_lines=False,
         )
 
-        # The keys of copy mode.
-        #
-        # **They live with the copy buffer**, because the copy buffer is
-        # what they drive. pymux held four of them and read a flag that
-        # nothing had set since copy mode moved here, so `q`, `escape`
-        # and `v` did nothing at all and only ctrl-c left copy mode.
-        # Lillecarl/pymux#133.
-        kb = KeyBindings()
-
-        @kb.add("c-c")
-        @kb.add("q")
-        @kb.add("escape")
-        @kb.add("enter", filter=~has_selection)
-        def _exit(event):
-            "Leave copy mode. tmux leaves on all four of these."
-            self.exit_copy_mode()
-
-        @kb.add("space", filter=vi_mode)
-        def _start_selection(event):
-            "Start a selection here, or start it again from here."
-            event.current_buffer.start_selection()
-
-        @kb.add("space", filter=~vi_mode)
-        def _page_down(event):
-            """
-            The page under this one.
-
-            **tmux gives `Space` to a different job in each table.** It
-            starts a selection with vi keys, and pages down with emacs
-            keys, where `C-Space` is the one that starts a selection.
-            Both tables started a selection here, so a person with
-            emacs keys paging through their history started one instead
-            and every arrow key after that dragged it.
-            Lillecarl/pymux#379.
-
-            prompt_toolkit binds `C-Space` to the selection already.
-            """
-            scroll_page_down(event)
-
-        @kb.add("enter", filter=has_selection)
-        @kb.add("y", filter=has_selection & vi_mode)
-        @kb.add("c-w", filter=has_selection & ~vi_mode)
-        @kb.add("escape", "w", filter=has_selection & ~vi_mode)
-        def _copy_selection(event):
-            """
-            Copy the selection and leave copy mode.
-
-            tmux leaves. `Enter` is `copy-pipe-and-cancel` in both of
-            its tables, and `y` is what a person with vi keys binds to
-            `copy-selection-and-cancel`; tmux itself leaves `y` unbound.
-            prompt_toolkit has a `y` of its own, the vi yank operator,
-            which fills the clipboard of the application and reaches no
-            terminal. Lillecarl/pymux#376.
-
-            `C-w` and `M-w` are the two tmux gives emacs keys, and they
-            are the only copy keys such a person knows.
-            Lillecarl/pymux#379.
-            """
-            self.copy_selection(event.current_buffer)
-            self.exit_copy_mode()
-
-        @kb.add("v", filter=has_selection & ~vi_mode)
-        def _toggle_selection_type(event):
-            """
-            Swap between selecting characters and selecting lines.
-
-            **With vi keys `v` is vi's**, which ends the selection, and
-            `V` is the one that selects lines. A person with vi keys
-            reads `v` as the key they know, so this takes the other
-            half of the keyboard. Lillecarl/pymux#376.
-            """
-            selection_state = event.current_buffer.selection_state
-            if selection_state is None:
-                return
-            if selection_state.type == SelectionType.CHARACTERS:
-                selection_state.type = SelectionType.LINES
-            else:
-                selection_state.type = SelectionType.CHARACTERS
-
-        self.search_toolbar = SearchToolbar(forward_search_prompt="Search down: ", backward_search_prompt="Search up: ")
-
-        self.copy_buffer = _CopyBuffer(read_only=True)
-        self.copy_buffer_control = _CopyBufferControl(
-            self,
-            buffer=self.copy_buffer,
-            search_buffer_control=self.search_toolbar.control,
-            include_default_input_processors=False,
-            input_processors=[
-                _UseStyledTextProcessor(self),
-                _HighlightSelectionWithoutTheWrap(),
-                HighlightSearchProcessor(),
-                HighlightIncrementalSearchProcessor(),
-            ],
-            preview_search=True,  # XXX: not sure why we need twice preview_search.
-            key_bindings=kb,
-            append_space=False,
-        )
-
-        #: Whether the pane was in reverse video when copy mode opened.
-        #: `enter_copy_mode` reads it, because the process is suspended
-        #: after that and the mode cannot change.
-        self.copy_reverse_video = False
-
-        # The document holds the lines a program wrote, so a line that
-        # the pane wrapped is one line here. The window wraps it again
-        # at the width it has, which is what the pane did, so a person
-        # sees the same shape and the copy holds no break that the
-        # program did not write. Lillecarl/pymux#135.
-        self.copy_window = Window(
-            content=self.copy_buffer_control,
-            wrap_lines=True,
-            style=self._copy_style,
-        )
-
-        self.is_copying = False
-
-        #: The lines of the buffer that copy mode is showing, and the
-        #: ones of them that have been styled. `styled_line` says why
-        #: they are built one at a time.
-        self._copy_lines: list[TextLine] = []
-        self._styled_lines: dict[int, StyleAndTextTuples] = {}
-
-        @Condition
-        def is_copying() -> bool:
-            return self.is_copying
+        #: Copy mode, for each application that has it open.
+        self.copy_views: PerApplication[CopyView] = PerApplication()
 
         def the_window_that_is_shown() -> AnyContainer:
             """
-            The screen, or the copy buffer that replaces it.
+            The screen, or the copy mode of the application that draws.
 
             **One of them is laid out and the other is not.** This was
             two `ConditionalContainer`s side by side, and they needed a
@@ -1537,36 +1304,17 @@ class Terminal:
             the other one out, so there is nothing to collapse and no
             widths to divide. Lillecarl/pymux#221.
 
-            Both switches set `is_copying` before they focus, so the
-            window they focus is in the tree by the time they ask for
-            it.
+            `enter_copy_mode` keeps the view before it focuses, so the
+            window it focuses is in the tree by the time it asks for it.
             """
-            return self.copy_window if self.is_copying else self.terminal_window
+            view = self.copy_views.get()
+            return view.container if view is not None else self.terminal_window
 
-        self.container = FloatContainer(
-            content=HSplit(
-                [
-                    DynamicContainer(the_window_that_is_shown),
-                    ConditionalContainer(self.search_toolbar, filter=is_copying),
-                ],
-                style=style,
-                width=width,
-                height=height,
-            ),
-            floats=[
-                Float(
-                    top=0,
-                    right=0,
-                    height=1,
-                    content=ConditionalContainer(
-                        Window(
-                            content=FormattedTextControl(text=self._copy_position_formatted_text),
-                            style="class:copy-mode-cursor-position",
-                        ),
-                        filter=is_copying,
-                    ),
-                )
-            ],
+        self.container = HSplit(
+            [DynamicContainer(the_window_that_is_shown)],
+            style=style,
+            width=width,
+            height=height,
         )
 
     async def start(self, task_group: anyio.abc.TaskGroup) -> None:
@@ -1578,136 +1326,57 @@ class Terminal:
         """
         await self.terminal_control.start(task_group)
 
-    def _copy_position_formatted_text(self) -> str:
+    @property
+    def copy_view(self) -> CopyView | None:
+        "The copy mode of the application that runs now, or None."
+        return self.copy_views.get()
+
+    @property
+    def is_copying(self) -> bool:
+        "Is the application that runs now reading the history?"
+        return self.copy_views.get() is not None
+
+    def enter_copy_mode(self) -> CopyView:
         """
-        The line of the history the copy cursor is on, and how many there
-        are, counted from the top: "[1/N]" is the oldest line.
+        Open copy mode for the application that runs now, over the
+        buffer as it stands, and give it the keyboard.
 
-        Not the window's `render_info.cursor_position`, which is the
-        cursor's row on the screen and says nothing of where in the
-        history the view stands.
+        **The program goes on running.** Copy mode reads a copy, so a
+        person reading the history stops nothing for anybody else who
+        watches the pane. A copy mode that is open already stays where
+        it is, as tmux's does.
         """
-        document = self.copy_buffer.document
-        return f"[{document.cursor_position_row + 1}/{document.line_count}]"
+        view = self.copy_views.get()
+        if view is None:
+            view = CopyView(self)
+            view.freeze()
+            self.copy_views.set(view)
+        self._focus(view.window)
+        return view
 
-    def _copy_style(self) -> str:
+    @staticmethod
+    def _focus(window: Window) -> None:
         """
-        The style of the whole copy window, blank cells included.
+        Give `window` the keyboard of the application that runs now, when
+        that application shows it.
 
-        **The class is what makes a selection visible here.**
-        prompt_toolkit marks a selection by reversing it, and `reverse`
-        sets rather than toggles (`styles/style.py`), so on a reversed
-        pane a selected cell and an unselected one both came out
-        reversed and the selection could not be seen. A style rule for
-        `reversed-pane selected` turns it back; class names accumulate
-        left to right, and the window's style is prepended to every
-        cell before a processor appends `class:selected`, so the rule
-        matches. Lillecarl/pymux#99.
+        One that does not show this terminal -- a pane on another window
+        of the session, or no application at all -- keeps its keyboard.
+        An embedder focuses the terminal when it shows it, and the focus
+        goes to the copy window then.
         """
-        return "reverse class:reversed-pane" if self.copy_reverse_video else ""
-
-    def _copy_cell_style(self, char) -> str:
-        """
-        The style of one cell of the copy buffer, with DECSCNM folded in.
-
-        **The character it decides on is the one the cell holds, not the
-        one it draws, and that is on purpose.** A pane blots out what a
-        terminal cannot read -- a blank for a control, a blank for the
-        image to go over (`style.visible_char`) -- because it has no copy
-        to protect and the outer terminal must not be handed a character
-        it cannot draw. Copy mode builds the text a person copies, so it
-        keeps the program's bytes and lays a stand-in over them instead
-        (`_copy_cell`). So a blank a program wrote keeps its column with
-        `KeepWhitespace`; a cell that only draws as blank is not blank,
-        and the document keeps what it holds. Lillecarl/pymux#449.
-        """
-        style = style_of(char.appearance)
-        if self.copy_reverse_video and char.appearance.rendition.reverse:
-            style += " noreverse"
-        if char.char == " " and isinstance(char, WrittenCell):
-            style += " " + KeepWhitespace
-        return style
-
-    def _copy_cell(self, cell: Cell) -> tuple[str, str]:
-        """
-        How one cell of the copy buffer draws, and the character it holds.
-
-        **Copy mode copies the characters a program wrote, and draws a
-        stand-in for the ones a person cannot read.** A cell keeps the
-        character it holds, so a copy takes the program's own bytes.
-        prompt_toolkit supplies the stand-ins it knows -- `^A` for a
-        control, an underlined blank for a non-breaking space -- and the
-        one a cell of an image needs is drawn here. The pane does the
-        opposite: it blots such a cell out. Lillecarl/pymux#449.
-        """
-        style = self._copy_cell_style(cell)
-        char = cell.char
-        if char.startswith(PLACEHOLDER):
-            # A cell of an image, which is a character no font has. The
-            # pane draws a blank and the embedder puts the image over
-            # it; copy mode has no image, so it draws a blank too,
-            # underlined, to say the cell holds something and is not a
-            # space the program wrote. The marks that carry the image's
-            # row and column stay: a line of the display has to hold as
-            # many characters as its line of the document, or
-            # prompt_toolkit maps a selection position to the wrong
-            # cell. The document keeps the raw cell, so a copy still
-            # holds the placeholder.
-            return style + " underline", " " + char[len(PLACEHOLDER) :]
-        return style, char
-
-    def copy_selection(self, buffer: Buffer) -> None:
-        """
-        Put the selection on the clipboard of the user, and in the
-        clipboard of the application.
-
-        **The clipboard belongs to the terminal of the user**, which
-        this widget does not own, so the embedder is handed the text.
-        tmux does the same work in the same order -- the copy goes to
-        a paste buffer of its own, and `set-clipboard` says whether it
-        also goes out. Lillecarl/pymux#376.
-
-        The clipboard of the application is the paste buffer of the
-        session, which `paste-buffer` reads. It is written second, so
-        that the selection type it carries is the one that stands.
-        """
-        data = buffer.copy_selection()
-
-        if self._copy_func is not None and data.text:
-            self._copy_func(data.text)
-
-        get_app().clipboard.set_data(data)
-
-    def enter_copy_mode(self) -> None:
-        self.terminal_control.process.suspend()
-        self.read_the_screen_into_the_copy_buffer()
-        self.is_copying = True
-        get_app().layout.focus(self.copy_window)
-
-    def copy_half_window(self) -> int:
-        """
-        Half of what the copy window shows, in lines of the document.
-
-        That is what the wheel scrolls by, and tmux's half-up and
-        half-down are the same. Before the window has been drawn once
-        there is no height to read, and the pane's own row count
-        stands in for it.
-        """
-        info = self.copy_window.render_info
-        height = info.window_height if info else self.terminal_control.screen.lines
-        return max(1, height // 2)
+        app = get_app_or_none()
+        if app is not None and window in app.layout.find_all_windows():
+            app.layout.focus(window)
 
     def shown_rows(self) -> tuple[int, int] | None:
         """
         The first and the last row of the page this pane shows, live or
         in copy mode, as of the last frame. None before one is drawn.
         """
-        if self.is_copying:
-            info = self.copy_window.render_info
-            if info is None or not info.displayed_lines or not self._copy_lines:
-                return None
-            shown = [self._copy_lines[index] for index in info.displayed_lines if index < len(self._copy_lines)]
-            return (shown[0].first, shown[-1].last) if shown else None
+        view = self.copy_views.get()
+        if view is not None:
+            return view.shown_rows()
         info = self.terminal_window.render_info
         if info is None:
             return None
@@ -1718,18 +1387,12 @@ class Terminal:
         The cell of the application's screen, as (y, x), that a cell of
         the page was drawn at in the last frame, or None when it was not.
 
-        Live, a row of the page is a line of the window. In copy mode a
-        line of the document is a whole line of the page, wrapped again
-        by the window, so the window's own map from text to screen says.
+        Live, a row of the page is a line of the window. In copy mode
+        the view says.
         """
-        if self.is_copying:
-            info = self.copy_window.render_info
-            lines = self._copy_lines
-            index = bisect_right(lines, row, key=lambda line: line.first) - 1
-            if info is None or index < 0 or row > lines[index].last:
-                return None
-            page = self.terminal_control.screen.page
-            return info._rowcol_to_yx.get((index, page.offset_in_line(lines[index], row, column)))
+        view = self.copy_views.get()
+        if view is not None:
+            return view.where_shown(row, column)
         info = self.terminal_window.render_info
         if info is None:
             return None
@@ -1739,149 +1402,10 @@ class Terminal:
             return None
         return info._y_offset + y, info._x_offset + x
 
-    def scroll_copy(self, lines: int) -> None:
-        """
-        Move the caret of the copy buffer this many lines, up when the
-        number is negative.
-
-        A move past either end stops there. The arithmetic is local and
-        not `Document.get_cursor_up_position`, on purpose: the caret
-        copy mode opens with stands one past the last character (#189),
-        and from there the document answers with a negative position,
-        which the buffer then reads back clamped to nothing -- the view
-        froze at the top of the history and every wheel after it moved
-        from a caret nobody could see.
-        """
-        buffer = self.copy_buffer
-        text = buffer.document.text
-        position = max(0, min(buffer.cursor_position, len(text)))
-        index = text.count("\n", 0, position)
-        column = position - (text.rfind("\n", 0, position) + 1)
-        split = text.split("\n")
-        target = max(0, min(len(split) - 1, index + lines))
-        new_position = sum(len(line) + 1 for line in split[:target]) + min(column, len(split[target]))
-        buffer.cursor_position = new_position
-
-    def read_the_screen_into_the_copy_buffer(self) -> None:
-        """
-        Put the whole buffer, history and all, into the copy buffer.
-
-        It is a method of its own because it is the work: entering copy
-        mode is a suspend, this, and a focus, and this is the part that
-        grows with the history. `tests/measure_instructions.py` measures
-        it under "history <depth> (copy)". Lillecarl/pymux#131.
-
-        **It reads lines and not rows.** A row is a line cut to fit the
-        pane, and a person copying wants the line. So a search crosses
-        a wrap, a selection of one line is one line, and the width the
-        history was laid out at does not reach the document at all.
-        Lillecarl/pymux#135.
-        """
-        screen = self.terminal_control.screen
-        data_buffer = screen.page.data_buffer
-
-        # DECSCNM reverses the whole screen, and copy mode shows the
-        # same screen stopped. `_copy_style` paints the reverse over the
-        # window, the way `_Window` does for the pane, and a cell that
-        # "SGR 7" already reversed turns the other way here. The process
-        # is suspended, so the mode cannot change while copy mode is
-        # open and reading it once is enough. Lillecarl/pymux#96.
-        self.copy_reverse_video = screen.has_reverse_video
-
-        lines: list[TextLine] = []
-        if data_buffer:
-            lines = screen.page.text_lines(min(data_buffer), max(data_buffer))
-
-        text_str = "\n".join(line.text for line in lines)
-
-        self.copy_buffer.set_document(
-            Document(
-                text=text_str,
-                cursor_position=self._where_the_pane_is(lines, text_str),
-            ),
-            bypass_readonly=True,
-        )
-
-        self._copy_lines = lines
-        self._styled_lines: dict[int, StyleAndTextTuples] = {}
-
-    def _where_the_pane_is(self, lines: list[TextLine], text: str) -> int:
-        """
-        Where in the copy document the cursor of the pane stands.
-
-        **Copy mode opens on what a person was looking at.** It used to
-        open at the end of the whole flattened buffer, which is where a
-        shell prompt happens to be and is nowhere in particular for a
-        program that draws its own screen. The window follows the
-        cursor, so on a full screen program it scrolled away from the
-        screen as copy mode opened and a person saw the view pop.
-        Lillecarl/pymux#189.
-
-        The rows of the buffer and the offsets in the document are two
-        countings of the same cells, and `Page.offset_in_line` is the
-        one place that turns one into the other.
-
-        **Nothing here walks the lines.** Copy mode opens on fifty
-        thousand of them and this runs while a person waits, which is
-        what `tests/instruction-budgets.txt` holds it to. The lines
-        come in row order, so the one that holds a row is the last one
-        that starts at or before it, and `Document` counts the
-        characters before a line with the same list of line starts
-        that drawing the window needs anyway.
-        """
-        screen = self.terminal_control.screen
-        where = screen.pt_cursor_position
-
-        number = bisect_right(lines, where.y, key=lambda line: line.first) - 1
-        if number < 0 or where.y > lines[number].last:
-            # A cursor on no line of the range. The end is where copy
-            # mode always opened, so it is the honest answer for a
-            # buffer that does not hold the cursor's row at all.
-            return len(text)
-
-        column = screen.page.offset_in_line(lines[number], where.y, where.x)
-        return Document(text).translate_row_col_to_index(number, column)
-
-    def styled_line(self, number: int) -> StyleAndTextTuples:
-        """
-        One line of the copy buffer, as the styles a person sees.
-
-        **It is built when it is asked for, and not before.** A window
-        shows a screenful, and the history behind it can be fifty
-        thousand rows: styling all of them cost 22,924,756 bytecode
-        instructions at that depth, and a person waited for it after
-        pressing a key. Lillecarl/pymux#131.
-
-        The answer is kept, because the process is suspended while copy
-        mode is open, so no row of the screen can change under it.
-        """
-        line = self._styled_lines.get(number)
-        if line is not None:
-            return line
-
-        line = []
-        if 0 <= number < len(self._copy_lines):
-            shown = self._copy_lines[number]
-            # The rows of one line hold one line, so the answer does.
-            lines, _ = self.terminal_control.screen.page.unwrap(shown.first, shown.last)
-            for cell in lines[0].cells:
-                line.append(self._copy_cell(cell))
-        self._styled_lines[number] = line
-        return line
-
     def exit_copy_mode(self) -> None:
-        # Resume process.
-        self.terminal_control.process.resume()
-
-        # The lines that were styled belong to the screen that copy mode
-        # stopped. The process runs again from here, so they are wrong
-        # the moment it writes.
-        self._copy_lines = []
-        self._styled_lines = {}
-
-        # focus terminal again.
-        self.is_copying = False
-        get_app().layout.focus(self.terminal_window)
+        "Close the copy mode of the application that runs now."
+        if self.copy_views.pop() is not None:
+            self._focus(self.terminal_window)
 
     def set_size(self, width: int, height: int) -> None:
         """
@@ -1901,7 +1425,7 @@ class Terminal:
         """
         self.terminal_control.set_size(width, height)
 
-    def __pt_container__(self) -> FloatContainer:
+    def __pt_container__(self) -> HSplit:
         return self.container
 
     @property
@@ -1912,43 +1436,3 @@ class Terminal:
     def screen(self) -> Screen:
         "What the program in this pane has drawn."
         return self.terminal_control.screen
-
-
-class _HighlightSelectionWithoutTheWrap(HighlightSelectionProcessor):
-    """
-    A selection highlights the cells of its line and no cell past them.
-
-    The base processor appends a space for the newline a selection
-    reaches, so an empty selected line shows as selected. Copy mode's
-    window wraps, so on a line that already fills the pane that space
-    is one cell too many: the line grows a second, blank row, and a vi
-    line selection over full-width lines drew an empty line under
-    each. Lillecarl/pymux#483.
-    """
-
-    def apply_transformation(self, transformation_input) -> Transformation:
-        cells = len(transformation_input.fragments)
-        result = super().apply_transformation(transformation_input)
-        fragments = result.fragments
-        if cells and len(fragments) == cells + 1:
-            style, text = fragments[-1][0], fragments[-1][1]
-            if text == " " and "class:selected" in style:
-                return Transformation(fragments[:-1])
-        return result
-
-
-class _UseStyledTextProcessor(Processor):
-    """
-    In order to allow highlighting of the copy region, we use a preprocessed
-    list of (style, text) tuples. This processor returns just that list for the
-    given pane.
-
-    This processor should go before all others, because it replaces the list of
-    (style, text) tuples.
-    """
-
-    def __init__(self, terminal: Terminal) -> None:
-        self.terminal = terminal
-
-    def apply_transformation(self, transformation_input) -> Transformation:
-        return Transformation(self.terminal.styled_line(transformation_input.lineno))
