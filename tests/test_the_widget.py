@@ -301,30 +301,20 @@ def test_a_mouse_report_the_embedder_refuses_writes_nothing():
     assert clicked(modes, may_type=lambda: False) == b""
 
 
-def test_a_wheel_the_embedder_refuses_opens_no_copy_mode():
+def test_a_person_who_may_not_type_still_reads_the_history():
     """
-    The whole mouse goes, and not the report alone. The wheel over a
-    pane whose program wants no mouse opens copy mode, which stops the
-    live screen for every viewer of that pane -- so a person who may
-    not type may not do it either.
+    The wheel over a pane whose program wants no mouse opens copy mode,
+    and copy mode reads a copy for this application alone: it drives
+    nothing, so a person who may not type may still scroll back.
+    Lillecarl/pymux#470.
     """
-    terminal = Terminal(backend=_NoBackend(), may_type=lambda: False)
-    control = terminal.terminal_control
-    control.create_content(12, 8)
+    assert wheeled("", may_type=lambda: False) == ("", True)
 
-    app = DummyApplication()
-    app.layout = _FocusedLayout(control)
-    with set_app(app):
-        control.mouse_handler(
-            MouseEvent(
-                position=Point(x=0, y=0),
-                event_type=MouseEventType.SCROLL_UP,
-                button=MouseButton.NONE,
-                modifiers=frozenset(),
-            )
-        )
 
-    assert terminal.copy_views.of(app) is None
+def test_a_person_who_may_not_type_sends_no_wheel_report():
+    "The report is typing, and it still goes."
+    modes = set_mode(PrivateMode.MOUSE_REPORTING) + set_mode(PrivateMode.SGR_MOUSE)
+    assert wheeled(modes, may_type=lambda: False) == ("", False)
 
 
 # ----------------------------------------------------------------------

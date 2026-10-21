@@ -984,13 +984,15 @@ class _TerminalControl(UIControl):
         it. A click in active pane will send the mouse event to the application
         running inside it.
 
-        **The whole of it goes when `may_type` says no**, and not the
-        report alone. Every branch below is the person driving this
-        pane: two of them write to the program, one moves the focus,
-        and the wheel opens copy mode over a screen that every other
-        viewer of the pane shares.
+        **When `may_type` says no, the wheel that opens copy mode is all
+        that is left**, and not the report alone goes. The other branches
+        are the person driving this pane: two of them write to the
+        program, and one moves the focus. Copy mode reads a copy for this
+        application alone, so it drives nothing. Lillecarl/pymux#470.
         """
         if not self.may_be_driven():
+            if self._the_wheel_reads_the_history(mouse_event):
+                self._read_the_history()
             return
 
         app = get_app()
@@ -1061,17 +1063,33 @@ class _TerminalControl(UIControl):
                 # would show the first screen's instead. Lillecarl/pymux#422.
                 arrow = self.screen.encode_key(_WHEEL_ARROWS[mouse_event.event_type])
                 self.process.write_input(arrow * _ARROWS_PER_WHEEL_STEP)
-            elif mouse_event.event_type == MouseEventType.SCROLL_UP:
-                # The app asked for no mouse at all, and the wheel
-                # belongs to the person. The live screen does not hold
-                # the history of this pane, so the wheel up opens the
-                # copy buffer over it, scrolled half a window -- the
-                # rule tmux runs: a wheel over a pane whose program
-                # wants no mouse is copy mode. The way back down is the
-                # same wheel in copy mode, which ends at the bottom.
-                # Lillecarl/pymux#422.
-                view = self.terminal.enter_copy_mode()
-                view.scroll(-view.half_window())
+            elif self._the_wheel_reads_the_history(mouse_event):
+                self._read_the_history()
+
+    def _the_wheel_reads_the_history(self, mouse_event) -> bool:
+        "Is this the wheel up, over a program that wants no mouse and no arrows?"
+        screen = self.screen
+        return (
+            mouse_event.event_type == MouseEventType.SCROLL_UP
+            and not screen.sgr_mouse_support_enabled
+            and not screen.urxvt_mouse_support_enabled
+            and not screen.mouse_support_enabled
+            and not screen.wheel_sends_arrows
+        )
+
+    def _read_the_history(self) -> None:
+        """
+        Open copy mode, half a window up.
+
+        The program asked for no mouse at all, and the wheel belongs to
+        the person. The live screen does not hold the history of this
+        pane, so the wheel up opens copy mode over it -- the rule tmux
+        runs: a wheel over a pane whose program wants no mouse is copy
+        mode. The way back down is the same wheel in copy mode, which
+        ends at the bottom. Lillecarl/pymux#422.
+        """
+        view = self.terminal.enter_copy_mode()
+        view.scroll(-view.half_window())
 
     def is_focusable(self) -> bool:
         return not self.process.suspended
@@ -1207,7 +1225,8 @@ class Terminal:
         once instead of laying its output out for room it will not get.
     :param may_type: Returns whether the person at the keyboard may
         drive this pane at all. False drops the keys, a paste and the
-        mouse, and leaves everything the pane draws. The embedder
+        mouse, and leaves everything the pane draws and the wheel into
+        copy mode, which reads a copy and drives nothing. The embedder
         decides because only it knows who is watching: pymux answers
         for a client that attached with `attach-session -r`.
     :param takes_key_first: Returns whether the embedder wants the next
