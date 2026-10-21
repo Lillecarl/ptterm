@@ -43,6 +43,7 @@ from prompt_toolkit.selection import SelectionType
 from pyte import escape
 from pyte.cells import WrittenCell
 from pyte.modes import PrivateMode
+from pyte.page import RowMark
 from pyte.placeholders import PLACEHOLDER
 from pyte.sequences import csi, set_mode
 
@@ -863,3 +864,58 @@ async def test_r_on_a_line_the_history_dropped_goes_to_the_first_line():
 
     assert view.buffer.document.cursor_position_row == 0
     assert "row 0" not in view.buffer.text
+
+
+def _a_shell_session() -> Terminal:
+    """
+    Three prompts, each marked where a shell's "OSC 133 ; A" would, and
+    the output of each marked where "C" would. The second
+    prompt is longer than the pane, so the pane wraps it, and the third
+    scrolls the first into the history.
+    """
+    terminal = Terminal(backend=NoBackend())
+    control = terminal.terminal_control
+    control.create_content(COLUMNS, LINES)
+    screen, stream = control.screen, control.stream
+    for prompt, output in (("$ one", "1\r\n1"), ("$ " + "two " * 8, "2"), ("$ three", "3")):
+        screen.mark_row(RowMark.PROMPT)
+        stream.feed(prompt + "\r\n")
+        if output:
+            screen.mark_row(RowMark.OUTPUT)
+            stream.feed(output + "\r\n")
+    terminal.enter_copy_mode()
+    return terminal
+
+
+def _caret_line(view) -> str:
+    document = view.buffer.document
+    assert document.cursor_position_col == 0
+    return document.current_line
+
+
+def test_previous_prompt_goes_up_one_prompt_at_a_time():
+    view = _a_shell_session().copy_view
+    view.buffer.cursor_position = len(view.buffer.text)
+
+    view.jump_to_mark(RowMark.PROMPT, down=False)
+    assert _caret_line(view) == "$ three"
+    view.jump_to_mark(RowMark.PROMPT, down=False)
+    assert _caret_line(view).startswith("$ two two")
+    view.jump_to_mark(RowMark.PROMPT, down=False)
+    assert _caret_line(view) == "$ one"
+
+    # Past the first, it stays.
+    view.jump_to_mark(RowMark.PROMPT, down=False)
+    assert _caret_line(view) == "$ one"
+
+
+def test_next_prompt_with_output_goes_to_where_output_starts():
+    view = _a_shell_session().copy_view
+    view.buffer.cursor_position = 0
+
+    view.jump_to_mark(RowMark.OUTPUT, down=True)
+    assert _caret_line(view) == "1"
+    view.jump_to_mark(RowMark.OUTPUT, down=True)
+    assert _caret_line(view) == "2"
+    view.jump_to_mark(RowMark.PROMPT, down=True)
+    assert _caret_line(view) == "$ three"

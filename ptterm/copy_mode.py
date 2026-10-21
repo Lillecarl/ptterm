@@ -39,7 +39,7 @@ from prompt_toolkit.selection import SelectionType
 from prompt_toolkit.token import KeepWhitespace
 from prompt_toolkit.widgets.toolbars import SearchToolbar
 from pyte.cells import Cell, WrittenCell
-from pyte.page import Page, TextLine
+from pyte.page import Page, RowMark, TextLine
 from pyte.placeholders import PLACEHOLDER
 
 from .style import style_of
@@ -377,6 +377,28 @@ class CopyView:
         new_position = sum(len(line) + 1 for line in split[:target]) + min(column, len(split[target]))
         buffer.cursor_position = new_position
 
+    def jump_to_mark(self, mark: RowMark, down: bool) -> None:
+        """
+        Put the caret at the start of the next line down, or up, that a
+        shell marked with `mark`. No such line leaves it where it is.
+
+        tmux's `next-prompt` and `previous-prompt`
+        (`window_copy_cursor_prompt`), which go to the start of the line
+        too. Lillecarl/pymux#500.
+        """
+        lines = self.lines
+        rows = self.page.data_buffer
+        here = self.buffer.document.cursor_position_row
+        candidates = range(here + 1, len(lines)) if down else range(here - 1, -1, -1)
+        for index in candidates:
+            line = lines[index]
+            if any(
+                (row := rows.get(number)) is not None and row.marks & mark
+                for number in range(line.first, line.last + 1)
+            ):
+                self.buffer.cursor_position = self.buffer.document.translate_row_col_to_index(index, 0)
+                return
+
     def freeze(self) -> None:
         """
         Copy the buffer, and put the whole of it, history and all, into
@@ -431,6 +453,7 @@ class CopyView:
                 kept = type(row)()
                 kept.update(row)
                 kept.wrapped = row.wrapped
+                kept.marks = row.marks
                 rows[number] = kept
         self.page = page
 
