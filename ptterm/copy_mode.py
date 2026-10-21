@@ -99,6 +99,11 @@ class CopyView:
         #: what it holds.
         self.page = Page()
 
+        #: The screen's count of writes when the copy was taken. Once it
+        #: moves on, the corner says the copy is older than the pane.
+        #: Lillecarl/pymux#714.
+        self.writes = 0
+
         #: The lines of the document, and the ones of them that have
         #: been styled. `styled_line` says why they are built one at a
         #: time.
@@ -219,7 +224,10 @@ class CopyView:
         history the view stands.
         """
         document = self.buffer.document
-        return f"[{document.cursor_position_row + 1}/{document.line_count}]"
+        position = f"[{document.cursor_position_row + 1}/{document.line_count}]"
+        if self.terminal.screen.writes != self.writes:
+            return position + " r for newer"
+        return position
 
     def _style(self) -> str:
         """
@@ -409,6 +417,7 @@ class CopyView:
         # "SGR 7" already reversed turns the other way here.
         # Lillecarl/pymux#96.
         self.reverse_video = screen.has_reverse_video
+        self.writes = screen.writes
 
         page = Page()
         rows = page.data_buffer

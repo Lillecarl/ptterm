@@ -814,6 +814,22 @@ async def test_r_takes_a_new_copy_with_the_caret_on_its_line(vi):
     assert view.buffer.document.cursor_position_col == 2
 
 
+async def test_the_corner_says_when_the_pane_has_newer_output():
+    terminal = Terminal(backend=NoBackend())
+    terminal.terminal_control.create_content(COLUMNS, LINES)
+    terminal.terminal_control.stream.feed("first\r\nsecond")
+    app = _an_application(terminal)
+    with set_app(app):
+        view = terminal.enter_copy_mode()
+    assert view._position_formatted_text() == "[2/2]"
+
+    terminal.terminal_control.stream.feed("\r\nthird")
+    assert view._position_formatted_text() == "[2/2] r for newer"
+
+    _refresh_after(terminal, app, "")
+    assert view._position_formatted_text() == "[2/3]"
+
+
 async def test_r_drops_the_selection():
     "Its positions name the old copy, and the new one holds other text there."
     terminal = Terminal(backend=NoBackend())
