@@ -86,6 +86,14 @@ let
   # extra beside them in the same file.
   testEnv = mkVirtualEnv "ptterm-test-env" { ptterm = [ "test" ]; };
 
+  # The same, with pyte's Rust row and kernels beside it, which pymux
+  # installs and ptterm does not. `checks.rs-unit` runs the unit suite on
+  # them. Lillecarl/pymux#470.
+  rsTestEnv = mkVirtualEnv "ptterm-rs-test-env" {
+    ptterm = [ "test" ];
+    pyte-rs = [ ];
+  };
+
   # Each judge is built from its own directory alone. Otherwise every change
   # to a test rebuilds every crate.
   judgeSources = {
@@ -144,6 +152,7 @@ let
   checks = callPackage ./nix/checks.nix {
     inherit
       testEnv
+      rsTestEnv
       testSources
       judges
       esctest2

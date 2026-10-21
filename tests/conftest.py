@@ -37,6 +37,15 @@ import os
 import re
 from pathlib import Path
 
+# The whole suite again with pyte's Rust row and kernels in place, which
+# is `checks.ptterm-rs-unit`. Installed here, before any test module
+# makes a page. `pyte/tests/conftest.py` does the same for pyte.
+# Lillecarl/pymux#470.
+if os.environ.get("PYTE_RS", "") not in ("", "0"):
+    import pyte_rs
+
+    assert pyte_rs.install(), "PYTE_RS asks for the kernels and PYTERM_PURE refuses them"
+
 #: The modules that speak to another terminal emulator.
 PANEL_ORACLES = (
     "panel",

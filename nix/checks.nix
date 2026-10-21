@@ -17,6 +17,8 @@
   # `pyproject.toml`, so what a suite may import is what the package
   # declares and there is no second list here. Lillecarl/pymux#319.
   testEnv,
+  # `testEnv` with pyte's Rust row and kernels, for `rs-unit`.
+  rsTestEnv,
   callPackage,
   kitty,
   libvterm-neovim,
@@ -202,6 +204,21 @@ in
     env = { inherit selection; };
     setup = prepare + ''
       export PTTERM_GROUP=unit
+    '';
+  } runUnitPytest;
+
+  # The same tests again, on pyte's Rust row and kernels: what pymux
+  # runs, since it installs them. `tests/conftest.py` installs them before
+  # any test makes a page, as pyte's own `pyte-rs-unit` does. Copy mode
+  # copies rows through their own type, and this is where both kinds of
+  # row meet the same test. Lillecarl/pymux#470.
+  rs-unit = suite {
+    name = "ptterm-rs-unit";
+    inputs = [ rsTestEnv ];
+    env = { inherit selection; };
+    setup = prepare + ''
+      export PTTERM_GROUP=unit
+      export PYTE_RS=1
     '';
   } runUnitPytest;
 
