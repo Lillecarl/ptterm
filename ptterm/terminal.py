@@ -991,7 +991,10 @@ class _TerminalControl(UIControl):
         application alone, so it drives nothing. Lillecarl/pymux#470.
         """
         if not self.may_be_driven():
-            if self._the_wheel_reads_the_history(mouse_event):
+            # Over the focused pane alone, as for a person who types: a
+            # wheel over another pane does nothing, and opening copy
+            # mode there would move the focus behind the embedder.
+            if get_app().layout.has_focus(self) and self._the_wheel_reads_the_history(mouse_event):
                 self._read_the_history()
             return
 

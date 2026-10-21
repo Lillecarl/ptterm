@@ -38,6 +38,7 @@ from prompt_toolkit.application.dummy import DummyApplication
 from prompt_toolkit.enums import EditingMode
 from prompt_toolkit.keys import Keys
 from prompt_toolkit.layout.containers import HSplit, Window
+from prompt_toolkit.layout.controls import FormattedTextControl
 from prompt_toolkit.layout.layout import Layout
 from prompt_toolkit.layout.mouse_handlers import MouseHandlers
 from prompt_toolkit.layout.screen import Point, Screen, WritePosition
@@ -309,6 +310,33 @@ def test_a_person_who_may_not_type_still_reads_the_history():
     Lillecarl/pymux#470.
     """
     assert wheeled("", may_type=lambda: False) == ("", True)
+
+
+def test_a_person_who_may_not_type_reads_no_history_of_another_pane():
+    """
+    A wheel over a pane that does not have the focus does nothing, for a
+    person who types and for one who may not. Copy mode there would take
+    the focus from the pane the embedder thinks is active.
+    """
+    terminal = Terminal(backend=_NoBackend(), may_type=lambda: False)
+    control = terminal.terminal_control
+    control.create_content(12, 8)
+    elsewhere = Window(FormattedTextControl("elsewhere", focusable=True))
+
+    app = DummyApplication()
+    app.layout = Layout(HSplit([terminal.container, elsewhere]), focused_element=elsewhere)
+    with set_app(app):
+        control.mouse_handler(
+            MouseEvent(
+                position=Point(x=0, y=0),
+                event_type=MouseEventType.SCROLL_UP,
+                button=MouseButton.NONE,
+                modifiers=frozenset(),
+            )
+        )
+        assert app.layout.current_window is elsewhere
+
+    assert terminal.copy_views.of(app) is None
 
 
 def test_a_person_who_may_not_type_sends_no_wheel_report():
