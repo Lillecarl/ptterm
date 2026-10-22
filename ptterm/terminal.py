@@ -56,8 +56,7 @@ from prompt_toolkit.mouse_events import MouseEvent, MouseEventType
 from prompt_toolkit.utils import Event
 from ptyhost import Process
 from ptyhost.backends import Backend
-from ptyhost.backends.posix import spawn_of
-from ptyhost.held import Holding, backend_of
+from ptyhost.backends.posix import PosixBackend, spawn_of
 from pyte.environment import preparing
 from pyte.images import ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH
 from pyte.keep import Keep
@@ -1192,7 +1191,6 @@ def create_backend(
     command: list[str],
     environment: Callable[[dict[str, str]], None] | None = None,
     directory: str | None = None,
-    holding: Holding | None = None,
 ) -> Backend:
     """
     A pty for `command`, which runs on this widget's screen.
@@ -1201,14 +1199,13 @@ def create_backend(
     application runs in, so its environment has to say which one it is
     (`pyte.environment.preparing`). Nothing else knows both: `pyte` has
     no child, and `ptyhost` has no opinion on what parses the bytes.
-    Lillecarl/pymux#125. With `holding`, the holder forks the program
-    and keeps it for the next server. Lillecarl/pymux#553.
+    Lillecarl/pymux#125.
     """
     # The size of a cell goes into the size of the pty, so that a
     # program that draws images reads the same answer there as
     # "CSI 16 t" gives it.
     spawn = spawn_of(command, preparing(environment), directory)
-    return backend_of(spawn, (ASSUMED_CELL_WIDTH, ASSUMED_CELL_HEIGHT), holding)
+    return PosixBackend(spawn, cell=(ASSUMED_CELL_WIDTH, ASSUMED_CELL_HEIGHT))
 
 
 class Terminal:
@@ -1220,8 +1217,6 @@ class Terminal:
     :param environment: Edits the program's environment, a copy of
         this process's, when the program starts.
     :param directory: Where the program starts.
-    :param holding: The holder that forks the program and keeps it
-        for the next server. None forks here.
     :param osc_func: Called with the code and the payload of an OSC
         sequence that only the terminal of the user can serve. (The
         clipboard, a notification, the shape of the pointer.)
@@ -1274,7 +1269,6 @@ class Terminal:
         command=["/bin/bash"],
         environment: Callable[[dict[str, str]], None] | None = None,
         directory: str | None = None,
-        holding: Holding | None = None,
         backend: Backend | None = None,
         bell_func: Callable[[], None] | None = None,
         style: str = "",
@@ -1292,7 +1286,7 @@ class Terminal:
         key_profile_func: Callable[[], KeyProfile] | None = None,
     ) -> None:
         if backend is None:
-            backend = create_backend(command, environment, directory, holding)
+            backend = create_backend(command, environment, directory)
 
         self._copy_func = copy_func
 
