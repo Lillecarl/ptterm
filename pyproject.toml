@@ -22,6 +22,8 @@ dependencies = [
     # `ptterm.process` and `ptterm.backends`, and it left for the same
     # reason. Lillecarl/pymux#85.
     "ptyhost",
+    # Helix's keys, for copy mode. Lillecarl/pymux#749.
+    "ptkhx",
 ]
 
 [project.optional-dependencies]

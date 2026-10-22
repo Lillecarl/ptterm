@@ -16,18 +16,21 @@ running. Lillecarl/pymux#470.
 from __future__ import annotations
 
 from bisect import bisect_right
-from typing import TYPE_CHECKING
+from functools import cache
+from typing import TYPE_CHECKING, override
 
 from prompt_toolkit.application.current import get_app
 from prompt_toolkit.buffer import Buffer
+from prompt_toolkit.clipboard import ClipboardData
 from prompt_toolkit.document import Document
-from prompt_toolkit.filters import has_selection, vi_mode
+from prompt_toolkit.filters import Condition, has_selection, vi_mode
 from prompt_toolkit.formatted_text import StyleAndTextTuples
-from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.key_binding import ConditionalKeyBindings, KeyBindings, merge_key_bindings
 from prompt_toolkit.key_binding.bindings.scroll import scroll_page_down
 from prompt_toolkit.layout.containers import Float, FloatContainer, HSplit, Window
 from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
 from prompt_toolkit.layout.processors import (
+    ConditionalProcessor,
     HighlightIncrementalSearchProcessor,
     HighlightSearchProcessor,
     HighlightSelectionProcessor,
@@ -38,6 +41,8 @@ from prompt_toolkit.mouse_events import MouseEventType
 from prompt_toolkit.selection import SelectionType
 from prompt_toolkit.token import KeepWhitespace
 from prompt_toolkit.widgets.toolbars import SearchToolbar
+from ptkhx import Mode
+from ptkhx.bindings import HelixBindings
 from pyte.cells import Cell, WrittenCell
 from pyte.page import Page, RowMark, TextLine
 from pyte.placeholders import PLACEHOLDER
@@ -45,6 +50,9 @@ from pyte.placeholders import PLACEHOLDER
 from .style import style_of
 
 if TYPE_CHECKING:
+    from prompt_toolkit.application import Application
+    from prompt_toolkit.key_binding import KeyPressEvent
+
     from .terminal import Terminal
 
 __all__ = ["CopyView"]
@@ -64,7 +72,8 @@ class CopyView:
 
         self.search_toolbar = SearchToolbar(forward_search_prompt="Search down: ", backward_search_prompt="Search up: ")
 
-        self.buffer = _CopyBuffer(read_only=True)
+        self.buffer = _CopyBuffer(self, read_only=True)
+        helix = _helix()
         self.control = _CopyBufferControl(
             self,
             buffer=self.buffer,
@@ -75,9 +84,19 @@ class CopyView:
                 _HighlightSelectionWithoutTheWrap(),
                 HighlightSearchProcessor(),
                 HighlightIncrementalSearchProcessor(),
+                # After the styled cells, which it paints over.
+                ConditionalProcessor(helix.processor(), _HELIX_KEYS),
             ],
             preview_search=True,  # XXX: not sure why we need twice preview_search.
-            key_bindings=self._keys(),
+            key_bindings=merge_key_bindings(
+                [
+                    ConditionalKeyBindings(self._keys(), ~_HELIX_KEYS),
+                    # Last, so Helix's keys and copy mode's own over them
+                    # win a tie.
+                    helix.key_bindings,
+                    helix.copy_keys,
+                ]
+            ),
             append_space=False,
         )
 
@@ -225,6 +244,10 @@ class CopyView:
         """
         document = self.buffer.document
         position = f"[{document.cursor_position_row + 1}/{document.line_count}]"
+        if _HELIX_KEYS():
+            # Copy mode has no status line, and a search typed blind is no use.
+            helix = _helix()
+            position = f"{helix.pending_of(self.buffer) or helix.mode_of(self.buffer).label} {position}"
         if self.terminal.screen.writes != self.writes:
             return position + " r for newer"
         return position
@@ -310,8 +333,10 @@ class CopyView:
         session, which `paste-buffer` reads. It is written second, so
         that the selection type it carries is the one that stands.
         """
-        data = self.buffer.copy_selection()
+        self.copy(self.buffer.copy_selection())
 
+    def copy(self, data: ClipboardData) -> None:
+        "Put `data` on both clipboards, as `copy_selection` says."
         copy_func = self.terminal._copy_func
         if copy_func is not None and data.text:
             copy_func(data.text)
@@ -630,6 +655,11 @@ class _CopyBuffer(Buffer):
     not come through here. Lillecarl/pymux#189.
     """
 
+    def __init__(self, view: CopyView, **kw) -> None:
+        super().__init__(**kw)
+        #: How a key bound for every copy view finds the one it is for.
+        self.view = view
+
     @property
     def cursor_position(self) -> int:
         return Buffer.cursor_position.fget(self)
@@ -651,6 +681,104 @@ class _CopyBuffer(Buffer):
         if position > 0 and text[position - 1] != "\n":
             return position - 1
         return position
+
+
+def _view() -> CopyView | None:
+    buffer = get_app().current_buffer
+    return buffer.view if isinstance(buffer, _CopyBuffer) else None
+
+
+@Condition
+def _HELIX_KEYS() -> bool:
+    "The copy view in front takes Helix's keys: its embedder asks for them."
+    view = _view()
+    return view is not None and view.terminal.helix_keys is not None and view.terminal.helix_keys()
+
+
+@Condition
+def _EMBEDDER_FIRST() -> bool:
+    "The embedder takes the next key, as pymux does after its prefix."
+    view = _view()
+    takes = view.terminal.terminal_control.takes_key_first if view is not None else None
+    return takes is not None and takes()
+
+
+class _CopyHelix(HelixBindings):
+    """
+    Helix's keys in copy mode, read-only, in normal mode on entry.
+
+    **One for every copy view.** It binds some four hundred keys, and
+    building them on each entry into copy mode would cost that entry,
+    which a person waits for. The editors hang off the buffers, so each
+    view keeps its own selection, and a key finds its view through the
+    buffer it reaches.
+
+    tmux's leaving and copying keys sit over Helix's: `y` and Enter copy
+    the selection and leave, `q` and Escape in normal mode leave, and `r`
+    takes a new copy -- `r` replaces in Helix, which a copy refuses.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            initial_mode=Mode.NORMAL,
+            read_only=True,
+            filter=_HELIX_KEYS & ~_EMBEDDER_FIRST,
+            accept=_copy_and_leave,
+        )
+        self.copy_keys = self._copy_keys()
+
+    def _copy_keys(self) -> ConditionalKeyBindings:
+        kb = KeyBindings()
+
+        @kb.add("c-c")
+        def _leave(event: KeyPressEvent) -> None:
+            event.current_buffer.view.terminal.exit_copy_mode()
+
+        # Not while a key waits for another or a regex is typed: `fq`
+        # finds a `q`, and a search may hold a `y`.
+        idle = Condition(lambda: not self.pending_of(get_app().current_buffer))
+
+        kb.add("q", filter=idle)(_leave)
+
+        # Enter by name too: prompt_toolkit's own Enter names it, and
+        # beats the editor's catch-all.
+        @kb.add("y", filter=idle)
+        @kb.add("enter", filter=idle)
+        def _copy(event: KeyPressEvent) -> None:
+            _copy_and_leave(event.current_buffer, event.app)
+
+        @kb.add("r", filter=idle)
+        def _refresh(event: KeyPressEvent) -> None:
+            event.current_buffer.view.refresh()
+
+        return ConditionalKeyBindings(kb, Condition(self._active))
+
+    @override
+    def before_escape(self, event: KeyPressEvent) -> bool:
+        "Escape in normal mode, with nothing half typed, leaves copy mode."
+        buffer = event.current_buffer
+        if self.mode_of(buffer) is not Mode.NORMAL or self.pending_of(buffer):
+            return False
+        buffer.view.terminal.exit_copy_mode()
+        return True
+
+
+def _copy_and_leave(buffer: Buffer, _app: Application) -> None:
+    """
+    Copy every selection, one to a line, and leave copy mode.
+
+    One string is all a clipboard holds, so the selections are joined
+    the way Helix joins them for its own clipboard register.
+    """
+    view = buffer.view
+    editor = _helix().editor_for(buffer)
+    view.copy(ClipboardData("\n".join(editor.selection.fragments(editor.text))))
+    view.terminal.exit_copy_mode()
+
+
+@cache
+def _helix() -> _CopyHelix:
+    return _CopyHelix()
 
 
 class _HighlightSelectionWithoutTheWrap(HighlightSelectionProcessor):

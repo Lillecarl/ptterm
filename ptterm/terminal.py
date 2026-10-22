@@ -1245,6 +1245,10 @@ class Terminal:
         the way, so the embedder's own catch-all binding answers: the
         focused pane's would otherwise win. pymux answers for a client
         that holds its prefix.
+    :param helix_keys: Returns whether copy mode takes Helix's keys,
+        through ptkhx, in place of prompt_toolkit's vi or emacs ones.
+        The option that says so is the embedder's: pymux's
+        `mode-keys`.
     :param get_history_limit: Returns how many rows of scrollback this
         pane keeps. The default is two thousand, which is what tmux
         keeps. It is a function and not a number, so the option can
@@ -1260,6 +1264,7 @@ class Terminal:
         "terminal_control": Keep.SAVED,
         "copy_views": Keep.DROPPED,
         "_copy_func": Keep.REBUILT,
+        "helix_keys": Keep.REBUILT,
         "container": Keep.REBUILT,
         "terminal_window": Keep.REBUILT,
     }
@@ -1284,11 +1289,13 @@ class Terminal:
         unreadable_key_func: Callable[[object, int, str], None] | None = None,
         takes_key_first: Callable[[], bool] | None = None,
         key_profile_func: Callable[[], KeyProfile] | None = None,
+        helix_keys: Callable[[], bool] | None = None,
     ) -> None:
         if backend is None:
             backend = create_backend(command, environment, directory)
 
         self._copy_func = copy_func
+        self.helix_keys = helix_keys
 
         self.terminal_control = _TerminalControl(
             backend=backend,
