@@ -70,7 +70,8 @@ def every_line_the_eager_way(terminal):
     **It walks the rows itself** rather than asking `Page.unwrap`, so
     that it judges the answer and does not repeat it. A run of rows
     that a wrap made is one line, because that is one line a program
-    wrote. Lillecarl/pymux#135.
+    wrote. Lillecarl/pymux#135. The spaces at the end of a line are
+    not in it, as tmux's `grid_line_length` leaves them out.
     """
     buffer = terminal.terminal_control.screen.page.data_buffer
     lines = []
@@ -83,6 +84,9 @@ def every_line_the_eager_way(terminal):
                 for column in range(max(row) + 1):
                     char = row[column]
                     lines[-1].append(terminal.copy_view.cell(char))
+    for line in lines:
+        while line and line[-1][1] == " ":
+            line.pop()
     return lines
 
 
@@ -95,6 +99,8 @@ CHUNKS = [
     "\r\n" + csi(escape.SGR, 1, 4, 7) + "bold underlined reversed" + csi(escape.SGR, 0),
     "\r\n" + set_mode(PrivateMode.REVERSE_VIDEO) + "under reverse video",
     "\r\na line that is longer than the pane is wide",
+    # Padded to the width, as Claude Code pads every row.
+    "\r\npadded" + " " * 14,
     "\r\n" + "".join("scrolled row %d\r\n" % number for number in range(20)),
 ]
 
@@ -121,6 +127,16 @@ def test_a_line_the_pane_wrapped_is_one_line_of_the_document():
     text = "a line that is longer than the pane is wide"
     terminal = a_terminal(text)
     assert terminal.copy_view.buffer.document.text.rstrip() == text
+
+
+def test_the_spaces_at_the_end_of_a_line_are_not_in_the_document():
+    """
+    tmux measures a row of copy mode to its last cell that is not a
+    space. A program that pads every row to the width put a move to the
+    end of the line at the right edge, and a copy ran on with blanks.
+    """
+    terminal = a_terminal("padded" + " " * 14 + "\r\n  indented  ")
+    assert terminal.copy_view.buffer.document.lines[:2] == ["padded", "  indented"]
 
 
 def test_a_line_is_built_once():

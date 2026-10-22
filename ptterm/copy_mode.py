@@ -484,7 +484,13 @@ class CopyView:
 
         lines: list[TextLine] = []
         if rows:
-            lines = page.text_lines(min(rows), max(rows))
+            # **Without the spaces at the end of a line**, as tmux has it:
+            # every move and every copy of `window-copy.c` measures a row
+            # with `grid_line_length`, which stops at the last cell that is
+            # not a space. A program that pads each row to the width, as
+            # Claude Code does, otherwise put `gl` and `gs` at the right
+            # edge and a copy of a line ran on with blanks.
+            lines = page.text_lines(min(rows), max(rows), trailing_spaces=False)
 
         text_str = "\n".join(line.text for line in lines)
 
@@ -588,6 +594,11 @@ class CopyView:
                 if row:
                     for column in range(max(row) + 1):
                         line.append(self.cell(row[column]))
+            # The spaces `freeze` took off the end of the text: one cell
+            # each, and the line must hold no more characters than its text.
+            excess = sum(len(text) for _, text in line) - len(shown.text)
+            if excess > 0:
+                del line[-excess:]
         self._styled_lines[number] = line
         return line
 

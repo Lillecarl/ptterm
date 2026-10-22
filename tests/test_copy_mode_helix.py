@@ -128,6 +128,16 @@ async def test_an_edit_is_refused():
     assert terminal.copy_views.of(app).buffer.text == "hello world"
 
 
+async def test_a_padded_row_ends_at_its_last_character():
+    "Claude Code pads every row to the width; `gl` and `y` stop at the text."
+    terminal, copied = a_terminal("  padded" + " " * 12)
+    app = press(terminal, "g", "g", "g", "l")
+    assert spans(terminal, app) == []
+    assert terminal.copy_views.of(app).buffer.cursor_position == len("  padded") - 1
+    press_more(app, "g", "s", "v", "g", "l", "y")
+    assert copied == ["padded"]
+
+
 async def test_search_selects_the_match():
     terminal, _ = a_terminal("first\r\nsecond\r\nthird")
     app = press(terminal, "g", "g", "/", "s", "e", "c", Keys.ControlM)
