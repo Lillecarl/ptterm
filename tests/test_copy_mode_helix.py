@@ -12,6 +12,8 @@ running loop.
 
 from __future__ import annotations
 
+import time
+
 from no_backend import NoBackend
 from prompt_toolkit.application.current import set_app
 from prompt_toolkit.application.dummy import DummyApplication
@@ -120,12 +122,91 @@ async def test_a_key_that_waits_for_another_takes_q():
     assert spans(terminal, app) == ["aq"]
 
 
-async def test_an_edit_is_refused():
-    "The buffer is read-only: an edit that reached it would raise."
-    terminal, _ = a_terminal("hello world")
-    app = press(terminal, "g", "h", "d", "i", "x")
-    assert open_in(terminal, app)
+async def test_the_copy_can_be_edited_before_it_is_copied():
+    "Lillecarl/pymux#751: delete what is not wanted, then copy the rest."
+    terminal, copied = a_terminal("$ hello world")
+    app = press(terminal, "g", "h", "w", "d")
     assert terminal.copy_views.of(app).buffer.text == "hello world"
+    press_more(app, "%", "y")
+    assert copied == ["hello world"]
+
+
+async def test_insert_mode_types_what_would_copy_or_leave():
+    "`q`, `y` and Enter are tmux's outside insert mode, and letters in it."
+    terminal, _ = a_terminal("ab")
+    app = press(terminal, "g", "h", "i", "q", "y", Keys.ControlM, Keys.Escape)
+    assert open_in(terminal, app)
+    assert terminal.copy_views.of(app).buffer.text == "qy\nab"
+
+
+async def test_a_line_no_edit_touched_keeps_its_colours():
+    terminal, _ = a_terminal("plain\r\n\x1b[31mred\x1b[0m")
+    app = press(terminal)
+    view = terminal.copy_views.of(app)
+    red = view.styled_line(1)
+    press_more(app, "g", "g", "x", "d")
+    assert view.buffer.text == "red"
+    assert view.styled_line(0) == red
+
+
+async def test_a_line_an_edit_touched_is_plain_text():
+    terminal, _ = a_terminal("\x1b[31mred\x1b[0m")
+    app = press(terminal, "g", "h", "i", "x", Keys.Escape)
+    view = terminal.copy_views.of(app)
+    assert view.styled_line(0) == [("", "xred")]
+
+
+def alt_r(app: DummyApplication) -> None:
+    "Alt-r, as a terminal sends it: Escape and `r` in one read."
+    with set_app(app):
+        app.key_processor.feed_multiple([KeyPress(Keys.Escape, "\x1b"), KeyPress("r", "r")])
+        app.key_processor.process_keys()
+
+
+async def test_alt_r_takes_a_new_copy():
+    terminal, _ = a_terminal("ab")
+    app = press(terminal)
+    terminal.terminal_control.stream.feed("c")
+    alt_r(app)
+    assert terminal.copy_views.of(app).buffer.text == "abc"
+
+
+async def test_r_is_helix_s_replace():
+    terminal, _ = a_terminal("ab")
+    app = press(terminal, "g", "h", "r", "x")
+    assert terminal.copy_views.of(app).buffer.text == "xb"
+
+
+async def test_refresh_is_refused_over_edits():
+    terminal, _ = a_terminal("ab")
+    app = press(terminal, "g", "h", "d")
+    alt_r(app)
+    view = terminal.copy_views.of(app)
+    assert view.buffer.text == "b"
+    assert view.refresh_refused
+    with set_app(app):
+        assert view._position_formatted_text().endswith("edited: u or y first")
+
+
+async def test_typing_in_a_deep_copy_answers_quickly():
+    """
+    Each key in insert mode compares the document with the one before:
+    ptkhx a block at a time, and copy mode the lines from both ends.
+    """
+    terminal, _ = a_terminal("".join("line %d of the history\r\n" % number for number in range(20000)))
+    app = press(terminal, "g", "g", "i")
+    started = time.monotonic()
+    press_more(app, *"typed")
+    assert terminal.copy_views.of(app).buffer.text.startswith("typedline ")
+    assert time.monotonic() - started < 0.5
+
+
+async def test_undoing_every_edit_is_no_edit():
+    terminal, _ = a_terminal("ab")
+    app = press(terminal, "g", "h", "d", "u")
+    view = terminal.copy_views.of(app)
+    assert view.buffer.text == "ab"
+    assert not view.edited
 
 
 async def test_a_padded_row_ends_at_its_last_character():

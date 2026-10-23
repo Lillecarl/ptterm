@@ -72,7 +72,11 @@ class CopyView:
 
         self.search_toolbar = SearchToolbar(forward_search_prompt="Search down: ", backward_search_prompt="Search up: ")
 
-        self.buffer = _CopyBuffer(self, read_only=True)
+        # Read-only with tmux's keys. With Helix's a person may edit the
+        # copy before copying it, and leaving copy mode drops the edits.
+        # Lillecarl/pymux#751.
+        self.buffer = _CopyBuffer(self, read_only=Condition(lambda: not self.helix_keys()))
+        self.buffer.on_text_changed += self._follow_the_edit
         helix = _helix()
         self.control = _CopyBufferControl(
             self,
@@ -128,6 +132,17 @@ class CopyView:
         #: time.
         self.lines: list[TextLine] = []
         self._styled_lines: dict[int, StyleAndTextTuples] = {}
+
+        #: The document as `freeze` made it, and the one before the last
+        #: edit.
+        self._frozen = Document()
+        self._before = Document()
+        #: For each line of an edited document, the line of `lines` it
+        #: still is, or None for a line an edit touched. None for the
+        #: whole list while nothing is edited.
+        self._origin: list[int | None] | None = None
+        #: `refresh` was refused for the edits, and the corner says so.
+        self.refresh_refused = False
 
         self.container = FloatContainer(
             content=HSplit([self.window, self.search_toolbar]),
@@ -233,6 +248,57 @@ class CopyView:
 
         return kb
 
+    def helix_keys(self) -> bool:
+        "Does the embedder ask for Helix's keys here?"
+        keys = self.terminal.helix_keys
+        return keys is not None and keys()
+
+    @property
+    def edited(self) -> bool:
+        return self._origin is not None
+
+    def _follow_the_edit(self, _buffer: Buffer) -> None:
+        """
+        Carry each line's origin through an edit, so a line the edit did
+        not touch still draws with the colours its program gave it.
+
+        The lines both texts start and end with are the same lines; the
+        ones between are the edit's. A document back at what `freeze`
+        made is not edited at all, whatever happened in between.
+        """
+        document = self.buffer.document
+        before, self._before = self._before, document
+        self.refresh_refused = False
+        if document.text == self._frozen.text:
+            self._origin = None
+            return
+        old, new = before.lines, document.lines
+        limit = min(len(old), len(new))
+        prefix = 0
+        while prefix < limit and old[prefix] == new[prefix]:
+            prefix += 1
+        suffix = 0
+        while suffix < limit - prefix and old[len(old) - 1 - suffix] == new[len(new) - 1 - suffix]:
+            suffix += 1
+        origin = self._origin if self._origin is not None else list(range(len(old)))
+        self._origin = origin[:prefix] + [None] * (len(new) - prefix - suffix) + origin[len(old) - suffix :]
+
+    def _line_of(self, index: int) -> TextLine | None:
+        "The line of the copy that line `index` of the document still is."
+        if self._origin is None:
+            return self.lines[index] if index < len(self.lines) else None
+        source = self._origin[index] if index < len(self._origin) else None
+        return None if source is None else self.lines[source]
+
+    def _index_of(self, source: int) -> int | None:
+        "Where line `source` of the copy stands in the document now."
+        if self._origin is None:
+            return source
+        try:
+            return self._origin.index(source)
+        except ValueError:
+            return None
+
     def _position_formatted_text(self) -> str:
         """
         The line of the history the copy cursor is on, and how many there
@@ -244,12 +310,18 @@ class CopyView:
         """
         document = self.buffer.document
         position = f"[{document.cursor_position_row + 1}/{document.line_count}]"
+        refresh = "r"
         if _HELIX_KEYS():
             # Copy mode has no status line, and a search typed blind is no use.
             helix = _helix()
             position = f"{helix.pending_of(self.buffer) or helix.mode_of(self.buffer).label} {position}"
+            refresh = "A-r"
+        if self.refresh_refused:
+            return position + " edited: u or y first"
+        if self.edited:
+            return position + " edited"
         if self.terminal.screen.writes != self.writes:
-            return position + " r for newer"
+            return position + f" {refresh} for newer"
         return position
 
     def _style(self) -> str:
@@ -361,7 +433,7 @@ class CopyView:
         info = self.window.render_info
         if info is None or not info.displayed_lines or not self.lines:
             return None
-        shown = [self.lines[index] for index in info.displayed_lines if index < len(self.lines)]
+        shown = [line for index in info.displayed_lines if (line := self._line_of(index)) is not None]
         return (shown[0].first, shown[-1].last) if shown else None
 
     def where_shown(self, row: int, column: int) -> tuple[int, int] | None:
@@ -378,7 +450,11 @@ class CopyView:
         index = bisect_right(lines, row, key=lambda line: line.first) - 1
         if info is None or index < 0 or row > lines[index].last:
             return None
-        return info._rowcol_to_yx.get((index, self.page.offset_in_line(lines[index], row, column)))
+        # An edit moves lines and may have touched this one.
+        shown = self._index_of(index)
+        if shown is None:
+            return None
+        return info._rowcol_to_yx.get((shown, self.page.offset_in_line(lines[index], row, column)))
 
     def scroll(self, lines: int) -> None:
         """
@@ -411,13 +487,13 @@ class CopyView:
         (`window_copy_cursor_prompt`), which go to the start of the line
         too. Lillecarl/pymux#500.
         """
-        lines = self.lines
         rows = self.page.data_buffer
-        here = self.buffer.document.cursor_position_row
-        candidates = range(here + 1, len(lines)) if down else range(here - 1, -1, -1)
+        document = self.buffer.document
+        here = document.cursor_position_row
+        candidates = range(here + 1, document.line_count) if down else range(here - 1, -1, -1)
         for index in candidates:
-            line = lines[index]
-            if any(
+            line = self._line_of(index)
+            if line is not None and any(
                 (row := rows.get(number)) is not None and row.marks & mark
                 for number in range(line.first, line.last + 1)
             ):
@@ -494,13 +570,13 @@ class CopyView:
 
         text_str = "\n".join(line.text for line in lines)
 
-        self.buffer.set_document(
-            Document(
-                text=text_str,
-                cursor_position=self._where_the_pane_is(lines, text_str),
-            ),
-            bypass_readonly=True,
+        # Before the document, so `_follow_the_edit` finds nothing edited.
+        self._frozen = self._before = Document(
+            text=text_str,
+            cursor_position=self._where_the_pane_is(lines, text_str),
         )
+        self.buffer.set_document(self._frozen, bypass_readonly=True)
+        self._origin = None
 
         self.lines = lines
         self._styled_lines = {}
@@ -516,7 +592,14 @@ class CopyView:
         the old document. tmux keeps the distance from the top of the
         history (`window_copy_cmd_refresh_from_pane`), which is the
         same place until the limit drops a row.
+
+        **Not over edits.** A new copy would drop them without a word, so
+        it is refused, and the corner says to undo them or copy first.
+        Lillecarl/pymux#751.
         """
+        if self.edited:
+            self.refresh_refused = True
+            return
         document = self.buffer.document
         index = document.cursor_position_row
         offset = document.cursor_position_col
@@ -524,6 +607,9 @@ class CopyView:
 
         self.buffer.exit_selection()
         self.freeze()
+        # The undo history of Helix's editor names the old copy.
+        if self.helix_keys():
+            _helix().reset(self.buffer)
 
         lines = self.lines
         if first is None or not lines:
@@ -577,8 +663,17 @@ class CopyView:
         instructions at that depth, and a person waited for it after
         pressing a key. Lillecarl/pymux#131.
 
-        The answer is kept, because the copy never changes.
+        The answer is kept, because the copy never changes. An edit
+        changes the document over it: a line the edit did not touch is
+        still a line of the copy, and one it did is plain text.
+        Lillecarl/pymux#751.
         """
+        if self._origin is not None:
+            source = self._origin[number] if 0 <= number < len(self._origin) else None
+            if source is None:
+                document = self.buffer.document
+                return [("", document.lines[number])] if 0 <= number < document.line_count else []
+            number = source
         line = self._styled_lines.get(number)
         if line is not None:
             return line
@@ -703,7 +798,7 @@ def _view() -> CopyView | None:
 def _HELIX_KEYS() -> bool:
     "The copy view in front takes Helix's keys: its embedder asks for them."
     view = _view()
-    return view is not None and view.terminal.helix_keys is not None and view.terminal.helix_keys()
+    return view is not None and view.helix_keys()
 
 
 @Condition
@@ -716,7 +811,8 @@ def _EMBEDDER_FIRST() -> bool:
 
 class _CopyHelix(HelixBindings):
     """
-    Helix's keys in copy mode, read-only, in normal mode on entry.
+    Helix's keys in copy mode, in normal mode on entry. The copy can be
+    edited before it is copied. Lillecarl/pymux#751.
 
     **One for every copy view.** It binds some four hundred keys, and
     building them on each entry into copy mode would cost that entry,
@@ -724,15 +820,15 @@ class _CopyHelix(HelixBindings):
     view keeps its own selection, and a key finds its view through the
     buffer it reaches.
 
-    tmux's leaving and copying keys sit over Helix's: `y` and Enter copy
-    the selection and leave, `q` and Escape in normal mode leave, and `r`
-    takes a new copy -- `r` replaces in Helix, which a copy refuses.
+    tmux's leaving and copying keys sit over Helix's outside insert
+    mode: `y` and Enter copy the selection and leave, `q` and Escape in
+    normal mode leave. `r` is Helix's replace, so `Alt-r` takes a new
+    copy.
     """
 
     def __init__(self) -> None:
         super().__init__(
             initial_mode=Mode.NORMAL,
-            read_only=True,
             filter=_HELIX_KEYS & ~_EMBEDDER_FIRST,
             accept=_copy_and_leave,
         )
@@ -745,20 +841,24 @@ class _CopyHelix(HelixBindings):
         def _leave(event: KeyPressEvent) -> None:
             event.current_buffer.view.terminal.exit_copy_mode()
 
-        # Not while a key waits for another or a regex is typed: `fq`
-        # finds a `q`, and a search may hold a `y`.
-        idle = Condition(lambda: not self.pending_of(get_app().current_buffer))
+        # Not while a key waits for another or a regex is typed, nor in
+        # insert mode: `fq` finds a `q`, a search may hold a `y`, and
+        # typing writes them.
+        def idle() -> bool:
+            buffer = get_app().current_buffer
+            return not self.pending_of(buffer) and self.mode_of(buffer) is not Mode.INSERT
 
-        kb.add("q", filter=idle)(_leave)
+        kb.add("q", filter=Condition(idle))(_leave)
 
         # Enter by name too: prompt_toolkit's own Enter names it, and
         # beats the editor's catch-all.
-        @kb.add("y", filter=idle)
-        @kb.add("enter", filter=idle)
+        @kb.add("y", filter=Condition(idle))
+        @kb.add("enter", filter=Condition(idle))
         def _copy(event: KeyPressEvent) -> None:
             _copy_and_leave(event.current_buffer, event.app)
 
-        @kb.add("r", filter=idle)
+        # After Helix's own `escape r` in the merge, so this wins the tie.
+        @kb.add("escape", "r", filter=Condition(idle))
         def _refresh(event: KeyPressEvent) -> None:
             event.current_buffer.view.refresh()
 
@@ -780,9 +880,14 @@ def _copy_and_leave(buffer: Buffer, _app: Application) -> None:
 
     One string is all a clipboard holds, so the selections are joined
     the way Helix joins them for its own clipboard register.
+
+    The editor also asks for this on Enter in insert mode with several
+    cursors, where it is a shell's accept. That Enter does nothing here.
     """
     view = buffer.view
     editor = _helix().editor_for(buffer)
+    if editor.mode is Mode.INSERT:
+        return
     view.copy(ClipboardData("\n".join(editor.selection.fragments(editor.text))))
     view.terminal.exit_copy_mode()
 
