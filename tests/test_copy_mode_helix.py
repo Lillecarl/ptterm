@@ -139,6 +139,14 @@ async def test_insert_mode_types_what_would_copy_or_leave():
     assert terminal.copy_views.of(app).buffer.text == "qy\nab"
 
 
+async def test_enter_with_several_cursors_breaks_the_line_at_each():
+    "Several cursors type through ptkhx's editor, whose own Enter accepts a shell line."
+    terminal, _ = a_terminal("a b a")
+    app = press(terminal, "%", "s", "a", Keys.ControlM, "i", Keys.ControlM, Keys.Escape)
+    assert open_in(terminal, app)
+    assert terminal.copy_views.of(app).buffer.text == "\na b \na"
+
+
 async def test_a_line_no_edit_touched_keeps_its_colours():
     terminal, _ = a_terminal("plain\r\n\x1b[31mred\x1b[0m")
     app = press(terminal)

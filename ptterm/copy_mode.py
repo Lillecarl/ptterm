@@ -857,6 +857,18 @@ class _CopyHelix(HelixBindings):
         def _copy(event: KeyPressEvent) -> None:
             _copy_and_leave(event.current_buffer, event.app)
 
+        # Several cursors type through the editor, which owns the text then,
+        # and prompt_toolkit's Enter, which names the key and so beats the
+        # editor's catch-all, broke one line only for the editor to write
+        # its own text back over it. One cursor keeps prompt_toolkit's.
+        def typing_at_several() -> bool:
+            editor = self.editor_for(get_app().current_buffer)
+            return editor.mode is Mode.INSERT and editor.owns_input
+
+        @kb.add("enter", filter=Condition(typing_at_several))
+        def _break_each_line(event: KeyPressEvent) -> None:
+            self.insert_text(event.current_buffer, "\n")
+
         # After Helix's own `escape r` in the merge, so this wins the tie.
         @kb.add("escape", "r", filter=Condition(idle))
         def _refresh(event: KeyPressEvent) -> None:
@@ -881,13 +893,9 @@ def _copy_and_leave(buffer: Buffer, _app: Application) -> None:
     One string is all a clipboard holds, so the selections are joined
     the way Helix joins them for its own clipboard register.
 
-    The editor also asks for this on Enter in insert mode with several
-    cursors, where it is a shell's accept. That Enter does nothing here.
     """
     view = buffer.view
     editor = _helix().editor_for(buffer)
-    if editor.mode is Mode.INSERT:
-        return
     view.copy(ClipboardData("\n".join(editor.selection.fragments(editor.text))))
     view.terminal.exit_copy_mode()
 
