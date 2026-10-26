@@ -25,8 +25,16 @@ from prompt_toolkit.clipboard import ClipboardData
 from prompt_toolkit.document import Document
 from prompt_toolkit.filters import Condition, has_selection, vi_mode
 from prompt_toolkit.formatted_text import StyleAndTextTuples
-from prompt_toolkit.key_binding import ConditionalKeyBindings, KeyBindings, merge_key_bindings
+from prompt_toolkit.key_binding import ConditionalKeyBindings, DynamicKeyBindings, KeyBindings, merge_key_bindings
+from prompt_toolkit.key_binding.bindings.basic import load_basic_bindings
+from prompt_toolkit.key_binding.bindings.emacs import (
+    load_emacs_bindings,
+    load_emacs_search_bindings,
+    load_emacs_shift_selection_bindings,
+)
+from prompt_toolkit.key_binding.bindings.page_navigation import load_page_navigation_bindings
 from prompt_toolkit.key_binding.bindings.scroll import scroll_page_down
+from prompt_toolkit.key_binding.bindings.vi import load_vi_bindings, load_vi_search_bindings
 from prompt_toolkit.keys import Keys
 from prompt_toolkit.layout.containers import Float, FloatContainer, HSplit, Window
 from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
@@ -53,10 +61,11 @@ from .style import style_of
 if TYPE_CHECKING:
     from prompt_toolkit.application import Application
     from prompt_toolkit.key_binding import KeyPressEvent
+    from prompt_toolkit.key_binding.key_bindings import Binding, KeyBindingsBase, KeyHandlerCallable
 
     from .terminal import Terminal
 
-__all__ = ["CopyView"]
+__all__ = ["CopyView", "copy_mode_key_bindings"]
 
 
 class CopyView:
@@ -95,7 +104,7 @@ class CopyView:
             preview_search=True,  # XXX: not sure why we need twice preview_search.
             key_bindings=merge_key_bindings(
                 [
-                    ConditionalKeyBindings(self._keys(), ~_HELIX_KEYS),
+                    ConditionalKeyBindings(_reporting(self._keys()), ~_HELIX_KEYS),
                     # Last, so Helix's keys and copy mode's own over them
                     # win a tie.
                     helix.key_bindings,
@@ -791,8 +800,10 @@ class _CopyBuffer(Buffer):
 
 
 def _view() -> CopyView | None:
-    buffer = get_app().current_buffer
-    return buffer.view if isinstance(buffer, _CopyBuffer) else None
+    # Not `current_buffer`, which builds a Buffer whenever a pane has
+    # the focus, and every key in a pane asks this. Lillecarl/pymux#773.
+    control = get_app().layout.current_control
+    return control.view if isinstance(control, _CopyBufferControl) else None
 
 
 @Condition
@@ -819,6 +830,76 @@ def _tell_the_terminal(buffer: Buffer, keys: str) -> None:
 def _key_of(event: KeyPressEvent) -> str:
     key = event.key_sequence[-1].key
     return key.value if isinstance(key, Keys) else key
+
+
+@cache
+def copy_mode_key_bindings() -> DynamicKeyBindings:
+    """
+    prompt_toolkit's own vi and emacs keys, the ones every application
+    holds, again, so that in copy mode each tells the terminal what it
+    ran through `Terminal.on_copy_command`. Nothing public says which
+    handler a key reached. Lillecarl/pymux#773.
+
+    **An embedder puts these under its own bindings**, where the
+    application's copies rank, and so shadows those with the same
+    handlers. On the copy buffer's control they would rank over the
+    embedder's, and its prefix would move the caret.
+
+    Dynamic rather than conditional: a condition on each binding is
+    asked for every binding a key could reach, and a key in a pane
+    paid a tenth more for it in checks.pymux-keystroke.
+    """
+    defaults = merge_key_bindings(
+        [
+            load_basic_bindings(),
+            load_emacs_bindings(),
+            load_emacs_search_bindings(),
+            load_emacs_shift_selection_bindings(),
+            load_vi_bindings(),
+            load_vi_search_bindings(),
+            load_page_navigation_bindings(),
+        ]
+    )
+    reporting = _reporting(defaults)
+
+    def in_copy_mode() -> KeyBindings | None:
+        view = _view()
+        return reporting if view is not None and not view.helix_keys() else None
+
+    return DynamicKeyBindings(in_copy_mode)
+
+
+def _reporting(bindings: KeyBindingsBase) -> KeyBindings:
+    kb = KeyBindings()
+    for binding in bindings.bindings:
+        kb.add(
+            *binding.keys,
+            filter=binding.filter,
+            eager=binding.eager,
+            is_global=binding.is_global,
+            save_before=binding.save_before,
+            record_in_macro=binding.record_in_macro,
+        )(_reported(binding))
+    return kb
+
+
+def _reported(binding: Binding) -> KeyHandlerCallable:
+    """
+    `binding`'s handler, telling the terminal the keys it was bound to.
+
+    The bound keys and not the pressed ones: `Keys.Any` stands for a
+    character the buffer holds, as in vi's `f`, and that stays out.
+    """
+    names = [key.value if isinstance(key, Keys) else key for key in binding.keys if key is not Keys.Any]
+    name = ("" if all(len(each) == 1 for each in names) else " ").join(names)
+    handler = binding.handler
+
+    def reported(event: KeyPressEvent):
+        if name:
+            _tell_the_terminal(event.current_buffer, name)
+        return handler(event)
+
+    return reported
 
 
 class _CopyHelix(HelixBindings):
