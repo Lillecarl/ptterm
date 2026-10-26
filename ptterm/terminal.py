@@ -1265,6 +1265,7 @@ class Terminal:
         "copy_views": Keep.DROPPED,
         "_copy_func": Keep.REBUILT,
         "helix_keys": Keep.REBUILT,
+        "on_copy_command": Keep.REBUILT,
         "container": Keep.REBUILT,
         "terminal_window": Keep.REBUILT,
     }
@@ -1296,6 +1297,10 @@ class Terminal:
 
         self._copy_func = copy_func
         self.helix_keys = helix_keys
+        #: Told each command a person runs in copy mode with Helix's keys:
+        #: an editor command's keys (`Editor.finished`), or the key that
+        #: copies or leaves. Never what is typed into the copy.
+        self.on_copy_command: Callable[[str], None] | None = None
 
         self.terminal_control = _TerminalControl(
             backend=backend,

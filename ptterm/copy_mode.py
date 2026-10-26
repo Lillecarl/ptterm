@@ -27,6 +27,7 @@ from prompt_toolkit.filters import Condition, has_selection, vi_mode
 from prompt_toolkit.formatted_text import StyleAndTextTuples
 from prompt_toolkit.key_binding import ConditionalKeyBindings, KeyBindings, merge_key_bindings
 from prompt_toolkit.key_binding.bindings.scroll import scroll_page_down
+from prompt_toolkit.keys import Keys
 from prompt_toolkit.layout.containers import Float, FloatContainer, HSplit, Window
 from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
 from prompt_toolkit.layout.processors import (
@@ -809,6 +810,17 @@ def _EMBEDDER_FIRST() -> bool:
     return takes is not None and takes()
 
 
+def _tell_the_terminal(buffer: Buffer, keys: str) -> None:
+    report = buffer.view.terminal.on_copy_command if isinstance(buffer, _CopyBuffer) else None
+    if report is not None:
+        report(keys)
+
+
+def _key_of(event: KeyPressEvent) -> str:
+    key = event.key_sequence[-1].key
+    return key.value if isinstance(key, Keys) else key
+
+
 class _CopyHelix(HelixBindings):
     """
     Helix's keys in copy mode, in normal mode on entry. The copy can be
@@ -832,6 +844,7 @@ class _CopyHelix(HelixBindings):
             filter=_HELIX_KEYS & ~_EMBEDDER_FIRST,
             accept=_copy_and_leave,
         )
+        self.on_command = _tell_the_terminal
         self.copy_keys = self._copy_keys()
 
     def _copy_keys(self) -> ConditionalKeyBindings:
@@ -839,6 +852,7 @@ class _CopyHelix(HelixBindings):
 
         @kb.add("c-c")
         def _leave(event: KeyPressEvent) -> None:
+            _tell_the_terminal(event.current_buffer, _key_of(event))
             event.current_buffer.view.terminal.exit_copy_mode()
 
         # Not while a key waits for another or a regex is typed, nor in
@@ -855,6 +869,7 @@ class _CopyHelix(HelixBindings):
         @kb.add("y", filter=Condition(idle))
         @kb.add("enter", filter=Condition(idle))
         def _copy(event: KeyPressEvent) -> None:
+            _tell_the_terminal(event.current_buffer, _key_of(event))
             _copy_and_leave(event.current_buffer, event.app)
 
         # Several cursors type through the editor, which owns the text then,
