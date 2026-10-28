@@ -60,7 +60,7 @@ from ptyhost.backends.posix import PosixBackend, spawn_of
 from pyte.environment import preparing
 from pyte.images import ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH
 from pyte.keep import Keep
-from pyte.keys import DEFAULT_KEY_PROFILE, KeyProfile
+from pyte.keys import DEFAULT_KEY_PROFILE, KeyEvent, KeyProfile
 from pyte.placeholders import PLACEHOLDER
 from pyte.screen import RegionCounts, Screen
 from pyte.streams import GroundTimer, Stream
@@ -341,7 +341,7 @@ class _TerminalControl(UIControl):
         may_resize: Callable[[], bool] | None = None,
         may_type: Callable[[], bool] | None = None,
         get_history_limit: Callable[[], int] | None = None,
-        unreadable_key_func: Callable[[object, int, str], None] | None = None,
+        unreadable_key_func: Callable[[KeyEvent, int, str], None] | None = None,
         takes_key_first: Callable[[], bool] | None = None,
         key_profile_func: Callable[[], KeyProfile] | None = None,
     ) -> None:
@@ -1287,7 +1287,7 @@ class Terminal:
         may_resize: Callable[[], bool] | None = None,
         may_type: Callable[[], bool] | None = None,
         get_history_limit: Callable[[], int] | None = None,
-        unreadable_key_func: Callable[[object, int, str], None] | None = None,
+        unreadable_key_func: Callable[[KeyEvent, int, str], None] | None = None,
         takes_key_first: Callable[[], bool] | None = None,
         key_profile_func: Callable[[], KeyProfile] | None = None,
         helix_keys: Callable[[], bool] | None = None,
