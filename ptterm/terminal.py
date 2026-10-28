@@ -1082,7 +1082,7 @@ class _TerminalControl(UIControl):
 
     def _read_the_history(self) -> None:
         """
-        Open copy mode, half a window up.
+        Open copy mode, one wheel step up.
 
         The program asked for no mouse at all, and the wheel belongs to
         the person. The live screen does not hold the history of this
@@ -1092,7 +1092,7 @@ class _TerminalControl(UIControl):
         ends at the bottom. Lillecarl/pymux#422.
         """
         view = self.terminal.enter_copy_mode()
-        view.scroll(-view.half_window())
+        view.scroll(-view.wheel_lines())
 
     def is_focusable(self) -> bool:
         return not self.process.suspended
@@ -1249,6 +1249,8 @@ class Terminal:
         through ptkhx, in place of prompt_toolkit's vi or emacs ones.
         The option that says so is the embedder's: pymux's
         `mode-keys`.
+    :param wheel_lines: Returns how many lines one notch of the wheel
+        moves copy mode. None moves half a window, as tmux's half-up.
     :param get_history_limit: Returns how many rows of scrollback this
         pane keeps. The default is two thousand, which is what tmux
         keeps. It is a function and not a number, so the option can
@@ -1265,6 +1267,7 @@ class Terminal:
         "copy_views": Keep.DROPPED,
         "_copy_func": Keep.REBUILT,
         "helix_keys": Keep.REBUILT,
+        "wheel_lines": Keep.REBUILT,
         "on_copy_command": Keep.REBUILT,
         "container": Keep.REBUILT,
         "terminal_window": Keep.REBUILT,
@@ -1291,12 +1294,14 @@ class Terminal:
         takes_key_first: Callable[[], bool] | None = None,
         key_profile_func: Callable[[], KeyProfile] | None = None,
         helix_keys: Callable[[], bool] | None = None,
+        wheel_lines: Callable[[], int] | None = None,
     ) -> None:
         if backend is None:
             backend = create_backend(command, environment, directory)
 
         self._copy_func = copy_func
         self.helix_keys = helix_keys
+        self.wheel_lines = wheel_lines
         #: Told each command a person runs in copy mode with Helix's keys:
         #: an editor command's keys (`Editor.finished`), or the key that
         #: copies or leaves. Never what is typed into the copy.

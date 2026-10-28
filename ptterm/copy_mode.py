@@ -438,6 +438,11 @@ class CopyView:
         height = info.window_height if info else self.terminal.screen.lines
         return max(1, height // 2)
 
+    def wheel_lines(self) -> int:
+        "How far one notch of the wheel moves the caret: the embedder's answer, else half a window."
+        lines = self.terminal.wheel_lines
+        return max(1, lines()) if lines is not None else self.half_window()
+
     def shown_rows(self) -> tuple[int, int] | None:
         "The first and the last row of the buffer the last frame showed."
         info = self.window.render_info
@@ -714,7 +719,7 @@ class _CopyBufferControl(BufferControl):
 
     A subclass because the base `BufferControl` refuses the wheel
     (`prompt_toolkit/layout/controls.py:901`): here the wheel moves the
-    caret half a window, and the wheel down that reaches the bottom is
+    caret `CopyView.wheel_lines`, and the wheel down that reaches the bottom is
     the live screen again -- tmux's `-e`, which leaves copy mode when
     the person scrolls back to where the program stands.
     """
@@ -729,14 +734,14 @@ class _CopyBufferControl(BufferControl):
         at_the_bottom = buffer.cursor_position >= len(buffer.document.text)
 
         if mouse_event.event_type == MouseEventType.SCROLL_UP:
-            view.scroll(-view.half_window())
+            view.scroll(-view.wheel_lines())
             return None
 
         if mouse_event.event_type == MouseEventType.SCROLL_DOWN:
             if at_the_bottom:
                 view.terminal.exit_copy_mode()
             else:
-                view.scroll(view.half_window())
+                view.scroll(view.wheel_lines())
                 if buffer.cursor_position >= len(buffer.document.text):
                     # The scroll that reached the bottom leaves copy
                     # mode with it.

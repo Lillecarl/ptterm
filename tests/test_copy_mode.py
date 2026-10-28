@@ -641,6 +641,20 @@ def test_the_wheel_moves_the_caret_and_the_bottom_leaves():
         assert terminal.copy_views.of(app) is None
 
 
+def test_the_embedder_says_how_far_the_wheel_moves():
+    "pymux's `copy-mode-wheel-lines`."
+    terminal = a_terminal("\r\n".join("row %d" % n for n in range(40)))
+    terminal.wheel_lines = lambda: 1
+    app = DummyApplication()
+    app.layout = Layout(terminal.container)
+
+    with set_app(app):
+        view = terminal.enter_copy_mode()
+        bottom = view.buffer.document.cursor_position_row
+        a_wheel(view.control, MouseEventType.SCROLL_UP)
+        assert view.buffer.document.cursor_position_row == bottom - 1
+
+
 # ----------------------------------------------------------------------
 # What a copy holds, and what it only draws. Lillecarl/pymux#449.
 
