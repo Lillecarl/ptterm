@@ -665,7 +665,7 @@ def test_the_cursor_is_drawn_where_a_program_is_told_it_stands():
 
 @pytest.mark.parametrize(
     "cluster",
-    ["\U0001f468‍\U0001f469‍\U0001f467", "\U0001f1f8\U0001f1ea", "\U0001f44d\U0001f3fd"],
+    ["\U0001f468\u200d\U0001f469\u200d\U0001f467", "\U0001f1f8\U0001f1ea", "\U0001f44d\U0001f3fd"],
     ids=["family", "flag", "skin-tone"],
 )
 def test_a_grapheme_cluster_draws_in_the_one_cell_the_screen_gave_it(cluster):
@@ -679,7 +679,7 @@ def test_the_cursor_after_a_grapheme_cluster_is_drawn_where_the_screen_says():
     control = _TerminalControl(backend=_NoBackend())
     window = _Window(terminal_control=control, content=control, wrap_lines=False)
     control.create_content(12, 8)
-    control.stream.feed("\U0001f468‍\U0001f469‍\U0001f467x")
+    control.stream.feed("\U0001f468\u200d\U0001f469\u200d\U0001f467x")
     with set_app(DummyApplication()):
         window.write_to_screen(
             Screen(default_char=None, initial_width=12, initial_height=8),
