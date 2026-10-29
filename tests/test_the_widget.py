@@ -663,6 +663,37 @@ def test_the_cursor_is_drawn_where_a_program_is_told_it_stands():
     assert content.cursor_position.x == 3
 
 
+@pytest.mark.parametrize(
+    "cluster",
+    ["\U0001f468‍\U0001f469‍\U0001f467", "\U0001f1f8\U0001f1ea", "\U0001f44d\U0001f3fd"],
+    ids=["family", "flag", "skin-tone"],
+)
+def test_a_grapheme_cluster_draws_in_the_one_cell_the_screen_gave_it(cluster):
+    "The text after it stands where the screen put it. Lillecarl/pymux#798."
+    screen = rendered(cluster + "xy")
+    row = screen.data_buffer[0]
+    assert [row[x].char for x in range(4)] == [cluster, "", "x", "y"]
+
+
+def test_the_cursor_after_a_grapheme_cluster_is_drawn_where_the_screen_says():
+    control = _TerminalControl(backend=_NoBackend())
+    window = _Window(terminal_control=control, content=control, wrap_lines=False)
+    control.create_content(12, 8)
+    control.stream.feed("\U0001f468‍\U0001f469‍\U0001f467x")
+    with set_app(DummyApplication()):
+        window.write_to_screen(
+            Screen(default_char=None, initial_width=12, initial_height=8),
+            MouseHandlers(),
+            WritePosition(xpos=0, ypos=0, width=12, height=8),
+            "",
+            True,
+            None,
+        )
+    assert control.screen.pt_cursor_position.x == 3
+    assert window.render_info is not None
+    assert window.render_info.cursor_position.x == 3
+
+
 def test_the_cursor_does_not_leave_the_line_while_it_waits_to_wrap():
     """
     A character in the last column leaves the cursor one column
