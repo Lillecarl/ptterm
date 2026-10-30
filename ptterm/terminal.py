@@ -61,6 +61,7 @@ from pyte.environment import preparing
 from pyte.images import ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH
 from pyte.keep import Keep
 from pyte.keys.events import DEFAULT_KEY_PROFILE, KeyEvent, KeyProfile
+from pyte.mouse import ARROWS_PER_WHEEL_STEP, WHEEL_ARROWS, MouseAction, mouse_report, reports_mouse
 from pyte.placeholders import PLACEHOLDER
 from pyte.screen import RegionCounts, Screen
 from pyte.streams import GroundTimer, Stream
@@ -140,87 +141,14 @@ _GROUND_TIMEOUT = 5
 _FRAME_HELD_AT_MOST = 1.0
 
 
-#: Bit six of the button says the event came from the wheel, so the two
-#: wheel directions are the button numbers 64 and 65. kitty calls it
-#: `SCROLL_BUTTON_INDICATOR` in `kitty/mouse.c`.
-_WHEEL = 1 << 6
-
-#: A release is button three in every protocol older than SGR. kitty:
-#: "action == RELEASE && mouse_tracking_protocol < SGR_PROTOCOL".
-_RELEASE_BUTTON = 3
-
-#: X10 and urxvt shift the button by 32, so that X10 can write it as a
-#: printable byte. SGR does not: it writes the number as text, which is
-#: the reason that protocol exists. kitty adds the same 32 in
-#: `encode_mouse_event_impl`, for the urxvt and the X10 cases only.
-_BUTTON_OFFSET = 32
-
-#: X10 writes each coordinate as one byte as well, one based and
-#: shifted by the same 32. So a zero based column travels as `x + 33`.
-_COORDINATE_OFFSET = _BUTTON_OFFSET + 1
-
-#: How far to the right and how far down an X10 report reaches.
-#:
-#: This is X10's own limit. A coordinate byte holds `223 + 32` and no
-#: more, and kitty writes the same bound as
-#: "if (x > 223 || y > 223) return 0", counting from one. A press
-#: further out sends nothing, which is what kitty does with it.
-#:
-#: It was 96, which is narrower than a great many panes: a press past
-#: column 96 went nowhere. Lillecarl/pymux#139.
-_X10_COLUMNS = 223
-
-#: The button that SGR writes, and the final byte that says whether the
-#: press went down or came up. SGR is the only protocol that tells them
-#: apart that way, and the only one that leaves the button unshifted.
-_SGR_BUTTONS = {
-    MouseEventType.MOUSE_DOWN: (0, "M"),
-    MouseEventType.MOUSE_UP: (0, "m"),
-    MouseEventType.SCROLL_UP: (_WHEEL, "M"),
-    MouseEventType.SCROLL_DOWN: (_WHEEL + 1, "M"),
+#: What `pyte.mouse` calls each prompt_toolkit event. A move reports
+#: nothing.
+_MOUSE_ACTIONS = {
+    MouseEventType.MOUSE_DOWN: MouseAction.PRESS,
+    MouseEventType.MOUSE_UP: MouseAction.RELEASE,
+    MouseEventType.SCROLL_UP: MouseAction.WHEEL_UP,
+    MouseEventType.SCROLL_DOWN: MouseAction.WHEEL_DOWN,
 }
-
-#: The button that urxvt and X10 write. One table, because the two
-#: protocols encode the same number and differ only in how they spell
-#: it: urxvt as text, X10 as one byte.
-_SHIFTED_BUTTONS = {
-    MouseEventType.MOUSE_DOWN: _BUTTON_OFFSET,
-    MouseEventType.MOUSE_UP: _RELEASE_BUTTON + _BUTTON_OFFSET,
-    MouseEventType.SCROLL_UP: _WHEEL + _BUTTON_OFFSET,
-    MouseEventType.SCROLL_DOWN: _WHEEL + 1 + _BUTTON_OFFSET,
-}
-
-
-#: The key a wheel step is on the alternate screen, before the keyboard
-#: mode of the pane spells it.
-_WHEEL_ARROWS = {
-    MouseEventType.SCROLL_UP: "\x1b[A",
-    MouseEventType.SCROLL_DOWN: "\x1b[B",
-}
-
-#: What xterm (`scroll-back(5,line)`) and kitty (`wheel_scroll_multiplier`)
-#: send by default. The outer terminal reports one event per notch
-#: while pymux holds the mouse, so this is the whole step.
-_ARROWS_PER_WHEEL_STEP = 5
-
-
-def _one_byte(value: int) -> str:
-    """
-    One byte of an X10 mouse report, as a character the backend writes
-    as that byte and nothing else.
-
-    A value above 127 is a byte and not a character, so UTF-8 has no
-    one byte spelling for it: `chr(128)` went out as two, and the
-    program read the first as the column and the second as the row.
-
-    It travels as a surrogate instead, which is Python's channel for a
-    byte that is not a character, and `ptyhost/backends/posix.py`
-    encodes it back with "surrogateescape". `Screen._control` spells the
-    eight bit C1 controls the same way. Lillecarl/pymux#139.
-    """
-    if value < 0x80:
-        return chr(value)
-    return chr(0xDC00 + value)
 
 
 def cursor_offset(screen) -> int:
@@ -1018,66 +946,25 @@ class _TerminalControl(UIControl):
         else:
             # Already focussed, send event to application when it requested
             # mouse support.
-            if self.screen.sgr_mouse_support_enabled:
-                # Xterm SGR mode: the button as text, and the final
-                # byte says press or release.
-                try:
-                    ev, m = _SGR_BUTTONS[mouse_event.event_type]
-                except KeyError:
-                    pass
-                else:
-                    # `reply_csi` and not a literal "\x1b[": a mouse
-                    # report is a C1 control that the terminal sends on
-                    # its own, and S8C1T asks for one byte in front of
-                    # it. xterm writes every one of them through
-                    # `unparseputc1`, which is not a query only path.
-                    self.screen.reply_csi(f"<{ev};{x + 1};{y + 1}{m}")
-
-            elif self.screen.urxvt_mouse_support_enabled:
-                # Urxvt mode: the shifted button as text, and always
-                # "M". A release is button three, so the two are told
-                # apart by the button and not by the final byte.
-                try:
-                    ev = _SHIFTED_BUTTONS[mouse_event.event_type]
-                except KeyError:
-                    pass
-                else:
-                    self.screen.reply_csi(f"{ev};{x + 1};{y + 1}M")
-
-            elif self.screen.mouse_support_enabled:
-                # X10: the same shifted button, written as one byte,
-                # and the two coordinates after it.
-                if x < _X10_COLUMNS and y < _X10_COLUMNS:
-                    try:
-                        ev = _SHIFTED_BUTTONS[mouse_event.event_type]
-                    except KeyError:
-                        pass
-                    else:
-                        self.screen.reply_csi(
-                            "M%s%s%s"
-                            % (
-                                chr(ev),
-                                _one_byte(x + _COORDINATE_OFFSET),
-                                _one_byte(y + _COORDINATE_OFFSET),
-                            )
-                        )
-            elif mouse_event.event_type in _WHEEL_ARROWS and self.screen.wheel_sends_arrows:
+            action = _MOUSE_ACTIONS.get(mouse_event.event_type)
+            if reports_mouse(self.screen):
+                report = None if action is None else mouse_report(self.screen, action, x, y)
+                if report is not None:
+                    self.screen.reply_csi(report)
+            elif action in WHEEL_ARROWS and self.screen.wheel_sends_arrows:
                 # The alternate screen has no history, so copy mode
                 # would show the first screen's instead. Lillecarl/pymux#422.
-                arrow = self.screen.encode_key(_WHEEL_ARROWS[mouse_event.event_type])
-                self.process.write_input(arrow * _ARROWS_PER_WHEEL_STEP)
+                arrow = self.screen.encode_key(WHEEL_ARROWS[action])
+                self.process.write_input(arrow * ARROWS_PER_WHEEL_STEP)
             elif self._the_wheel_reads_the_history(mouse_event):
                 self._read_the_history()
 
     def _the_wheel_reads_the_history(self, mouse_event) -> bool:
         "Is this the wheel up, over a program that wants no mouse and no arrows?"
-        screen = self.screen
         return (
             mouse_event.event_type == MouseEventType.SCROLL_UP
-            and not screen.sgr_mouse_support_enabled
-            and not screen.urxvt_mouse_support_enabled
-            and not screen.mouse_support_enabled
-            and not screen.wheel_sends_arrows
+            and not reports_mouse(self.screen)
+            and not self.screen.wheel_sends_arrows
         )
 
     def _read_the_history(self) -> None:

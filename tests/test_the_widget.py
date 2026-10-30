@@ -49,9 +49,10 @@ from prompt_toolkit.token import KeepWhitespace
 from pyte import escape
 from pyte.cells import PLAIN_APPEARANCE, Cell
 from pyte.modes import PrivateMode
+from pyte.mouse import ARROWS_PER_WHEEL_STEP
 from pyte.sequences import Csi, Sharp, announce, csi, reset_mode, set_mode, sharp
 
-from ptterm.terminal import _ARROWS_PER_WHEEL_STEP, Terminal, _TerminalControl, _Window
+from ptterm.terminal import Terminal, _TerminalControl, _Window
 
 #: `measure_instructions.py` builds the same widget to measure what the
 #: projection costs, so the stub lives beside both.
@@ -349,7 +350,7 @@ def test_a_person_who_may_not_type_sends_no_wheel_report():
 # The wheel on the alternate screen is arrows. Lillecarl/pymux#422.
 
 ALTERNATE = set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
-STEP = _ARROWS_PER_WHEEL_STEP
+STEP = ARROWS_PER_WHEEL_STEP
 
 
 def wheeled(modes: str, kind=MouseEventType.SCROLL_UP, may_type=None):
