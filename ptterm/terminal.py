@@ -60,7 +60,7 @@ from ptyhost.backends.posix import PosixBackend, spawn_of
 from pyte.environment import preparing
 from pyte.images import ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH
 from pyte.keep import Keep
-from pyte.keys import DEFAULT_KEY_PROFILE, KeyEvent, KeyProfile
+from pyte.keys.events import DEFAULT_KEY_PROFILE, KeyEvent, KeyProfile
 from pyte.placeholders import PLACEHOLDER
 from pyte.screen import RegionCounts, Screen
 from pyte.streams import GroundTimer, Stream
