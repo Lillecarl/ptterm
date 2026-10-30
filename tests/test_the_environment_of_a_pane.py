@@ -25,7 +25,7 @@ from pyte.screen import Screen
 from pyte.streams import Stream
 from pyte.terminfo import TERMINAL_NAME
 
-from ptterm.terminal import create_backend
+from ptterm.program import create_backend
 
 #: Wide enough that a store path does not wrap, so a row is one answer.
 COLUMNS = 400

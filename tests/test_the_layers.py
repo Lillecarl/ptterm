@@ -153,10 +153,10 @@ def test_the_widget_draws_with_prompt_toolkit():
 
 def test_only_the_widget_runs_a_program():
     """
-    `ptyhost` is the package that starts a program on a pty, and
-    `terminal.py` is the only thing here that reaches for it: it is the
-    widget, so it is what starts the program and hands the bytes to a
-    screen. Lillecarl/pymux#85.
+    `ptyhost` is the package that starts a program on a pty, and only
+    the widget reaches for it: `program.py` makes the pty, and
+    `terminal.py` starts the program and hands the bytes to a screen.
+    Lillecarl/pymux#85.
     """
     reaching = sorted(name for name in MODULES if any(_root(module) == "ptyhost" for module in _imports(MODULES[name])))
-    assert reaching == ["terminal"]
+    assert reaching == ["program", "terminal"]
