@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable, Hashable, Iterable
-from typing import TYPE_CHECKING, ClassVar, NamedTuple
+from typing import TYPE_CHECKING, ClassVar, NamedTuple, Protocol
 
 import anyio
 import anyio.abc
@@ -40,9 +40,11 @@ from .program import Program
 from .style import fragments_of_runs, placeholder_cells, visible_char
 
 if TYPE_CHECKING:
+    from pyte.surroundings import Surroundings
+
     from .terminal import Terminal
 
-__all__ = ["TerminalControl", "cursor_offset"]
+__all__ = ["Follower", "TerminalControl", "cursor_offset"]
 
 
 #: How long a sequence may stay open in a pane before the next bytes
@@ -56,6 +58,21 @@ _GROUND_TIMEOUT = 5
 #: otherwise freeze the pane. tmux waits the same second
 #: (`screen_write_start_sync`). Lillecarl/pymux#567.
 FRAME_HELD_AT_MOST = 1.0
+
+
+class Follower(Protocol):
+    """
+    Something that keeps a copy of a pane's screen: everything that
+    changes the screen and is not in the program's output comes here,
+    in the order it happened. Lillecarl/pymux#759.
+    """
+
+    def read(self, data: str, expired: bool) -> None:
+        "The program wrote `data`; `expired` says the ground timer dropped an open sequence first."
+
+    def resized(self, lines: int, columns: int) -> None: ...
+
+    def surrounded(self, surroundings: Surroundings) -> None: ...
 
 
 #: What `pyte.mouse` calls each prompt_toolkit event. A move reports
@@ -132,6 +149,11 @@ class TerminalControl(UIControl):
         "screen": Keep.SAVED,
         "stream": Keep.SAVED,
         "process": Keep.SAVED,
+        # Set by the program a mirror is built with, which a load builds again.
+        "mirrored": Keep.REBUILT,
+        # A follower is a link to a peer, and a peer reconnects after
+        # an upgrade and asks for a fresh seed.
+        "followers": Keep.REBUILT,
         "terminal": Keep.REBUILT,
         "keep_rows": Keep.REBUILT,
         "may_type": Keep.REBUILT,
@@ -239,13 +261,28 @@ class TerminalControl(UIControl):
 
             return app_or_none.layout.has_focus(self)
 
+        #: Whether this screen is a copy of a pane on another server.
+        #: That server decides everything about the screen: a mirror
+        #: takes each read with the ground timer's decision beside it
+        #: (`feed_read`), takes its size and surroundings as they
+        #: arrive, and drops its own replies, because the program has
+        #: its answer from the screen it really talks to. A size set
+        #: here goes to the program, which asks that server for it.
+        #: Lillecarl/pymux#759.
+        self.mirrored = False
+
+        #: What keeps a copy of this screen, told of every change in
+        #: the order it happened.
+        self.followers: list[Follower] = []
+
         # The screen belongs to the front end and not to the pty: a
         # `Process` runs a program and pumps its bytes, and what those
         # bytes mean is decided here. Lillecarl/pymux#85.
         self.screen = Screen(
             0,
             0,
-            write_process_input=lambda data: self.process.write_input(data),
+            write_process_input=self._answer,
+            surroundings_func=self._surrounded,
             bell_func=bell_func,
             osc_func=osc_func,
             resize_func=resize_func,
@@ -262,7 +299,7 @@ class TerminalControl(UIControl):
 
         self.process: Program = Process(
             backend=backend,
-            receive=self._ground_timer.feed,
+            receive=self._read,
             invalidate=lambda: self._after_a_feed(),
             done_callback=done_callback,
             has_priority=has_priority,
@@ -318,11 +355,18 @@ class TerminalControl(UIControl):
         self.keep_rows = True
 
     def set_size(self, width: int, height: int) -> None:
-        "Tell the pty and the screen how big the pane is."
+        "Tell the program and the screen how big the pane is."
         self.process.set_size(width, height)
-        self.screen.resize(lines=height, columns=width)
-        self.screen.lines = height
-        self.screen.columns = width
+        if not self.mirrored:
+            self.resize_screen(height, width)
+
+    def resize_screen(self, lines: int, columns: int) -> None:
+        "Resize the screen alone. A mirror calls this when the screen it copies resized."
+        self.screen.resize(lines=lines, columns=columns)
+        self.screen.lines = lines
+        self.screen.columns = columns
+        for follower in self.followers:
+            follower.resized(lines, columns)
 
     def feed_output(self, data: str) -> None:
         """
@@ -334,8 +378,35 @@ class TerminalControl(UIControl):
         no pty behind it. What the screen cannot take is the caller's
         to survive, the way the process read survives it.
         """
-        self._ground_timer.feed(data)
+        self._read(data)
         self._after_a_feed()
+
+    def feed_read(self, data: str, expired: bool) -> None:
+        """
+        Feed a read of the screen this one mirrors, with that screen's
+        ground timer decision. A mirror keeps no clock of its own: the
+        network moves the gaps between reads, so its own timer would
+        drop sequences the other screen kept.
+        """
+        if expired:
+            self.stream.ground_timer_expired()
+        self.stream.feed(data)
+        for follower in self.followers:
+            follower.read(data, expired)
+        self._after_a_feed()
+
+    def _read(self, data: str) -> None:
+        expired = self._ground_timer.feed(data)
+        for follower in self.followers:
+            follower.read(data, expired)
+
+    def _answer(self, data: str) -> None:
+        if not self.mirrored:
+            self.process.write_input(data)
+
+    def _surrounded(self, surroundings: Surroundings) -> None:
+        for follower in self.followers:
+            follower.surrounded(surroundings)
 
     def _after_a_feed(self) -> None:
         """

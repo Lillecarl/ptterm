@@ -32,7 +32,7 @@ def row_text(made, number):
 def test_a_pane_gives_its_parser_a_ground_timer():
     made = control()
     assert made._ground_timer.timeout == 5
-    assert made.process.receive == made._ground_timer.feed
+    assert made.process.receive == made._read
 
 
 def test_a_dangling_sequence_does_not_swallow_the_next_output():

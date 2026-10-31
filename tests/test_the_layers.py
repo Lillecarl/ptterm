@@ -57,6 +57,8 @@ FROM_PYTE = {
     "pyte.runs",
     "pyte.screen",
     "pyte.streams",
+    # What a follower of a pane hears of the embedder. Lillecarl/pymux#759.
+    "pyte.surroundings",
 }
 
 #: The toolkit this package draws with, and the one it may never touch.
