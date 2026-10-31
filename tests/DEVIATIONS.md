@@ -1413,9 +1413,9 @@ that hold no baseline abstain.
 `26state_query` is the only borrowed file that reads what a terminal
 writes back. Eight of its answers differ, and a ninth used to.
 
-The ninth was S8C1T at line 63. ptterm answers it now: `reply_csi`,
-`reply_dcs`, `reply_osc` and `reply_apc` spell every C1 control the
-terminal writes, reading the mode, and the eight bit form goes out as
+The ninth was S8C1T at line 63. ptterm answers it now: `Screen.reply`
+spells every C1 control the terminal writes, reading the mode, and the
+eight bit form goes out as
 the one byte it is and not the two that UTF-8 would make of it
 (Lillecarl/pymux#94).
 
