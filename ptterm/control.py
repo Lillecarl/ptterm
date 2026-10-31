@@ -203,7 +203,8 @@ class TerminalControl(UIControl):
 
     def __init__(
         self,
-        backend: Backend,
+        backend: Backend | None = None,
+        program: Callable[[TerminalControl], Program] | None = None,
         done_callback: Callable[[], None] | None = None,
         bell_func: Callable[[], None] | None = None,
         osc_func: Callable[[str, str], None] | None = None,
@@ -304,13 +305,22 @@ class TerminalControl(UIControl):
         self.stream = Stream(self.screen)
         self._ground_timer = GroundTimer(self.stream, _GROUND_TIMEOUT, time.monotonic)
 
-        self.process: Program = Process(
-            backend=backend,
-            receive=self._read,
-            invalidate=lambda: self._after_a_feed(),
-            done_callback=done_callback,
-            has_priority=has_priority,
-        )
+        # What runs behind the screen: a program on the pty `backend`
+        # opened, or what `program` builds for this control -- a job's
+        # tail, or a pane of another server. Building one where the
+        # other is meant opens a pty nothing uses.
+        assert (backend is None) != (program is None), "a control runs a backend or a program, and one of them"
+        self.process: Program
+        if program is not None:
+            self.process = program(self)
+        else:
+            self.process = Process(
+                backend=backend,
+                receive=self._read,
+                invalidate=lambda: self._after_a_feed(),
+                done_callback=done_callback,
+                has_priority=has_priority,
+            )
 
         self.on_content_changed = Event(self)
         self._running = False

@@ -50,7 +50,7 @@ from pyte.screen import Screen
 from .control import TerminalControl
 from .copy_mode import CopyView
 from .per_application import PerApplication
-from .program import create_backend
+from .program import Program, create_backend
 from .window import TerminalWindow
 
 __all__ = ["Terminal"]
@@ -143,8 +143,11 @@ class Terminal:
         key_profile_func: Callable[[], KeyProfile] | None = None,
         helix_keys: Callable[[], bool] | None = None,
         wheel_lines: Callable[[], int] | None = None,
+        program: Callable[[TerminalControl], Program] | None = None,
     ) -> None:
-        if backend is None:
+        # `program` runs something that is not on a pty of this
+        # widget, so no pty opens for it and `command` names nothing.
+        if backend is None and program is None:
             backend = create_backend(command, environment, directory)
 
         self._copy_func = copy_func
@@ -157,6 +160,7 @@ class Terminal:
 
         self.terminal_control = TerminalControl(
             backend=backend,
+            program=program,
             bell_func=bell_func,
             osc_func=osc_func,
             resize_func=resize_func,
