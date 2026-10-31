@@ -570,6 +570,12 @@ class TerminalControl(UIControl):
             of its own.
             """
             if number == cursor_y:
+                # What was drawn for this row before is not what the
+                # terminal shows now, so it is no source for a shift: a
+                # repaint read in pieces, one step up, would claim the
+                # rows from here and the renderer would prove none of
+                # them. Lillecarl/pymux#512.
+                drawn.pop(number, None)
                 cursor_line[:] = [build(number)]
                 return cursor_line[0]
 
