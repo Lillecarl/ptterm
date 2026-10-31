@@ -107,13 +107,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from instructions import count_instructions
 from no_backend import NoBackend
 from pyte import escape
 from pyte.modes import PrivateMode
 from pyte.screen import Screen
 from pyte.sequences.csi import csi, reset_mode, set_mode
 from pyte.streams import Stream
+from pyterm_pytest.instructions import count_instructions
 
 from ptterm.control import TerminalControl
 from ptterm.copy_mode import CopyView

@@ -43,6 +43,8 @@ test = [
     "pytest-xdist",
     "anyio",
     "hypothesis",
+    # `count_instructions`, which pymux counts with too.
+    "pyterm-pytest",
 ]
 
 [project.urls]
