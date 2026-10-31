@@ -27,7 +27,7 @@ the parser and the screen and nothing else: no pty, no client, no
 render.
 
 **The render**, written "<name> (render)", is the projection that comes
-after it: `_TerminalControl.create_content` turns the screen into a
+after it: `TerminalControl.create_content` turns the screen into a
 `UIContent`, and every row of that content is read. It is one frame of
 what a person sees, and it is paid on every frame rather than once per
 byte. Nothing measured it before, and Lillecarl/pymux#84 asked for it:
@@ -115,8 +115,9 @@ from pyte.screen import Screen
 from pyte.sequences import csi, reset_mode, set_mode
 from pyte.streams import Stream
 
+from ptterm.control import TerminalControl
 from ptterm.copy_mode import CopyView
-from ptterm.terminal import Terminal, _TerminalControl
+from ptterm.terminal import Terminal
 
 HERE = Path(__file__).parent
 
@@ -183,7 +184,7 @@ def render_cost(data: bytes, lines: int, columns: int) -> int:
     whole recording and not a frame of it.
     """
     text = data.decode("utf-8", "replace")
-    control = _TerminalControl(backend=NoBackend())
+    control = TerminalControl(backend=NoBackend())
     # The size reaches the process the way a render does, and then the
     # program writes. A write before the size lands on a screen of no
     # columns.
@@ -225,7 +226,7 @@ def redraw_cost(data: bytes, lines: int, columns: int) -> int:
     number that says how big it is.
     """
     text = data.decode("utf-8", "replace")
-    control = _TerminalControl(backend=NoBackend())
+    control = TerminalControl(backend=NoBackend())
     control.create_content(columns, lines)
     control.stream.feed(text)
 
@@ -284,7 +285,7 @@ def _fill(control, depth: int, wrapping: bool = False):
 
 def a_filled_pane(depth: int, wrapping: bool = False):
     "A widget whose history is full to `depth` rows."
-    control = _TerminalControl(backend=NoBackend(), get_history_limit=lambda: depth)
+    control = TerminalControl(backend=NoBackend(), get_history_limit=lambda: depth)
     _fill(control, depth, wrapping)
     return control
 

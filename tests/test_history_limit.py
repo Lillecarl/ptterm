@@ -2,7 +2,7 @@
 How deep the scrollback of a pane goes, and who decides it.
 
 `Screen` drops the rows above its history limit, and the limit reaches
-it as a function. Nothing gave `_TerminalControl` a way to pass one, so
+it as a function. Nothing gave `TerminalControl` a way to pass one, so
 every pane kept two thousand rows whatever its embedder offered. tmux
 and pymux both call the option `history-limit`, and a person who sets
 it means it.
@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from no_backend import NoBackend
 
-from ptterm.terminal import _TerminalControl
+from ptterm.control import TerminalControl
 
 LINES = 24
 COLUMNS = 80
@@ -28,7 +28,7 @@ BETWEEN_CLEANUPS = 100
 
 def control(get_history_limit=None):
     "A widget of a known size, with no program under it."
-    made = _TerminalControl(backend=NoBackend(), get_history_limit=get_history_limit)
+    made = TerminalControl(backend=NoBackend(), get_history_limit=get_history_limit)
     made.create_content(COLUMNS, LINES)
     return made
 

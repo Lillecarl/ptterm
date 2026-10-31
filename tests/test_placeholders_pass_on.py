@@ -22,7 +22,8 @@ from prompt_toolkit.layout.screen import Screen, WritePosition
 from prompt_toolkit.output import DummyOutput
 from pyte.placeholders import DIACRITICS, PLACEHOLDER
 
-from ptterm.terminal import _TerminalControl, _Window
+from ptterm.control import TerminalControl
+from ptterm.window import TerminalWindow
 
 LINES = 4
 COLUMNS = 12
@@ -45,11 +46,11 @@ def program_output():
 
 
 def drawn(placeholder_ids):
-    control = _TerminalControl(backend=NoBackend())
+    control = TerminalControl(backend=NoBackend())
     control.placeholder_ids = placeholder_ids
     control.create_content(COLUMNS, LINES)
     control.feed_output(program_output())
-    window = _Window(terminal_control=control, content=control, wrap_lines=False)
+    window = TerminalWindow(terminal_control=control, content=control, wrap_lines=False)
     app = Application(layout=Layout(window), input=DummyInput(), output=DummyOutput())
     app.layout.update_parents_relations()
     screen = Screen()

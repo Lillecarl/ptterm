@@ -24,7 +24,7 @@ from pyte.screen import Screen
 from pyte.sequences import csi
 from pyte.streams import Stream
 
-from ptterm.terminal import cursor_offset
+from ptterm.control import cursor_offset
 
 COLUMNS = 8
 

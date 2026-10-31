@@ -1,7 +1,7 @@
 """
 The widget builds a row again only when the screen wrote it.
 
-`_TerminalControl` keeps what it drew for each row and the write count
+`TerminalControl` keeps what it drew for each row and the write count
 of the screen that it drew it at. A row whose count has not moved is a
 row it hands back as it stands, so a frame after a program wrote one
 line builds one line and not the whole screen. Lillecarl/pymux#126.
@@ -27,7 +27,7 @@ from pyte import escape
 from pyte.modes import PrivateMode
 from pyte.sequences import csi, set_mode
 
-from ptterm.terminal import _TerminalControl
+from ptterm.control import TerminalControl
 
 CORPUS = pathlib.Path(__file__).parent / "corpus"
 
@@ -63,7 +63,7 @@ def two_controls():
     "One that keeps what it drew, and one that keeps nothing."
     controls = []
     for _ in range(2):
-        control = _TerminalControl(backend=NoBackend())
+        control = TerminalControl(backend=NoBackend())
         control.create_content(COLUMNS, LINES)
         controls.append(control)
     return controls
@@ -99,12 +99,12 @@ def test_reverse_video_reaches_a_row_that_nothing_wrote():
     set says nothing about the screen after it. So what the control
     remembers goes when the mode turns.
 
-    The cell a program already reversed is where it shows. `_Window`
+    The cell a program already reversed is where it shows. `TerminalWindow`
     paints the reverse over the whole pane, so a plain cell needs
     nothing; a cell that "SGR 7" reversed turns the other way and is
     drawn "noreverse" to cancel it.
     """
-    control = _TerminalControl(backend=NoBackend())
+    control = TerminalControl(backend=NoBackend())
     control.create_content(COLUMNS, LINES)
     control.stream.feed(csi(escape.SGR, 7) + "hello")
 
@@ -120,7 +120,7 @@ def test_the_row_the_cursor_stands_on_is_never_kept():
     It is padded out to the column the cursor stands in, so its answer
     depends on where the cursor is and not only on what it holds.
     """
-    control = _TerminalControl(backend=NoBackend())
+    control = TerminalControl(backend=NoBackend())
     control.create_content(COLUMNS, LINES)
     control.stream.feed("hello")
 
@@ -132,7 +132,7 @@ def test_the_row_the_cursor_stands_on_is_never_kept():
 
 def test_a_row_that_nothing_wrote_is_the_object_that_was_drawn():
     "The point of the whole thing: it is not built a second time."
-    control = _TerminalControl(backend=NoBackend())
+    control = TerminalControl(backend=NoBackend())
     control.create_content(COLUMNS, LINES)
     control.stream.feed("first\r\nsecond\r\nthird")
 
@@ -143,7 +143,7 @@ def test_a_row_that_nothing_wrote_is_the_object_that_was_drawn():
 
 
 def test_a_row_that_was_written_is_built_again():
-    control = _TerminalControl(backend=NoBackend())
+    control = TerminalControl(backend=NoBackend())
     control.create_content(COLUMNS, LINES)
     control.stream.feed("first\r\nsecond")
 

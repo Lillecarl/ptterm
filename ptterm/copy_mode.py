@@ -551,7 +551,7 @@ class CopyView:
 
         # DECSCNM reverses the whole screen, and copy mode shows the
         # same screen stopped. `_style` paints the reverse over the
-        # window, the way `_Window` does for the pane, and a cell that
+        # window, the way `TerminalWindow` does for the pane, and a cell that
         # "SGR 7" already reversed turns the other way here.
         # Lillecarl/pymux#96.
         self.reverse_video = screen.has_reverse_video

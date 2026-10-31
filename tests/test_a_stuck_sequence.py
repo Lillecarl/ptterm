@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from no_backend import NoBackend
 
-from ptterm.terminal import _TerminalControl
+from ptterm.control import TerminalControl
 
 LINES = 4
 COLUMNS = 20
@@ -19,7 +19,7 @@ COLUMNS = 20
 
 def control():
     "A pane of a known size, with no program under it."
-    made = _TerminalControl(backend=NoBackend())
+    made = TerminalControl(backend=NoBackend())
     made.create_content(COLUMNS, LINES)
     return made
 

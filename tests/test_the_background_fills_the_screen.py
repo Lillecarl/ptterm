@@ -22,7 +22,8 @@ from pyte import escape
 from pyte.sequences import Csi, csi
 from test_the_widget import rendered
 
-from ptterm.terminal import _TerminalControl, _Window
+from ptterm.control import TerminalControl
+from ptterm.window import TerminalWindow
 
 
 def backgrounds(data: str, lines: int = 8, columns: int = 12) -> list[list[bool]]:
@@ -66,8 +67,8 @@ def test_a_line_a_shell_clears_keeps_its_background():
 
 def painted_frames(*parts: str, lines: int = 8, columns: int = 12) -> list[list[list[bool]]]:
     "What each frame of one control draws, so a redraw answers for itself."
-    control = _TerminalControl(backend=NoBackend())
-    window = _Window(terminal_control=control, content=control, wrap_lines=False)
+    control = TerminalControl(backend=NoBackend())
+    window = TerminalWindow(terminal_control=control, content=control, wrap_lines=False)
     control.create_content(columns, lines)
     style = Style([])
     frames = []

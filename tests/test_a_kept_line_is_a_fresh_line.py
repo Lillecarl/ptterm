@@ -20,7 +20,8 @@ from prompt_toolkit.layout.mouse_handlers import MouseHandlers
 from prompt_toolkit.layout.screen import Screen, WritePosition
 from prompt_toolkit.output import DummyOutput
 
-from ptterm.terminal import _TerminalControl, _Window
+from ptterm.control import TerminalControl
+from ptterm.window import TerminalWindow
 
 LINES = 6
 COLUMNS = 24
@@ -29,9 +30,9 @@ CLEAR = "\x1b[2J\x1b[3J\x1b[H"
 
 class Pane:
     def __init__(self) -> None:
-        self.control = _TerminalControl(backend=NoBackend())
+        self.control = TerminalControl(backend=NoBackend())
         self.control.create_content(COLUMNS, LINES)
-        self.window = _Window(terminal_control=self.control, content=self.control, wrap_lines=False)
+        self.window = TerminalWindow(terminal_control=self.control, content=self.control, wrap_lines=False)
         self.app = Application(layout=Layout(self.window), input=DummyInput(), output=DummyOutput())
         self.app.layout.update_parents_relations()
 

@@ -21,19 +21,20 @@ from prompt_toolkit.output import DummyOutput
 from pyte.modes import PrivateMode
 from pyte.sequences import set_mode
 
-from ptterm.terminal import _TerminalControl, _Window
+from ptterm.control import TerminalControl
+from ptterm.window import TerminalWindow
 
 LINES = 4
 COLUMNS = 20
 
 
-def a_control() -> _TerminalControl:
-    control = _TerminalControl(backend=NoBackend())
+def a_control() -> TerminalControl:
+    control = TerminalControl(backend=NoBackend())
     control.create_content(COLUMNS, LINES)
     return control
 
 
-def version(control: _TerminalControl):
+def version(control: TerminalControl):
     return control.content_version(COLUMNS, LINES)
 
 
@@ -91,7 +92,7 @@ def test_a_control_that_keeps_no_rows_cannot_say():
 def test_a_pane_draws_the_cursor_where_it_moved():
     "Through a window: a frame drawn again would leave it where it was."
     control = a_control()
-    window = _Window(terminal_control=control, content=control, wrap_lines=False)
+    window = TerminalWindow(terminal_control=control, content=control, wrap_lines=False)
     app = Application(layout=Layout(window), input=DummyInput(), output=DummyOutput())
     app.layout.update_parents_relations()
     position = WritePosition(xpos=0, ypos=0, width=COLUMNS, height=LINES)

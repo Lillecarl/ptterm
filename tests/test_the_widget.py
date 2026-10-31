@@ -6,8 +6,8 @@ Every other suite here reads the screen. `panel.py` takes
 unit test. That is the model, and it is right; it is not what a person
 sees.
 
-Between the two sits a projection: `_TerminalControl.create_content`
-turns a `Screen` into a `UIContent`, and `_Window` picks the rows
+Between the two sits a projection: `TerminalControl.create_content`
+turns a `Screen` into a `UIContent`, and `TerminalWindow` picks the rows
 of it that the pane shows. Nothing tested that, and a fault lived there.
 An erase with no background drops the row it clears, so "CSI 1000 M"
 near the top of a full screen took every row below it out of the
@@ -52,7 +52,9 @@ from pyte.modes import PrivateMode
 from pyte.mouse import ARROWS_PER_WHEEL_STEP
 from pyte.sequences import Csi, Sharp, announce, csi, reset_mode, set_mode, sharp
 
-from ptterm.terminal import Terminal, _TerminalControl, _Window
+from ptterm.control import TerminalControl
+from ptterm.terminal import Terminal
+from ptterm.window import TerminalWindow
 
 #: `measure_instructions.py` builds the same widget to measure what the
 #: projection costs, so the stub lives beside both.
@@ -61,8 +63,8 @@ _NoBackend = NoBackend
 
 def rendered(data: str, lines: int = 8, columns: int = 12) -> Screen:
     "Put `data` through the widget and give back what prompt_toolkit drew."
-    control = _TerminalControl(backend=_NoBackend())
-    window = _Window(terminal_control=control, content=control, wrap_lines=False)
+    control = TerminalControl(backend=_NoBackend())
+    window = TerminalWindow(terminal_control=control, content=control, wrap_lines=False)
 
     # The size reaches the screen the way a render does, and then the
     # program writes. A write before the size lands on a screen of no
@@ -188,7 +190,7 @@ def clicked(
     of it.
     """
     written = []
-    control = _TerminalControl(backend=_NoBackend(), may_type=may_type)
+    control = TerminalControl(backend=_NoBackend(), may_type=may_type)
     control.create_content(columns, lines)
     control.process.write_input = written.append
     control.screen.write_process_input = written.append
@@ -257,7 +259,7 @@ def _written_while(may_type, *, paste: str | None = None) -> list:
     processor would need an application and a layout to reach it.
     """
     written = []
-    control = _TerminalControl(backend=_NoBackend(), may_type=may_type)
+    control = TerminalControl(backend=_NoBackend(), may_type=may_type)
     control.create_content(12, 8)
     control.process.write_input = written.append
 
@@ -641,7 +643,7 @@ def test_the_line_count_covers_the_screen_and_not_the_buffer():
     it does not scroll past the end of the document, so the document has
     to reach the bottom of the window.
     """
-    control = _TerminalControl(backend=_NoBackend())
+    control = TerminalControl(backend=_NoBackend())
     control.create_content(12, 8)
     control.stream.feed(FILLED + csi(escape.CUP, 3) + csi(escape.DL, 1000))
 
@@ -657,7 +659,7 @@ def test_the_cursor_is_drawn_where_a_program_is_told_it_stands():
     double width character takes one cell of the document and two
     columns of the screen.
     """
-    control = _TerminalControl(backend=_NoBackend())
+    control = TerminalControl(backend=_NoBackend())
     control.create_content(12, 8)
     control.stream.feed("中中x")
     content = control.create_content(12, 8)
@@ -677,8 +679,8 @@ def test_a_grapheme_cluster_draws_in_the_one_cell_the_screen_gave_it(cluster):
 
 
 def test_the_cursor_after_a_grapheme_cluster_is_drawn_where_the_screen_says():
-    control = _TerminalControl(backend=_NoBackend())
-    window = _Window(terminal_control=control, content=control, wrap_lines=False)
+    control = TerminalControl(backend=_NoBackend())
+    window = TerminalWindow(terminal_control=control, content=control, wrap_lines=False)
     control.create_content(12, 8)
     control.stream.feed("\U0001f468\u200d\U0001f469\u200d\U0001f467x")
     with set_app(DummyApplication()):
@@ -702,7 +704,7 @@ def test_the_cursor_does_not_leave_the_line_while_it_waits_to_wrap():
     a cursor outside the line by scrolling sideways, and then every row
     of the pane is drawn one column to the left.
     """
-    control = _TerminalControl(backend=_NoBackend())
+    control = TerminalControl(backend=_NoBackend())
     control.create_content(4, 3)
     control.stream.feed("abcd")
     content = control.create_content(4, 3)
@@ -727,7 +729,7 @@ def test_a_control_character_in_a_cell_is_drawn_as_a_blank():
     It must not reach the terminal of the user, which would read it as
     a control of its own.
     """
-    control = _TerminalControl(backend=_NoBackend())
+    control = TerminalControl(backend=_NoBackend())
     control.create_content(6, 3)
     # A `Cell` holds what it is given, so the cell is written here. The
     # guard in `visible_char` is what keeps it off the terminal.
@@ -800,7 +802,7 @@ def test_the_first_render_sizes_the_pane_before_it_starts_the_program():
     it is forked.
     """
     backend = _NoBackend()
-    control = _TerminalControl(backend=backend)
+    control = TerminalControl(backend=backend)
     control.create_content(12, 8)
     assert (control.screen.columns, control.screen.lines) == (12, 8)
     assert backend.sizes == [(12, 8)]

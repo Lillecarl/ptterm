@@ -24,7 +24,7 @@ changed.
 ## What it measures
 
 `a_filled_pane(depth)` from `measure_instructions.py` is the fixture:
-a real `_TerminalControl` whose history is full to `depth` rows and
+a real `TerminalControl` whose history is full to `depth` rows and
 has pruned at least once, so the buffer is at its limit rather than on
 the way to it.
 

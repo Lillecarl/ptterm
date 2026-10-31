@@ -2,7 +2,7 @@
 What a scroll moves is drawn where it lands, not built again.
 
 A program scrolls a region and the rows already stand in order, so
-`_TerminalControl` moves what it drew for them along instead of
+`TerminalControl` moves what it drew for them along instead of
 building every row again. Only the rows the scroll uncovers are
 built, and a row written after the scroll stays where it is.
 
@@ -23,7 +23,7 @@ from no_backend import NoBackend
 from pyte import escape
 from pyte.sequences import Csi, csi
 
-from ptterm.terminal import _TerminalControl
+from ptterm.control import TerminalControl
 
 CORPUS = pathlib.Path(__file__).parent / "corpus"
 
@@ -59,7 +59,7 @@ def two_controls():
     "One that rotates what it drew, and one that keeps nothing."
     controls = []
     for _ in range(2):
-        control = _TerminalControl(backend=NoBackend())
+        control = TerminalControl(backend=NoBackend())
         control.create_content(COLUMNS, LINES)
         controls.append(control)
     return controls
@@ -90,7 +90,7 @@ def test_a_real_program_scrolls_the_same_rows(name):
 
 
 def _control(lines=6, columns=10):
-    control = _TerminalControl(backend=NoBackend())
+    control = TerminalControl(backend=NoBackend())
     control.create_content(columns, lines)
     return control
 

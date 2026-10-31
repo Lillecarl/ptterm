@@ -16,8 +16,8 @@ from no_backend import NoBackend
 from pyte.modes import PrivateMode
 from pyte.sequences import reset_mode, set_mode
 
-import ptterm.terminal
-from ptterm.terminal import _TerminalControl
+import ptterm.control
+from ptterm.control import TerminalControl
 
 BEGIN = set_mode(PrivateMode.SYNCHRONIZED_OUTPUT)
 END = reset_mode(PrivateMode.SYNCHRONIZED_OUTPUT)
@@ -29,7 +29,7 @@ COLUMNS = 20
 
 def a_control():
     "A control that has drawn one frame, and the list of redraws it asked for."
-    control = _TerminalControl(backend=NoBackend())
+    control = TerminalControl(backend=NoBackend())
     asked = []
     control.on_content_changed += lambda _: asked.append(True)
     control.create_content(COLUMNS, LINES)
@@ -78,7 +78,7 @@ def test_a_frame_that_ends_and_begins_again_in_one_feed_draws():
 def test_a_frame_that_takes_too_long_draws_as_it_comes(monkeypatch):
     "Until the program ends it: a hold that ran out does not start again."
     now = [0.0]
-    monkeypatch.setattr(ptterm.terminal.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(ptterm.control.time, "monotonic", lambda: now[0])
     control, asked = a_control()
     control.feed_output(BEGIN + "slow")
     now[0] = 2.0
@@ -90,7 +90,7 @@ def test_a_frame_that_takes_too_long_draws_as_it_comes(monkeypatch):
 
 
 async def test_a_program_that_never_ends_the_frame_is_drawn_after_a_while(monkeypatch):
-    monkeypatch.setattr(ptterm.terminal, "_FRAME_HELD_AT_MOST", 0.05)
+    monkeypatch.setattr(ptterm.control, "FRAME_HELD_AT_MOST", 0.05)
     control, asked = a_control()
     async with anyio.create_task_group() as task_group:
         control._task_group = task_group
@@ -103,7 +103,7 @@ async def test_a_program_that_never_ends_the_frame_is_drawn_after_a_while(monkey
 
 
 async def test_a_frame_that_ends_in_time_leaves_no_timer_behind(monkeypatch):
-    monkeypatch.setattr(ptterm.terminal, "_FRAME_HELD_AT_MOST", 0.05)
+    monkeypatch.setattr(ptterm.control, "FRAME_HELD_AT_MOST", 0.05)
     control, asked = a_control()
     with anyio.fail_after(5):
         async with anyio.create_task_group() as task_group:
