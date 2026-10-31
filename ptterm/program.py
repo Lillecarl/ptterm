@@ -8,7 +8,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Protocol
 
-from ptyhost.backends.posix import PosixBackend, spawn_of
+from ptyhost.backends.posix import spawn_backend
 from pyte.environment import preparing
 from pyte.images import ASSUMED_CELL_HEIGHT, ASSUMED_CELL_WIDTH
 
@@ -77,17 +77,5 @@ def create_backend(
     environment: Callable[[dict[str, str]], None] | None = None,
     directory: str | None = None,
 ) -> Backend:
-    """
-    A pty for `command`, which runs on this widget's screen.
-
-    The program draws on this screen and not on the terminal the
-    application runs in, so its environment has to say which one it is
-    (`pyte.environment.preparing`). Nothing else knows both: `pyte` has
-    no child, and `ptyhost` has no opinion on what parses the bytes.
-    Lillecarl/pymux#125.
-    """
-    # The size of a cell goes into the size of the pty, so that a
-    # program that draws images reads the same answer there as
-    # "CSI 16 t" gives it.
-    spawn = spawn_of(command, preparing(environment), directory)
-    return PosixBackend(spawn, cell=(ASSUMED_CELL_WIDTH, ASSUMED_CELL_HEIGHT))
+    "A pty for `command`, which runs on this widget's screen: `ptyhost.backends.posix.spawn_backend` says why."
+    return spawn_backend(command, preparing(environment), directory, cell=(ASSUMED_CELL_WIDTH, ASSUMED_CELL_HEIGHT))
