@@ -873,7 +873,7 @@ class TerminalControl(UIControl):
             if reports_mouse(self.screen):
                 report = None if action is None else mouse_report(self.screen, action, x, y)
                 if report is not None:
-                    self.screen.reply_csi(report)
+                    self.screen.reply(report)
             elif action in WHEEL_ARROWS and self.screen.wheel_sends_arrows:
                 # The alternate screen has no history, so copy mode
                 # would show the first screen's instead. Lillecarl/pymux#422.
