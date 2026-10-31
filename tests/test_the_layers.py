@@ -48,6 +48,8 @@ FROM_PYTE = {
     "pyte.cells",
     "pyte.colors",
     "pyte.environment",
+    # A mirrored pane thaws the screen it copies. Lillecarl/pymux#759.
+    "pyte.freeze",
     "pyte.images",
     "pyte.keep",
     "pyte.keys.events",

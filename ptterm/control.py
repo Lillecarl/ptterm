@@ -29,6 +29,7 @@ from prompt_toolkit.mouse_events import MouseEventType
 from prompt_toolkit.utils import Event
 from ptyhost import Process
 from ptyhost.backends import Backend
+from pyte.freeze import Frozen, Thawer, thaw
 from pyte.keep import Keep
 from pyte.keys.events import DEFAULT_KEY_PROFILE, KeyEvent, KeyProfile
 from pyte.mouse import ARROWS_PER_WHEEL_STEP, WHEEL_ARROWS, MouseAction, mouse_report, reports_mouse
@@ -154,6 +155,8 @@ class TerminalControl(UIControl):
         # A follower is a link to a peer, and a peer reconnects after
         # an upgrade and asks for a fresh seed.
         "followers": Keep.REBUILT,
+        # A mirror that loaded asks for a fresh seed.
+        "_thawer": Keep.DROPPED,
         "terminal": Keep.REBUILT,
         "keep_rows": Keep.REBUILT,
         "may_type": Keep.REBUILT,
@@ -275,6 +278,10 @@ class TerminalControl(UIControl):
         #: the order it happened.
         self.followers: list[Follower] = []
 
+        # What a mirror thawed its screen with, so a later freeze
+        # patches the same buffers.
+        self._thawer: Thawer | None = None
+
         # The screen belongs to the front end and not to the pty: a
         # `Process` runs a program and pumps its bytes, and what those
         # bytes mean is decided here. Lillecarl/pymux#85.
@@ -393,6 +400,23 @@ class TerminalControl(UIControl):
         self.stream.feed(data)
         for follower in self.followers:
             follower.read(data, expired)
+        self._after_a_feed()
+
+    def catch_up(self, screen: Frozen, stream: Frozen, surroundings: Surroundings) -> None:
+        """
+        Bring a mirror up to the screen it copies: the first freeze of
+        that screen, or a later one by the same `Freezer`, which holds
+        only the rows written since it stopped sending reads.
+
+        The write counts are not frozen, so every row says it changed
+        and each reader builds it again.
+        """
+        if self._thawer is None:
+            self._thawer = Thawer()
+        self._thawer.thaw(screen, self.screen)
+        thaw(stream, self.stream)
+        self.screen.surround(surroundings)
+        self.screen.touch_everything()
         self._after_a_feed()
 
     def _read(self, data: str) -> None:

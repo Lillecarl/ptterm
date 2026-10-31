@@ -10,7 +10,10 @@ which is what a chain of servers is.
 
 from __future__ import annotations
 
+import json
+
 from no_backend import NoBackend
+from pyte.freeze import Freezer, Frozen, freeze, freeze_value, thaw_value
 
 from ptterm.control import TerminalControl
 
@@ -76,6 +79,48 @@ def test_a_mirror_drops_its_replies_and_its_own_size():
     mirror.set_size(10, 2)
     assert mirror.process.backend.sizes == [(10, 2)], "the size goes to the program, which asks for it"
     assert (mirror.screen.lines, mirror.screen.columns) == (LINES, COLUMNS)
+
+
+def drawn(control: TerminalControl) -> list[str]:
+    "What the control draws for each row, through its own cache of rows."
+    content = control.create_content(control.screen.columns, control.screen.lines)
+    return ["".join(text for _style, text, *_ in content.get_line(y)) for y in range(content.line_count)]
+
+
+def test_a_paused_mirror_catches_up_and_draws_what_changed():
+    original = TerminalControl(backend=NoBackend())
+    original.create_content(COLUMNS, LINES)
+    original.process.receive("before\r\n")
+
+    freezer = Freezer()
+    mirror = TerminalControl(backend=NoBackend())
+    mirror.mirrored = True
+    mirror.catch_up(*_wire(freezer.freeze(original.screen), freeze(original.stream), original.screen.surroundings))
+    copy = Copy(mirror)
+    original.followers.append(copy)
+    original.process.receive("live\r\n")
+    assert drawn(mirror) == drawn(original)
+
+    # Nobody watches: the follower goes, and the freezer counts from here.
+    original.followers.remove(copy)
+    freezer.caught_up(original.screen)
+    original.process.receive("\x1b[2J\x1b[Hwhile away\x1b[3;1Hthird")
+    original.screen.set_cell_size(7, 15)
+
+    mirror.catch_up(*_wire(freezer.freeze(original.screen), freeze(original.stream), original.screen.surroundings))
+    original.followers.append(copy)
+    original.process.receive(" and back")
+    assert drawn(mirror) == drawn(original)
+    assert picture(mirror) == picture(original)
+
+
+def _wire(screen, stream, surroundings):
+    "The three as the far side reads them, after JSON."
+    return (
+        Frozen(*json.loads(json.dumps(screen))),
+        Frozen(*json.loads(json.dumps(stream))),
+        thaw_value(json.loads(json.dumps(freeze_value(surroundings)))),
+    )
 
 
 def test_a_mirror_is_followed_too():
