@@ -13,7 +13,8 @@ import pytest
 from kitty_oracle import differences, kitty_is_available
 from pyte import escape
 from pyte.screen import Screen
-from pyte.sequences import Sharp, csi, esc, sharp
+from pyte.sequences.csi import csi
+from pyte.sequences.escapes import Sharp, esc, sharp
 from pyte.streams import Stream
 
 

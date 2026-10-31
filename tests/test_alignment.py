@@ -13,7 +13,8 @@ from kitty_oracle import differences, kitty_is_available
 from pyte import escape
 from pyte.modes import PrivateMode
 from pyte.screen import Screen
-from pyte.sequences import Sharp, csi, esc, set_mode, sharp
+from pyte.sequences.csi import csi, set_mode
+from pyte.sequences.escapes import Sharp, esc, sharp
 from pyte.streams import Stream
 
 

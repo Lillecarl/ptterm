@@ -25,7 +25,7 @@ import pytest
 from no_backend import NoBackend
 from pyte import escape
 from pyte.modes import PrivateMode
-from pyte.sequences import csi, set_mode
+from pyte.sequences.csi import csi, set_mode
 
 from ptterm.control import TerminalControl
 

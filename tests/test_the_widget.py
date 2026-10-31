@@ -50,7 +50,8 @@ from pyte import escape
 from pyte.cells import PLAIN_APPEARANCE, Cell
 from pyte.modes import PrivateMode
 from pyte.mouse import ARROWS_PER_WHEEL_STEP
-from pyte.sequences import Csi, Sharp, announce, csi, reset_mode, set_mode, sharp
+from pyte.sequences.csi import Csi, csi, reset_mode, set_mode
+from pyte.sequences.escapes import Sharp, announce, sharp
 
 from ptterm.control import TerminalControl
 from ptterm.terminal import Terminal

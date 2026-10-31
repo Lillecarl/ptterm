@@ -23,7 +23,9 @@ from panel import abstained, judges, report, verdict
 from pyte import charsets, escape
 from pyte.modes import PrivateMode
 from pyte.osc import Osc
-from pyte.sequences import Csi, Escape, Sharp, csi, esc, osc, reset_mode, set_mode, sharp
+from pyte.sequences.csi import Csi, csi, reset_mode, set_mode
+from pyte.sequences.escapes import Escape, Sharp, esc, sharp
+from pyte.sequences.strings import osc
 
 #: Every judge that this file wants. With fewer, a tally means nothing.
 WANTED = {"kitty", "wezterm", "alacritty", "libvterm", "ghostty", "xtermjs"}

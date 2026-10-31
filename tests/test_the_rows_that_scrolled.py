@@ -21,7 +21,7 @@ import pathlib
 import pytest
 from no_backend import NoBackend
 from pyte import escape
-from pyte.sequences import Csi, csi
+from pyte.sequences.csi import Csi, csi
 
 from ptterm.control import TerminalControl
 

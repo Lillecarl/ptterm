@@ -36,7 +36,7 @@ from __future__ import annotations
 from kitty_oracle import ptterm_cells
 from panel import judges
 from pyte.modes import PrivateMode
-from pyte.sequences import set_mode
+from pyte.sequences.csi import set_mode
 
 LINES = 8
 WIDE = 32

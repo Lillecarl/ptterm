@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from no_backend import NoBackend
 from pyte import escape
-from pyte.sequences import csi
+from pyte.sequences.csi import csi
 
 from ptterm.terminal import Terminal
 

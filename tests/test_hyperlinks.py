@@ -24,7 +24,9 @@ from pyte.osc import (
     parse_hyperlink,
 )
 from pyte.screen import Screen
-from pyte.sequences import Terminator, csi, esc, osc, reset_mode, set_mode
+from pyte.sequences.csi import csi, reset_mode, set_mode
+from pyte.sequences.escapes import esc
+from pyte.sequences.strings import Terminator, osc
 from pyte.streams import Stream
 
 from ptterm.style import style_of

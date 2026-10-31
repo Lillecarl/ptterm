@@ -19,7 +19,7 @@ from prompt_toolkit.layout.mouse_handlers import MouseHandlers
 from prompt_toolkit.layout.screen import Screen, WritePosition
 from prompt_toolkit.output import DummyOutput
 from pyte.modes import PrivateMode
-from pyte.sequences import set_mode
+from pyte.sequences.csi import set_mode
 
 from ptterm.control import TerminalControl
 from ptterm.window import TerminalWindow

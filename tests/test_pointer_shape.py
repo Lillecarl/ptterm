@@ -26,7 +26,8 @@ from pyte.osc import (
     pointer_shape_name,
 )
 from pyte.screen import Screen
-from pyte.sequences import osc, reset_mode, set_mode
+from pyte.sequences.csi import reset_mode, set_mode
+from pyte.sequences.strings import osc
 from pyte.streams import Stream
 
 

@@ -14,7 +14,8 @@ from __future__ import annotations
 import pytest
 from pyte import escape
 from pyte.screen import Screen
-from pyte.sequences import csi, decrqss
+from pyte.sequences.csi import csi
+from pyte.sequences.strings import decrqss
 from pyte.streams import Stream
 
 from ptterm.style import style_of as spell

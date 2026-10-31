@@ -30,7 +30,8 @@ import pytest
 from panel import what_ptterm_draws, what_xterm_draws, xterm_is_here
 from pyte import escape
 from pyte.modes import PrivateMode
-from pyte.sequences import Csi, Escape, Sharp, csi, esc, reset_mode, set_mode, sharp
+from pyte.sequences.csi import Csi, csi, reset_mode, set_mode
+from pyte.sequences.escapes import Escape, Sharp, esc, sharp
 
 pytestmark = pytest.mark.skipif(not xterm_is_here(), reason="xterm has no display here")
 

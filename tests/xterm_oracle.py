@@ -50,7 +50,7 @@ from collections.abc import Callable
 
 from kitty_oracle import HISTORY, Cell
 from pyte import escape
-from pyte.sequences import esc
+from pyte.sequences.escapes import esc
 
 __all__ = ["xterm_cells", "xterm_is_available"]
 

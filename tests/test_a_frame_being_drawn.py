@@ -14,7 +14,7 @@ import anyio
 import pytest
 from no_backend import NoBackend
 from pyte.modes import PrivateMode
-from pyte.sequences import reset_mode, set_mode
+from pyte.sequences.csi import reset_mode, set_mode
 
 import ptterm.control
 from ptterm.control import TerminalControl

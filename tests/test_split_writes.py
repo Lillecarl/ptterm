@@ -19,7 +19,9 @@ from kitty_oracle import ptterm_cells, ptterm_cells_in_pieces
 from pyte import escape
 from pyte.modes import PrivateMode
 from pyte.osc import Osc
-from pyte.sequences import Sharp, Terminator, apc, csi, dcs, osc, reset_mode, set_mode, sharp
+from pyte.sequences.csi import csi, reset_mode, set_mode
+from pyte.sequences.escapes import Sharp, sharp
+from pyte.sequences.strings import Terminator, apc, dcs, osc
 
 CORPUS = pathlib.Path(__file__).parent / "corpus"
 

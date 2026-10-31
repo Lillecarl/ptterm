@@ -112,7 +112,7 @@ from no_backend import NoBackend
 from pyte import escape
 from pyte.modes import PrivateMode
 from pyte.screen import Screen
-from pyte.sequences import csi, reset_mode, set_mode
+from pyte.sequences.csi import csi, reset_mode, set_mode
 from pyte.streams import Stream
 
 from ptterm.control import TerminalControl

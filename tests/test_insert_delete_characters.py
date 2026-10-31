@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from pyte import escape
 from pyte.screen import Screen
-from pyte.sequences import csi
+from pyte.sequences.csi import csi
 from pyte.streams import Stream
 
 

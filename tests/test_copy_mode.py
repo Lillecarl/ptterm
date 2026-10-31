@@ -45,7 +45,7 @@ from pyte.cells import WrittenCell
 from pyte.modes import PrivateMode
 from pyte.page import RowMark
 from pyte.placeholders import PLACEHOLDER
-from pyte.sequences import csi, set_mode
+from pyte.sequences.csi import csi, set_mode
 
 from ptterm.terminal import Terminal
 

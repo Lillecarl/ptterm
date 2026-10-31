@@ -13,7 +13,7 @@ import pytest
 from kitty_oracle import differences, kitty_is_available, ptterm_cells
 from pyte import escape
 from pyte.screen import Screen
-from pyte.sequences import csi
+from pyte.sequences.csi import csi
 from pyte.streams import Stream
 
 from ptterm.style import style_of

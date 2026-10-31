@@ -21,7 +21,7 @@ from __future__ import annotations
 from pyte import escape
 from pyte.placeholders import PLACEHOLDER
 from pyte.screen import Screen
-from pyte.sequences import csi
+from pyte.sequences.csi import csi
 from pyte.streams import Stream
 
 from ptterm.control import cursor_offset

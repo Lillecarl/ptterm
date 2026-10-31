@@ -18,7 +18,8 @@ from __future__ import annotations
 import pytest
 from pyte import escape
 from pyte.screen import Screen
-from pyte.sequences import csi, esc
+from pyte.sequences.csi import csi
+from pyte.sequences.escapes import esc
 from pyte.streams import Stream
 
 from ptterm.style import style_of as spell

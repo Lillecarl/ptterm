@@ -13,7 +13,8 @@ import pytest
 from kitty_oracle import differences, kitty_is_available
 from pyte import escape
 from pyte.osc import Osc
-from pyte.sequences import Terminator, apc, csi, dcs, osc
+from pyte.sequences.csi import csi
+from pyte.sequences.strings import Terminator, apc, dcs, osc
 
 pytestmark = pytest.mark.skipif(not kitty_is_available(), reason="the kitty python package is not there")
 

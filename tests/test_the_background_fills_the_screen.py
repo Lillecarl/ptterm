@@ -19,7 +19,7 @@ from prompt_toolkit.layout.mouse_handlers import MouseHandlers
 from prompt_toolkit.layout.screen import Screen, WritePosition
 from prompt_toolkit.styles import Style
 from pyte import escape
-from pyte.sequences import Csi, csi
+from pyte.sequences.csi import Csi, csi
 from test_the_widget import rendered
 
 from ptterm.control import TerminalControl

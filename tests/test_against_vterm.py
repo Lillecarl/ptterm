@@ -16,7 +16,8 @@ import pytest
 from kitty_oracle import kitty_is_available
 from pyte import escape
 from pyte.modes import PrivateMode
-from pyte.sequences import Csi, csi, esc, reset_mode, set_mode
+from pyte.sequences.csi import Csi, csi, reset_mode, set_mode
+from pyte.sequences.escapes import esc
 from vterm_oracle import libvterm_is_available, three_way, vterm_differences
 
 pytestmark = pytest.mark.skipif(
