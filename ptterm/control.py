@@ -157,6 +157,7 @@ class TerminalControl(UIControl):
         "followers": Keep.REBUILT,
         # A mirror that loaded asks for a fresh seed.
         "_thawer": Keep.DROPPED,
+        "_resize_func": Keep.REBUILT,
         "terminal": Keep.REBUILT,
         "keep_rows": Keep.REBUILT,
         "may_type": Keep.REBUILT,
@@ -269,8 +270,8 @@ class TerminalControl(UIControl):
         #: That server decides everything about the screen: a mirror
         #: takes each read with the ground timer's decision beside it
         #: (`feed_read`), takes its size and surroundings as they
-        #: arrive, and drops its own replies, because the program has
-        #: its answer from the screen it really talks to. A size set
+        #: arrive, and drops its own replies and size asks, because the
+        #: program has its answer from the screen it really talks to. A size set
         #: here goes to the program, which asks that server for it.
         #: Lillecarl/pymux#759.
         self.mirrored = False
@@ -282,6 +283,7 @@ class TerminalControl(UIControl):
         # What a mirror thawed its screen with, so a later freeze
         # patches the same buffers.
         self._thawer: Thawer | None = None
+        self._resize_func = resize_func
 
         # The screen belongs to the front end and not to the pty: a
         # `Process` runs a program and pumps its bytes, and what those
@@ -293,7 +295,7 @@ class TerminalControl(UIControl):
             surroundings_func=self._surrounded,
             bell_func=bell_func,
             osc_func=osc_func,
-            resize_func=resize_func,
+            resize_func=self._asks_size,
             may_resize=may_resize,
             # How deep the scrollback goes. The embedder decides, because
             # it is the embedder that offers the option: tmux and pymux
@@ -437,6 +439,11 @@ class TerminalControl(UIControl):
     def _answer(self, data: str) -> None:
         if not self.mirrored:
             self.process.write_input(data)
+
+    def _asks_size(self, lines: int | None, columns: int | None) -> None:
+        # A mirror replays the program's ask, and the owner grants it.
+        if not self.mirrored and self._resize_func is not None:
+            self._resize_func(lines, columns)
 
     def _surrounded(self, surroundings: Surroundings) -> None:
         for follower in self.followers:

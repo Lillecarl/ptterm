@@ -68,13 +68,22 @@ def test_a_mirror_takes_the_reads_the_sizes_and_the_surroundings():
 
 
 def test_a_mirror_drops_its_replies_and_its_own_size():
-    original = TerminalControl(backend=NoBackend())
-    mirror = a_mirror_of(original)
+    asked, owner_asked = [], []
+    original = TerminalControl(
+        backend=NoBackend(), resize_func=lambda *size: owner_asked.append(size), may_resize=lambda: True
+    )
+    mirror = TerminalControl(backend=NoBackend(), resize_func=lambda *size: asked.append(size), may_resize=lambda: True)
+    mirror.mirrored = True
+    original.followers.append(Copy(mirror))
     original.create_content(COLUMNS, LINES)
 
     original.process.receive("\x1b[c")  # Primary device attributes.
     assert original.process.backend.written
     assert mirror.process.backend.written == []
+
+    original.process.receive("\x1b[8;3;40t")  # The program asks for a size.
+    assert owner_asked == [(3, 40)]
+    assert asked == []
 
     mirror.set_size(10, 2)
     assert mirror.process.backend.sizes == [(10, 2)], "the size goes to the program, which asks for it"
