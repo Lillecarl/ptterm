@@ -13,7 +13,7 @@ from __future__ import annotations
 import pytest
 from pyte import escape
 from pyte.screen import Screen
-from pyte.sequences.csi import csi
+from pyte.sequences.csi import Marker, csi
 from pyte.streams import Stream
 
 from ptterm.style import style_of
@@ -122,9 +122,9 @@ def test_a_private_marker_makes_another_sequence():
     on, and every character the program draws after it carries a line
     that nobody asked for.
     """
-    assert styles(csi(escape.SGR, 4, private=">") + "> hello", 3) == ["", "", ""]
+    assert styles(csi(escape.SGR, 4, private=Marker.GREATER) + "> hello", 3) == ["", "", ""]
     # The same for the other markers, and for a plain SGR after one of
     # them: the marker belongs to that one sequence alone.
-    assert styles(csi(escape.SGR, 4, private="?") + "A", 1) == [""]
-    assert styles(csi(escape.SGR, 4, private="<") + "A", 1) == [""]
-    assert styles((csi(escape.SGR, 4, private=">") + csi(escape.SGR, 4) + "A"), 1) == ["underline "]
+    assert styles(csi(escape.SGR, 4, private=Marker.QUESTION) + "A", 1) == [""]
+    assert styles(csi(escape.SGR, 4, private=Marker.LESS) + "A", 1) == [""]
+    assert styles((csi(escape.SGR, 4, private=Marker.GREATER) + csi(escape.SGR, 4) + "A"), 1) == ["underline "]

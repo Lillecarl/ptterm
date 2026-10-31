@@ -16,7 +16,7 @@ from __future__ import annotations
 from pyte import escape
 from pyte.modes import PrivateMode
 from pyte.screen import Screen
-from pyte.sequences.csi import Csi, csi, reset_mode, set_mode
+from pyte.sequences.csi import Csi, Marker, csi, reset_mode, set_mode
 from pyte.sequences.escapes import Escape, esc
 from pyte.streams import Stream
 
@@ -168,7 +168,7 @@ def test_a_filled_cell_takes_the_rendition_that_is_set_now():
 def test_a_filled_cell_carries_the_mark_of_decsca():
     screen, stream = _screen()
     stream.feed(csi(Csi.DECSCA, 1) + csi(Csi.DECFRA, 37, 1, 1, 1, 3) + csi(Csi.DECSCA, 0))
-    stream.feed(csi(escape.CUP, 1, 1) + csi(escape.EL, 2, private="?"))
+    stream.feed(csi(escape.CUP, 1, 1) + csi(escape.EL, 2, private=Marker.QUESTION))
     assert _line(screen, 0).rstrip() == "%%%"
 
 
