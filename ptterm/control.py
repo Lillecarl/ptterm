@@ -41,6 +41,8 @@ from .program import Program
 from .style import fragments_of_runs, placeholder_cells, visible_char
 
 if TYPE_CHECKING:
+    from pyte.images import GraphicsImage
+
     from .terminal import Terminal
 
 __all__ = ["Follower", "Mirror", "TerminalControl", "cursor_offset"]
@@ -406,9 +408,9 @@ class TerminalControl(UIControl):
         self._read(data)
         self._after_a_feed()
 
-    def put_frame(self, frame: dict[str, Any]) -> None:
+    def put_frame(self, frame: dict[str, Any], store: dict[str, GraphicsImage] | None = None) -> None:
         "Lay a frame of the page this screen mirrors on it (`pyte.grid`). A mirror may have followers too."
-        put_frame(self.screen, frame)
+        put_frame(self.screen, frame, store)
         self._changed()
 
     def _read(self, data: str) -> None:
