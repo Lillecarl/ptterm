@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable, Hashable, Iterable
-from typing import TYPE_CHECKING, ClassVar, NamedTuple, Protocol
+from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple, Protocol
 
 import anyio
 import anyio.abc
@@ -29,7 +29,7 @@ from prompt_toolkit.mouse_events import MouseEventType
 from prompt_toolkit.utils import Event
 from ptyhost import Process
 from ptyhost.backends import Backend
-from pyte.freeze import Frozen, Thawer, thaw
+from pyte.grid import put_frame
 from pyte.keep import Keep
 from pyte.keys.events import DEFAULT_KEY_PROFILE, KeyEvent, KeyProfile
 from pyte.mouse import ARROWS_PER_WHEEL_STEP, WHEEL_ARROWS, MouseAction, mouse_report, reports_mouse
@@ -41,11 +41,9 @@ from .program import Program
 from .style import fragments_of_runs, placeholder_cells, visible_char
 
 if TYPE_CHECKING:
-    from pyte.surroundings import Surroundings
-
     from .terminal import Terminal
 
-__all__ = ["Follower", "TerminalControl", "cursor_offset"]
+__all__ = ["Follower", "Mirror", "TerminalControl", "cursor_offset"]
 
 
 #: How long a sequence may stay open in a pane before the next bytes
@@ -63,17 +61,28 @@ FRAME_HELD_AT_MOST = 1.0
 
 class Follower(Protocol):
     """
-    Something that keeps a copy of a pane's screen: everything that
-    changes the screen and is not in the program's output comes here,
-    in the order it happened. Lillecarl/pymux#759.
+    Something that shows a pane's screen somewhere else, told after each
+    read and each resize that the screen may have changed.
+    Lillecarl/pymux#759.
     """
 
-    def read(self, data: str, expired: bool) -> None:
-        "The program wrote `data`; `expired` says the ground timer dropped an open sequence first."
+    def changed(self) -> None: ...
 
-    def resized(self, lines: int, columns: int) -> None: ...
 
-    def surrounded(self, surroundings: Surroundings) -> None: ...
+class Mirror(Protocol):
+    """
+    Where a person's input goes when the screen is a copy of a pane on
+    another server. That server encodes it for the program, because it
+    holds the modes the program set and the copy does not.
+    Lillecarl/pymux#759.
+    """
+
+    def key(self, data: str, profile: KeyProfile) -> None:
+        "Input data as the person's terminal sent it, for `Screen.encode_key`."
+
+    def paste(self, text: str) -> None: ...
+
+    def mouse(self, action: MouseAction, column: int, row: int) -> None: ...
 
 
 #: What `pyte.mouse` calls each prompt_toolkit event. A move reports
@@ -151,12 +160,10 @@ class TerminalControl(UIControl):
         "stream": Keep.SAVED,
         "process": Keep.SAVED,
         # Set by the program a mirror is built with, which a load builds again.
-        "mirrored": Keep.REBUILT,
+        "mirror": Keep.REBUILT,
         # A follower is a link to a peer, and a peer reconnects after
-        # an upgrade and asks for a fresh seed.
+        # an upgrade and is sent the whole page again.
         "followers": Keep.REBUILT,
-        # A mirror that loaded asks for a fresh seed.
-        "_thawer": Keep.DROPPED,
         "_resize_func": Keep.REBUILT,
         "terminal": Keep.REBUILT,
         "keep_rows": Keep.REBUILT,
@@ -266,23 +273,16 @@ class TerminalControl(UIControl):
 
             return app_or_none.layout.has_focus(self)
 
-        #: Whether this screen is a copy of a pane on another server.
-        #: That server decides everything about the screen: a mirror
-        #: takes each read with the ground timer's decision beside it
-        #: (`feed_read`), takes its size and surroundings as they
-        #: arrive, and drops its own replies and size asks, because the
-        #: program has its answer from the screen it really talks to. A size set
-        #: here goes to the program, which asks that server for it.
-        #: Lillecarl/pymux#759.
-        self.mirrored = False
+        #: Set when this screen is a copy of a pane on another server.
+        #: That server decides everything about the screen: it sends the
+        #: page as frames (`put_frame`), and a person's keys, paste and
+        #: mouse go to it to encode. A size set here goes to the
+        #: program, which asks that server for it. Lillecarl/pymux#759.
+        self.mirror: Mirror | None = None
 
-        #: What keeps a copy of this screen, told of every change in
-        #: the order it happened.
+        #: What shows this screen somewhere else, told after each change.
         self.followers: list[Follower] = []
 
-        # What a mirror thawed its screen with, so a later freeze
-        # patches the same buffers.
-        self._thawer: Thawer | None = None
         self._resize_func = resize_func
 
         # The screen belongs to the front end and not to the pty: a
@@ -292,7 +292,6 @@ class TerminalControl(UIControl):
             0,
             0,
             write_process_input=self._answer,
-            surroundings_func=self._surrounded,
             bell_func=bell_func,
             osc_func=osc_func,
             resize_func=self._asks_size,
@@ -376,7 +375,7 @@ class TerminalControl(UIControl):
     def set_size(self, width: int, height: int) -> None:
         "Tell the program and the screen how big the pane is."
         self.process.set_size(width, height)
-        if not self.mirrored:
+        if self.mirror is None:
             self.resize_screen(height, width)
 
     def resize_screen(self, lines: int, columns: int) -> None:
@@ -385,7 +384,7 @@ class TerminalControl(UIControl):
         self.screen.lines = lines
         self.screen.columns = columns
         for follower in self.followers:
-            follower.resized(lines, columns)
+            follower.changed()
 
     def feed_output(self, data: str) -> None:
         """
@@ -400,54 +399,27 @@ class TerminalControl(UIControl):
         self._read(data)
         self._after_a_feed()
 
-    def feed_read(self, data: str, expired: bool) -> None:
-        """
-        Feed a read of the screen this one mirrors, with that screen's
-        ground timer decision. A mirror keeps no clock of its own: the
-        network moves the gaps between reads, so its own timer would
-        drop sequences the other screen kept.
-        """
-        if expired:
-            self.stream.ground_timer_expired()
-        self.stream.feed(data)
-        for follower in self.followers:
-            follower.read(data, expired)
-        self._after_a_feed()
-
-    def catch_up(self, screen: Frozen, stream: Frozen, surroundings: Surroundings) -> None:
-        """
-        Bring a mirror up to the screen it copies: the first freeze of
-        that screen, or a later one by the same `Freezer`, which holds
-        only the rows written since it stopped sending reads.
-
-        The write counts are not frozen, so every row says it changed
-        and each reader builds it again.
-        """
-        if self._thawer is None:
-            self._thawer = Thawer()
-        self._thawer.thaw(screen, self.screen)
-        thaw(stream, self.stream)
-        self.screen.surround(surroundings)
-        self.screen.touch_everything()
-        self._after_a_feed()
+    def put_frame(self, frame: dict[str, Any]) -> None:
+        "Lay a frame of the page this screen mirrors on it (`pyte.grid`). A mirror may have followers too."
+        put_frame(self.screen, frame)
+        self._changed()
 
     def _read(self, data: str) -> None:
-        expired = self._ground_timer.feed(data)
-        for follower in self.followers:
-            follower.read(data, expired)
+        self._ground_timer.feed(data)
 
     def _answer(self, data: str) -> None:
-        if not self.mirrored:
+        if self.mirror is None:
             self.process.write_input(data)
 
     def _asks_size(self, lines: int | None, columns: int | None) -> None:
-        # A mirror replays the program's ask, and the owner grants it.
-        if not self.mirrored and self._resize_func is not None:
+        if self.mirror is None and self._resize_func is not None:
             self._resize_func(lines, columns)
 
-    def _surrounded(self, surroundings: Surroundings) -> None:
+    def _changed(self) -> None:
+        "The picture is whole: say so to the window and to each follower."
+        self.on_content_changed.fire()
         for follower in self.followers:
-            follower.surrounded(surroundings)
+            follower.changed()
 
     def _after_a_feed(self) -> None:
         """
@@ -481,7 +453,7 @@ class TerminalControl(UIControl):
                 return
             self._held_too_long = True
         self._end_the_hold()
-        self.on_content_changed.fire()
+        self._changed()
 
     def _holds_the_frame(self) -> bool:
         return (
@@ -503,7 +475,7 @@ class TerminalControl(UIControl):
             self._let_go = None
             self._held_since = None
             self._held_too_long = True
-            self.on_content_changed.fire()
+            self._changed()
 
     async def start(self, task_group: anyio.abc.TaskGroup) -> None:
         """
@@ -922,21 +894,51 @@ class TerminalControl(UIControl):
                 # alt+char), so that they can be re-encoded for the
                 # keyboard mode of this pane. (The empty-data presses
                 # are the remainders of such split sequences.)
-                self.process.write_input(
-                    self.screen.encode_key(key_press.data, report=self.unreadable_key_func, profile=self.key_profile())
-                )
+                if self.mirror is not None:
+                    self.mirror.key(key_press.data, self.key_profile())
+                else:
+                    self.type_key(key_press.data, self.key_profile())
             return NotImplemented
 
         @bindings.add(Keys.BracketedPaste)
         def _(event):
             if not self.may_be_driven():
                 return NotImplemented
-            self.process.write_input(self.screen.wrap_paste(event.data))
+            if self.mirror is not None:
+                self.mirror.paste(event.data)
+            else:
+                self.paste(event.data)
             # A paste reaches a program as well, and the answer is the
             # redraw. Same answer as a key. Lillecarl/pymux#246.
             return NotImplemented
 
         return bindings
+
+    def type_key(self, data: str, profile: KeyProfile) -> None:
+        "Input data as a person's terminal sent it, encoded for the keyboard mode of this pane."
+        self.process.write_input(self.screen.encode_key(data, report=self.unreadable_key_func, profile=profile))
+
+    def paste(self, text: str) -> None:
+        self.process.write_input(self.screen.wrap_paste(text))
+
+    def use_mouse(self, action: MouseAction | None, column: int, row: int) -> bool:
+        """
+        Send what the mouse did at a cell of the page to the program, the
+        way its modes ask. False when it wants no mouse and no arrows:
+        the wheel is the person's then.
+        """
+        if reports_mouse(self.screen):
+            report = None if action is None else mouse_report(self.screen, action, column, row)
+            if report is not None:
+                self.process.write_input(self.screen.encode_report(report))
+            return True
+        if action in WHEEL_ARROWS and self.screen.wheel_sends_arrows:
+            # The alternate screen has no history, so copy mode
+            # would show the first screen's instead. Lillecarl/pymux#422.
+            arrow = self.screen.encode_key(WHEEL_ARROWS[action])
+            self.process.write_input(arrow * ARROWS_PER_WHEEL_STEP)
+            return True
+        return False
 
     def get_invalidate_events(self) -> Iterable[Event]:
         yield self.on_content_changed
@@ -956,14 +958,18 @@ class TerminalControl(UIControl):
         if not self.may_be_driven():
             # Over the focused pane alone, as for a person who types: a
             # wheel over another pane does nothing, and opening copy
-            # mode there would move the focus behind the embedder.
-            if get_app().layout.has_focus(self) and self._the_wheel_reads_the_history(mouse_event):
+            # mode there would move the focus behind the embedder. A
+            # mirror holds no history to read.
+            if (
+                self.mirror is None
+                and get_app().layout.has_focus(self)
+                and self._the_wheel_reads_the_history(mouse_event)
+            ):
                 self._read_the_history()
             return
 
         app = get_app()
 
-        process = self.process
         x = mouse_event.position.x
         y = mouse_event.position.y
 
@@ -982,16 +988,10 @@ class TerminalControl(UIControl):
             # Already focussed, send event to application when it requested
             # mouse support.
             action = _MOUSE_ACTIONS.get(mouse_event.event_type)
-            if reports_mouse(self.screen):
-                report = None if action is None else mouse_report(self.screen, action, x, y)
-                if report is not None:
-                    self.process.write_input(self.screen.encode_report(report))
-            elif action in WHEEL_ARROWS and self.screen.wheel_sends_arrows:
-                # The alternate screen has no history, so copy mode
-                # would show the first screen's instead. Lillecarl/pymux#422.
-                arrow = self.screen.encode_key(WHEEL_ARROWS[action])
-                self.process.write_input(arrow * ARROWS_PER_WHEEL_STEP)
-            elif self._the_wheel_reads_the_history(mouse_event):
+            if self.mirror is not None:
+                if action is not None:
+                    self.mirror.mouse(action, x, y)
+            elif not self.use_mouse(action, x, y) and self._the_wheel_reads_the_history(mouse_event):
                 self._read_the_history()
 
     def _the_wheel_reads_the_history(self, mouse_event) -> bool:

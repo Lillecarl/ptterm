@@ -48,8 +48,8 @@ FROM_PYTE = {
     "pyte.cells",
     "pyte.colors",
     "pyte.environment",
-    # A mirrored pane thaws the screen it copies. Lillecarl/pymux#759.
-    "pyte.freeze",
+    # A mirrored pane takes the frames of the page it copies. Lillecarl/pymux#759.
+    "pyte.grid",
     "pyte.images",
     "pyte.keep",
     "pyte.keys.events",
@@ -59,8 +59,6 @@ FROM_PYTE = {
     "pyte.runs",
     "pyte.screen",
     "pyte.streams",
-    # What a follower of a pane hears of the embedder. Lillecarl/pymux#759.
-    "pyte.surroundings",
 }
 
 #: The toolkit this package draws with, and the one it may never touch.

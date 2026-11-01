@@ -1,11 +1,12 @@
 """
-A pane tells its followers everything that changes its screen, and a
-mirrored pane fed only that keeps the same screen. Lillecarl/pymux#759.
+A pane tells its followers each time its picture changes, and a
+mirrored pane fed the frames of that picture shows the same page.
+Lillecarl/pymux#759.
 
-pyte proves a copy converges from reads, sizes and surroundings
-(`pyte/tests/test_mirroring.py`). This proves a pane hands a follower
-all three, in order, and that a mirror is a pane a follower can follow,
-which is what a chain of servers is.
+pyte proves a page converges from frames (`pyte/tests/test_grid.py`).
+This proves a pane tells a follower when to take one, that a mirror
+sends a person's input to its owner to encode, and that a mirror is a
+pane a follower can follow, which is what a chain of servers is.
 """
 
 from __future__ import annotations
@@ -13,7 +14,9 @@ from __future__ import annotations
 import json
 
 from no_backend import NoBackend
-from pyte.freeze import Freezer, Frozen, freeze, freeze_value, thaw_value
+from pyte.grid import GridWriter
+from pyte.keys.events import DEFAULT_KEY_PROFILE
+from pyte.mouse import MouseAction
 
 from ptterm.control import TerminalControl
 
@@ -22,114 +25,98 @@ COLUMNS = 30
 
 
 class Copy:
-    "A follower that feeds a mirrored pane, as a link between servers would."
+    "A follower that sends frames to a mirrored pane, as a link between servers would."
 
-    def __init__(self, mirror: TerminalControl) -> None:
+    def __init__(self, original: TerminalControl, mirror: TerminalControl) -> None:
+        self.original = original
         self.mirror = mirror
+        self.writer = GridWriter()
 
-    def read(self, data, expired) -> None:
-        self.mirror.feed_read(data, expired)
-
-    def resized(self, lines, columns) -> None:
-        self.mirror.resize_screen(lines, columns)
-
-    def surrounded(self, surroundings) -> None:
-        self.mirror.screen.surround(surroundings)
+    def changed(self) -> None:
+        frame = self.writer.frame(self.original.screen)
+        if frame is not None:
+            self.mirror.put_frame(json.loads(json.dumps(frame)))
 
 
-def a_mirror_of(original: TerminalControl) -> TerminalControl:
-    mirror = TerminalControl(backend=NoBackend())
-    mirror.mirrored = True
-    original.followers.append(Copy(mirror))
+class Owner:
+    "What a mirror sends a person's input to."
+
+    def __init__(self) -> None:
+        self.heard: list[tuple] = []
+
+    def key(self, data, profile) -> None:
+        self.heard.append(("key", data, profile))
+
+    def paste(self, text) -> None:
+        self.heard.append(("paste", text))
+
+    def mouse(self, action, column, row) -> None:
+        self.heard.append(("mouse", action, column, row))
+
+
+def a_mirror_of(original: TerminalControl, **kwargs) -> TerminalControl:
+    mirror = TerminalControl(backend=NoBackend(), **kwargs)
+    mirror.mirror = Owner()
+    original.followers.append(Copy(original, mirror))
     return mirror
 
 
 def picture(control: TerminalControl):
     screen = control.screen
-    rows = ["".join(screen.page.data_buffer[y][x].char for x in range(screen.columns)) for y in range(screen.lines)]
+    top = screen.line_offset
+    rows = [
+        "".join(screen.page.data_buffer[top + y][x].char for x in range(screen.columns)) for y in range(screen.lines)
+    ]
     cursor = screen.pt_cursor_position
-    return rows, (cursor.x, cursor.y), screen.surroundings
+    return rows, (cursor.x, cursor.y - top)
 
 
-def test_a_mirror_takes_the_reads_the_sizes_and_the_surroundings():
+def test_a_mirror_shows_the_page_through_output_and_a_resize():
     original = TerminalControl(backend=NoBackend())
     mirror = a_mirror_of(original)
     original.create_content(COLUMNS, LINES)
 
-    original.process.receive("hello\r\n\x1b[1;")
-    original._ground_timer.since -= 5  # The open sequence timed out.
-    original.process.receive("31mred\x1b[0m world")
+    original.feed_output("hello\r\n\x1b[1;31mred\x1b[0m world")
     original.set_size(20, 4)
-    original.screen.set_cell_size(7, 15)
-    original.feed_output("\r\nfrom a job")
+    original.feed_output("\r\nfrom a job\r\nand\r\nmore")
 
     assert mirror.screen.lines == 4
     assert picture(mirror) == picture(original)
 
 
-def test_a_mirror_drops_its_replies_and_its_own_size():
-    asked, owner_asked = [], []
-    original = TerminalControl(
-        backend=NoBackend(), resize_func=lambda *size: owner_asked.append(size), may_resize=lambda: True
-    )
-    mirror = TerminalControl(backend=NoBackend(), resize_func=lambda *size: asked.append(size), may_resize=lambda: True)
-    mirror.mirrored = True
-    original.followers.append(Copy(mirror))
-    original.create_content(COLUMNS, LINES)
-
-    original.process.receive("\x1b[c")  # Primary device attributes.
-    assert original.process.backend.written
-    assert mirror.process.backend.written == []
-
-    original.process.receive("\x1b[8;3;40t")  # The program asks for a size.
-    assert owner_asked == [(3, 40)]
-    assert asked == []
-
-    mirror.set_size(10, 2)
-    assert mirror.process.backend.sizes == [(10, 2)], "the size goes to the program, which asks for it"
-    assert (mirror.screen.lines, mirror.screen.columns) == (LINES, COLUMNS)
-
-
-def drawn(control: TerminalControl) -> list[str]:
-    "What the control draws for each row, through its own cache of rows."
-    content = control.create_content(control.screen.columns, control.screen.lines)
-    return ["".join(text for _style, text, *_ in content.get_line(y)) for y in range(content.line_count)]
-
-
-def test_a_paused_mirror_catches_up_and_draws_what_changed():
+def test_a_half_drawn_frame_is_not_sent():
+    "A program that draws a frame (?2026) is shown when it ends it, here and at the peer."
     original = TerminalControl(backend=NoBackend())
+    mirror = a_mirror_of(original)
     original.create_content(COLUMNS, LINES)
-    original.process.receive("before\r\n")
-
-    freezer = Freezer()
-    mirror = TerminalControl(backend=NoBackend())
-    mirror.mirrored = True
-    mirror.catch_up(*_wire(freezer.freeze(original.screen), freeze(original.stream), original.screen.surroundings))
-    copy = Copy(mirror)
-    original.followers.append(copy)
-    original.process.receive("live\r\n")
-    assert drawn(mirror) == drawn(original)
-
-    # Nobody watches: the follower goes, and the freezer counts from here.
-    original.followers.remove(copy)
-    freezer.caught_up(original.screen)
-    original.process.receive("\x1b[2J\x1b[Hwhile away\x1b[3;1Hthird")
-    original.screen.set_cell_size(7, 15)
-
-    mirror.catch_up(*_wire(freezer.freeze(original.screen), freeze(original.stream), original.screen.surroundings))
-    original.followers.append(copy)
-    original.process.receive(" and back")
-    assert drawn(mirror) == drawn(original)
+    original.feed_output("\x1b[?2026hhalf")
+    assert "half" not in picture(mirror)[0][0]
+    original.feed_output(" whole\x1b[?2026l")
     assert picture(mirror) == picture(original)
 
 
-def _wire(screen, stream, surroundings):
-    "The three as the far side reads them, after JSON."
-    return (
-        Frozen(*json.loads(json.dumps(screen))),
-        Frozen(*json.loads(json.dumps(stream))),
-        thaw_value(json.loads(json.dumps(freeze_value(surroundings)))),
-    )
+def test_a_mirror_takes_its_size_from_the_owner_and_answers_nothing():
+    asked = []
+    original = TerminalControl(backend=NoBackend())
+    mirror = a_mirror_of(original, resize_func=lambda *size: asked.append(size), may_resize=lambda: True)
+    original.create_content(COLUMNS, LINES)
+    original.feed_output("\x1b[c\x1b[8;3;40t")
+    mirror.set_size(10, 2)
+    assert mirror.process.backend.sizes == [(10, 2)], "the size goes to the program, which asks for it"
+    assert (mirror.screen.lines, mirror.screen.columns) == (LINES, COLUMNS)
+    assert mirror.process.backend.written == []
+    assert asked == []
+
+
+def test_the_owner_encodes_for_the_modes_the_program_set():
+    "Cursor keys in application mode, a bracketed paste and an SGR mouse report."
+    original = TerminalControl(backend=NoBackend())
+    original.create_content(COLUMNS, LINES)
+    original.feed_output("\x1b[?1h\x1b[?2004h\x1b[?1000;1006h")
+    original.type_key("\x1b[A", DEFAULT_KEY_PROFILE)
+    original.paste("pasted")
+    assert original.use_mouse(MouseAction.PRESS, 3, 1)
+    assert original.process.backend.written == ["\x1bOA", "\x1b[200~pasted\x1b[201~", "\x1b[<0;4;2M"]
 
 
 def test_a_mirror_is_followed_too():
@@ -139,10 +126,9 @@ def test_a_mirror_is_followed_too():
     last = a_mirror_of(middle)
     original.create_content(COLUMNS, LINES)
 
-    original.process.receive("one\r\ntwo\x1b[2;")
-    original._ground_timer.since -= 5
-    original.process.receive("three")
+    original.feed_output("one\r\ntwo\x1b[2;")
+    original.feed_output("1Hthree")
     original.set_size(25, 5)
-    original.screen.set_keyboard_source(31, False, True)
+    original.feed_output("\r\nfour")
 
     assert picture(last) == picture(original)
