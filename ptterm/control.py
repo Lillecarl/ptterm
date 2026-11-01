@@ -84,8 +84,12 @@ class Mirror(Protocol):
 
     def mouse(self, action: MouseAction, column: int, row: int) -> None: ...
 
-    def copy_mode(self) -> None:
-        "Open copy mode on the server that holds the history, for this person."
+    def copy_mode(self, at: tuple[int, int | None, str | None] | None = None) -> None:
+        "Open copy mode on the server that holds the history, for this person, at a `CopyView.place`."
+
+    @property
+    def copying(self) -> tuple[int, int | None, str | None] | None:
+        "Where copy mode on that server stands (`CopyView.place`), while it is open."
 
 
 #: What `pyte.mouse` calls each prompt_toolkit event. A move reports
@@ -897,20 +901,14 @@ class TerminalControl(UIControl):
                 # alt+char), so that they can be re-encoded for the
                 # keyboard mode of this pane. (The empty-data presses
                 # are the remainders of such split sequences.)
-                if self.mirror is not None:
-                    self.mirror.key(key_press.data, self.key_profile())
-                else:
-                    self.type_key(key_press.data, self.key_profile())
+                self.type_key(key_press.data, self.key_profile())
             return NotImplemented
 
         @bindings.add(Keys.BracketedPaste)
         def _(event):
             if not self.may_be_driven():
                 return NotImplemented
-            if self.mirror is not None:
-                self.mirror.paste(event.data)
-            else:
-                self.paste(event.data)
+            self.paste(event.data)
             # A paste reaches a program as well, and the answer is the
             # redraw. Same answer as a key. Lillecarl/pymux#246.
             return NotImplemented
@@ -918,18 +916,33 @@ class TerminalControl(UIControl):
         return bindings
 
     def type_key(self, data: str, profile: KeyProfile) -> None:
-        "Input data as a person's terminal sent it, encoded for the keyboard mode of this pane."
+        """
+        Input data as a person's terminal sent it, encoded for the keyboard
+        mode of this pane. A mirror sends it on as it came: the screen
+        here holds none of the program's modes.
+        """
+        if self.mirror is not None:
+            self.mirror.key(data, profile)
+            return
         self.process.write_input(self.screen.encode_key(data, report=self.unreadable_key_func, profile=profile))
 
     def paste(self, text: str) -> None:
+        if self.mirror is not None:
+            self.mirror.paste(text)
+            return
         self.process.write_input(self.screen.wrap_paste(text))
 
     def use_mouse(self, action: MouseAction | None, column: int, row: int) -> bool:
         """
         Send what the mouse did at a cell of the page to the program, the
         way its modes ask. False when it wants no mouse and no arrows:
-        the wheel is the person's then.
+        the wheel is the person's then. A mirror sends it on, and the
+        owner decides.
         """
+        if self.mirror is not None:
+            if action is not None:
+                self.mirror.mouse(action, column, row)
+            return True
         if reports_mouse(self.screen):
             report = None if action is None else mouse_report(self.screen, action, column, row)
             if report is not None:
@@ -991,10 +1004,7 @@ class TerminalControl(UIControl):
             # Already focussed, send event to application when it requested
             # mouse support.
             action = _MOUSE_ACTIONS.get(mouse_event.event_type)
-            if self.mirror is not None:
-                if action is not None:
-                    self.mirror.mouse(action, x, y)
-            elif not self.use_mouse(action, x, y) and self._the_wheel_reads_the_history(mouse_event):
+            if not self.use_mouse(action, x, y) and self._the_wheel_reads_the_history(mouse_event):
                 self._read_the_history()
 
     def _the_wheel_reads_the_history(self, mouse_event) -> bool:

@@ -54,8 +54,10 @@ class Owner:
     def mouse(self, action, column, row) -> None:
         self.heard.append(("mouse", action, column, row))
 
-    def copy_mode(self) -> None:
+    def copy_mode(self, at=None) -> None:
         self.heard.append(("copy mode",))
+
+    copying = None
 
 
 def a_mirror_of(original: TerminalControl, **kwargs) -> TerminalControl:
@@ -136,6 +138,21 @@ def test_a_mirror_is_followed_too():
     original.feed_output("\r\nfour")
 
     assert picture(last) == picture(original)
+
+
+def test_a_mirror_sends_input_on_as_it_came():
+    "The middle of a chain: its screen holds none of the program's modes, so it encodes nothing."
+    middle = a_mirror_of(TerminalControl(backend=NoBackend()))
+    middle.feed_output("\x1b[?1h")
+    middle.type_key("\x1b[A", DEFAULT_KEY_PROFILE)
+    middle.paste("pasted")
+    assert middle.use_mouse(MouseAction.WHEEL_UP, 3, 1)
+    assert middle.mirror.heard == [  # type: ignore[union-attr]
+        ("key", "\x1b[A", DEFAULT_KEY_PROFILE),
+        ("paste", "pasted"),
+        ("mouse", MouseAction.WHEEL_UP, 3, 1),
+    ]
+    assert middle.process.backend.written == []
 
 
 def test_copy_mode_of_a_mirror_opens_on_the_owner():
