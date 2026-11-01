@@ -19,6 +19,7 @@ from pyte.keys.events import DEFAULT_KEY_PROFILE
 from pyte.mouse import MouseAction
 
 from ptterm.control import TerminalControl
+from ptterm.terminal import Terminal
 
 LINES = 6
 COLUMNS = 30
@@ -52,6 +53,9 @@ class Owner:
 
     def mouse(self, action, column, row) -> None:
         self.heard.append(("mouse", action, column, row))
+
+    def copy_mode(self) -> None:
+        self.heard.append(("copy mode",))
 
 
 def a_mirror_of(original: TerminalControl, **kwargs) -> TerminalControl:
@@ -132,3 +136,12 @@ def test_a_mirror_is_followed_too():
     original.feed_output("\r\nfour")
 
     assert picture(last) == picture(original)
+
+
+def test_copy_mode_of_a_mirror_opens_on_the_owner():
+    "The owner holds the history, so a mirror opens no copy of its own."
+    terminal = Terminal(backend=NoBackend())
+    owner = terminal.terminal_control.mirror = Owner()
+    assert terminal.enter_copy_mode() is None
+    assert owner.heard == [("copy mode",)]
+    assert not terminal.is_copying

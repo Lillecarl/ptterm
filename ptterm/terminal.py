@@ -234,7 +234,7 @@ class Terminal:
         "Is the application that runs now reading the history?"
         return self.copy_views.get() is not None
 
-    def enter_copy_mode(self) -> CopyView:
+    def enter_copy_mode(self) -> CopyView | None:
         """
         Open copy mode for the application that runs now, over the
         buffer as it stands, and give it the keyboard.
@@ -243,7 +243,14 @@ class Terminal:
         person reading the history stops nothing for anybody else who
         watches the pane. A copy mode that is open already stays where
         it is, as tmux's does.
+
+        A mirror holds no history: the server that owns the pane opens
+        copy mode, and this gives None.
         """
+        mirror = self.terminal_control.mirror
+        if mirror is not None:
+            mirror.copy_mode()
+            return None
         view = self.copy_views.get()
         if view is None:
             view = CopyView(self)

@@ -84,6 +84,9 @@ class Mirror(Protocol):
 
     def mouse(self, action: MouseAction, column: int, row: int) -> None: ...
 
+    def copy_mode(self) -> None:
+        "Open copy mode on the server that holds the history, for this person."
+
 
 #: What `pyte.mouse` calls each prompt_toolkit event. A move reports
 #: nothing.
@@ -1014,7 +1017,8 @@ class TerminalControl(UIControl):
         ends at the bottom. Lillecarl/pymux#422.
         """
         view = self.terminal.enter_copy_mode()
-        view.scroll(-view.wheel_lines())
+        if view is not None:
+            view.scroll(-view.wheel_lines())
 
     def is_focusable(self) -> bool:
         return not self.process.suspended
