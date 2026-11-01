@@ -915,16 +915,18 @@ class TerminalControl(UIControl):
 
         return bindings
 
-    def type_key(self, data: str, profile: KeyProfile) -> None:
+    def type_key(self, data: str, profile: KeyProfile, quiet: bool = False) -> None:
         """
         Input data as a person's terminal sent it, encoded for the keyboard
         mode of this pane. A mirror sends it on as it came: the screen
-        here holds none of the program's modes.
+        here holds none of the program's modes. `quiet` tells nobody of
+        a key the pane cannot read.
         """
         if self.mirror is not None:
             self.mirror.key(data, profile)
             return
-        self.process.write_input(self.screen.encode_key(data, report=self.unreadable_key_func, profile=profile))
+        report = None if quiet else self.unreadable_key_func
+        self.process.write_input(self.screen.encode_key(data, report=report, profile=profile))
 
     def paste(self, text: str) -> None:
         if self.mirror is not None:
