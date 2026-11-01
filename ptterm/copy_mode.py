@@ -47,7 +47,7 @@ from prompt_toolkit.layout.processors import (
     Transformation,
 )
 from prompt_toolkit.mouse_events import MouseEventType
-from prompt_toolkit.selection import SelectionType
+from prompt_toolkit.selection import SelectionState, SelectionType
 from prompt_toolkit.token import KeepWhitespace
 from prompt_toolkit.widgets.toolbars import SearchToolbar
 from ptkhx import Mode
@@ -492,6 +492,26 @@ class CopyView:
         target = max(0, min(len(split) - 1, index + lines))
         new_position = sum(len(line) + 1 for line in split[:target]) + min(column, len(split[target]))
         buffer.cursor_position = new_position
+
+    @property
+    def place(self) -> tuple[int, int | None, str | None]:
+        "The caret, where the selection starts and its `SelectionType` value: what puts the view back (`go_to`)."
+        buffer = self.buffer
+        selection = buffer.selection_state
+        if selection is None:
+            return buffer.cursor_position, None, None
+        return buffer.cursor_position, selection.original_cursor_position, selection.type.value
+
+    def go_to(self, caret: int, start: int | None, kind: str | None) -> None:
+        """
+        Put back a `place`. The text has moved on since, so a position
+        past its end stops there.
+        """
+        buffer = self.buffer
+        length = len(buffer.text)
+        buffer.cursor_position = min(caret, length)
+        if start is not None and kind is not None:
+            buffer.selection_state = SelectionState(min(start, length), SelectionType(kind))
 
     def jump_to_mark(self, mark: RowMark, down: bool) -> None:
         """
