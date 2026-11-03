@@ -177,8 +177,8 @@ def test_whether_an_erase_keeps_reverse_video_is_a_choice():
     assert with_us == ["kitty", "wezterm"]
 
 
-#: What every judge but libvterm answers to a DEC line attribute: the
-#: line still holds every column it held.
+#: The line holds every column it held: what the five judges that read
+#: no line attribute answer, and what all answer after DECSWL.
 WHOLE_WIDTH = {
     "ptterm": 15,
     "alacritty": 15,
@@ -189,23 +189,23 @@ WHOLE_WIDTH = {
     "xtermjs": 15,
 }
 
-#: The same, with libvterm halving the line.
-HALF_WIDTH = dict(WHOLE_WIDTH, libvterm=10)
+#: The same, with libvterm and ptterm halving the line.
+HALF_WIDTH = dict(WHOLE_WIDTH, libvterm=10, ptterm=10)
 
 
-def test_a_double_width_line_still_holds_every_column():
+def test_a_double_width_line_holds_half_the_columns():
     """
-    libvterm halves the columns of a DECDWL line. Nobody else does.
+    libvterm halves the columns of a DECDWL line, and so does ptterm.
 
     `ROWWIDTH` in `src/vterm_internal.h` gives a double width line
     `cols / 2`, and `THISROWWIDTH` reaches every draw, erase and cursor
     bound in `src/state.c`. So fifteen characters wrap after ten on a
     twenty column screen.
 
-    kitty, WezTerm, Alacritty, Ghostty and xterm.js all keep the whole
-    line. Five to one, and ptterm is with the five: it reads the four
-    DEC line attributes and draws every line the plain way, so every
-    column stays where a program put it. Lillecarl/pymux#141.
+    kitty, WezTerm, Alacritty, Ghostty and xterm.js keep the whole line:
+    none of them reads the attribute. ptterm turns each character into
+    an OSC 66 block two cells wide, so ten fit. That is the user's
+    choice, and xterm draws it the same way. Lillecarl/pymux#890.
 
     The panel cannot be asked the question directly, because no judge
     reports a line attribute. It can be asked where the text wraps,
@@ -215,13 +215,13 @@ def test_a_double_width_line_still_holds_every_column():
 
 
 def test_a_double_height_line_is_a_double_width_line_too():
-    "Both halves of a DECDHL line are double width, so libvterm halves both."
+    "Both halves of a DECDHL line are double width, so libvterm and ptterm halve both."
     assert columns_before_the_wrap(sharp(Sharp.DECDHL_TOP) + "a" * 15) == HALF_WIDTH
     assert columns_before_the_wrap(sharp(Sharp.DECDHL_BOTTOM) + "a" * 15) == HALF_WIDTH
 
 
 def test_single_width_gives_the_columns_back():
-    "DECSWL puts libvterm back with the rest of the panel."
+    "DECSWL puts libvterm and ptterm back with the rest of the panel."
     assert columns_before_the_wrap((sharp(Sharp.DECDWL) + sharp(Sharp.DECSWL)) + "a" * 15) == WHOLE_WIDTH
 
 

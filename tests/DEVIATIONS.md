@@ -1537,23 +1537,23 @@ decide, and a terminal that draws bold plus colour seven as bright will
 still do so. Whether the server should carry enough to make that call
 per client is Lillecarl/pymux#53.
 
-**The DEC line attributes are not implemented, and that is a decision.**
-"ESC # 3", "ESC # 4", "ESC # 5" and "ESC # 6" draw a line at twice the
-width or twice the height on a VT100. ptterm reads each of them and
-draws the line the plain way, so `67screen_dbl_wh` and `28state_dbl_wh`
-fail and `vterm-failures.txt` records what they cost.
+**The DEC line attributes become kitty's text sizing, and that is a
+decision.** "ESC # 3", "ESC # 4", "ESC # 5" and "ESC # 6" draw a line at
+twice the width or twice the height on a VT100. ptterm turns the text
+of the line into OSC 66 blocks and holds no attribute on the line, so
+`67screen_dbl_wh` and `28state_dbl_wh` still fail where libvterm reads
+the attribute back, and `vterm-failures.txt` records what they cost.
 
-The vote is five to two the other way from most of this file. kitty,
-Ghostty and Alacritty implement none of the four; xterm and libvterm
-do; esctest has no test for any of them, and no recorded program in
-this repository sends one. The feature cost 119 references across four
-packages and a patch to prompt-toolkit that nothing else needed.
-Lillecarl/pymux#141 holds the reading, and the decision was the user's.
+**A double width line draws wrong in kitty.** kitty scales a glyph's
+width and height by one factor, so OSC 66 has no form for a glyph
+twice as wide. The line becomes "w=2", and each glyph keeps its own
+size, two cells apart. A double height line maps exactly, to "s=2" on
+its top row. Lillecarl/pymux#890 holds the reading, and the decision
+was the user's.
 
-The line holds every column it was given, which is what a terminal that
-ignores the attribute does. libvterm alone halves a double width line,
-and kitty, WezTerm, Alacritty, Ghostty and xterm.js all keep it whole;
-`test_the_panel.py` holds that vote.
+A double width line holds half its columns, as libvterm and xterm do.
+kitty, WezTerm, Alacritty, Ghostty and xterm.js keep it whole, because
+none of them reads the attribute; `test_the_panel.py` holds that vote.
 
 DECALN filled the screen with a plain `Char`, which reads as a cell
 nobody wrote, so eight assertions in `90vttest_01-movement-1` saw an

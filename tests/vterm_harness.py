@@ -277,9 +277,10 @@ class Harness:
         What a whole line carries: a continuation, and nothing else.
 
         libvterm prints "dwl" and "dhl" here for a line that a DEC line
-        attribute made bigger. This screen draws every line the plain
-        way, so it never says either of them (Lillecarl/pymux#141), and
-        `vterm-failures.txt` records the assertions that costs.
+        attribute made bigger. This screen turns such a line into text
+        at another size and holds no attribute on it, so it never says
+        either of them (Lillecarl/pymux#890), and `vterm-failures.txt`
+        records the assertions that costs.
 
         A row says whether a wrap brought it into being, which is
         libvterm's `continuation` for the same line.
@@ -337,8 +338,8 @@ class Harness:
 
         # libvterm prints the DEC line attributes of the line the cell
         # is on between the attributes and the colours. This screen
-        # draws every line the plain way, so there is nothing to print.
-        # Lillecarl/pymux#141.
+        # holds no attribute on a line, so there is nothing to print.
+        # Lillecarl/pymux#890.
         size = ""
 
         foreground = self._rgb(_color_of_style(style, ""), self.default_foreground)
