@@ -855,25 +855,21 @@ def test_the_first_render_sizes_the_pane_before_it_starts_the_program():
 
 
 # ----------------------------------------------------------------------
-# The DEC line attributes, which a pane draws the plain way.
-#
-# "ESC # 6" draws a line twice as wide on a VT100. kitty, Ghostty and
-# Alacritty implement none of the four, and a pane does not either:
-# it reads the sequence, drops it, and draws every column of the line.
-# Lillecarl/pymux#141.
+# The DEC line attributes, which become kitty's text sizing. The widget
+# draws each block's text at one size in its cells. Lillecarl/pymux#890.
 
 
 @pytest.mark.parametrize(
-    "sequence",
+    ("sequence", "row"),
     [
-        sharp(Sharp.DECDHL_TOP),
-        sharp(Sharp.DECDHL_BOTTOM),
-        sharp(Sharp.DECSWL),
-        sharp(Sharp.DECDWL),
+        (sharp(Sharp.DECDHL_TOP), "a b c"),
+        (sharp(Sharp.DECDHL_BOTTOM), "a b c"),
+        (sharp(Sharp.DECSWL), "abc"),
+        (sharp(Sharp.DECDWL), "a b c"),
     ],
 )
-def test_the_sequence_costs_the_row_no_column(sequence):
-    assert drawn(sequence + "abcde")[0] == "abcde"
+def test_the_widget_draws_a_line_at_one_size(sequence, row):
+    assert drawn(sequence + "abc")[0] == row
 
 
 # ----------------------------------------------------------------------
