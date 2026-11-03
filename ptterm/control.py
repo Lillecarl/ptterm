@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable, Hashable, Iterable
+from dataclasses import replace
 from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple, Protocol
 
 import anyio
@@ -209,6 +210,7 @@ class TerminalControl(UIControl):
         "on_mouse_focus": Keep.REBUILT,
         "pointer_fraction": Keep.REBUILT,
         "_moved_to": Keep.DROPPED,
+        "_last_mouse": Keep.DROPPED,
         "placeholder_ids": Keep.REBUILT,
         "_ground_timer": Keep.REBUILT,
         "_running": Keep.REBUILT,
@@ -299,6 +301,9 @@ class TerminalControl(UIControl):
         # The cell of the last move sent, so that a move inside it
         # sends nothing to a program that counts cells.
         self._moved_to: tuple[int, int] | None = None
+
+        # Where the mouse last was over this pane, for the leave.
+        self._last_mouse: MouseInput | None = None
 
         #: The id an outer terminal knows a pane image by, for an
         #: embedder that passes the image cells on as unicode
@@ -983,6 +988,8 @@ class TerminalControl(UIControl):
         kitty, unless the program counts pixels. A mirror sends cells
         alone, so that a pixel move is no packet to the owner.
         """
+        if mouse is not None and mouse.action is not MouseAction.LEAVE:
+            self._last_mouse = mouse
         if mouse is not None and mouse.action is MouseAction.MOVE:
             cell = (mouse.column, mouse.row)
             if cell == self._moved_to and (self.mirror is not None or not reports_pixels(self.screen)):
@@ -992,7 +999,7 @@ class TerminalControl(UIControl):
             if mouse is not None:
                 self.mirror.mouse(mouse)
             return True
-        if reports_mouse(self.screen):
+        if reports_mouse(self.screen) or (mouse is not None and mouse.action is MouseAction.LEAVE):
             report = None if mouse is None else mouse_report(self.screen, mouse)
             if report is not None:
                 self.process.write_input(self.screen.encode_report(report))
@@ -1004,6 +1011,16 @@ class TerminalControl(UIControl):
             self.process.write_input(arrow * ARROWS_PER_WHEEL_STEP)
             return True
         return False
+
+    def pointer_left(self) -> None:
+        """
+        The pointer moved off this pane. A program that counts pixels
+        (1016) hears it as kitty's leave report, at the last place the
+        pointer was. Lillecarl/pymux#899.
+        """
+        last, self._last_mouse, self._moved_to = self._last_mouse, None, None
+        if last is not None:
+            self.use_mouse(replace(last, action=MouseAction.LEAVE, button=MouseButton.NONE, modifiers=NO_MODIFIERS))
 
     def _mouse_input(self, mouse_event: MouseEvent, column: int, row: int) -> MouseInput | None:
         "A prompt_toolkit event in `pyte.mouse` terms, or None for one no protocol has."

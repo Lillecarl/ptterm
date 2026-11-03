@@ -92,23 +92,39 @@ class TerminalWindow(Window):
             self.drawn_at.set(_DrawnAt(self.render_info, self.horizontal_scroll))
         else:
             self.drawn_at.pop()
-        control = self.terminal_control
-        left, top, scroll = write_position.xpos, write_position.ypos, self.vertical_scroll
-
-        def handler(mouse_event: MouseEvent):
-            return control.mouse_handler(
-                MouseEvent(
-                    position=Point(x=mouse_event.position.x - left, y=mouse_event.position.y - top + scroll),
-                    event_type=mouse_event.event_type,
-                    button=mouse_event.button,
-                    modifiers=mouse_event.modifiers,
-                )
-            )
-
+        left, top = write_position.xpos, write_position.ypos
         mouse_handlers.set_mouse_handler_for_range(
             x_min=left,
             x_max=left + write_position.width,
             y_min=top,
             y_max=top + write_position.height,
-            handler=handler,
+            handler=_PaneHandler(self.terminal_control, left, top - self.vertical_scroll),
+        )
+
+
+class _PaneHandler:
+    """
+    The mouse handler of a pane: an event goes to the control at its
+    cell. An embedder that sees the pointer move off the pane calls
+    `pointer_left`. Lillecarl/pymux#899.
+    """
+
+    __slots__ = ("control", "left", "pointer_left", "top")
+
+    def __init__(self, control: TerminalControl, left: int, top: int) -> None:
+        self.control = control
+        self.left = left
+        self.top = top
+        # The control's own method, so that the handler of the next
+        # frame compares equal and a move inside the pane is no leave.
+        self.pointer_left = control.pointer_left
+
+    def __call__(self, mouse_event: MouseEvent) -> object:
+        return self.control.mouse_handler(
+            MouseEvent(
+                position=Point(x=mouse_event.position.x - self.left, y=mouse_event.position.y - self.top),
+                event_type=mouse_event.event_type,
+                button=mouse_event.button,
+                modifiers=mouse_event.modifiers,
+            )
         )

@@ -566,6 +566,22 @@ def test_a_pixel_report_counts_the_pixel_in_its_cell():
     assert clicked(modes, fraction=(0.3, 0.75)) == b"\x1b[<0;23;35M"
 
 
+def test_a_pointer_that_leaves_the_pane_tells_a_program_that_counts_pixels():
+    "kitty's leave report, at the last place the pointer was. Lillecarl/pymux#899."
+    written = []
+    control = TerminalControl(backend=_NoBackend())
+    control.create_content(12, 8)
+    control.process.write_input = written.append
+    control.stream.feed(set_mode(PrivateMode.ANY_EVENT_MOUSE) + set_mode(PrivateMode.SGR_PIXEL_MOUSE))
+    app = DummyApplication()
+    app.layout = _FocusedLayout(control)
+    with set_app(app):
+        control.mouse_handler(MouseEvent(Point(x=2, y=1), MouseEventType.MOUSE_MOVE, MouseButton.NONE, frozenset()))
+    control.pointer_left()
+    control.pointer_left()
+    assert written == ["\x1b[<35;25;30M", "\x1b[<288;25;30M"]
+
+
 def test_the_sgr_mouse_report_takes_eight_bit_controls():
     "It is a control the terminal sends, so S8C1T reaches it."
     assert (
