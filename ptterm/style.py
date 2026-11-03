@@ -38,6 +38,7 @@ if TYPE_CHECKING:
     from prompt_toolkit.formatted_text import StyleAndTextTuples
     from pyte.cells import Appearance
     from pyte.extra_cursors import ExtraCursors
+    from pyte.osc import ProgramPalette
     from pyte.runs import Run
 
 __all__ = (
@@ -80,7 +81,7 @@ PALETTE_NAMES: list[str] = [
 DEFAULT_COLOR_NAME = "ansidefault"
 
 
-def style_word(color: SgrColor) -> str:
+def style_word(color: SgrColor, palette: ProgramPalette | None = None) -> str:
     """
     The word that prompt_toolkit reads for one colour.
 
@@ -97,11 +98,16 @@ def style_word(color: SgrColor) -> str:
     thing that makes one and it refuses the rest, so a number that is
     not there is a fault in this repository and not a program's doing.
     prompt_toolkit reads "#ansi256" as a style class it cannot find.
+
+    `palette` holds the entries a program set, for a pane that draws
+    with them (`allow-program-palette`). Lillecarl/pymux#16.
     """
     if color.rgb is not None:
         return "#%02x%02x%02x" % color.rgb
     if color.index is None:
         return "#" + DEFAULT_COLOR_NAME
+    if palette is not None and color.index in palette.words:
+        return palette.words[color.index]
     if color.index < len(PALETTE_NAMES):
         return "#" + PALETTE_NAMES[color.index]
     return "#ansi%d" % color.index
@@ -127,7 +133,7 @@ def _encoded(text: str) -> str:
     return base64.b64encode(text.encode("utf-8")).decode("ascii")
 
 
-def _spelled(appearance: Appearance) -> str:
+def _spelled(appearance: Appearance, palette: ProgramPalette | None = None) -> str:
     """
     The prompt_toolkit style string that draws one cell.
 
@@ -143,9 +149,9 @@ def _spelled(appearance: Appearance) -> str:
     # an "SGR 49" showed the terminal's colour in the middle of the theme's.
     # Lillecarl/pymux#582.
     if rendition.color and rendition.color != DEFAULT_COLOR:
-        style += "%s " % style_word(rendition.color)
+        style += "%s " % style_word(rendition.color, palette)
     if rendition.bgcolor and rendition.bgcolor != DEFAULT_COLOR:
-        style += "bg:%s " % style_word(rendition.bgcolor)
+        style += "bg:%s " % style_word(rendition.bgcolor, palette)
     if rendition.bold:
         style += "bold "
     if rendition.dim:
@@ -157,7 +163,7 @@ def _spelled(appearance: Appearance) -> str:
         # The colour of a line that nobody draws would travel with
         # every cell for nothing.
         if rendition.underline_color:
-            style += "ul:%s " % style_word(rendition.underline_color)
+            style += "ul:%s " % style_word(rendition.underline_color, palette)
     if rendition.blink:
         style += "blink "
     if rendition.reverse:
@@ -189,7 +195,8 @@ def _spelled(appearance: Appearance) -> str:
 #: The size holds every appearance that a screen can hand out, so it is
 #: read off the cache that hands them out rather than written again
 #: here. A key of this cache is an `Appearance`, and `pyte.cells` keeps
-#: only that many of those alive.
+#: only that many of those alive. A palette is interned per pane and
+#: hashes by identity, so it adds no Python call to a hit.
 style_of = lru_cache(maxsize=appearance_of.size)(_spelled)
 
 
@@ -230,8 +237,8 @@ def visible_char(char: str) -> str:
     return char
 
 
-def _run_style(appearance: Appearance, reverse_video: bool, keep: bool) -> str:
-    style = style_of(appearance)
+def _run_style(appearance: Appearance, reverse_video: bool, keep: bool, palette: ProgramPalette | None) -> str:
+    style = style_of(appearance) if palette is None else style_of(appearance, palette)
 
     if reverse_video and appearance.rendition.reverse:
         style += " noreverse"
@@ -256,13 +263,15 @@ def _run_style(appearance: Appearance, reverse_video: bool, keep: bool) -> str:
 run_style = lru_cache(maxsize=1024)(_run_style)
 
 
-def _drawn_as(char: str, appearance: Appearance, reverse_video: bool, written: bool) -> tuple[str, str]:
+def _drawn_as(
+    char: str, appearance: Appearance, reverse_video: bool, written: bool, palette: ProgramPalette | None
+) -> tuple[str, str]:
     """
     The style and the character that one cell draws with.
     """
     shown = visible_char(char)
 
-    return run_style(appearance, reverse_video, shown == " " and written), shown
+    return run_style(appearance, reverse_video, shown == " " and written, palette), shown
 
 
 #: How a cell draws, answered once per way of drawing rather than once
@@ -380,6 +389,7 @@ def fragments_of_runs(
     end: int,
     reverse_video: bool,
     images: Callable[[], dict[int, tuple[str, str]]] | None = None,
+    palette: ProgramPalette | None = None,
 ) -> StyleAndTextTuples:
     """
     One row built from runs: one fragment per run.
@@ -394,7 +404,7 @@ def fragments_of_runs(
     asked only when the row holds one, which most rows do not.
     """
     # What an unwritten column draws: the blank nobody wrote.
-    gap = run_style(PLAIN_APPEARANCE, reverse_video, False)
+    gap = run_style(PLAIN_APPEARANCE, reverse_video, False, palette)
 
     cells = None
     fragments: StyleAndTextTuples = []
@@ -410,6 +420,7 @@ def fragments_of_runs(
                         run.appearance,
                         reverse_video,
                         run.blank and run.written and index == last,
+                        palette,
                     ),
                     run.text,
                 )
@@ -418,7 +429,7 @@ def fragments_of_runs(
             # A cell that draws as something else stands on its own
             # run, and is mapped the way one cell at a time always
             # was: a wide character, a control, a cell of an image.
-            fragment = drawn_as(run.text, run.appearance, reverse_video, run.written)
+            fragment = drawn_as(run.text, run.appearance, reverse_video, run.written, palette)
             if images is not None and run.text.startswith(PLACEHOLDER):
                 if cells is None:
                     cells = images()

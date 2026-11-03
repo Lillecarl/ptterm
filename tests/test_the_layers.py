@@ -55,6 +55,7 @@ FROM_PYTE = {
     "pyte.keep",
     "pyte.keys.events",
     "pyte.mouse",
+    "pyte.osc",
     "pyte.page",
     "pyte.placeholders",
     "pyte.runs",

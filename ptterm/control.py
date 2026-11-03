@@ -57,6 +57,7 @@ from .style import fragments_of_runs, placeholder_cells, visible_char, with_extr
 if TYPE_CHECKING:
     from pyte.extra_cursors import ExtraCursors
     from pyte.images import GraphicsImage
+    from pyte.osc import ProgramPalette
 
     from .terminal import Terminal
 
@@ -216,6 +217,7 @@ class TerminalControl(UIControl):
         "on_mouse_focus": Keep.REBUILT,
         "pointer_fraction": Keep.REBUILT,
         "draws_extra_cursors": Keep.REBUILT,
+        "draws_program_palette": Keep.REBUILT,
         "_moved_to": Keep.DROPPED,
         "_last_mouse": Keep.DROPPED,
         "placeholder_ids": Keep.REBUILT,
@@ -226,6 +228,7 @@ class TerminalControl(UIControl):
         "_report_seq": Keep.DROPPED,
         "_scanned_at": Keep.DROPPED,
         "_drawn_reversed": Keep.REBUILT,
+        "_drawn_palette": Keep.DROPPED,
         "_scroll_mark": Keep.DROPPED,
         "_held_since": Keep.DROPPED,
         "_held_too_long": Keep.DROPPED,
@@ -309,6 +312,10 @@ class TerminalControl(UIControl):
         #: embedder that hands them to a terminal that draws them itself
         #: says no for that terminal. Lillecarl/pymux#891.
         self.draws_extra_cursors: Callable[[], bool] | None = None
+        #: Whether this pane draws the palette entries its program set
+        #: ("OSC 4"), rather than the outer terminal's. None is no.
+        #: Lillecarl/pymux#16.
+        self.draws_program_palette: Callable[[], bool] | None = None
 
         # The cell of the last move sent, so that a move inside it
         # sends nothing to a program that counts cells.
@@ -421,6 +428,7 @@ class TerminalControl(UIControl):
         # The screen's write count the last scan for a shift read.
         self._scanned_at = -1
         self._drawn_reversed = False
+        self._drawn_palette: ProgramPalette | None = None
 
         # The sequence of the screen's scroll report consumed through.
         # None is a control that never drew: it adopts the count and
@@ -585,6 +593,13 @@ class TerminalControl(UIControl):
             self._drawn.clear()
             self._drawn_reversed = reverse_video
 
+        # The same for the palette a program set: a line built with one
+        # says nothing about another.
+        palette = self._program_palette()
+        if palette is not self._drawn_palette:
+            self._drawn.clear()
+            self._drawn_palette = palette
+
         # The history grows and the rows that leave it never come back,
         # so what is remembered of them is dead weight. Emptying the
         # whole of it costs one frame, and a frame is what this saves
@@ -698,12 +713,13 @@ class TerminalControl(UIControl):
                 end = max(end, cursor_x + 1)
 
             if placeholder_ids is None:
-                return fragments_of_runs(runs, end, reverse_video)
+                return fragments_of_runs(runs, end, reverse_video, None, palette)
             return fragments_of_runs(
                 runs,
                 end,
                 reverse_video,
                 lambda: placeholder_cells(row, columns, number, placeholder_ids),
+                palette,
             )
 
         cursor_line: list[StyleAndTextTuples] = []
@@ -879,7 +895,14 @@ class TerminalControl(UIControl):
             screen.extra_cursors.changes,
             screen.cursor_style,
             bool(screen.extra_cursors.cells) and (self.draws_extra_cursors is None or self.draws_extra_cursors()),
+            self._program_palette(),
         )
+
+    def _program_palette(self) -> ProgramPalette | None:
+        "The palette entries this frame draws with, when the embedder lets the program's win."
+        if self.draws_program_palette is None or not self.draws_program_palette():
+            return None
+        return self.screen.colors.program_palette()
 
     def _find_a_shift(self, data_buffer, written_at, everything_at: int, cursor_y: int) -> dict | None:
         """

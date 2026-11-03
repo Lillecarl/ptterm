@@ -59,7 +59,7 @@ def _old(number: int, screen: Screen, cursor_x: int, cursor_y: int, reverse: boo
     if not row and number != cursor_y:
         return []
     return [
-        drawn_as(cell.char, cell.appearance, reverse, cell.written)
+        drawn_as(cell.char, cell.appearance, reverse, cell.written, None)
         for cell in [row[column] for column in range(most + 1)]
     ]
 
