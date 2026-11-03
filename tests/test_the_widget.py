@@ -42,7 +42,7 @@ from prompt_toolkit.layout.controls import FormattedTextControl
 from prompt_toolkit.layout.layout import Layout
 from prompt_toolkit.layout.mouse_handlers import MouseHandlers
 from prompt_toolkit.layout.screen import Point, Screen, WritePosition
-from prompt_toolkit.mouse_events import MouseButton, MouseEvent, MouseEventType
+from prompt_toolkit.mouse_events import MouseButton, MouseEvent, MouseEventType, MouseModifier
 from prompt_toolkit.selection import SelectionType
 from prompt_toolkit.styles import Style
 from prompt_toolkit.token import KeepWhitespace
@@ -181,10 +181,13 @@ def clicked(
     x: int = 2,
     y: int = 1,
     may_type=None,
+    events=((MouseEventType.MOUSE_DOWN, MouseButton.LEFT, frozenset()),),
+    fraction=None,
 ) -> bytes:
     """
-    The bytes a mouse press writes back, after `modes` turns a mouse
-    protocol on.
+    The bytes mouse `events` write back, after `modes` turns a mouse
+    protocol on: a left press unless it says otherwise. Each event is a
+    kind, a button and modifiers, at (x, y) or at its own fourth item.
 
     The answer is read off the wire, the way the backend encodes it: an
     eight bit control is one byte and not the two that UTF-8 would make
@@ -196,18 +199,15 @@ def clicked(
     control.process.write_input = written.append
     control.screen.write_process_input = written.append
     control.stream.feed(modes)
+    if fraction is not None:
+        control.pointer_fraction = lambda: fraction
 
     app = DummyApplication()
     app.layout = _FocusedLayout(control)
     with set_app(app):
-        control.mouse_handler(
-            MouseEvent(
-                position=Point(x=x, y=y),
-                event_type=MouseEventType.MOUSE_DOWN,
-                button=MouseButton.LEFT,
-                modifiers=frozenset(),
-            )
-        )
+        for kind, button, modifiers, *at in events:
+            where = at[0] if at else Point(x=x, y=y)
+            control.mouse_handler(MouseEvent(position=where, event_type=kind, button=button, modifiers=modifiers))
     return "".join(written).encode("utf-8", "surrogateescape")
 
 
@@ -535,6 +535,35 @@ async def test_copy_mode_draws_no_reverse_without_the_mode():
 
 def test_the_sgr_mouse_report_reaches_the_program():
     assert clicked(set_mode(PrivateMode.MOUSE_REPORTING) + set_mode(PrivateMode.SGR_MOUSE)) == b"\x1b[<0;3;2M"
+
+
+def test_a_right_click_with_ctrl_reaches_the_program_as_one():
+    "Lillecarl/pymux#900."
+    sgr = set_mode(PrivateMode.MOUSE_REPORTING) + set_mode(PrivateMode.SGR_MOUSE)
+    ctrl = frozenset({MouseModifier.CONTROL})
+    events = [(MouseEventType.MOUSE_DOWN, MouseButton.RIGHT, ctrl), (MouseEventType.MOUSE_UP, MouseButton.RIGHT, ctrl)]
+    assert clicked(sgr, events=events) == b"\x1b[<18;3;2M\x1b[<18;3;2m"
+
+
+def test_a_hover_reaches_a_program_once_per_cell():
+    "kitty sends a move only when the cell changes, in a protocol of cells. Lillecarl/pymux#900."
+    modes = set_mode(PrivateMode.ANY_EVENT_MOUSE) + set_mode(PrivateMode.SGR_MOUSE)
+    move = MouseEventType.MOUSE_MOVE, MouseButton.NONE, frozenset()
+    events = [(*move, Point(x=2, y=1)), (*move, Point(x=2, y=1)), (*move, Point(x=3, y=1))]
+    assert clicked(modes, events=events) == b"\x1b[<35;3;2M\x1b[<35;4;2M"
+
+
+def test_no_move_reaches_a_program_that_asked_for_presses():
+    "1000 asks for presses alone."
+    modes = set_mode(PrivateMode.MOUSE_REPORTING) + set_mode(PrivateMode.SGR_MOUSE)
+    events = [(MouseEventType.MOUSE_MOVE, MouseButton.LEFT, frozenset())]
+    assert clicked(modes, events=events) == b""
+
+
+def test_a_pixel_report_counts_the_pixel_in_its_cell():
+    "A pane's cell is 10x20 until a client says otherwise. Lillecarl/pymux#900."
+    modes = set_mode(PrivateMode.MOUSE_REPORTING) + set_mode(PrivateMode.SGR_PIXEL_MOUSE)
+    assert clicked(modes, fraction=(0.3, 0.75)) == b"\x1b[<0;23;35M"
 
 
 def test_the_sgr_mouse_report_takes_eight_bit_controls():

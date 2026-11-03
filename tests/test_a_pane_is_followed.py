@@ -16,7 +16,7 @@ import json
 from no_backend import NoBackend
 from pyte.grid import GridWriter
 from pyte.keys.events import DEFAULT_KEY_PROFILE
-from pyte.mouse import MouseAction
+from pyte.mouse import MouseAction, MouseInput
 
 from ptterm.control import TerminalControl
 from ptterm.terminal import Terminal
@@ -51,8 +51,8 @@ class Owner:
     def paste(self, text) -> None:
         self.heard.append(("paste", text))
 
-    def mouse(self, action, column, row) -> None:
-        self.heard.append(("mouse", action, column, row))
+    def mouse(self, mouse) -> None:
+        self.heard.append(("mouse", mouse))
 
     def copy_mode(self, at=None) -> None:
         self.heard.append(("copy mode",))
@@ -121,7 +121,7 @@ def test_the_owner_encodes_for_the_modes_the_program_set():
     original.feed_output("\x1b[?1h\x1b[?2004h\x1b[?1000;1006h")
     original.type_key("\x1b[A", DEFAULT_KEY_PROFILE)
     original.paste("pasted")
-    assert original.use_mouse(MouseAction.PRESS, 3, 1)
+    assert original.use_mouse(MouseInput(MouseAction.PRESS, 3, 1))
     assert original.process.backend.written == ["\x1bOA", "\x1b[200~pasted\x1b[201~", "\x1b[<0;4;2M"]
 
 
@@ -146,11 +146,11 @@ def test_a_mirror_sends_input_on_as_it_came():
     middle.feed_output("\x1b[?1h")
     middle.type_key("\x1b[A", DEFAULT_KEY_PROFILE)
     middle.paste("pasted")
-    assert middle.use_mouse(MouseAction.WHEEL_UP, 3, 1)
+    assert middle.use_mouse(MouseInput(MouseAction.WHEEL_UP, 3, 1))
     assert middle.mirror.heard == [  # type: ignore[union-attr]
         ("key", "\x1b[A", DEFAULT_KEY_PROFILE),
         ("paste", "pasted"),
-        ("mouse", MouseAction.WHEEL_UP, 3, 1),
+        ("mouse", MouseInput(MouseAction.WHEEL_UP, 3, 1)),
     ]
     assert middle.process.backend.written == []
 

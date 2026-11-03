@@ -25,14 +25,26 @@ from prompt_toolkit.layout.controls import (
     UIControl,
 )
 from prompt_toolkit.layout.screen import Point
-from prompt_toolkit.mouse_events import MouseEventType
+from prompt_toolkit.mouse_events import MouseButton as PtMouseButton
+from prompt_toolkit.mouse_events import MouseEvent, MouseEventType, MouseModifier
 from prompt_toolkit.utils import Event
 from ptyhost import Process
 from ptyhost.backends import Backend
 from pyte.grid import put_frame
 from pyte.keep import Keep
 from pyte.keys.events import DEFAULT_KEY_PROFILE, KeyEvent, KeyProfile
-from pyte.mouse import ARROWS_PER_WHEEL_STEP, WHEEL_ARROWS, MouseAction, mouse_report, reports_mouse
+from pyte.mouse import (
+    ARROWS_PER_WHEEL_STEP,
+    NO_MODIFIERS,
+    WHEEL_ARROWS,
+    MouseAction,
+    MouseBits,
+    MouseButton,
+    MouseInput,
+    mouse_report,
+    reports_mouse,
+    reports_pixels,
+)
 from pyte.placeholders import PLACEHOLDER
 from pyte.screen import RegionCounts, Screen
 from pyte.streams import GroundTimer, Stream
@@ -84,7 +96,7 @@ class Mirror(Protocol):
 
     def paste(self, text: str) -> None: ...
 
-    def mouse(self, action: MouseAction, column: int, row: int) -> None: ...
+    def mouse(self, mouse: MouseInput) -> None: ...
 
     def copy_mode(self, at: tuple[int, int | None, str | None] | None = None) -> None:
         "Open copy mode on the server that holds the history, for this person, at a `CopyView.place`."
@@ -94,13 +106,26 @@ class Mirror(Protocol):
         "Where copy mode on that server stands (`CopyView.place`), while it is open."
 
 
-#: What `pyte.mouse` calls each prompt_toolkit event. A move reports
-#: nothing.
+#: What `pyte.mouse` calls each prompt_toolkit event.
 _MOUSE_ACTIONS = {
     MouseEventType.MOUSE_DOWN: MouseAction.PRESS,
     MouseEventType.MOUSE_UP: MouseAction.RELEASE,
     MouseEventType.SCROLL_UP: MouseAction.WHEEL_UP,
     MouseEventType.SCROLL_DOWN: MouseAction.WHEEL_DOWN,
+    MouseEventType.MOUSE_MOVE: MouseAction.MOVE,
+}
+
+#: A button prompt_toolkit could not name reads as none held.
+_MOUSE_BUTTONS = {
+    PtMouseButton.LEFT: MouseButton.LEFT,
+    PtMouseButton.MIDDLE: MouseButton.MIDDLE,
+    PtMouseButton.RIGHT: MouseButton.RIGHT,
+}
+
+_MOUSE_MODIFIERS = {
+    MouseModifier.SHIFT: MouseBits.SHIFT,
+    MouseModifier.ALT: MouseBits.ALT,
+    MouseModifier.CONTROL: MouseBits.CONTROL,
 }
 
 
@@ -182,6 +207,8 @@ class TerminalControl(UIControl):
         "key_profile_func": Keep.REBUILT,
         "on_content_changed": Keep.REBUILT,
         "on_mouse_focus": Keep.REBUILT,
+        "pointer_fraction": Keep.REBUILT,
+        "_moved_to": Keep.DROPPED,
         "placeholder_ids": Keep.REBUILT,
         "_ground_timer": Keep.REBUILT,
         "_running": Keep.REBUILT,
@@ -263,6 +290,15 @@ class TerminalControl(UIControl):
         #: means where this pane sits. None (a standalone widget, or
         #: an embedder with one pane) does nothing.
         self.on_mouse_focus: Callable[[], None] | None = None
+
+        #: Where in its cell the mouse event being handled is, as
+        #: fractions across and down, for a program that asked for
+        #: pixels. None is the middle: the embedder knows only cells.
+        self.pointer_fraction: Callable[[], tuple[float, float]] | None = None
+
+        # The cell of the last move sent, so that a move inside it
+        # sends nothing to a program that counts cells.
+        self._moved_to: tuple[int, int] | None = None
 
         #: The id an outer terminal knows a pane image by, for an
         #: embedder that passes the image cells on as unicode
@@ -936,34 +972,55 @@ class TerminalControl(UIControl):
             return
         self.process.write_input(self.screen.wrap_paste(text))
 
-    def use_mouse(self, action: MouseAction | None, column: int, row: int) -> bool:
+    def use_mouse(self, mouse: MouseInput | None) -> bool:
         """
         Send what the mouse did at a cell of the page to the program, the
         way its modes ask. False when it wants no mouse and no arrows:
         the wheel is the person's then. A mirror sends it on, and the
         owner decides.
+
+        A move inside the cell of the last one sends nothing, as in
+        kitty, unless the program counts pixels. A mirror sends cells
+        alone, so that a pixel move is no packet to the owner.
         """
+        if mouse is not None and mouse.action is MouseAction.MOVE:
+            cell = (mouse.column, mouse.row)
+            if cell == self._moved_to and (self.mirror is not None or not reports_pixels(self.screen)):
+                mouse = None
+            self._moved_to = cell
         if self.mirror is not None:
-            if action is not None:
-                self.mirror.mouse(action, column, row)
+            if mouse is not None:
+                self.mirror.mouse(mouse)
             return True
         if reports_mouse(self.screen):
-            report = None if action is None else mouse_report(self.screen, action, column, row)
+            report = None if mouse is None else mouse_report(self.screen, mouse)
             if report is not None:
                 self.process.write_input(self.screen.encode_report(report))
             return True
-        if action in WHEEL_ARROWS and self.screen.wheel_sends_arrows:
+        if mouse is not None and mouse.action in WHEEL_ARROWS and self.screen.wheel_sends_arrows:
             # The alternate screen has no history, so copy mode
             # would show the first screen's instead. Lillecarl/pymux#422.
-            arrow = self.screen.encode_key(WHEEL_ARROWS[action])
+            arrow = self.screen.encode_key(WHEEL_ARROWS[mouse.action])
             self.process.write_input(arrow * ARROWS_PER_WHEEL_STEP)
             return True
         return False
 
+    def _mouse_input(self, mouse_event: MouseEvent, column: int, row: int) -> MouseInput | None:
+        "A prompt_toolkit event in `pyte.mouse` terms, or None for one no protocol has."
+        action = _MOUSE_ACTIONS.get(mouse_event.event_type)
+        if action is None:
+            return None
+        modifiers = NO_MODIFIERS
+        for modifier in mouse_event.modifiers:
+            modifiers |= _MOUSE_MODIFIERS.get(modifier, NO_MODIFIERS)
+        across, down = (0.5, 0.5) if self.pointer_fraction is None else self.pointer_fraction()
+        button = _MOUSE_BUTTONS.get(mouse_event.button, MouseButton.NONE)
+        return MouseInput(action, column, row, button, modifiers, across, down)
+
     def get_invalidate_events(self) -> Iterable[Event]:
         yield self.on_content_changed
 
-    def mouse_handler(self, mouse_event) -> None:
+    def mouse_handler(self, mouse_event: MouseEvent) -> object:
         """
         Handle mouse events in a pane. A click in a non-active pane will select
         it. A click in active pane will send the mouse event to the application
@@ -986,7 +1043,7 @@ class TerminalControl(UIControl):
                 and self._the_wheel_reads_the_history(mouse_event)
             ):
                 self._read_the_history()
-            return
+            return None
 
         app = get_app()
 
@@ -1007,9 +1064,13 @@ class TerminalControl(UIControl):
         else:
             # Already focussed, send event to application when it requested
             # mouse support.
-            action = _MOUSE_ACTIONS.get(mouse_event.event_type)
-            if not self.use_mouse(action, x, y) and self._the_wheel_reads_the_history(mouse_event):
+            mouse = self._mouse_input(mouse_event, x, y)
+            if not self.use_mouse(mouse) and self._the_wheel_reads_the_history(mouse_event):
                 self._read_the_history()
+            if mouse is not None and mouse.action is MouseAction.MOVE:
+                # A move changes nothing here to draw.
+                return NotImplemented
+        return None
 
     def _the_wheel_reads_the_history(self, mouse_event) -> bool:
         "Is this the wheel up, over a program that wants no mouse and no arrows?"
