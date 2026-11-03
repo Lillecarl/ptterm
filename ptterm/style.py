@@ -26,8 +26,10 @@ from typing import TYPE_CHECKING
 
 from prompt_toolkit.layout.screen import Char
 from prompt_toolkit.token import KeepWhitespace
+from prompt_toolkit.utils import get_cwidth
 from pyte.cells import PLAIN_APPEARANCE, appearance_of
 from pyte.colors import DEFAULT_COLOR, SgrColor
+from pyte.extra_cursors import ColorSpace, ExtraShape
 from pyte.placeholders import PLACEHOLDER, runs_in_line, spelled
 
 if TYPE_CHECKING:
@@ -35,6 +37,7 @@ if TYPE_CHECKING:
 
     from prompt_toolkit.formatted_text import StyleAndTextTuples
     from pyte.cells import Appearance
+    from pyte.extra_cursors import ExtraCursors
     from pyte.runs import Run
 
 __all__ = (
@@ -42,12 +45,14 @@ __all__ = (
     "PALETTE_NAMES",
     "UNDERLINE_WORDS",
     "drawn_as",
+    "extra_cursor_style",
     "fragments_of_runs",
     "placeholder_cells",
     "run_style",
     "style_of",
     "style_word",
     "visible_char",
+    "with_extra_cursors",
 )
 
 #: The names that prompt_toolkit gives the first sixteen colours of the
@@ -276,6 +281,78 @@ def _drawn_as(char: str, appearance: Appearance, reverse_video: bool, written: b
 #: thousand cells, so a cache this big answers every cell of one
 #: without evicting an answer it is about to be asked for again.
 drawn_as = lru_cache(maxsize=64 * 1024)(_drawn_as)
+
+
+def _reversed(style: str, reverse_video: bool) -> bool:
+    "Whether a cell of `style` draws reversed: the last word of the two wins."
+    for word in reversed(style.split()):
+        if word == "reverse":
+            return True
+        if word == "noreverse":
+            return False
+    return reverse_video
+
+
+def extra_cursor_style(shape: ExtraShape, extra: ExtraCursors, style: str, reverse_video: bool) -> str:
+    """
+    What a cell under one of kitty's extra cursors adds to its style.
+    Lillecarl/pymux#891.
+
+    A cell cannot draw a beam, so a beam draws as a block. A cursor with
+    no colour of its own, or the special one, reverses the cell, which
+    is how the main cursor of most terminals draws.
+    """
+    cursor = extra.cursor_color.color if extra.cursor_color.space in _OWN_COLORS else None
+    if shape == ExtraShape.UNDERLINE:
+        return " underline" + ("" if cursor is None else " ul:" + style_word(cursor))
+    if cursor is None:
+        return " noreverse" if _reversed(style, reverse_video) else " reverse"
+    text = extra.text_color.color if extra.text_color.space in _OWN_COLORS else None
+    return " noreverse bg:" + style_word(cursor) + ("" if text is None else " " + style_word(text))
+
+
+_OWN_COLORS = (ColorSpace.RGB, ColorSpace.INDEXED)
+
+
+def with_extra_cursors(
+    fragments: StyleAndTextTuples,
+    cursors: dict[int, ExtraShape],
+    extra: ExtraCursors,
+    reverse_video: bool,
+) -> StyleAndTextTuples:
+    """
+    A row's fragments with the cells under extra cursors cut out and
+    styled. A fragment whose characters are one column each is a plain
+    run; any other is one cell, such as a wide character.
+    """
+    result: StyleAndTextTuples = []
+    column = 0
+    for fragment in fragments:
+        style, text = fragment[0], fragment[1]
+        width = get_cwidth(text)
+        if width != len(text):
+            shape = cursors.get(column) if width < 2 else cursors.get(column, cursors.get(column + 1))
+            if shape is None:
+                result.append(fragment)
+            else:
+                result.append((style + extra_cursor_style(shape, extra, style, reverse_video), text))
+            column += width
+            continue
+        start = 0
+        for offset in range(len(text)):
+            shape = cursors.get(column + offset)
+            if shape is None:
+                continue
+            if offset > start:
+                result.append((style, text[start:offset]))
+            result.append((style + extra_cursor_style(shape, extra, style, reverse_video), text[offset]))
+            start = offset + 1
+        if start == 0:
+            result.append(fragment)
+        elif start < len(text):
+            result.append((style, text[start:]))
+        column += len(text)
+    return result
 
 
 def placeholder_cells(row, columns: int, number: int, outer_id: Callable[[int], int]) -> dict[int, tuple[str, str]]:

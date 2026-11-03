@@ -11,7 +11,7 @@ from __future__ import annotations
 import time
 from collections.abc import Callable, Hashable, Iterable
 from dataclasses import replace
-from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple, Protocol
+from typing import TYPE_CHECKING, Any, ClassVar, Final, NamedTuple, Protocol
 
 import anyio
 import anyio.abc
@@ -28,9 +28,10 @@ from prompt_toolkit.layout.controls import (
 from prompt_toolkit.layout.screen import Point
 from prompt_toolkit.mouse_events import MouseButton as PtMouseButton
 from prompt_toolkit.mouse_events import MouseEvent, MouseEventType, MouseModifier
-from prompt_toolkit.utils import Event
+from prompt_toolkit.utils import Event, get_cwidth
 from ptyhost import Process
 from ptyhost.backends import Backend
+from pyte.extra_cursors import ExtraShape, shape_drawn
 from pyte.grid import put_frame
 from pyte.keep import Keep
 from pyte.keys.events import DEFAULT_KEY_PROFILE, KeyEvent, KeyProfile
@@ -51,9 +52,10 @@ from pyte.screen import RegionCounts, Screen
 from pyte.streams import GroundTimer, Stream
 
 from .program import Program
-from .style import fragments_of_runs, placeholder_cells, visible_char
+from .style import fragments_of_runs, placeholder_cells, visible_char, with_extra_cursors
 
 if TYPE_CHECKING:
+    from pyte.extra_cursors import ExtraCursors
     from pyte.images import GraphicsImage
 
     from .terminal import Terminal
@@ -181,6 +183,10 @@ class _Drawn(NamedTuple):
 _new_drawn = tuple.__new__
 
 
+#: What a frame with no extra cursors holds of them. Never written to.
+_NO_ROWS: Final[dict[int, dict[int, ExtraShape]]] = {}
+_NO_LINES: Final[dict[int, StyleAndTextTuples]] = {}
+
 #: How many rows a repaint has to have moved before it counts as a
 #: shift. Fewer is a coincidence of equal lines, such as two blank ones.
 _ROWS_THAT_MAKE_A_SHIFT = 3
@@ -225,6 +231,7 @@ class TerminalControl(UIControl):
         "_held_from": Keep.DROPPED,
         "_shown": Keep.DROPPED,
         "_shown_count": Keep.DROPPED,
+        "_extra_lines": Keep.DROPPED,
         "_let_go": Keep.DROPPED,
         "_task_group": Keep.REBUILT,
     }
@@ -385,6 +392,8 @@ class TerminalControl(UIControl):
         self._held_from = 0
         self._shown: tuple[UIContent, list[StyleAndTextTuples], int, int] | None = None
         self._shown_count = 0
+        # The rows with an extra cursor that frame built, for a held frame.
+        self._extra_lines: dict[int, StyleAndTextTuples] = _NO_LINES
         self._let_go: anyio.CancelScope | None = None
 
         #: The `Terminal` this control is the screen of, set by it when
@@ -653,6 +662,19 @@ class TerminalControl(UIControl):
         placeholder_ids = self.placeholder_ids
         columns = self.screen.columns
 
+        # kitty's extra cursors, by the row of the buffer they stand on.
+        # A row that holds one is built every frame, the way the cursor's
+        # row is, because a scroll moves the row and not the cursor.
+        # Lillecarl/pymux#891.
+        extra = self.screen.extra_cursors
+        extra_rows: dict[int, dict[int, ExtraShape]] = _NO_ROWS
+        if extra.cells:
+            extra_rows = {}
+            line_offset = self.screen.line_offset
+            main_shape = self.screen.cursor_style
+            for (row_on_screen, column), shape in extra.cells.items():
+                extra_rows.setdefault(line_offset + row_on_screen, {})[column] = shape_drawn(shape, main_shape)
+
         def build(number: int) -> StyleAndTextTuples:
             row = data_buffer[number]
             if not row and number != cursor_y:
@@ -722,6 +744,15 @@ class TerminalControl(UIControl):
                 entry = drawn[number] = _new_drawn(_Drawn, (build(number), version, image))
             return entry.line
 
+        # Only a frame with extra cursors pays for them: `checks.ptterm-
+        # instructions` counts a check per row of every other frame.
+        if extra_rows:
+            get_line = self._with_extra_cursors(
+                get_line, build, extra_rows, extra, reverse_video, cursor_y, cursor_line
+            )
+        else:
+            self._extra_lines = _NO_LINES
+
         # The screen is the rows from `line_offset` to `max_y`, and the
         # buffer can end above `max_y`: an erase with no background
         # drops the row it clears, so "CSI 1000 M" at the top of a full
@@ -736,6 +767,9 @@ class TerminalControl(UIControl):
         # `highest_row` says which of the two it is without reading the
         # buffer, which holds the history. Lillecarl/pymux#130.
         line_count = self.screen.highest_row() + 1
+        # An extra cursor below the last row written is on a row too.
+        if extra_rows:
+            line_count = max(line_count, max(extra_rows) + 1)
 
         content = UIContent(
             get_line,
@@ -779,6 +813,44 @@ class TerminalControl(UIControl):
             return (self._shown_count,)
         return self._version(width, height)
 
+    def _with_extra_cursors(
+        self,
+        get_line: Callable[[int], StyleAndTextTuples],
+        build: Callable[[int], StyleAndTextTuples],
+        extra_rows: dict[int, dict[int, ExtraShape]],
+        extra: ExtraCursors,
+        reverse_video: bool,
+        cursor_y: int,
+        cursor_line: list[StyleAndTextTuples],
+    ) -> Callable[[int], StyleAndTextTuples]:
+        """
+        `get_line` for a frame with kitty's extra cursors on it. A row
+        that holds one is built every frame and kept nowhere but for this
+        frame, the way the cursor's row is, because a scroll moves the
+        row and not the cursor. Lillecarl/pymux#891.
+        """
+        extra_lines: dict[int, StyleAndTextTuples] = {}
+        self._extra_lines = extra_lines
+        drawn = self._drawn
+
+        def get_line_with_cursors(number: int) -> StyleAndTextTuples:
+            cursors = extra_rows.get(number)
+            if cursors is None:
+                return get_line(number)
+            drawn.pop(number, None)
+            line = build(number)
+            reach = max(cursors) + 1 - sum(get_cwidth(fragment[1]) for fragment in line)
+            if reach > 0:
+                line = [*line, ("", " " * reach)]
+            line = with_extra_cursors(line, cursors, extra, reverse_video)
+            if number == cursor_y:
+                cursor_line[:] = [line]
+            else:
+                extra_lines[number] = line
+            return line
+
+        return get_line_with_cursors
+
     def _version(self, width: int, height: int) -> Hashable:
         # The screen counts every write to a row, and a page swap or a
         # reset moves `everything_at`. The cursor moves without a write,
@@ -799,6 +871,8 @@ class TerminalControl(UIControl):
             page.show_cursor,
             screen.has_reverse_video,
             screen.highest_row(),
+            screen.extra_cursors.changes,
+            screen.cursor_style,
         )
 
     def _find_a_shift(self, data_buffer, written_at, everything_at: int, cursor_y: int) -> dict | None:
@@ -878,6 +952,7 @@ class TerminalControl(UIControl):
         sequence that frame consumed, so a window rotates nothing.
         """
         drawn = self._drawn
+        extra_lines = self._extra_lines
         cursor_y = content.cursor_position.y
         blank: StyleAndTextTuples = [("", " ")]
 
@@ -886,6 +961,13 @@ class TerminalControl(UIControl):
                 return cursor_line[0] if cursor_line else blank
             entry = drawn.get(number)
             return blank if entry is None else entry.line
+
+        if extra_lines:
+            get_kept_line = get_line
+
+            def get_line(number: int) -> StyleAndTextTuples:
+                line = extra_lines.get(number)
+                return get_kept_line(number) if line is None else line
 
         held = UIContent(
             get_line,

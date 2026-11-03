@@ -48,6 +48,7 @@ FROM_PYTE = {
     "pyte.cells",
     "pyte.colors",
     "pyte.environment",
+    "pyte.extra_cursors",
     # A mirrored pane takes the frames of the page it copies. Lillecarl/pymux#759.
     "pyte.grid",
     "pyte.images",
