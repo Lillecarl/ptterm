@@ -64,6 +64,16 @@ def test_a_cursor_that_goes_away_takes_its_style():
     assert pane.reversed_cells() == set()
 
 
+def test_an_embedder_that_draws_them_elsewhere_gets_no_cells():
+    pane = Pane()
+    native = [False]
+    pane.control.draws_extra_cursors = lambda: not native[0]
+    pane.feed("hello\x1b[>1;2:1:2 q")
+    assert pane.reversed_cells() == {(1, 0)}
+    native[0] = True
+    assert pane.reversed_cells() == set()
+
+
 def test_a_reversed_cell_turns_back():
     pane = Pane()
     pane.feed("\x1b[7mhi\x1b[m\x1b[>1;2:1:1 q")

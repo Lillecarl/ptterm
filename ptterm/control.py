@@ -215,6 +215,7 @@ class TerminalControl(UIControl):
         "on_content_changed": Keep.REBUILT,
         "on_mouse_focus": Keep.REBUILT,
         "pointer_fraction": Keep.REBUILT,
+        "draws_extra_cursors": Keep.REBUILT,
         "_moved_to": Keep.DROPPED,
         "_last_mouse": Keep.DROPPED,
         "placeholder_ids": Keep.REBUILT,
@@ -304,6 +305,10 @@ class TerminalControl(UIControl):
         #: fractions across and down, for a program that asked for
         #: pixels. None is the middle: the embedder knows only cells.
         self.pointer_fraction: Callable[[], tuple[float, float]] | None = None
+        #: Whether this frame draws kitty's extra cursors as cells. An
+        #: embedder that hands them to a terminal that draws them itself
+        #: says no for that terminal. Lillecarl/pymux#891.
+        self.draws_extra_cursors: Callable[[], bool] | None = None
 
         # The cell of the last move sent, so that a move inside it
         # sends nothing to a program that counts cells.
@@ -668,7 +673,7 @@ class TerminalControl(UIControl):
         # Lillecarl/pymux#891.
         extra = self.screen.extra_cursors
         extra_rows: dict[int, dict[int, ExtraShape]] = _NO_ROWS
-        if extra.cells:
+        if extra.cells and (self.draws_extra_cursors is None or self.draws_extra_cursors()):
             extra_rows = {}
             line_offset = self.screen.line_offset
             main_shape = self.screen.cursor_style
@@ -873,6 +878,7 @@ class TerminalControl(UIControl):
             screen.highest_row(),
             screen.extra_cursors.changes,
             screen.cursor_style,
+            bool(screen.extra_cursors.cells) and (self.draws_extra_cursors is None or self.draws_extra_cursors()),
         )
 
     def _find_a_shift(self, data_buffer, written_at, everything_at: int, cursor_y: int) -> dict | None:
