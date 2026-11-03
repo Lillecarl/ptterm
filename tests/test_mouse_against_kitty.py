@@ -84,3 +84,63 @@ def test_a_report_is_kittys(mode, action, button, modifiers):
         assert report.body() == "%d;7;3M" % (32 + 3 + int(modifiers))
         return
     assert report.body() == kitty_says(PROTOCOLS[mode], action, button, modifiers, 7, 3)
+
+
+#: The modes that both kitty and pyte answer DECRQM for. kitty answers 0
+#: for 1015, which it acts on. Lillecarl/pymux#901.
+ASKED = (1000, 1002, 1003, 1006, 1016)
+
+MODE_SEQUENCES = [
+    "?1000h ?1003h",
+    "?1000h ?1003h ?1003l",
+    "?1000h ?1003h ?1000l",
+    "?1002h ?1000;1003h",
+    "?1000;1003h ?1003l",
+    "?1006h ?1016h",
+    "?1006h ?1016h ?1016l",
+    "?1006h ?1016h ?1006l",
+    "?1006h ?1015h",
+    "?1003h ?1006h",
+    "?1003h ?1006h ?1000l ?1016h",
+]
+
+
+def written(sequence: str) -> str:
+    return "".join("\x1b[%s" % part for part in sequence.split())
+
+
+def asked() -> str:
+    return "".join("\x1b[?%d$p" % mode for mode in ASKED)
+
+
+def kitty_answers(data: str) -> str:
+    from kitty.fast_data_types import Screen as KittyScreen
+
+    class Child:
+        said = b""
+
+        def write(self, data: bytes) -> None:
+            self.said += bytes(data)
+
+        def __getattr__(self, name: str):
+            return lambda *args, **kwargs: None
+
+    child = Child()
+    screen = KittyScreen(child, 24, 80, 0, 10, 20, 0, child)
+    for part in (data, asked()):
+        screen.test_commit_write_buffer(part.encode(), screen.test_create_write_buffer())
+        screen.test_parse_written_data()
+        if part is data:
+            child.said = b""
+    return child.said.decode()
+
+
+@pytest.mark.parametrize("sequence", MODE_SEQUENCES)
+def test_a_mode_query_answers_what_kitty_answers(sequence):
+    "One value per group: a set takes the place of the rest, a reset turns them all off."
+    replies: list[str] = []
+    stream = Stream(Screen(24, 80, write_process_input=replies.append))
+    stream.feed(written(sequence))
+    replies.clear()
+    stream.feed(asked())
+    assert "".join(replies) == kitty_answers(written(sequence))
