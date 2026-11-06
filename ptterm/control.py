@@ -480,7 +480,7 @@ class TerminalControl(UIControl):
         self._changed()
 
     def _read(self, data: str) -> None:
-        dropped = self._ground_timer.feed(data)
+        dropped = self._ground_timer.feed(data, cut=self.process.backend.more_is_waiting)
         if dropped is not None:
             logger.warning(
                 "Dropped %r, open %.1fs, before %r, from pid %s.",

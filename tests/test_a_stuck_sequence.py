@@ -55,6 +55,25 @@ def test_a_dangling_sequence_does_not_swallow_the_next_output(caplog):
     assert "'def'" in record.getMessage()
 
 
+def test_a_sequence_the_reader_cut_survives_a_late_read():
+    """
+    A read that filled its page cut the write, and the rest was already
+    waiting. A server held up past the timeout then reads it late, and
+    the program never stopped: the sequence stands. On a live pane the
+    dropped `ESC[` left `1;3H` drawn as text. Lillecarl/pymux#935.
+    """
+    made = control()
+    made.process.backend.more_is_waiting = True
+    made.process.receive("abc\x1b[2;")
+    made.process.backend.more_is_waiting = False
+
+    made._ground_timer.since -= 6  # The server stalled.
+    made.process.receive("3Hx")
+
+    assert row_text(made, 0) == "abc"
+    assert row_text(made, 1) == "  x"
+
+
 def test_a_sequence_still_arriving_is_not_dropped_early():
     made = control()
     made.process.receive("abc\x1b[1;")

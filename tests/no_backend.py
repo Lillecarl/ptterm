@@ -15,6 +15,7 @@ class NoBackend:
     "The whole of the backend interface, doing nothing."
 
     pid: int | None = None
+    more_is_waiting = False
 
     def __init__(self) -> None:
         #: Every size the widget asked for, oldest first.
