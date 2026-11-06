@@ -8,6 +8,7 @@ its pane too, because prompt_toolkit asks a control for both.
 
 from __future__ import annotations
 
+import logging
 import time
 from collections.abc import Callable, Hashable, Iterable
 from dataclasses import replace
@@ -62,6 +63,8 @@ if TYPE_CHECKING:
     from .terminal import Terminal
 
 __all__ = ["Follower", "Mirror", "TerminalControl", "cursor_offset"]
+
+logger = logging.getLogger(__name__)
 
 
 #: How long a sequence may stay open in a pane before the next bytes
@@ -477,7 +480,15 @@ class TerminalControl(UIControl):
         self._changed()
 
     def _read(self, data: str) -> None:
-        self._ground_timer.feed(data)
+        dropped = self._ground_timer.feed(data)
+        if dropped is not None:
+            logger.warning(
+                "Dropped %r, open %.1fs, before %r, from pid %s.",
+                dropped.sequence,
+                dropped.seconds,
+                data[:40],
+                self.process.backend.pid,
+            )
 
     def _answer(self, data: str) -> None:
         if self.mirror is None:
