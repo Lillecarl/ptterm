@@ -241,6 +241,8 @@ class TerminalControl(UIControl):
         "_extra_lines": Keep.DROPPED,
         "_let_go": Keep.DROPPED,
         "_task_group": Keep.REBUILT,
+        "_watching_the_ground": Keep.DROPPED,
+        "_fed": Keep.DROPPED,
     }
 
     #: How many rows this control remembers having drawn.
@@ -399,6 +401,11 @@ class TerminalControl(UIControl):
         self._running = False
         self._task_group: anyio.abc.TaskGroup | None = None
 
+        #: Whether `_watch_the_ground` runs, and what it waits on for
+        #: the next feed.
+        self._watching_the_ground = False
+        self._fed: anyio.Event | None = None
+
         # While the program draws a frame, when it started to, and what
         # the last frame showed, which draws until the frame ends.
         # `_let_go` ends a hold that the program never ends.
@@ -480,15 +487,43 @@ class TerminalControl(UIControl):
         self._changed()
 
     def _read(self, data: str) -> None:
-        dropped = self._ground_timer.feed(data, cut=self.process.backend.more_is_waiting)
-        if dropped is not None:
-            logger.warning(
-                "Dropped %r, open %.1fs, before %r, from pid %s.",
-                dropped.sequence,
-                dropped.seconds,
-                data[:40],
-                self.process.backend.pid,
-            )
+        timer = self._ground_timer
+        timer.feed(data)
+        if self._fed is not None:
+            self._fed.set()
+        if timer.deadline is not None and not self._watching_the_ground and self._task_group is not None:
+            self._watching_the_ground = True
+            self._task_group.start_soon(self._watch_the_ground)
+
+    async def _watch_the_ground(self) -> None:
+        """
+        Expire the open sequence at its deadline, unless the program wrote more.
+
+        Bytes still unread at the deadline mean the reader is late, not
+        the program quiet, so the watch waits for the feed that reads
+        them. The order of the loop cannot decide it: after a stall this
+        watch can wake before the pump task that reads. An 18s stall
+        dropped `ESC[?20` and drew `26l` as text. Lillecarl/pymux#938.
+        """
+        timer = self._ground_timer
+        try:
+            while (deadline := timer.deadline) is not None:
+                await anyio.sleep(max(0.0, deadline - time.monotonic()))
+                if self.process.output_is_waiting:
+                    self._fed = anyio.Event()
+                    await self._fed.wait()
+                    continue
+                dropped = timer.expire()
+                if dropped is not None:
+                    logger.warning(
+                        "Dropped %r, open %.1fs, from pid %s.",
+                        dropped.sequence,
+                        dropped.seconds,
+                        self.process.backend.pid,
+                    )
+        finally:
+            self._watching_the_ground = False
+            self._fed = None
 
     def _answer(self, data: str) -> None:
         if self.mirror is None:

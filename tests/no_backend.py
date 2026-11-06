@@ -16,6 +16,7 @@ class NoBackend:
 
     pid: int | None = None
     more_is_waiting = False
+    output_is_waiting = False
 
     def __init__(self) -> None:
         #: Every size the widget asked for, oldest first.

@@ -25,11 +25,6 @@ class Machinery(Protocol):
     @property
     def pid(self) -> int | None: ...
 
-    @property
-    def more_is_waiting(self) -> bool:
-        "Did the last read fill its page, so that more of the same write waits?"
-        ...
-
 
 class Program(Protocol):
     """
@@ -51,6 +46,11 @@ class Program(Protocol):
 
     @property
     def sy(self) -> int: ...
+
+    @property
+    def output_is_waiting(self) -> bool:
+        "Has the program written bytes that the screen has not been fed yet?"
+        ...
 
     @property
     def backend(self) -> Machinery: ...
