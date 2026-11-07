@@ -4,7 +4,7 @@ The widget, and the copy mode over it, hold the row that is installed.
 `checks.ptterm-rs-unit` runs this suite with `pyte_rs.install()` in
 `conftest.py`, and a green run there says something only if the widget
 really held Rust rows. Without `PYTE_RS` it holds the dict. pyte has the
-same test for its own suite. Lillecarl/pymux#470.
+same test for its own suite. Lillecarl/pyterm#472.
 """
 
 from __future__ import annotations

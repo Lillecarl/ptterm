@@ -321,7 +321,7 @@ def verdict(
 # So xterm is asked on its own, and only about what it can answer.
 # Where the panel abstains and `DEVIATIONS.md` falls back to "what
 # xterm does", this is what turns that sentence into a measurement.
-# `xterm_oracle.py` says how the screen is read. Lillecarl/pymux#10.
+# `xterm_oracle.py` says how the screen is read. Lillecarl/pyterm#12.
 
 
 def xterm_is_here() -> bool:

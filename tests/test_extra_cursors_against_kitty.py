@@ -3,7 +3,7 @@ kitty's multiple cursors: the extra cursors and colours pyte holds,
 against what kitty's own screen holds after the same bytes. Both are
 read through the queries, "CSI > 100 SP q" and "CSI > 101 SP q".
 kitty lists cursors in the order of a hash table, so the cursors
-compare as sets. Lillecarl/pymux#891.
+compare as sets. Lillecarl/pyterm#893.
 
 A resize is left out: kitty keeps a cursor as an index into the cells,
 so a new width moves it to another cell, and pyte keeps the cell.

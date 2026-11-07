@@ -5,7 +5,7 @@ A pane says when it would draw what it drew before.
 window writes the cells of the frame before instead of asking for
 content. So every change that reaches the picture has to change it,
 the cursor included, which moves with no write to any row.
-Lillecarl/pymux#577.
+Lillecarl/pyterm#579.
 """
 
 from __future__ import annotations

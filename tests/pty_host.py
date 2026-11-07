@@ -3,7 +3,7 @@ A terminal with no widget around it: a screen, and a program on a pty
 that draws on it.
 
 A `Process` runs a program and pumps its bytes; it parses nothing, so
-whoever builds one decides what the bytes mean (Lillecarl/pymux#85).
+whoever builds one decides what the bytes mean (Lillecarl/pyterm#87).
 A front end pairs it with a screen, and so does every suite here that
 drives a real program: `drive_with_esctest.py` and
 `drive_with_vttest.py` both want the pair and neither wants a widget.

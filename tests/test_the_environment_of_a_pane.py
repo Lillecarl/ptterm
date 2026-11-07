@@ -6,7 +6,7 @@ layer that can say the two things a program has to be told: that it
 draws on this screen and not on the terminal the application runs in,
 and where the entry that describes this screen lives. `pyte` has no
 child to set an environment for, and `ptyhost` runs a program and has
-no opinion on what parses the bytes. Lillecarl/pymux#125.
+no opinion on what parses the bytes. Lillecarl/pyterm#127.
 
 **These tests fork.** The answers are read off the screen of a real
 `sh`, so they say what the child really got and not what this file
@@ -42,7 +42,7 @@ REPORT = [
 #: The last row the child writes. The run waits for it rather than for
 #: the end of the program: what a program writes just before it exits
 #: is sometimes lost, because the reaper closes the pty without
-#: draining it (Lillecarl/pymux#121). So the child lingers instead.
+#: draining it (Lillecarl/pyterm#123). So the child lingers instead.
 SENTINEL = "THE END"
 
 SCRIPT = (

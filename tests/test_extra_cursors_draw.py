@@ -1,6 +1,6 @@
 """
 kitty's extra cursors, as the widget draws them: styled cells, since
-prompt_toolkit has one cursor. Lillecarl/pymux#891.
+prompt_toolkit has one cursor. Lillecarl/pyterm#893.
 """
 
 from __future__ import annotations

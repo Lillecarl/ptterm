@@ -13,7 +13,7 @@ the whole pane.
 
 `checks.pymux-vterm` is what found it: the pane's own screen was right,
 and only a terminal reading what pymux emitted disagreed.
-Lillecarl/pymux#62.
+Lillecarl/pyterm#64.
 """
 
 from __future__ import annotations
@@ -72,7 +72,7 @@ def test_a_double_width_character_takes_one_place_and_two_columns():
 def test_an_image_placeholder_takes_one_place():
     """
     A kitty placeholder cell holds three code points and draws one
-    space. yazi leaves the cursor right of an image. Lillecarl/pymux#602.
+    space. yazi leaves the cursor right of an image. Lillecarl/pyterm#604.
     """
     cell = PLACEHOLDER + "̅̅"
     screen = _screen(cell * 3 + "x", columns=20)

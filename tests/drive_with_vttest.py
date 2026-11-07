@@ -10,7 +10,7 @@ So this is not a gate, and it does not try to be. It is a walker: it
 enters every menu item, answers every "Push <RETURN>", and writes down
 what the screen held each time. What comes out is a text file of every
 screen vttest can draw, with the menu path that reached it. A person
-reads that file. Lillecarl/pymux#46 says why the recorded list comes
+reads that file. Lillecarl/pyterm#48 says why the recorded list comes
 before any question about a gate.
 
 The host is the one `drive_with_esctest.py` uses, for the same reason:
@@ -1098,7 +1098,7 @@ def keep(directory: Path, walk: Walk, log: Path) -> None:
 
     head = [
         "# Every screen vttest drew against ptterm, and the menu path",
-        "# that reached it. Lillecarl/pymux#46 says why this is a list to",
+        "# that reached it. Lillecarl/pyterm#48 says why this is a list to",
         "# read and not a gate: vttest draws, and a person looks.",
         "#",
         "# %d screens." % len(walk.screens),

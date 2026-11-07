@@ -205,11 +205,11 @@ def test_a_double_width_line_holds_half_the_columns():
     kitty, WezTerm, Alacritty, Ghostty and xterm.js keep the whole line:
     none of them reads the attribute. ptterm turns each character into
     an OSC 66 block two cells wide, so ten fit. That is the user's
-    choice, and xterm draws it the same way. Lillecarl/pymux#890.
+    choice, and xterm draws it the same way. Lillecarl/pyterm#892.
 
     The panel cannot be asked the question directly, because no judge
     reports a line attribute. It can be asked where the text wraps,
-    which is what `THISROWWIDTH` decides. Lillecarl/pymux#55.
+    which is what `THISROWWIDTH` decides. Lillecarl/pyterm#57.
     """
     assert columns_before_the_wrap(sharp(Sharp.DECDWL) + "a" * 15) == HALF_WIDTH
 
@@ -345,7 +345,7 @@ def test_a_variation_selector_widens_a_text_emoji_for_kitty_alone(emoji):
     """
     Five keep a text emoji one column wide with U+FE0F after it, and
     kitty widens it, on purpose. DEVIATIONS.md, number 27.
-    Lillecarl/pymux#539.
+    Lillecarl/pyterm#541.
     """
     against, with_us = sides(emoji + "️X", lines=2, columns=6)
     assert against == ["kitty"]
@@ -362,7 +362,7 @@ def test_moving_back_over_a_tab_stop_splits_the_panel():
     stop, with kitty, libvterm and WezTerm. xterm keeps the wait, and
     so do the other three, which made it four against three; Carl
     decided that the wait is cursor state and travels through
-    everything. Lillecarl/pymux#106. Lillecarl/pymux#107.
+    everything. Lillecarl/pyterm#108. Lillecarl/pyterm#109.
     """
     against, with_us = sides(
         (csi(Csi.CHT) + "x" + csi(Csi.CHT, 2) + "y" + csi(Csi.CBT) + "z"),
@@ -609,7 +609,7 @@ def test_hpb_and_vpb_follow_the_three_judges_that_carry_them(data):
     same place. ECMA-48 8.3.58 and 8.3.159 say that place too, and the
     four sequences beside these were already right. So ptterm follows
     the three, and the tally is now three that agree and three that
-    still do nothing. Lillecarl/pymux#52.
+    still do nothing. Lillecarl/pyterm#54.
     """
     against, with_us = sides(data, lines=8, columns=24, blank_style=False)
     assert against == WITHOUT_THE_PAIR
@@ -626,14 +626,14 @@ def test_how_many_combining_marks_a_cell_keeps():
     `VTERM_MAX_CHARS_PER_CELL` is a fixed array in a C struct, and
     nobody else has one.
 
-    Ghostty read as 1 until Lillecarl/pymux#63. That was our own
+    Ghostty read as 1 until Lillecarl/pyterm#65. That was our own
     instrument: `tests/judges-c` asked for the cluster with a buffer of
     sixteen and did not ask again when the library said the cluster was
     longer. It now asks twice and reports what Ghostty holds.
 
     So the tally is five to one, and ptterm is with the five. A cell
     with no bound is still a cell a program can grow, which is what
-    Lillecarl/pymux#54 asked about, and the answer is that every
+    Lillecarl/pyterm#56 asked about, and the answer is that every
     emulator people use has the same property.
     """
     assert marks_kept("e" + "́" * 20) == {
@@ -670,7 +670,7 @@ def test_where_the_cursor_stands_after_the_newest_alternate_mode():
     "?1049" leaves the cursor where it stands, like the two older modes
     and like Alacritty, Ghostty, libvterm and xterm.js. kitty and
     WezTerm put it home, and ptterm used to be with them.
-    Lillecarl/pymux#34.
+    Lillecarl/pyterm#36.
     """
     against, with_us = sides(
         (csi(escape.CUP, 2, 3) + set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR) + "X"),
@@ -817,7 +817,7 @@ def test_whether_a_restore_brings_the_wait_to_wrap_back():
     """
     A character in the last column leaves the cursor waiting to wrap,
     and the savepoint carries that wait now, so a restore brings it
-    back. Lillecarl/pymux#88. Lillecarl/pymux#107.
+    back. Lillecarl/pyterm#90. Lillecarl/pyterm#109.
 
     Three judges bring it back and three do not, and ptterm is with the
     three that do. The third case is why: with no move between the save
@@ -987,7 +987,7 @@ def test_the_alternate_screen_gives_back_what_it_saved():
 #
 # Ghostty answers the first alone. `ghostty_grid_ref_hyperlink_uri`
 # hands over the target, and nothing hands over the name that Ghostty
-# gives the one link. Lillecarl/pymux#92.
+# gives the one link. Lillecarl/pyterm#94.
 #
 # xterm.js answers both, through paths that `IBufferCell` does not name.
 # So the panel for a target is five, and the panel for a shape is four.
@@ -1177,7 +1177,7 @@ def test_two_judges_split_a_link_that_carries_no_id():
     cells that touch are one link. ptterm cannot take it as it stands,
     because a cell carries the target and the id and nothing that says
     which opening drew it. It sits with the larger side by accident and
-    not by choice. Lillecarl/pymux#91 holds that.
+    not by choice. Lillecarl/pyterm#93 holds that.
 
     Two against two is a split, so nothing changes here.
     """
@@ -1198,7 +1198,7 @@ def test_two_judges_split_a_link_that_carries_no_id():
 # ----------------------------------------------------------------------
 # A reflow: what a screen holds after it changes width.
 #
-# The panel could not ask this until Lillecarl/pymux#64. It gave every
+# The panel could not ask this until Lillecarl/pyterm#66. It gave every
 # judge bytes and one size, so a reflow had no vote and two findings hit
 # that wall. `resize` is the size to take after the data, and every
 # judge acts on it.
@@ -1207,7 +1207,7 @@ def test_two_judges_split_a_link_that_carries_no_id():
 # Reflow is off until `vterm_screen_enable_reflow`, and a scrollback
 # lives in whoever embeds libvterm, behind `sb_pushline` and
 # `sb_popline`. `vterm_oracle.py` sets all three now
-# (Lillecarl/pymux#104), so libvterm votes here like everybody else. Its
+# (Lillecarl/pyterm#106), so libvterm votes here like everybody else. Its
 # own suite asks for the same pair with `WANTSCREEN rb`.
 
 
@@ -1270,7 +1270,7 @@ def test_xterm_js_leaves_the_row_the_cursor_sits_on():
 
 def test_where_a_shell_prompt_lands_when_a_window_gets_wider():
     """
-    **This is the case Lillecarl/pymux#57 asked about, and the panel
+    **This is the case Lillecarl/pyterm#59 asked about, and the panel
     answers it: ptterm is right.**
 
     It is libvterm's own `69screen_reflow.test`, "Shell wrapped prompt
@@ -1331,12 +1331,12 @@ def test_an_erase_at_the_end_of_a_line_ends_the_wrap_out_of_it():
     more. Widening to twenty columns leaves two rows.
 
     libvterm asks for this in `32state_flow.test`, and until
-    Lillecarl/pymux#64 it was the only thing that could: the mark that
+    Lillecarl/pyterm#66 it was the only thing that could: the mark that
     decides a join is not a cell, so no judge reports it, and it shows
     from outside only through a resize. The panel can ask now, and the
     answer is six to nothing.
 
-    Lillecarl/pymux#58 worried that the mark would put the rows back
+    Lillecarl/pyterm#60 worried that the mark would put the rows back
     together. `_end_the_wrap_out_of_this_line` in `ptterm/screen.py`
     takes it off, and this is that fix seen from outside.
     """
@@ -1369,7 +1369,7 @@ def test_an_erase_at_the_end_of_a_line_ends_the_wrap_out_of_it():
 # attribute, and neither kitty nor Alacritty reads the codes at all.
 #
 # So the panel here is two, and the projection of the other four drops
-# the field. Lillecarl/pymux#59.
+# the field. Lillecarl/pyterm#61.
 
 RAISED = 1
 LOWERED = 2
@@ -1432,7 +1432,7 @@ def test_a_raised_glyph_leaves_ptterm_alone():
 # `pyte/charsets.py` copied its tables out of xterm's `charsets.h`, and
 # `checks.pyte-xterm-tables` says the copy is right. That says nothing
 # about whether the other emulators hold the same tables, or about when
-# they apply one. Only the panel says that. Lillecarl/pymux#111.
+# they apply one. Only the panel says that. Lillecarl/pyterm#113.
 
 
 def _probe(name):
@@ -1461,7 +1461,7 @@ def test_a_national_set_applies_with_no_mode_asked_for():
 
 #: Which judges draw what ptterm draws for each national set.
 #:
-#: **Measured, and not what Lillecarl/pymux#111 assumed.** That issue
+#: **Measured, and not what Lillecarl/pyterm#113 assumed.** That issue
 #: probed British alone and read five judges agreeing. They agree on
 #: British and on nothing else: kitty, WezTerm, libvterm, Ghostty and
 #: xterm.js all leave the other eleven sets as ASCII. So the five are
@@ -1499,7 +1499,7 @@ def test_who_holds_the_same_table_as_ptterm(name):
 DRAWS_SOMETHING_ELSE = {
     # kitty reads "ESC ( %" as a one byte name, so the "6" of
     # Portuguese is drawn as a letter and the set is unreachable. The
-    # same bug pyte had until Lillecarl/pymux#111.
+    # same bug pyte had until Lillecarl/pyterm#113.
     ("%6", "kitty"): "6[\\]{|}",
     # xterm.js approximates the two positions that need a character
     # Latin-1 does not have: "i" for U+0133 LATIN SMALL LIGATURE IJ and
@@ -1548,7 +1548,7 @@ def test_a_locking_shift_brings_g2_in():
 
     **A judge that draws `l` has no G2 at all.** It never designated
     the set, so the letter is the letter, and that is a feature it
-    lacks rather than an answer it gives. Lillecarl/pymux#373.
+    lacks rather than an answer it gives. Lillecarl/pyterm#375.
     """
     found = characters_in_row("\x1b*0\x1bnl", columns=4)
     assert found["ptterm"].rstrip() == CORNER

@@ -166,7 +166,7 @@ RENDITIONS = [
     "58:2::255:0:0",
     # Where the glyph sits. Only libvterm and WezTerm hold a baseline;
     # kitty and Alacritty do not, and `without_a_baseline` is why the
-    # hunt against kitty can carry these at all. Lillecarl/pymux#105.
+    # hunt against kitty can carry these at all. Lillecarl/pyterm#107.
     "73",
     "74",
     "75",
@@ -251,7 +251,7 @@ KITTY_DISAGREES = frozenset(
         # "?1049" leaves the cursor where it stands and kitty sends
         # it home. xterm describes the mode as a save, a switch and a
         # clear with no move, and the unit test pins the leave.
-        # Lillecarl/pymux#34.
+        # Lillecarl/pyterm#36.
         set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR),
         reset_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR),
     ]

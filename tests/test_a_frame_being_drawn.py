@@ -5,7 +5,7 @@ A program brackets a frame in "?2026h" and "?2026l". A redraw between
 the two would show the frame half drawn, so the control asks for no
 redraw until the frame ends, and a redraw that comes due for another
 reason draws the picture from before. tmux does the same, and lets go
-after a second. Lillecarl/pymux#567.
+after a second. Lillecarl/pyterm#569.
 """
 
 from __future__ import annotations

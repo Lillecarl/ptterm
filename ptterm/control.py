@@ -70,13 +70,13 @@ logger = logging.getLogger(__name__)
 #: How long a sequence may stay open in a pane before the next bytes
 #: drop it and return the parser to plain text. A program that writes a
 #: partial escape and stops would otherwise leave the pane parsing
-#: through the wrong state. Lillecarl/pymux#390.
+#: through the wrong state. Lillecarl/pyterm#392.
 _GROUND_TIMEOUT = 5
 
 #: How long a pane shows its last picture while its program draws a
 #: frame ("?2026"). A program that set the mode and died would
 #: otherwise freeze the pane. tmux waits the same second
-#: (`screen_write_start_sync`). Lillecarl/pymux#567.
+#: (`screen_write_start_sync`). Lillecarl/pyterm#569.
 FRAME_HELD_AT_MOST = 1.0
 
 
@@ -84,7 +84,7 @@ class Follower(Protocol):
     """
     Something that shows a pane's screen somewhere else, told after each
     read and each resize that the screen may have changed.
-    Lillecarl/pymux#759.
+    Lillecarl/pyterm#761.
     """
 
     def changed(self) -> None: ...
@@ -95,7 +95,7 @@ class Mirror(Protocol):
     Where a person's input goes when the screen is a copy of a pane on
     another server. That server encodes it for the program, because it
     holds the modes the program set and the copy does not.
-    Lillecarl/pymux#759.
+    Lillecarl/pyterm#761.
     """
 
     def key(self, data: str, profile: KeyProfile) -> None:
@@ -160,7 +160,7 @@ def cursor_offset(screen) -> int:
     A kitty placeholder cell holds U+10EEEE and its diacritics and draws
     one space (`style.visible_char`). Counting what it holds put a cursor
     right of an image dozens of places past the edge, and the pane
-    scrolled sideways. Lillecarl/pymux#602.
+    scrolled sideways. Lillecarl/pyterm#604.
     """
     row = screen.page.data_buffer[screen.pt_cursor_position.y]
     chars = [row[x].char for x in range(screen.reported_column)]
@@ -174,7 +174,7 @@ class _Drawn(NamedTuple):
     """
     What a control built for one row: the line, the write count of the
     screen it was built at, and an image of the row's cells then, so a
-    row that moved can find it again. Lillecarl/pymux#570.
+    row that moved can find it again. Lillecarl/pyterm#572.
     """
 
     line: StyleAndTextTuples
@@ -199,7 +199,7 @@ _ROWS_THAT_MAKE_A_SHIFT = 3
 class TerminalControl(UIControl):
     #: What a hot upgrade does with each attribute; `pyte.keep` says.
     #: Everything a frame remembers is rebuilt by the first frame after
-    #: a load. Lillecarl/pymux#399.
+    #: a load. Lillecarl/pyterm#401.
     KEEP: ClassVar[dict[str, Keep]] = {
         "screen": Keep.SAVED,
         "stream": Keep.SAVED,
@@ -281,12 +281,12 @@ class TerminalControl(UIControl):
         # Called for a key this pane reads as something else, or not at
         # all. What a person presses still degrades on the way in, the
         # way a keyboard does; this is how anything finds out.
-        # Lillecarl/pymux#238.
+        # Lillecarl/pyterm#240.
         self.unreadable_key_func = unreadable_key_func
 
         #: Whose answer a legacy program gets where the terminals split,
         #: asked once per key: the person pressing it may sit at any of
-        #: them. Lillecarl/pymux#706.
+        #: them. Lillecarl/pyterm#708.
         self.key_profile_func = key_profile_func
 
         #: Whether the person at this keyboard may drive the pane.
@@ -299,7 +299,7 @@ class TerminalControl(UIControl):
         #: over the application's, so the pane's any-key binding beats
         #: the embedder's own: pymux's "a key after the prefix that the
         #: prefix does not bind ends the prefix" never ran, and the key
-        #: went to the program. Lillecarl/pymux#540.
+        #: went to the program. Lillecarl/pyterm#542.
         self.takes_key_first = takes_key_first
 
         #: Called when the mouse focused this pane: a click in it while
@@ -315,11 +315,11 @@ class TerminalControl(UIControl):
         self.pointer_fraction: Callable[[], tuple[float, float]] | None = None
         #: Whether this frame draws kitty's extra cursors as cells. An
         #: embedder that hands them to a terminal that draws them itself
-        #: says no for that terminal. Lillecarl/pymux#891.
+        #: says no for that terminal. Lillecarl/pyterm#893.
         self.draws_extra_cursors: Callable[[], bool] | None = None
         #: Whether this pane draws the palette entries its program set
         #: ("OSC 4"), rather than the outer terminal's. None is no.
-        #: Lillecarl/pymux#16.
+        #: Lillecarl/pyterm#18.
         self.draws_program_palette: Callable[[], bool] | None = None
 
         # The cell of the last move sent, so that a move inside it
@@ -333,7 +333,7 @@ class TerminalControl(UIControl):
         #: embedder that passes the image cells on as unicode
         #: placeholders. It must be one answer for every client, because
         #: a built row is shared by all of them. None draws a space in
-        #: each image cell. Lillecarl/pymux#600.
+        #: each image cell. Lillecarl/pyterm#602.
         self.placeholder_ids: Callable[[int], int] | None = None
 
         def has_priority() -> bool:
@@ -351,7 +351,7 @@ class TerminalControl(UIControl):
         #: That server decides everything about the screen: it sends the
         #: page as frames (`put_frame`), and a person's keys, paste and
         #: mouse go to it to encode. A size set here goes to the
-        #: program, which asks that server for it. Lillecarl/pymux#759.
+        #: program, which asks that server for it. Lillecarl/pyterm#761.
         self.mirror: Mirror | None = None
 
         #: What shows this screen somewhere else, told after each change.
@@ -361,7 +361,7 @@ class TerminalControl(UIControl):
 
         # The screen belongs to the front end and not to the pty: a
         # `Process` runs a program and pumps its bytes, and what those
-        # bytes mean is decided here. Lillecarl/pymux#85.
+        # bytes mean is decided here. Lillecarl/pyterm#87.
         self.screen = Screen(
             0,
             0,
@@ -427,12 +427,12 @@ class TerminalControl(UIControl):
         # the screen that it drew it at. A row whose count has not
         # moved is a row it does not build again. The state is here and
         # not on the screen, because a screen has more than one reader
-        # and no way to know how many. Lillecarl/pymux#126.
+        # and no way to know how many. Lillecarl/pyterm#128.
         self._drawn: dict[int, _Drawn] = {}
 
         # The scrolls this control hands a window, with a sequence of its
         # own: the screen's logged scrolls, and the shifts a repaint made
-        # that it found by the images of the rows. Lillecarl/pymux#570.
+        # that it found by the images of the rows. Lillecarl/pyterm#572.
         self._report: list[tuple[int, int, int, object, int]] = []
         self._report_seq = 0
         # The screen's write count the last scan for a shift read.
@@ -443,7 +443,7 @@ class TerminalControl(UIControl):
         # The sequence of the screen's scroll report consumed through.
         # None is a control that never drew: it adopts the count and
         # rotates nothing, because it remembers nothing.
-        # Lillecarl/pymux#516.
+        # Lillecarl/pyterm#518.
         self._scroll_mark: int | None = None
 
         #: Whether a frame reuses what earlier frames built: the rows
@@ -503,7 +503,7 @@ class TerminalControl(UIControl):
         the program quiet, so the watch waits for the feed that reads
         them. The order of the loop cannot decide it: after a stall this
         watch can wake before the pump task that reads. An 18s stall
-        dropped `ESC[?20` and drew `26l` as text. Lillecarl/pymux#938.
+        dropped `ESC[?20` and drew `26l` as text. Lillecarl/pyterm#940.
         """
         timer = self._ground_timer
         try:
@@ -731,7 +731,7 @@ class TerminalControl(UIControl):
         # kitty's extra cursors, by the row of the buffer they stand on.
         # A row that holds one is built every frame, the way the cursor's
         # row is, because a scroll moves the row and not the cursor.
-        # Lillecarl/pymux#891.
+        # Lillecarl/pyterm#893.
         extra = self.screen.extra_cursors
         extra_rows: dict[int, dict[int, ExtraShape]] = _NO_ROWS
         if extra.cells and (self.draws_extra_cursors is None or self.draws_extra_cursors()):
@@ -773,7 +773,7 @@ class TerminalControl(UIControl):
         def get_line(number: int) -> StyleAndTextTuples:
             """
             One row, built once and kept until the screen writes it
-            again. Lillecarl/pymux#126.
+            again. Lillecarl/pyterm#128.
 
             The screen counts every write it makes to a row, and this
             keeps the count it built each row at. A count that has not
@@ -797,7 +797,7 @@ class TerminalControl(UIControl):
                 # terminal shows now, so it is no source for a shift: a
                 # repaint read in pieces, one step up, would claim the
                 # rows from here and the renderer would prove none of
-                # them. Lillecarl/pymux#512.
+                # them. Lillecarl/pyterm#514.
                 drawn.pop(number, None)
                 cursor_line[:] = [build(number)]
                 return cursor_line[0]
@@ -832,7 +832,7 @@ class TerminalControl(UIControl):
         # the buffer.
         #
         # `highest_row` says which of the two it is without reading the
-        # buffer, which holds the history. Lillecarl/pymux#130.
+        # buffer, which holds the history. Lillecarl/pyterm#132.
         line_count = self.screen.highest_row() + 1
         # An extra cursor below the last row written is on a row too.
         if extra_rows:
@@ -857,7 +857,7 @@ class TerminalControl(UIControl):
         content.stable_lines = self.keep_rows
         # This control's scroll report and sequence: a window that stores
         # what it drew rotates those rows the same way, with its own
-        # mark. Lillecarl/pymux#516.
+        # mark. Lillecarl/pyterm#518.
         if self.keep_rows:
             content.scrolled = (self._report, self._report_seq)
         self._shown = (content, cursor_line, width, height)
@@ -867,7 +867,7 @@ class TerminalControl(UIControl):
     def content_version(self, width: int, height: int) -> Hashable | None:
         """
         What `create_content` draws from, so that a window which sees it
-        unchanged writes the cells it wrote before. Lillecarl/pymux#577.
+        unchanged writes the cells it wrote before. Lillecarl/pyterm#579.
 
         A held frame draws only what was shown, so it answers which frame
         that was. Not that frame's version: keeping it would cost every
@@ -894,7 +894,7 @@ class TerminalControl(UIControl):
         `get_line` for a frame with kitty's extra cursors on it. A row
         that holds one is built every frame and kept nowhere but for this
         frame, the way the cursor's row is, because a scroll moves the
-        row and not the cursor. Lillecarl/pymux#891.
+        row and not the cursor. Lillecarl/pyterm#893.
         """
         extra_lines: dict[int, StyleAndTextTuples] = {}
         self._extra_lines = extra_lines
@@ -963,7 +963,7 @@ class TerminalControl(UIControl):
         and the shift goes into the report, so a window moves what it
         stored and the renderer may send a scroll instead of repainting.
         The renderer proves every claimed shift before it uses one.
-        Lillecarl/pymux#570.
+        Lillecarl/pyterm#572.
         """
         # The screen counts a write per row it writes, so fewer writes
         # since the last scan than a shift needs rows cannot be one. That
@@ -1093,7 +1093,7 @@ class TerminalControl(UIControl):
             # when the program answers, so the key's own invalidate
             # could only ever redraw nothing -- and on a loaded machine
             # it is a whole redraw that draws nothing.
-            # Lillecarl/pymux#246.
+            # Lillecarl/pyterm#248.
             key_press = event.key_sequence[0]
             if key_press.data:
                 # Forward the raw data. It preserves modifiers that
@@ -1110,7 +1110,7 @@ class TerminalControl(UIControl):
                 return NotImplemented
             self.paste(event.data)
             # A paste reaches a program as well, and the answer is the
-            # redraw. Same answer as a key. Lillecarl/pymux#246.
+            # redraw. Same answer as a key. Lillecarl/pyterm#248.
             return NotImplemented
 
         return bindings
@@ -1163,7 +1163,7 @@ class TerminalControl(UIControl):
             return True
         if mouse is not None and mouse.action in WHEEL_ARROWS and self.screen.wheel_sends_arrows:
             # The alternate screen has no history, so copy mode
-            # would show the first screen's instead. Lillecarl/pymux#422.
+            # would show the first screen's instead. Lillecarl/pyterm#424.
             arrow = self.screen.encode_key(WHEEL_ARROWS[mouse.action])
             self.process.write_input(arrow * ARROWS_PER_WHEEL_STEP)
             return True
@@ -1173,7 +1173,7 @@ class TerminalControl(UIControl):
         """
         The pointer moved off this pane. A program that counts pixels
         (1016) hears it as kitty's leave report, at the last place the
-        pointer was. Lillecarl/pymux#899.
+        pointer was. Lillecarl/pyterm#901.
         """
         last, self._last_mouse, self._moved_to = self._last_mouse, None, None
         if last is not None:
@@ -1204,7 +1204,7 @@ class TerminalControl(UIControl):
         that is left**, and not the report alone goes. The other branches
         are the person driving this pane: two of them write to the
         program, and one moves the focus. Copy mode reads a copy for this
-        application alone, so it drives nothing. Lillecarl/pymux#470.
+        application alone, so it drives nothing. Lillecarl/pyterm#472.
         """
         if not self.may_be_driven():
             # Over the focused pane alone, as for a person who types: a
@@ -1263,7 +1263,7 @@ class TerminalControl(UIControl):
         pane, so the wheel up opens copy mode over it -- the rule tmux
         runs: a wheel over a pane whose program wants no mouse is copy
         mode. The way back down is the same wheel in copy mode, which
-        ends at the bottom. Lillecarl/pymux#422.
+        ends at the bottom. Lillecarl/pyterm#424.
         """
         view = self.terminal.enter_copy_mode()
         if view is not None:

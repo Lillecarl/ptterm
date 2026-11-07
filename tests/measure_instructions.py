@@ -30,7 +30,7 @@ render.
 after it: `TerminalControl.create_content` turns the screen into a
 `UIContent`, and every row of that content is read. It is one frame of
 what a person sees, and it is paid on every frame rather than once per
-byte. Nothing measured it before, and Lillecarl/pymux#84 asked for it:
+byte. Nothing measured it before, and Lillecarl/pyterm#86 asked for it:
 a change that moves the cost of a cell hides in the parse count,
 because the parse walks the bytes and the render walks the cells.
 
@@ -38,7 +38,7 @@ because the parse walks the bytes and the render walks the cells.
 with one row changed in between. The render is the first frame of a
 screen, where every row is new. A pane spends most of its life drawing
 a screen it has almost entirely drawn before, and the two counts are
-the same number today. Lillecarl/pymux#126 is why they should not be.
+the same number today. Lillecarl/pyterm#128 is why they should not be.
 
 ## What a deep history costs
 
@@ -222,7 +222,7 @@ def redraw_cost(data: bytes, lines: int, columns: int) -> int:
     line, and the frame after it draws a screen that is almost entirely
     the screen it drew last time. A widget that knew which rows moved
     would pay for one of them; nothing knows, so every row is built
-    again. Lillecarl/pymux#126 is that difference, and this is the
+    again. Lillecarl/pyterm#128 is that difference, and this is the
     number that says how big it is.
     """
     text = data.decode("utf-8", "replace")

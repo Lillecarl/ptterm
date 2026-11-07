@@ -95,7 +95,7 @@ def test_an_erased_cell_keeps_no_line():
     ptterm carried both, on the reading that a reader sees a line on a
     blank. Five judges disagree and only kitty agrees;
     `test_the_panel.py` holds the tally, and the background is the
-    other way round. Lillecarl/pymux#67.
+    other way round. Lillecarl/pyterm#69.
     """
     assert styles("\x1b[4:3;58:5:9m\x1b[K", 2) == ["", ""]
 

@@ -2,13 +2,13 @@
 Where every judge leaves a cursor that waits to wrap.
 
 A character in the last column leaves the cursor **waiting to wrap**:
-the next character starts a new row. Lillecarl/pymux#107 says three
+the next character starts a new row. Lillecarl/pyterm#109 says three
 open questions are one, because ptterm drops that wait in three places
-where xterm keeps it -- a tab stop move (Lillecarl/pymux#106), a save
-and a restore (Lillecarl/pymux#88), and giving the alternate screen
-back (Lillecarl/pymux#35).
+where xterm keeps it -- a tab stop move (Lillecarl/pyterm#108), a save
+and a restore (Lillecarl/pyterm#90), and giving the alternate screen
+back (Lillecarl/pyterm#37).
 
-Lillecarl/pymux#106 named what nobody had measured: whether the judges
+Lillecarl/pyterm#108 named what nobody had measured: whether the judges
 that differ from ptterm agree with xterm, or only that they differ.
 This file measures it, for all three. They agree, every time, and one
 of the three was not a split at all:
@@ -26,7 +26,7 @@ screen -- and a judge that differs for two reasons makes the vote read
 as a split. On the cursor the seven were unanimous, and ptterm was the
 one that was wrong.
 
-ptterm carries the wait through all three now (Lillecarl/pymux#107),
+ptterm carries the wait through all three now (Lillecarl/pyterm#109),
 so the judges that differ here are the ones that drop it.
 `pyte/tests/test_the_wait_to_wrap_is_cursor_state.py` is the gate on
 what ptterm does; this file is the record of what the others do.
@@ -87,7 +87,7 @@ def _where_the_cursor_went(drawn) -> tuple:
 @pytest.mark.parametrize(("name", "data", "lines", "columns"), CASES)
 def test_every_judge_that_differs_draws_the_same_cursor(name, data, lines, columns):
     """
-    The measurement Lillecarl/pymux#106 asked for.
+    The measurement Lillecarl/pyterm#108 asked for.
 
     Each judge that differs from ptterm draws something; whether they
     draw the **same** thing is what says how strong the reading is.

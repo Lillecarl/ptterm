@@ -1,6 +1,6 @@
 """
 A pane that draws with the palette its program set, for an embedder
-that lets it (`allow-program-palette` in pymux). Lillecarl/pymux#16.
+that lets it (`allow-program-palette` in pymux). Lillecarl/pyterm#18.
 """
 
 from __future__ import annotations

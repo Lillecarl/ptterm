@@ -235,7 +235,7 @@ def vterm_cells(data: str, lines: int, columns: int, resize: tuple[int, int] | N
     leaves the top is gone and a widening that would pull one back finds
     nothing, which is not what libvterm does. It is what its own suite
     harness does with the scrollback off, and the expectations in
-    `69screen_reflow.test` are that fallback. Lillecarl/pymux#104.
+    `69screen_reflow.test` are that fallback. Lillecarl/pyterm#106.
 
     Reflow is off by default as well, and `vterm_screen_enable_reflow`
     turns it on. Its suite asks for both with `WANTSCREEN rb`.

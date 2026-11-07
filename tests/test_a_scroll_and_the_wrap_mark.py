@@ -1,7 +1,7 @@
 """
 What a scroll does to the wrap mark of the row it moves to the top.
 
-Lillecarl/pymux#188. A scroll drops the rows that leave the region, so
+Lillecarl/pyterm#190. A scroll drops the rows that leave the region, so
 the row that lands at the top continues a row that is gone. What is
 above it is either a line the program wrote separately, outside the
 region, or the history.

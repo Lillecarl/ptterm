@@ -20,7 +20,7 @@ It is asked four kinds of question here.
   The answers fill the last column of the table in `DEVIATIONS.md`, so
   that a reader sees a measurement and not a claim.
 - The questions that are still open on their own. xterm answers three
-  of those the same way, and Lillecarl/pymux#107 says why they are one
+  of those the same way, and Lillecarl/pyterm#109 says why they are one
   question: ptterm drops the wait to wrap where xterm keeps it.
 """
 
@@ -181,7 +181,7 @@ def test_a_rectangle_command_draws_what_xterm_draws(data):
 
 def test_xterm_brings_the_wait_to_wrap_back_through_a_restore():
     """
-    Entry 22 of `DEVIATIONS.md`, and Lillecarl/pymux#88.
+    Entry 22 of `DEVIATIONS.md`, and Lillecarl/pyterm#90.
 
     A character in the last column leaves the cursor waiting to wrap.
     Alacritty, Ghostty and WezTerm bring that wait back through a
@@ -235,7 +235,7 @@ def test_xterm_wraps_rather_than_moving_back_over_a_tab_stop():
     Alacritty, Ghostty and xterm.js drew it at the start of the next
     row, and so does xterm: four against three, and ptterm on the
     smaller side. **ptterm follows xterm now**, which is
-    Lillecarl/pymux#107 and Carl's decision that the wait to wrap is
+    Lillecarl/pyterm#109 and Carl's decision that the wait to wrap is
     cursor state.
 
     **The cursor does move.** A checksum says where a character landed
@@ -287,7 +287,7 @@ def test_xterm_keeps_the_wait_to_wrap_through_a_tab():
 
     **xterm puts the "X" on the next row as well.** So the document was
     read wrong and the panel had xterm with it all along. That matters
-    for Lillecarl/pymux#107: ptterm already made this exact change once,
+    for Lillecarl/pyterm#109: ptterm already made this exact change once,
     in one place, and three more places still drop the wait.
     """
     drawn = what_xterm_draws(csi(escape.CUP, 1, 20) + "12345\tX", lines=8, columns=24)
@@ -350,7 +350,7 @@ def test_a_settled_difference_reads_the_way_xterm_reads_it(number, data, lines, 
 
 def test_where_xterm_leaves_the_cursor_on_the_newest_alternate_mode():
     """
-    Lillecarl/pymux#34, and entry 17 of `DEVIATIONS.md`.
+    Lillecarl/pyterm#36, and entry 17 of `DEVIATIONS.md`.
 
     ptterm sends the cursor home when a program takes the alternate
     screen with "?1049", so the "X" lands at row 0, column 0. Alacritty,
@@ -374,7 +374,7 @@ def test_where_xterm_leaves_the_cursor_on_the_newest_alternate_mode():
 
 def test_where_xterm_draws_after_the_screen_goes_back_under_another_name():
     """
-    Lillecarl/pymux#35.
+    Lillecarl/pyterm#37.
 
     A program takes the alternate screen with "?1049", draws to the end
     of the row, and gives the screen back with "?47". The hunt found
@@ -394,7 +394,7 @@ def test_where_xterm_draws_after_the_screen_goes_back_under_another_name():
     the cursor waiting to wrap, and giving the screen back does not
     clear that wait. So the "0" wraps.
 
-    The same flag as entry 9 and entry 22. Lillecarl/pymux#107 holds
+    The same flag as entry 9 and entry 22. Lillecarl/pyterm#109 holds
     the three together, and Carl decided them together.
     """
     program = (
@@ -413,7 +413,7 @@ def test_where_xterm_draws_after_the_screen_goes_back_under_another_name():
 
     # "CSI D" clears the wait and moves left. **xterm and the panel
     # disagree about how far**, and this is not the question
-    # Lillecarl/pymux#106 settled: xterm folds the waiting cursor back
+    # Lillecarl/pyterm#108 settled: xterm folds the waiting cursor back
     # onto the last column first and then moves, which is two columns
     # from where the wait sat; all six judges move one. ptterm is with
     # the six, so it draws the "0" at column 23 where xterm draws it at
@@ -478,7 +478,7 @@ def test_xterm_holds_g2_and_a_locking_shift():
 
     kitty, WezTerm and Alacritty draw the plain letter here, which is
     what having no G2 looks like. So the panel cannot settle
-    Lillecarl/pymux#373 and xterm is what ptterm follows.
+    Lillecarl/pyterm#375 and xterm is what ptterm follows.
     """
     drawn, ours = both("\x1b*0\x1bnl", lines=1, columns=4)
     assert drawn == ours

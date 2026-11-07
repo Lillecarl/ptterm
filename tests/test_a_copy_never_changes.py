@@ -5,7 +5,7 @@ Copy mode reads a copy of the buffer while the program runs on, and the
 copy shares the rows of the history with the screen: copying fifty
 thousand rows for every person who opens copy mode would cost what a
 key press may not. That is right only while the program never writes a
-row of the history in place. Lillecarl/pymux#470.
+row of the history in place. Lillecarl/pyterm#472.
 
 So each case here opens copy mode over a history, does one thing a
 program or a person can do to the screen, and says the copy holds the

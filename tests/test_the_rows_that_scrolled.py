@@ -11,7 +11,7 @@ a slow one.** So, like `test_the_rows_that_changed.py`, this runs two
 controls side by side over what real programs wrote: one rotates what
 it drew, and one is emptied before every frame so that it builds
 everything. Every row of every frame has to match.
-Lillecarl/pymux#516.
+Lillecarl/pyterm#518.
 """
 
 from __future__ import annotations

@@ -388,7 +388,7 @@ that stands.
 **The three that stand apart all draw it in the same place**, at row 1
 column 0, and **xterm draws it there too**. That made it four against
 three with ptterm on the smaller side, and Carl decided it:
-Lillecarl/pymux#107 says the three places where ptterm dropped the wait
+Lillecarl/pyterm#109 says the three places where ptterm dropped the wait
 to wrap are one flag, and ptterm carries it through all three now. So
 the sides above are ptterm's own side and the three that still move the
 cursor back.
@@ -647,7 +647,7 @@ answered that the mode was set, and the suite wanted no answer at all.
 A pane has its own version of that resource, `allow-program-resize`,
 and ptterm could not see it: the screen held `resize_func` and learned
 nothing about what the embedder would allow. It holds `may_resize`
-beside it now (Lillecarl/pymux#31), read at the time of the ask and
+beside it now (Lillecarl/pyterm#33), read at the time of the ask and
 never cached, because a person can change the option while a pane runs.
 DECNCSM goes away when the answer is no, so the mode cannot be set and
 DECRQM reports it unknown.
@@ -675,7 +675,7 @@ from behind it.** `checks.ptterm-esctest` gives ptterm a pty of its own
 and answers the ask, so DECCOLM really changes the width there. RIS
 then left the page at 132 columns, which nothing could see while the
 width never moved. Fixed; `tests/test_page_width.py` holds it, and
-Lillecarl/pymux#42 says what it was.
+Lillecarl/pyterm#44 says what it was.
 
 **The mode starts off, and one esctest2 test assumes it starts on.**
 `DECSETTests.test_DECSET_DECNCSM` never sets mode 40. So DECCOLM does
@@ -712,7 +712,7 @@ the way out, so a program that uses the pair never has to know where
 the cursor stood in between. That argument does not cover a program
 that takes the screen and then reads the cursor, and the panel was four
 to two against with the documentation on the four's side.
-Lillecarl/pymux#34.
+Lillecarl/pyterm#36.
 
 `test_xterm_itself.py::test_where_xterm_leaves_the_cursor_on_the_newest_alternate_mode`
 holds xterm's answer: the "X" lands at row 1, column 2, where the
@@ -743,10 +743,10 @@ Four of xterm's are missing, and a pane has none of them:
 `ESC ( A` and `ESC ( >` reached `define_charset`, matched nothing and
 were dropped without a word: a program that took 9 at its word got
 ASCII and drew the wrong glyph. vttest read the answer back and said
-so, and the numbers came out (Lillecarl/pymux#112). The sets are
+so, and the numbers came out (Lillecarl/pyterm#114). The sets are
 written now -- the twelve national replacement sets of a VT320 and the
 DEC technical set -- so the numbers are back with them
-(Lillecarl/pymux#111). `test_the_charset_claims_follow_the_charsets_that_exist`
+(Lillecarl/pyterm#113). `test_the_charset_claims_follow_the_charsets_that_exist`
 is what ties the claim to the code, and it fails if either moves alone.
 
 One is there that xterm does not name: **4**, sixel. A pane draws sixel
@@ -786,7 +786,7 @@ the alternative.
 
 **A host that keeps a clipboard does not change this.** The query is
 dropped before `osc_func` sees it, so nothing an embedder does can
-answer one. Lillecarl/pymux#45 asked for such a host and is closed for
+answer one. Lillecarl/pyterm#47 asked for such a host and is closed for
 that reason.
 
 `ManipulateSelectionDataTests.test_ManipulateSelectionData_default` of
@@ -800,7 +800,7 @@ both, with the same `Timeout waiting to read`. It is decorated
 that decorator downgrades a failure to an expected one when the option
 is absent. ptterm's esctest host passes the option because it owns its
 pty and answers a resize; txterm's widget does not, so the same failure
-is excused there and counted here. Lillecarl/pymux#124.
+is excused there and counted here. Lillecarl/pyterm#126.
 
 **As a setting:** it could be. A person who wants a pane to read the
 clipboard could say so, the way `allow-program-resize` lets a program
@@ -880,8 +880,8 @@ A character in the last column leaves the cursor waiting to wrap.
 `save_cursor` in `pyte/screen.py` stored the column the cursor stands
 on, which is the same fold DSR reports, so the wait was not in the
 savepoint and nothing could bring it back. **It is in the savepoint
-now**, which is Lillecarl/pymux#88 and Carl's decision on
-Lillecarl/pymux#107.
+now**, which is Lillecarl/pyterm#90 and Carl's decision on
+Lillecarl/pyterm#109.
 
 | case | keeps the wait | loses it |
 | --- | --- | --- |
@@ -929,7 +929,7 @@ one whose name it does not report, so the panel is four.
 **Two against two, and the specification is on the other side.** This
 entry used to be two against one, which is the smallest tally the panel
 has ever run, and it moved when the judge for xterm.js learned to read
-a link (Lillecarl/pymux#92 and the section on xterm.js below).
+a link (Lillecarl/pyterm#94 and the section on xterm.js below).
 
 xterm.js is not simply on Alacritty's side. Wherever a program writes
 an id it keys on the id and the target the way kitty does: two openings
@@ -951,11 +951,11 @@ The specification of "OSC 8" is on that side: without an id, only cells
 that touch are one link. ptterm cannot take it as it stands. A cell
 carries the target and the id, and nothing that says which opening drew
 it, so two openings of one target are the same cell either way.
-Lillecarl/pymux#91 holds what changing that would take.
+Lillecarl/pyterm#93 holds what changing that would take.
 
 Two against two is a split, so nothing changes here. The tally is worth
 a second look now that it is even and the specification is on the side
-ptterm is not: Lillecarl/pymux#91 is the place for that decision.
+ptterm is not: Lillecarl/pyterm#93 is the place for that decision.
 `test_the_panel.py::test_two_judges_split_a_link_that_carries_no_id`
 holds the tally.
 
@@ -990,7 +990,7 @@ measuring where the cursor went in the same program, and `verdict()`
 called that a split when the seven judges were unanimous: a judge that
 differs for two reasons in one program cannot agree cell for cell with
 one that differs for one. Any question asked with a program that mixes
-`?1049h` and `?47l` reads the same way. Lillecarl/pymux#328.
+`?1049h` and `?47l` reads the same way. Lillecarl/pyterm#330.
 
 **As a setting:** no, and for the reason number 2 gives. A pane holds
 one screen and every attached client draws its cells, so the content of
@@ -1004,7 +1004,7 @@ a screen cannot answer one way for one client and another for another.
 A national replacement set is ASCII with a handful of positions
 replaced by the letters one country needs. A pane has the twelve a
 VT320 had and the DEC technical set with them, and it applies one as
-soon as a program selects it. Lillecarl/pymux#111.
+soon as a program selects it. Lillecarl/pyterm#113.
 
 **Two separate votes, and they do not say the same thing.**
 
@@ -1033,7 +1033,7 @@ to disagree with.
 - **kitty cannot reach Portuguese.** It reads `ESC ( %` as a one byte
   name, so `\x1b(%6` selects nothing and the `6` is drawn as a letter:
   `6[\]{|}` where a pane draws `ÃÇÕãçõ`. A pane had the same bug until
-  Lillecarl/pymux#111 read the intermediate.
+  Lillecarl/pyterm#113 read the intermediate.
 - **xterm.js approximates two positions of Dutch**, `i` for U+0133
   LATIN SMALL LIGATURE IJ and `f` for U+0192 LATIN SMALL LETTER F WITH
   HOOK. Those are xterm's `UNI` entries: the positions that need a
@@ -1063,7 +1063,7 @@ pick between them: SI and SO. A VT220 has four. `ESC *` and `ESC +`
 designate G2 and G3, a locking shift (`ESC n`, `ESC o`) moves one of
 them into the letters, and a single shift (`ESC N`, `ESC O`) lends one
 for the next character alone. A pane has all of it.
-Lillecarl/pymux#373.
+Lillecarl/pyterm#375.
 
 **The panel cannot settle this, because most of it is a capability and
 not an opinion.** Measured:
@@ -1090,7 +1090,7 @@ the only thing that spends one.
 **GR is not here.** `LS1R`, `LS2R` and `LS3R` move a slot into the
 right half of an eight bit world, and a pane reads UTF-8, so there is
 no right half for them to move anything into. Nothing claims them, so
-nothing is untrue; Lillecarl/pymux#373 holds the question of whether
+nothing is untrue; Lillecarl/pyterm#375 holds the question of whether
 they are worth keeping as state a pane never acts on.
 
 **As a setting:** no. Which slot a program shifted to is state the
@@ -1103,7 +1103,7 @@ program set, not a preference.
 U+FE0F asks for the emoji presentation of the character before it.
 `✳`, `⚠`, `❤` and `⏺` default to text presentation, one column wide,
 and a pane keeps them one column wide with the selector after them.
-Lillecarl/pymux#539.
+Lillecarl/pyterm#541.
 
 | probe | one column | two columns |
 | --- | --- | --- |
@@ -1124,11 +1124,11 @@ reading, not Unicode's.
 `✳️` to the client's terminal and asks where the cursor went. A
 terminal that widened it is sent the character without the selector
 (`pyte.cells.without_widening_selectors`), so it draws the one column
-the pane holds instead of drawing over the next cell. Lillecarl/pymux#539.
+the pane holds instead of drawing over the next cell. Lillecarl/pyterm#541.
 
 **As a setting:** not yet. Mode 2027 is the protocol for a program to
 ask for the wide reading, and a pane does not have it.
-Lillecarl/pymux#709.
+Lillecarl/pyterm#711.
 
 ## What vttest tests and no judge implements
 
@@ -1161,7 +1161,7 @@ in VT52 mode does not parse.
 nothing.** No modern terminal implements VT52 and no program asks for
 it. vttest item 7 is named in `drive_with_vttest.py` as an item that is
 not entered, so no picture of it is taken and no garbage is written
-down as a difference. Lillecarl/pymux#113.
+down as a difference. Lillecarl/pyterm#115.
 
 **DA1 still names a VT500.** "CSI c" answers `65;...`, which is a VT500
 level, and a program that reads it and then asks for VT52 with
@@ -1223,7 +1223,7 @@ judge misses.
 difference in front of it abstains, and `abstained()` names those. It
 used to count as a judge that agrees with ptterm, which turned a
 question that every judge who could see it answered the same way into a
-"split". Lillecarl/pymux#89 holds what that cost.
+"split". Lillecarl/pyterm#91 holds what that cost.
 
 **Read the judge before you trust a tally.** The reader in
 `tests/judges/src/main.rs` took the character of an Alacritty cell and
@@ -1334,10 +1334,10 @@ them is an entry above. None is an unfixed fault.
 
 **The check paid for itself twice on the first run.** It answers a
 resize, which no pane can, so it reached two faults that a pane hid.
-RIS left the page at 132 columns (Lillecarl/pymux#42). And it claims
+RIS left the page at 132 columns (Lillecarl/pyterm#44). And it claims
 the window operations of xterm, so the suite ran the title tests it was
 skipping and found that xterm's four title modes were not there at all
-(Lillecarl/pymux#44). Both are fixed, and `test_page_width.py` and
+(Lillecarl/pyterm#46). Both are fixed, and `test_page_width.py` and
 `test_title_modes.py` hold them.
 
 ### In a pane: nine
@@ -1392,19 +1392,19 @@ now: `26state_query`, which is the only borrowed file that judges an
 answer rather than a screen, and `64screen_pen`, which was in that
 group by mistake and needs no reply at all.
 
-Lillecarl/pymux#73 was a bug in exactly that half, and nothing measured
+Lillecarl/pyterm#75 was a bug in exactly that half, and nothing measured
 it. `26state_query` measures it now.
 
 **ptterm does not hold it at all, and holding it is a decision.**
 
 | Assertions | What | Issue |
 | --- | --- | --- |
-| `30state_pen` 68, 70 | SGR 10 to 19, the alternate fonts | Lillecarl/pymux#60 |
-| `64screen_pen` 28 | the same alternate fonts, read off a cell | Lillecarl/pymux#60 |
+| `30state_pen` 68, 70 | SGR 10 to 19, the alternate fonts | Lillecarl/pyterm#62 |
+| `64screen_pen` 28 | the same alternate fonts, read off a cell | Lillecarl/pyterm#62 |
 
 SGR 73 to 75 used to be in that table, at `30state_pen` 118 to 122 and
 `64screen_pen` 41 and 42. ptterm holds the baseline now
-(Lillecarl/pymux#59), so those six assertions pass. The panel agreed
+(Lillecarl/pyterm#61), so those six assertions pass. The panel agreed
 first: libvterm and WezTerm both raise the glyph, and the four judges
 that hold no baseline abstain.
 
@@ -1417,7 +1417,7 @@ The ninth was S8C1T at line 63. ptterm answers it now: `Screen.reply`
 spells every C1 control the terminal writes, reading the mode, and the
 eight bit form goes out as
 the one byte it is and not the two that UTF-8 would make of it
-(Lillecarl/pymux#94).
+(Lillecarl/pyterm#96).
 
 | Line | What libvterm expects | What ptterm answers | Why |
 | --- | --- | --- | --- |
@@ -1454,7 +1454,7 @@ whole pane, blank cells included, and `create_content` puts a
 which is the xor libvterm asks for, and the cell keeps what the program
 put in it. The panel has no vote here: it judges cells, and this is a
 rendering choice. `test_the_widget.py` holds the questions
-(Lillecarl/pymux#95).
+(Lillecarl/pyterm#97).
 
 **The suite is describing a limit of libvterm, and the panel says so.**
 
@@ -1462,7 +1462,7 @@ rendering choice. `test_the_widget.py` holds the questions
 five combining marks and no more. `VTERM_MAX_CHARS_PER_CELL` is a fixed
 array in a C struct, and nobody else has one: kitty, Alacritty, WezTerm,
 xterm.js and Ghostty all keep every mark, and so does ptterm. Five to
-one. Ghostty read as one mark until Lillecarl/pymux#63, which was our
+one. Ghostty read as one mark until Lillecarl/pyterm#65, which was our
 reader and not Ghostty. `test_the_panel.py` holds that tally.
 
 **The suite runs libvterm without a scrollback, and ptterm always has
@@ -1489,9 +1489,9 @@ ptterm's answer.
 
 **The panel rules here now, and it is with ptterm.** A judge used to
 take bytes and one size, so a reflow had no vote to read. It takes a
-size to change to as well (Lillecarl/pymux#64), and the reader for
+size to change to as well (Lillecarl/pyterm#66), and the reader for
 libvterm turns reflow on and keeps a scrollback for it
-(Lillecarl/pymux#104). The answer to the "Shell wrapped prompt
+(Lillecarl/pyterm#106). The answer to the "Shell wrapped prompt
 behaviour" case of the same file:
 
 | judge | row 0 after the widening |
@@ -1535,7 +1535,7 @@ what libvterm's embedder chose to draw and not what the program wrote.
 ptterm keeps the bold and the colour apart so that the renderer can
 decide, and a terminal that draws bold plus colour seven as bright will
 still do so. Whether the server should carry enough to make that call
-per client is Lillecarl/pymux#53.
+per client is Lillecarl/pyterm#55.
 
 **The DEC line attributes become kitty's text sizing, and that is a
 decision.** "ESC # 3", "ESC # 4", "ESC # 5" and "ESC # 6" draw a line at
@@ -1548,7 +1548,7 @@ the attribute back, and `vterm-failures.txt` records what they cost.
 width and height by one factor, so OSC 66 has no form for a glyph
 twice as wide. The line becomes "w=2", and each glyph keeps its own
 size, two cells apart. A double height line maps exactly, to "s=2" on
-its top row. Lillecarl/pymux#890 holds the reading, and the decision
+its top row. Lillecarl/pyterm#892 holds the reading, and the decision
 was the user's.
 
 A double width line holds half its columns, as libvterm and xterm do.
@@ -1590,7 +1590,7 @@ only through a resize.
   vote, and Alacritty's reference tests are the only judge of it.
   `test_hyperlinks.py` covers it against the screen instead. Every
   emulator on the panel models a link, so the seat is fillable:
-  Lillecarl/pymux#76.
+  Lillecarl/pyterm#78.
 - Sixel and the graphics protocol of kitty. Both draw pixels, which
   asks for a comparison of images and not of cells.
 
@@ -1608,7 +1608,7 @@ only through a resize.
   `\x1b[?1049h\x1b[14G00000你你你\x1b[?47l0`. The verdict is a split.
   kitty, WezTerm, Ghostty and xterm.js agree with each other and differ
   from ptterm in two cells; Alacritty and libvterm differ in ten, for
-  the reason entry 2 gives. Lillecarl/pymux#35 holds it.
+  the reason entry 2 gives. Lillecarl/pyterm#37 holds it.
 
 Run it again to find more. Each one needs a decision about whether to
 follow kitty or xterm before it becomes a fix.

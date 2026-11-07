@@ -5,7 +5,7 @@ A pane draws an image cell as a space, because a terminal that does not
 know the character paints a box. One that does fits the image to its
 own cells, and that is the picture the program meant. So an embedder
 that names the id its terminal knows the image by gets the placeholder,
-in that id's colour. Lillecarl/pymux#600.
+in that id's colour. Lillecarl/pyterm#602.
 """
 
 from __future__ import annotations

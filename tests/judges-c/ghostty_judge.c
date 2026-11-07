@@ -272,7 +272,7 @@ static void write_cell(Buffer *out, const GhosttyGridRef *ref) {
      * GHOSTTY_OUT_OF_SPACE and writes the length it wants, and the
      * caller asks again with room. A judge that skipped the second ask
      * reported one codepoint for a cell of twenty one, and voted as
-     * though Ghostty dropped them. See Lillecarl/pymux#63. */
+     * though Ghostty dropped them. See Lillecarl/pyterm#65. */
     uint32_t small[16];
     uint32_t *cluster = small;
     size_t cluster_len = 0;
@@ -325,7 +325,7 @@ static void write_cell(Buffer *out, const GhosttyGridRef *ref) {
    * link id of its own; the library does not hand it out.
    *
    * That is why Ghostty votes on where a link goes and not on which
-   * cells are one link. See Lillecarl/pymux#92. */
+   * cells are one link. See Lillecarl/pyterm#94. */
   put(out, ",");
   bool has_link = false;
   ghostty_cell_get(cell, GHOSTTY_CELL_DATA_HAS_HYPERLINK, &has_link);
@@ -387,7 +387,7 @@ static void answer(const char *line, Buffer *out) {
 
   /* A new size to take after the data. The screen that comes back is
    * that size, and what its rows hold is what Ghostty's reflow made of
-   * them. See Lillecarl/pymux#64. */
+   * them. See Lillecarl/pyterm#66. */
   long new_rows = 0;
   long new_columns = 0;
   if (read_pair_field(line, "resize", &new_rows, &new_columns) &&

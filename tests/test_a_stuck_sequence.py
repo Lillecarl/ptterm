@@ -4,7 +4,7 @@ A sequence that never finishes must not wedge a pane.
 A program can write a partial escape and then stop. The parser then
 reads every later byte as part of that sequence, and the pane shows
 the wrong screen for ever. `GroundTimer` bounds that. The rule is
-pyte's; this checks the pane gives itself one. Lillecarl/pymux#390.
+pyte's; this checks the pane gives itself one. Lillecarl/pyterm#392.
 
 **The tests that time it fork.** A stalled loop is only a stall when a
 real program keeps writing behind it.
@@ -80,7 +80,7 @@ async def test_a_dangling_sequence_does_not_swallow_the_next_output(caplog):
 
     assert row_text(made, 0) == "ab"
     # The drop is silent on the screen, so the log names it.
-    # Lillecarl/pymux#935.
+    # Lillecarl/pyterm#937.
     (record,) = caplog.records
     assert "'\\x1b[1;'" in record.getMessage()
 
@@ -90,7 +90,7 @@ async def test_a_sequence_survives_a_loop_that_stood_still():
     The program wrote the rest of its sequence while the loop stood
     still, so the pane read it late. The program was never silent, and
     the sequence stands. On a live pane an 18s stall dropped `ESC[?20`
-    and drew `26l` as text. Lillecarl/pymux#938.
+    and drew `26l` as text. Lillecarl/pyterm#940.
     """
     async with running("printf 'a\\033[?20'; sleep 0.3; printf '26lb'; sleep 30") as made:
         await until(lambda: made.stream.ground_timer_active)

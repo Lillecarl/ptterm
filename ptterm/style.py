@@ -8,7 +8,7 @@ answer, and this file is prompt_toolkit's.
 
 A second front end has a second answer. Textual draws through Rich, so
 it builds a `rich.style.Style` from the same object and reads no word
-written here (Lillecarl/pymux#82). Nothing in this file is shared with
+written here (Lillecarl/pyterm#84). Nothing in this file is shared with
 it, which is the reason it is a file of its own.
 
 The two halves of a cell are here: `style_of` for what it looks like,
@@ -100,7 +100,7 @@ def style_word(color: SgrColor, palette: ProgramPalette | None = None) -> str:
     prompt_toolkit reads "#ansi256" as a style class it cannot find.
 
     `palette` holds the entries a program set, for a pane that draws
-    with them (`allow-program-palette`). Lillecarl/pymux#16.
+    with them (`allow-program-palette`). Lillecarl/pyterm#18.
     """
     if color.rgb is not None:
         return "#%02x%02x%02x" % color.rgb
@@ -147,7 +147,7 @@ def _spelled(appearance: Appearance, palette: ProgramPalette | None = None) -> s
     # what a cell with no colour draws. Spelled, it would beat the pane's
     # background: pymux paints that with its theme, and every cell after
     # an "SGR 49" showed the terminal's colour in the middle of the theme's.
-    # Lillecarl/pymux#582.
+    # Lillecarl/pyterm#584.
     if rendition.color and rendition.color != DEFAULT_COLOR:
         style += "%s " % style_word(rendition.color, palette)
     if rendition.bgcolor and rendition.bgcolor != DEFAULT_COLOR:
@@ -284,7 +284,7 @@ def _drawn_as(
 #: lookup in C and runs no bytecode at all. Without it every cell paid
 #: three Python calls and two string concatenations: `fragment`,
 #: `visible_char` and `style_of`, which together were a quarter of a
-#: frame of moving output at 400x150. Lillecarl/pymux#434.
+#: frame of moving output at 400x150. Lillecarl/pyterm#436.
 #:
 #: The size is a whole wide screen and then some. 400x150 is sixty
 #: thousand cells, so a cache this big answers every cell of one
@@ -305,7 +305,7 @@ def _reversed(style: str, reverse_video: bool) -> bool:
 def extra_cursor_style(shape: ExtraShape, extra: ExtraCursors, style: str, reverse_video: bool) -> str:
     """
     What a cell under one of kitty's extra cursors adds to its style.
-    Lillecarl/pymux#891.
+    Lillecarl/pyterm#893.
 
     A cell cannot draw a beam, so a beam draws as a block. A cursor with
     no colour of its own, or the special one, reverses the cell, which
@@ -372,7 +372,7 @@ def placeholder_cells(row, columns: int, number: int, outer_id: Callable[[int], 
     `outer_id` gives the id that terminal knows the image by. It has to
     fit the 24 bits of a colour. Every cell names its row and column,
     because the cell that a mark was left out after may be scrolled
-    away. Lillecarl/pymux#600.
+    away. Lillecarl/pyterm#602.
     """
     cells: dict[int, tuple[str, str]] = {}
     for run in runs_in_line(row, columns, number):

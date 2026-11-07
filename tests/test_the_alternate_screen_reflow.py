@@ -1,5 +1,5 @@
 """
-What a resize does to the alternate screen. Lillecarl/pymux#192.
+What a resize does to the alternate screen. Lillecarl/pyterm#194.
 
 pyte used to reflow the alternate screen the way it reflows any other,
 and a reflow can leave it holding more rows than it can show. The pane

@@ -15,7 +15,7 @@
   # The python every suite runs on: a virtualenv of ptterm, what ptterm
   # declares, and its `test` extra. `default.nix` builds it from
   # `pyproject.toml`, so what a suite may import is what the package
-  # declares and there is no second list here. Lillecarl/pymux#319.
+  # declares and there is no second list here. Lillecarl/pyterm#321.
   testEnv,
   # `testEnv` with pyte's Rust row and kernels, for `rs-unit`.
   rsTestEnv,
@@ -170,14 +170,14 @@ let
   # `set -e` and `pipefail` both, so `sed ... | head -1` over a report with
   # two matching lines ends 141: `head` leaves, `sed` writes again and takes
   # SIGPIPE, and the whole suite goes red for reading its own output. awk
-  # stops itself instead. Lillecarl/pymux#464.
+  # stops itself instead. Lillecarl/pyterm#466.
   #
   # pytest's own exit code needs no variable either: a failing run ends the
   # script where it failed, which is what makes the count below mean
   # something -- it is only ever read after a green run.
   #
   # Four xdist workers, after one collection that writes the rewritten
-  # test modules to __pycache__. Lillecarl/pymux#579.
+  # test modules to __pycache__. Lillecarl/pyterm#581.
   runUnitPytest = ''
     cores="''${NIX_BUILD_CORES:-0}"
     if [ "$cores" = 0 ] || [ "$cores" -gt 4 ]; then cores=4; fi
@@ -211,7 +211,7 @@ in
   # runs, since it installs them. `tests/conftest.py` installs them before
   # any test makes a page, as pyte's own `pyte-rs-unit` does. Copy mode
   # copies rows through their own type, and this is where both kinds of
-  # row meet the same test. Lillecarl/pymux#470.
+  # row meet the same test. Lillecarl/pyterm#472.
   rs-unit = suite {
     name = "ptterm-rs-unit";
     inputs = [ rsTestEnv ];
@@ -300,7 +300,7 @@ in
   # back and judges it. vttest draws a screen and asks a person whether what
   # they see is right, so what this leaves behind is a text file of every
   # screen it drew, with the menu path that reached it. A person reads that.
-  # Lillecarl/pymux#46 says why the recorded list comes first.
+  # Lillecarl/pyterm#48 says why the recorded list comes first.
   #
   # What the verdict here does judge is the walk: a run that drew nothing,
   # or an exclusion in `NOT_OURS` that names no menu item.

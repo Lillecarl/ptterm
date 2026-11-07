@@ -6,7 +6,7 @@ Opening copy mode used to style every row of the buffer: a list of
 screenful, so all but a screenful of that work was for rows nobody
 looked at. At fifty thousand rows it cost 22,924,756 bytecode
 instructions, and a person pressed a key and waited for it.
-Lillecarl/pymux#131.
+Lillecarl/pyterm#133.
 
 **A line that is styled late and a line that was styled early have to
 be the same line.** So this file does not check the rule. It builds
@@ -18,7 +18,7 @@ string and prompt_toolkit counts lines in it, so there is nothing to be
 lazy about there.
 
 **A line of the document is a line a program wrote**, not a row of the
-pane. The window wraps it again for the eye. Lillecarl/pymux#135.
+pane. The window wraps it again for the eye. Lillecarl/pyterm#137.
 """
 
 from __future__ import annotations
@@ -70,7 +70,7 @@ def every_line_the_eager_way(terminal):
     **It walks the rows itself** rather than asking `Page.unwrap`, so
     that it judges the answer and does not repeat it. A run of rows
     that a wrap made is one line, because that is one line a program
-    wrote. Lillecarl/pymux#135. The spaces at the end of a line are
+    wrote. Lillecarl/pyterm#137. The spaces at the end of a line are
     not in it, as tmux's `grid_line_length` leaves them out.
     """
     buffer = terminal.terminal_control.screen.page.data_buffer
@@ -161,7 +161,7 @@ def test_copy_mode_on_the_alternate_screen_shows_the_screen():
     It offered a hundred rows more: the alternate screen kept its rows
     to `history-limit`, which is the depth a person chose for the
     scrollback of their shell, and pruned once every hundred lines.
-    Lillecarl/pymux#132.
+    Lillecarl/pyterm#134.
     """
     terminal = a_terminal(
         set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR) + "".join("row %d\r\n" % number for number in range(60))
@@ -181,7 +181,7 @@ def test_copy_mode_and_the_pane_agree_after_a_narrowing():
     It used to reflow. Five rows that each filled a wide screen wrapped
     into ten on a narrow one; the pane drew the last six of them and
     copy mode read all ten, so the first row of the pane and the first
-    row of copy mode were different lines. Lillecarl/pymux#192.
+    row of copy mode were different lines. Lillecarl/pyterm#194.
     """
     wide = COLUMNS + 12
     terminal = Terminal(backend=NoBackend())
@@ -208,7 +208,7 @@ def test_copy_mode_and_the_pane_agree_after_a_narrowing():
 
 
 # ----------------------------------------------------------------------
-# Where copy mode opens. Lillecarl/pymux#189.
+# Where copy mode opens. Lillecarl/pyterm#191.
 
 
 def _cursor(view):
@@ -283,7 +283,7 @@ async def press(terminal, *keys, vi=False):
     The keys go through the key processor of a real application, which
     is what decides which binding a key reaches. A test that called the
     handler itself would pass with no binding at all, and that is the
-    fault these keys had. Lillecarl/pymux#133.
+    fault these keys had. Lillecarl/pyterm#135.
 
     `vi` is the `mode-keys` option of tmux, which pymux spells as the
     editing mode of the application. A read-only buffer holds the vi
@@ -344,7 +344,7 @@ async def test_v_swaps_what_a_selection_selects():
 
 
 # ----------------------------------------------------------------------
-# Copying. Lillecarl/pymux#376.
+# Copying. Lillecarl/pyterm#378.
 
 
 def _to_the_start_of_the_line(vi):
@@ -357,7 +357,7 @@ def _begin_selection(vi):
     The key that starts a selection in each table.
 
     tmux binds `Space` with vi keys and `C-Space` with emacs keys,
-    where `Space` is the page under this one. Lillecarl/pymux#379.
+    where `Space` is the page under this one. Lillecarl/pyterm#381.
     """
     return " " if vi else Keys.ControlSpace
 
@@ -453,7 +453,7 @@ async def test_the_two_copy_keys_of_emacs(keys):
 
 
 # ----------------------------------------------------------------------
-# Space. Lillecarl/pymux#379.
+# Space. Lillecarl/pyterm#381.
 
 
 def _render(terminal, rows=LINES):
@@ -518,7 +518,7 @@ async def test_v_is_vis_own_key_with_vi_keys():
 
 
 # ----------------------------------------------------------------------
-# Where the caret may stand. Lillecarl/pymux#377.
+# Where the caret may stand. Lillecarl/pyterm#379.
 
 
 async def test_the_caret_does_not_stand_on_the_line_break():
@@ -566,7 +566,7 @@ async def test_copy_mode_opens_where_the_pane_is_with_vi_keys():
     """
     The caret opens past the last character of a shell prompt, which is
     where the next character goes. Only a move of the caret is clamped.
-    Lillecarl/pymux#189.
+    Lillecarl/pyterm#191.
     """
     terminal = a_terminal("one\r\ntwo\r\nthree")
     app = await press(terminal, vi=True)
@@ -597,7 +597,7 @@ async def test_leaving_copy_mode_forgets_what_was_styled():
 
 
 # ----------------------------------------------------------------------
-# The wheel. Lillecarl/pymux#422.
+# The wheel. Lillecarl/pyterm#424.
 
 
 def a_wheel(control, kind):
@@ -656,7 +656,7 @@ def test_the_embedder_says_how_far_the_wheel_moves():
 
 
 # ----------------------------------------------------------------------
-# What a copy holds, and what it only draws. Lillecarl/pymux#449.
+# What a copy holds, and what it only draws. Lillecarl/pyterm#451.
 
 
 def test_a_placeholder_cell_draws_a_blank_and_copies_itself():
@@ -718,7 +718,7 @@ def test_a_control_character_is_copied_as_it_stands():
 
 
 # ----------------------------------------------------------------------
-# A copy mode for each application. Lillecarl/pymux#470.
+# A copy mode for each application. Lillecarl/pyterm#472.
 
 
 def _an_application(terminal):

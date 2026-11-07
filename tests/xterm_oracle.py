@@ -26,7 +26,7 @@ underline, no link. That is why xterm has no seat on the panel:
 `verdict()` drops what any judge on it misses, and a judge that misses
 everything would blind the whole panel. `panel.what_xterm_draws` asks
 xterm on its own, where the panel has nothing to say.
-Lillecarl/pymux#10.
+Lillecarl/pyterm#12.
 
 **One xterm answers every probe.** Starting one is what costs: about
 four tenths of a second, once. So the process stays up and "ESC c"

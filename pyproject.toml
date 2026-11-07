@@ -1,7 +1,7 @@
 # What ptterm is and what it needs. `setup.py` used to say this, and a build
 # read it by running it. Nix reads this file instead, at evaluation time, so
 # the dependency list here is the one the package is built from and there is
-# no second copy in a `.nix` file to fall out of step. Lillecarl/pymux#319.
+# no second copy in a `.nix` file to fall out of step. Lillecarl/pyterm#321.
 [project]
 name = "ptterm"
 version = "0.1"
@@ -16,13 +16,13 @@ dependencies = [
     "prompt_toolkit>=3.0.52,<3.1.0",
     # The screen, the parser and everything under them. That was in this
     # repository, and it left because `txterm` needs it and must not take
-    # prompt_toolkit on behind it. Lillecarl/pymux#11.
+    # prompt_toolkit on behind it. Lillecarl/pyterm#13.
     "pyte>=0.5.1",
     # The layer that runs a program on a pty. It used to be
     # `ptterm.process` and `ptterm.backends`, and it left for the same
-    # reason. Lillecarl/pymux#85.
+    # reason. Lillecarl/pyterm#87.
     "ptyhost",
-    # Helix's keys, for copy mode. Lillecarl/pymux#749.
+    # Helix's keys, for copy mode. Lillecarl/pyterm#751.
     "ptkhx",
 ]
 
@@ -52,7 +52,7 @@ Homepage = "https://github.com/Lillecarl/ptterm"
 Documentation = "https://lillecarl.github.io/ptterm/"
 # Work happens in the monorepo this repository is exported from.
 Source = "https://github.com/Lillecarl/pyterm"
-Issues = "https://github.com/Lillecarl/pymux/issues"
+Issues = "https://github.com/Lillecarl/pyterm/issues"
 
 [build-system]
 requires = ["hatchling"]

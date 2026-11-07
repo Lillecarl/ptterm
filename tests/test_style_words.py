@@ -4,7 +4,7 @@ How prompt_toolkit spells a colour.
 A screen holds a colour as a number, and `ptterm/style.py` turns that
 number into the word a prompt_toolkit renderer reads. It is the whole
 of what a front end adds to a colour, so a second front end replaces
-this file and nothing else (Lillecarl/pymux#82).
+this file and nothing else (Lillecarl/pyterm#84).
 
 `test_indexed_colors.py` and `test_colon_colors.py` judge the same
 words through a whole screen. This file judges the spelling alone, so
@@ -60,7 +60,7 @@ def test_a_cell_after_sgr_49_draws_like_a_cell_with_no_colour():
     The word is not written for a cell. The pane's own style is what
     draws a cell with no colour -- pymux paints it with the theme, and
     DECSCNM reverses it -- and the terminal's colour asked for by name is
-    that same colour. Lillecarl/pymux#582.
+    that same colour. Lillecarl/pyterm#584.
     """
     from pyte.cells import PLAIN, appearance_of
 

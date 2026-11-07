@@ -3,14 +3,14 @@ Which module may import what.
 
 **ptterm is one layer now: the prompt_toolkit front end.** Everything
 under it belongs to another package, and getting there is the whole of
-Lillecarl/pymux#11:
+Lillecarl/pyterm#13:
 
 - `pyte` parses and holds the screen. That was `ptterm.screen` and
   eleven modules beside it, and it left so that a second front end can
   use it without taking prompt_toolkit on behind it.
 - `ptyhost` runs the program on a pty. That was `ptterm.process` and
-  `ptterm.backends`, and it left for the same reason (#85).
-- `txterm` is this layer again, for Textual (#82). It has a copy of this
+  `ptterm.backends`, and it left for the same reason (#87).
+- `txterm` is this layer again, for Textual (#84). It has a copy of this
   file, and neither package may reach the other.
 
 **This file is the boundary, and grep is not.** A single
@@ -43,13 +43,13 @@ PACKAGE = Path(ptterm.__file__).parent
 #: `pyte.environment` is the seventh and is not pure: it says what a
 #: program run on this screen sees. A widget owns both a screen and a
 #: `Process`, so a widget is the only layer that can say it.
-#: Lillecarl/pymux#125.
+#: Lillecarl/pyterm#127.
 FROM_PYTE = {
     "pyte.cells",
     "pyte.colors",
     "pyte.environment",
     "pyte.extra_cursors",
-    # A mirrored pane takes the frames of the page it copies. Lillecarl/pymux#759.
+    # A mirrored pane takes the frames of the page it copies. Lillecarl/pyterm#761.
     "pyte.grid",
     "pyte.images",
     "pyte.keep",
@@ -160,7 +160,7 @@ def test_only_the_widget_runs_a_program():
     `ptyhost` is the package that starts a program on a pty, and only
     the widget reaches for it: `program.py` makes the pty, `control.py`
     hands the bytes the program wrote to a screen, and `terminal.py`
-    starts the program. Lillecarl/pymux#85.
+    starts the program. Lillecarl/pyterm#87.
     """
     reaching = sorted(name for name in MODULES if any(_root(module) == "ptyhost" for module in _imports(MODULES[name])))
     assert reaching == ["control", "program", "terminal"]

@@ -1,7 +1,7 @@
 """
 kitty's drag and drop protocol (OSC 72): the metadata pyte reads, against
 kitty's own `parse_dnd_code` fed the same packet. kitty reports the
-packet it read, or an error and nothing. Lillecarl/pymux#892.
+packet it read, or an error and nothing. Lillecarl/pyterm#894.
 """
 
 from __future__ import annotations

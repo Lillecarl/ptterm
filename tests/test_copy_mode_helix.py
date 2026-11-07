@@ -1,6 +1,6 @@
 """
 Copy mode with Helix's keys, which an embedder asks for with
-`helix_keys`. Lillecarl/pymux#749.
+`helix_keys`. Lillecarl/pyterm#751.
 
 The copy is read-only, so Helix's moves, selections and search work and
 every key that edits is refused. tmux's keys sit over Helix's: `y` and
@@ -123,7 +123,7 @@ async def test_a_key_that_waits_for_another_takes_q():
 
 
 async def test_the_copy_can_be_edited_before_it_is_copied():
-    "Lillecarl/pymux#751: delete what is not wanted, then copy the rest."
+    "Lillecarl/pyterm#753: delete what is not wanted, then copy the rest."
     terminal, copied = a_terminal("$ hello world")
     app = press(terminal, "g", "h", "w", "d")
     assert terminal.copy_views.of(app).buffer.text == "hello world"

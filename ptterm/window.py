@@ -36,7 +36,7 @@ class TerminalWindow(Window):
     def __init__(self, terminal_control: TerminalControl, **kw) -> None:
         self.terminal_control = terminal_control
         # pymux puts this one window in the layout of every client, so
-        # `render_info` is whichever drew last. Lillecarl/pymux#713.
+        # `render_info` is whichever drew last. Lillecarl/pyterm#715.
         self.drawn_at: PerApplication[_DrawnAt] = PerApplication()
         kw.setdefault("style", self._pane_style)
         # A pane owns every cell of its rectangle: a program left the
@@ -60,7 +60,7 @@ class TerminalWindow(Window):
         reaches every cell of the pane.
 
         `create_content` takes the reverse off a cell that already
-        carries one, which is the other half. Lillecarl/pymux#95.
+        carries one, which is the other half. Lillecarl/pyterm#97.
         """
         screen = self.terminal_control.screen
         if screen is not None and screen.has_reverse_video:
@@ -85,7 +85,7 @@ class TerminalWindow(Window):
         content holds and clamps one below them to the last: on a screen
         with text on its first two rows, every click came to the cursor's
         row, at the first column. A terminal reports cells, so the cell
-        is the answer. Lillecarl/pymux#654.
+        is the answer. Lillecarl/pyterm#656.
         """
         super()._write_to_screen_at_index(screen, mouse_handlers, write_position, parent_style, erase_bg)
         if write_position.width > 0 and write_position.height > 0 and self.render_info is not None:
@@ -106,7 +106,7 @@ class _PaneHandler:
     """
     The mouse handler of a pane: an event goes to the control at its
     cell. An embedder that sees the pointer move off the pane calls
-    `pointer_left`. Lillecarl/pymux#899.
+    `pointer_left`. Lillecarl/pyterm#901.
     """
 
     __slots__ = ("control", "left", "pointer_left", "top")

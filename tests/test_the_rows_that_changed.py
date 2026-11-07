@@ -4,7 +4,7 @@ The widget builds a row again only when the screen wrote it.
 `TerminalControl` keeps what it drew for each row and the write count
 of the screen that it drew it at. A row whose count has not moved is a
 row it hands back as it stands, so a frame after a program wrote one
-line builds one line and not the whole screen. Lillecarl/pymux#126.
+line builds one line and not the whole screen. Lillecarl/pyterm#128.
 
 **A row that is kept and should not have been is a wrong screen, not a
 slow one.** So this file does not check the rule. It runs two controls

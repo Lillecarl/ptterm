@@ -4,7 +4,7 @@ Every mouse report in cells, against kitty's own encoder.
 kitty exposes `encode_mouse_event_impl` as `test_encode_mouse`, so a
 report here is compared byte for byte with what kitty writes for the
 same button, action, modifiers and protocol. Pixels are not: that entry
-takes cells only. Lillecarl/pymux#900.
+takes cells only. Lillecarl/pyterm#902.
 """
 
 from __future__ import annotations
@@ -87,7 +87,7 @@ def test_a_report_is_kittys(mode, action, button, modifiers):
 
 
 #: The modes that both kitty and pyte answer DECRQM for. kitty answers 0
-#: for 1015, which it acts on. Lillecarl/pymux#901.
+#: for 1015, which it acts on. Lillecarl/pyterm#903.
 ASKED = (1000, 1002, 1003, 1006, 1016)
 
 MODE_SEQUENCES = [

@@ -12,7 +12,7 @@ The pane held none of it. A person scrolled a codex pane and got the
 current screen, where plain kitty had the whole session. pyte dropped
 the rows that left a region, whatever the region was, and every
 terminal with a scrollback keeps the ones that leave a region starting
-at the first row. Lillecarl/pymux#423.
+at the first row. Lillecarl/pyterm#425.
 
 This is the end of that story: the rows are history, and copy mode is
 where a person reads them.

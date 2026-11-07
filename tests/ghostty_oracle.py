@@ -15,7 +15,7 @@ Nothing hands over the name that Ghostty gives that one link, so
 
 Naming a link after its target would not fix that. It would decide, for
 Ghostty, that two openings of one address are one link, and that is the
-question the panel is being asked. See Lillecarl/pymux#92.
+question the panel is being asked. See Lillecarl/pyterm#94.
 
 A judge that cannot hold something has to say so. One that answers
 anyway is worse than one that abstains, because the panel counts its

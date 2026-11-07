@@ -16,7 +16,7 @@ The panel splits five to two. `test_wait_to_wrap_panel.py` met it while
 measuring something else, and it is the reason `verdict()` read a
 unanimous cursor reading as a split: a judge that differs for two
 reasons in one program cannot agree cell for cell with one that differs
-for one. Lillecarl/pymux#328.
+for one. Lillecarl/pyterm#330.
 
 **xterm is what this file adds.** It holds a character rather than a
 whole cell, so it does not vote in the panel, and `what_xterm_draws`
@@ -68,7 +68,7 @@ def test_ptterm_gives_back_the_original_row():
 @pytest.mark.skipif(not xterm_is_here(), reason="xterm has no display here")
 def test_xterm_gives_back_the_original_row():
     """
-    The measurement Lillecarl/pymux#328 named as missing.
+    The measurement Lillecarl/pyterm#330 named as missing.
 
     xterm is where `?47` and `?1049` both come from, so what it does
     with the two mixed is the closest thing to a rule there is.

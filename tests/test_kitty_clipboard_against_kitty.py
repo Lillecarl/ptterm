@@ -2,7 +2,7 @@
 kitty's clipboard protocol (OSC 5522): the writes pyte assembles and
 the answers it gives, against kitty's own `ClipboardRequestManager`
 fed the same packets. kitty's shipped settings allow a write, so the
-embedder here allows every one. Lillecarl/pymux#893.
+embedder here allows every one. Lillecarl/pyterm#895.
 """
 
 from __future__ import annotations

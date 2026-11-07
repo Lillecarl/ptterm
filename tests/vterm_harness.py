@@ -260,7 +260,7 @@ class Harness:
             return self._colour(attrs.bgcolor, self.default_background, "bg")
         # A font of its own is one thing ptterm does not hold. It says
         # so by answering the value of a terminal that has none.
-        # Lillecarl/pymux#60.
+        # Lillecarl/pyterm#62.
         if argument == "font":
             return "0"
         # A raised or a lowered glyph is a small one, so libvterm's two
@@ -279,7 +279,7 @@ class Harness:
         libvterm prints "dwl" and "dhl" here for a line that a DEC line
         attribute made bigger. This screen turns such a line into text
         at another size and holds no attribute on it, so it never says
-        either of them (Lillecarl/pymux#890), and `vterm-failures.txt`
+        either of them (Lillecarl/pyterm#892), and `vterm-failures.txt`
         records the assertions that costs.
 
         A row says whether a wrap brought it into being, which is
@@ -331,7 +331,7 @@ class Harness:
         # A raised or a lowered glyph is a small one, so libvterm
         # prints "S" and then the direction. `t/harness.c` line 1182
         # holds the order, and no font goes before it: SGR 10 to 19 do
-        # nothing here yet (Lillecarl/pymux#60).
+        # nothing here yet (Lillecarl/pyterm#62).
         baseline = _baseline_of_style(style)
         if baseline:
             attributes += "S" + baseline
@@ -339,7 +339,7 @@ class Harness:
         # libvterm prints the DEC line attributes of the line the cell
         # is on between the attributes and the colours. This screen
         # holds no attribute on a line, so there is nothing to print.
-        # Lillecarl/pymux#890.
+        # Lillecarl/pyterm#892.
         size = ""
 
         foreground = self._rgb(_color_of_style(style, ""), self.default_foreground)

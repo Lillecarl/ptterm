@@ -31,7 +31,7 @@ A request may carry one more field:
 and the screen that comes back is the size `resize` names. What the
 rows hold is what the reflow of that emulator made of them, which is
 the whole point: a reflow is where terminals disagree most, and the
-panel had no way to ask. Lillecarl/pymux#64.
+panel had no way to ask. Lillecarl/pyterm#66.
 
 Every judge keeps `kitty_oracle.HISTORY` rows of scrollback, so a
 widening has rows to pull back. A judge with none would answer "blank"

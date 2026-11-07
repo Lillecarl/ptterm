@@ -8,7 +8,7 @@ scrolled to, what they selected -- belongs to the one who looks, and not
 to the widget. `get_app()` says who that is: the application that draws
 the frame, or whose key is being handled.
 
-Copy mode is the first thing kept this way. Lillecarl/pymux#470.
+Copy mode is the first thing kept this way. Lillecarl/pyterm#472.
 """
 
 from __future__ import annotations

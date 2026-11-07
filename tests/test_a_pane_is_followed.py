@@ -1,7 +1,7 @@
 """
 A pane tells its followers each time its picture changes, and a
 mirrored pane fed the frames of that picture shows the same page.
-Lillecarl/pymux#759.
+Lillecarl/pyterm#761.
 
 pyte proves a page converges from frames (`pyte/tests/test_grid.py`).
 This proves a pane tells a follower when to take one, that a mirror

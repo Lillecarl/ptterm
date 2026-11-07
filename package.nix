@@ -13,7 +13,7 @@
 # **This is a pyproject.nix builders package, not a nixpkgs one.** The three
 # dependencies are declared once, in `pyproject.toml`, and the renderer reads
 # them; an environment is a virtualenv rather than a PYTHONPATH.
-# Lillecarl/pymux#319.
+# Lillecarl/pyterm#321.
 {
   lib,
   stdenv,
@@ -37,7 +37,7 @@ let
         # Under nixpkgs this was the same shape; what changed is that a
         # lifted package would have kept the files and dropped this, which
         # is why ptterm had to convert before its consumers could stop
-        # taking the nixpkgs copy. Lillecarl/pymux#319.
+        # taking the nixpkgs copy. Lillecarl/pyterm#321.
         passthru = rendered.passthru // {
           inherit
             checks
@@ -88,7 +88,7 @@ let
 
   # The same, with pyte's Rust row and kernels beside it, which pymux
   # installs and ptterm does not. `checks.rs-unit` runs the unit suite on
-  # them. Lillecarl/pymux#470.
+  # them. Lillecarl/pyterm#472.
   rsTestEnv = mkVirtualEnv "ptterm-rs-test-env" {
     ptterm = [ "test" ];
     pyte-rs = [ ];
@@ -140,7 +140,7 @@ let
   # The walker adds its own directory to `sys.path` and imports the host
   # that pairs a screen with a program, so that file comes along. Alone,
   # the walker raised "No module named 'pty_host'" the moment pymux ran
-  # it, and the check has not run since. Lillecarl/pymux#149.
+  # it, and the check has not run since. Lillecarl/pyterm#151.
   vttestWalker = lib.fileset.toSource {
     root = ./tests;
     fileset = lib.fileset.unions [

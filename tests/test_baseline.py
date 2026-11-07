@@ -10,7 +10,7 @@ reads wrong rather than merely plain.
 mintty brought the three codes. libvterm reads them, and asks for them
 in `30state_pen.test`; WezTerm reads them as well. The panel says the
 same: `test_the_panel.py` holds the tally, and the four judges that
-cannot see a baseline abstain. Lillecarl/pymux#59.
+cannot see a baseline abstain. Lillecarl/pyterm#61.
 """
 
 from __future__ import annotations

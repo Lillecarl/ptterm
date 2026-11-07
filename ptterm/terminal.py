@@ -109,7 +109,7 @@ class Terminal:
     #: Copy mode belongs to an application, and a hot upgrade builds
     #: every application again, so the embedder saves each copy mode
     #: with what it serves. pymux saves it with the client.
-    #: Lillecarl/pymux#399, Lillecarl/pymux#470.
+    #: Lillecarl/pyterm#401, Lillecarl/pyterm#472.
     KEEP: ClassVar[dict[str, Keep]] = {
         "terminal_control": Keep.SAVED,
         "copy_views": Keep.DROPPED,
@@ -174,7 +174,7 @@ class Terminal:
         )
         # The wheel over a pane whose program wants no mouse enters
         # copy mode, and the control is what the wheel arrives at.
-        # Lillecarl/pymux#422.
+        # Lillecarl/pyterm#424.
         self.terminal_control.terminal = self
 
         self.terminal_window = TerminalWindow(
@@ -200,7 +200,7 @@ class Terminal:
 
             A container that answers with the window to draw never lays
             the other one out, so there is nothing to collapse and no
-            widths to divide. Lillecarl/pymux#221.
+            widths to divide. Lillecarl/pyterm#223.
 
             `enter_copy_mode` keeps the view before it focuses, so the
             window it focuses is in the tree by the time it asks for it.
@@ -324,7 +324,7 @@ class Terminal:
         lays its panes out itself, and a pane it does not draw -- one
         scrolled out of the view, or behind another in a stack -- still
         has a program in it that needs the size it will be shown at.
-        Lillecarl/pymux#224.
+        Lillecarl/pyterm#226.
 
         Nothing happens when the size has not changed: the process
         signals only a real change, and `Screen.resize` returns at

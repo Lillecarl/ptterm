@@ -1,5 +1,5 @@
 """
-What the panel does with DECCARA. Lillecarl/pymux#895.
+What the panel does with DECCARA. Lillecarl/pyterm#897.
 
 kitty is the one judge that implements it, and it draws what ptterm
 draws in every case here, blanks painted in a stream included. WezTerm,

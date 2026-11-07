@@ -7,7 +7,7 @@ the buffer as it stood when the person opened it, with their caret,
 their selection and their search over it, so a second person watching
 the same pane sees it live. tmux does the same: `window_copy_init`
 clones the pane's screen into `data->backing` and leaves the pane
-running. Lillecarl/pymux#470.
+running. Lillecarl/pyterm#472.
 
 `Terminal` holds the views, one for each application, in a
 `PerApplication`, and shows the one of the application that draws.
@@ -84,7 +84,7 @@ class CopyView:
 
         # Read-only with tmux's keys. With Helix's a person may edit the
         # copy before copying it, and leaving copy mode drops the edits.
-        # Lillecarl/pymux#751.
+        # Lillecarl/pyterm#753.
         self.buffer = _CopyBuffer(self, read_only=Condition(lambda: not self.helix_keys()))
         self.buffer.on_text_changed += self._follow_the_edit
         helix = _helix()
@@ -121,7 +121,7 @@ class CopyView:
         # the pane wrapped is one line here. The window wraps it again
         # at the width it has, which is what the pane did, so a person
         # sees the same shape and the copy holds no break that the
-        # program did not write. Lillecarl/pymux#135.
+        # program did not write. Lillecarl/pyterm#137.
         self.window = Window(
             content=self.control,
             wrap_lines=True,
@@ -134,7 +134,7 @@ class CopyView:
 
         #: The screen's count of writes when the copy was taken. Once it
         #: moves on, the corner says the copy is older than the pane.
-        #: Lillecarl/pymux#714.
+        #: Lillecarl/pyterm#716.
         self.writes = 0
 
         #: The lines of the document, and the ones of them that have
@@ -177,7 +177,7 @@ class CopyView:
         what they drive. pymux held four of them and read a flag that
         nothing had set since copy mode moved here, so `q`, `escape`
         and `v` did nothing at all and only ctrl-c left copy mode.
-        Lillecarl/pymux#133.
+        Lillecarl/pyterm#135.
         """
         kb = KeyBindings()
 
@@ -205,7 +205,7 @@ class CopyView:
             Both tables started a selection here, so a person with
             emacs keys paging through their history started one instead
             and every arrow key after that dragged it.
-            Lillecarl/pymux#379.
+            Lillecarl/pyterm#381.
 
             prompt_toolkit binds `C-Space` to the selection already.
             """
@@ -229,11 +229,11 @@ class CopyView:
             `copy-selection-and-cancel`; tmux itself leaves `y` unbound.
             prompt_toolkit has a `y` of its own, the vi yank operator,
             which fills the clipboard of the application and reaches no
-            terminal. Lillecarl/pymux#376.
+            terminal. Lillecarl/pyterm#378.
 
             `C-w` and `M-w` are the two tmux gives emacs keys, and they
             are the only copy keys such a person knows.
-            Lillecarl/pymux#379.
+            Lillecarl/pyterm#381.
             """
             self.copy_selection()
             self.terminal.exit_copy_mode()
@@ -246,7 +246,7 @@ class CopyView:
             **With vi keys `v` is vi's**, which ends the selection, and
             `V` is the one that selects lines. A person with vi keys
             reads `v` as the key they know, so this takes the other
-            half of the keyboard. Lillecarl/pymux#376.
+            half of the keyboard. Lillecarl/pyterm#378.
             """
             selection_state = event.current_buffer.selection_state
             if selection_state is None:
@@ -346,7 +346,7 @@ class CopyView:
         `reversed-pane selected` turns it back; class names accumulate
         left to right, and the window's style is prepended to every
         cell before a processor appends `class:selected`, so the rule
-        matches. Lillecarl/pymux#99.
+        matches. Lillecarl/pyterm#101.
         """
         return "reverse class:reversed-pane" if self.reverse_video else ""
 
@@ -363,7 +363,7 @@ class CopyView:
         keeps the program's bytes and lays a stand-in over them instead
         (`cell`). So a blank a program wrote keeps its column with
         `KeepWhitespace`; a cell that only draws as blank is not blank,
-        and the document keeps what it holds. Lillecarl/pymux#449.
+        and the document keeps what it holds. Lillecarl/pyterm#451.
         """
         style = style_of(char.appearance)
         if self.reverse_video and char.appearance.rendition.reverse:
@@ -382,7 +382,7 @@ class CopyView:
         prompt_toolkit supplies the stand-ins it knows -- `^A` for a
         control, an underlined blank for a non-breaking space -- and the
         one a cell of an image needs is drawn here. The pane does the
-        opposite: it blots such a cell out. Lillecarl/pymux#449.
+        opposite: it blots such a cell out. Lillecarl/pyterm#451.
         """
         style = self._cell_style(cell)
         char = cell.char
@@ -409,7 +409,7 @@ class CopyView:
         this widget does not own, so the embedder is handed the text.
         tmux does the same work in the same order -- the copy goes to
         a paste buffer of its own, and `set-clipboard` says whether it
-        also goes out. Lillecarl/pymux#376.
+        also goes out. Lillecarl/pyterm#378.
 
         The clipboard of the application is the paste buffer of the
         session, which `paste-buffer` reads. It is written second, so
@@ -477,7 +477,7 @@ class CopyView:
 
         A move past either end stops there. The arithmetic is local and
         not `Document.get_cursor_up_position`, on purpose: the caret
-        copy mode opens with stands one past the last character (#189),
+        copy mode opens with stands one past the last character (#191),
         and from there the document answers with a negative position,
         which the buffer then reads back clamped to nothing -- the view
         froze at the top of the history and every wheel after it moved
@@ -520,7 +520,7 @@ class CopyView:
 
         tmux's `next-prompt` and `previous-prompt`
         (`window_copy_cursor_prompt`), which go to the start of the line
-        too. Lillecarl/pymux#500.
+        too. Lillecarl/pyterm#502.
         """
         rows = self.page.data_buffer
         document = self.buffer.document
@@ -543,7 +543,7 @@ class CopyView:
         It is a method of its own because it is the work: entering copy
         mode is this and a focus, and this is the part that grows with
         the history. `tests/measure_instructions.py` measures it under
-        "history <depth> (copy)". Lillecarl/pymux#131.
+        "history <depth> (copy)". Lillecarl/pyterm#133.
 
         **The copy takes the rows of the screen and shares the rows of
         the history.** The program goes on writing, and it writes into a
@@ -564,7 +564,7 @@ class CopyView:
         pane, and a person copying wants the line. So a search crosses
         a wrap, a selection of one line is one line, and the width the
         history was laid out at does not reach the document at all.
-        Lillecarl/pymux#135.
+        Lillecarl/pyterm#137.
         """
         screen = self.terminal.screen
         live = screen.page.data_buffer
@@ -573,7 +573,7 @@ class CopyView:
         # same screen stopped. `_style` paints the reverse over the
         # window, the way `TerminalWindow` does for the pane, and a cell that
         # "SGR 7" already reversed turns the other way here.
-        # Lillecarl/pymux#96.
+        # Lillecarl/pyterm#98.
         self.reverse_video = screen.has_reverse_video
         self.writes = screen.writes
 
@@ -630,7 +630,7 @@ class CopyView:
 
         **Not over edits.** A new copy would drop them without a word, so
         it is refused, and the corner says to undo them or copy first.
-        Lillecarl/pymux#751.
+        Lillecarl/pyterm#753.
         """
         if self.edited:
             self.refresh_refused = True
@@ -662,7 +662,7 @@ class CopyView:
         prompt happens to be and is nowhere in particular for a program
         that draws its own screen. The window follows the cursor, so on
         a full screen program it would scroll away from the screen as
-        copy mode opened. Lillecarl/pymux#189.
+        copy mode opened. Lillecarl/pyterm#191.
 
         The rows of the buffer and the offsets in the document are two
         countings of the same cells, and `Page.offset_in_line` is the
@@ -696,12 +696,12 @@ class CopyView:
         shows a screenful, and the history behind it can be fifty
         thousand rows: styling all of them cost 22,924,756 bytecode
         instructions at that depth, and a person waited for it after
-        pressing a key. Lillecarl/pymux#131.
+        pressing a key. Lillecarl/pyterm#133.
 
         The answer is kept, because the copy never changes. An edit
         changes the document over it: a line the edit did not touch is
         still a line of the copy, and one it did is plain text.
-        Lillecarl/pymux#751.
+        Lillecarl/pyterm#753.
         """
         if self._origin is not None:
             source = self._origin[number] if 0 <= number < len(self._origin) else None
@@ -782,7 +782,7 @@ class _CopyBuffer(Buffer):
     under the caret, so a selection to the end of a line took the break
     with it: the copy carried a line ending nobody selected, and the
     window drew one selected cell at the start of the row under it.
-    Lillecarl/pymux#377.
+    Lillecarl/pyterm#379.
 
     vi does not allow the caret there, and neither does tmux:
     `window_copy_cursor_limit` returns `grid_line_limit`, the last
@@ -793,7 +793,7 @@ class _CopyBuffer(Buffer):
     not.** Copy mode opens where the cursor of the pane stands, which is
     where the next character goes and is past the last character of a
     shell prompt. `CopyView.freeze` sets the whole document, which does
-    not come through here. Lillecarl/pymux#189.
+    not come through here. Lillecarl/pyterm#191.
     """
 
     def __init__(self, view: CopyView, **kw) -> None:
@@ -826,7 +826,7 @@ class _CopyBuffer(Buffer):
 
 def _view() -> CopyView | None:
     # Not `current_buffer`, which builds a Buffer whenever a pane has
-    # the focus, and every key in a pane asks this. Lillecarl/pymux#773.
+    # the focus, and every key in a pane asks this. Lillecarl/pyterm#775.
     control = get_app().layout.current_control
     return control.view if isinstance(control, _CopyBufferControl) else None
 
@@ -863,7 +863,7 @@ def copy_mode_key_bindings() -> DynamicKeyBindings:
     prompt_toolkit's own vi and emacs keys, the ones every application
     holds, again, so that in copy mode each tells the terminal what it
     ran through `Terminal.on_copy_command`. Nothing public says which
-    handler a key reached. Lillecarl/pymux#773.
+    handler a key reached. Lillecarl/pyterm#775.
 
     **An embedder puts these under its own bindings**, where the
     application's copies rank, and so shadows those with the same
@@ -930,7 +930,7 @@ def _reported(binding: Binding) -> KeyHandlerCallable:
 class _CopyHelix(HelixBindings):
     """
     Helix's keys in copy mode, in normal mode on entry. The copy can be
-    edited before it is copied. Lillecarl/pymux#751.
+    edited before it is copied. Lillecarl/pyterm#753.
 
     **One for every copy view.** It binds some four hundred keys, and
     building them on each entry into copy mode would cost that entry,
@@ -1035,7 +1035,7 @@ class _HighlightSelectionWithoutTheWrap(HighlightSelectionProcessor):
     window wraps, so on a line that already fills the pane that space
     is one cell too many: the line grows a second, blank row, and a vi
     line selection over full-width lines drew an empty line under
-    each. Lillecarl/pymux#483.
+    each. Lillecarl/pyterm#485.
     """
 
     def apply_transformation(self, transformation_input) -> Transformation:

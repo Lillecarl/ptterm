@@ -484,7 +484,7 @@ def without_a_baseline(cell: Cell) -> Cell:
     panel hunt reads it through the projection of each judge; the hunt
     against kitty alone reads it through `differences`, which is right
     below. A drop that only one of them knows about makes the other
-    fail at random. Lillecarl/pymux#105.
+    fail at random. Lillecarl/pyterm#107.
     """
     return cell._replace(baseline=0)
 

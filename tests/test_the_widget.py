@@ -24,7 +24,7 @@ answer is what prompt_toolkit draws and not what this file thinks it
 would draw. A scroll that prompt_toolkit clamps is a scroll this file
 sees clamped.
 
-Lillecarl/pymux#84 asked for this.
+Lillecarl/pyterm#86 asked for this.
 """
 
 from __future__ import annotations
@@ -212,7 +212,7 @@ def clicked(
 
 
 def test_a_click_below_the_written_rows_reaches_the_program_at_its_cell():
-    "Through the window, not the control: the window maps the click. Lillecarl/pymux#654."
+    "Through the window, not the control: the window maps the click. Lillecarl/pyterm#656."
     written = []
     terminal = Terminal(backend=_NoBackend())
     control = terminal.terminal_control
@@ -248,7 +248,7 @@ def test_a_click_below_the_written_rows_reaches_the_program_at_its_cell():
 # -r`, and then the keys, a paste and the mouse all have to stop here:
 # the widget holds the only three writes a person reaches, and it is
 # asked once per event so an embedder with two people answers for
-# whichever of them this one came from. Lillecarl/pymux#467.
+# whichever of them this one came from. Lillecarl/pyterm#469.
 
 
 def _written_while(may_type, *, paste: str | None = None) -> list:
@@ -311,7 +311,7 @@ def test_a_person_who_may_not_type_still_reads_the_history():
     The wheel over a pane whose program wants no mouse opens copy mode,
     and copy mode reads a copy for this application alone: it drives
     nothing, so a person who may not type may still scroll back.
-    Lillecarl/pymux#470.
+    Lillecarl/pyterm#472.
     """
     assert wheeled("", may_type=lambda: False) == ("", True)
 
@@ -350,7 +350,7 @@ def test_a_person_who_may_not_type_sends_no_wheel_report():
 
 
 # ----------------------------------------------------------------------
-# The wheel on the alternate screen is arrows. Lillecarl/pymux#422.
+# The wheel on the alternate screen is arrows. Lillecarl/pyterm#424.
 
 ALTERNATE = set_mode(PrivateMode.ALTERNATE_SCREEN_WITH_CURSOR)
 STEP = ARROWS_PER_WHEEL_STEP
@@ -481,7 +481,7 @@ async def test_copy_mode_a_line_selection_adds_no_row():
     """
     A vi line selection reaches the newline, and a processor that draws
     the newline as a cell grows the line past the pane. A full-width
-    line grew a blank row under it. Lillecarl/pymux#483.
+    line grew a blank row under it. Lillecarl/pyterm#485.
     """
     columns, lines = 8, 6
     terminal = Terminal(backend=_NoBackend())
@@ -538,7 +538,7 @@ def test_the_sgr_mouse_report_reaches_the_program():
 
 
 def test_a_right_click_with_ctrl_reaches_the_program_as_one():
-    "Lillecarl/pymux#900."
+    "Lillecarl/pyterm#902."
     sgr = set_mode(PrivateMode.MOUSE_REPORTING) + set_mode(PrivateMode.SGR_MOUSE)
     ctrl = frozenset({MouseModifier.CONTROL})
     events = [(MouseEventType.MOUSE_DOWN, MouseButton.RIGHT, ctrl), (MouseEventType.MOUSE_UP, MouseButton.RIGHT, ctrl)]
@@ -546,7 +546,7 @@ def test_a_right_click_with_ctrl_reaches_the_program_as_one():
 
 
 def test_a_hover_reaches_a_program_once_per_cell():
-    "kitty sends a move only when the cell changes, in a protocol of cells. Lillecarl/pymux#900."
+    "kitty sends a move only when the cell changes, in a protocol of cells. Lillecarl/pyterm#902."
     modes = set_mode(PrivateMode.ANY_EVENT_MOUSE) + set_mode(PrivateMode.SGR_MOUSE)
     move = MouseEventType.MOUSE_MOVE, MouseButton.NONE, frozenset()
     events = [(*move, Point(x=2, y=1)), (*move, Point(x=2, y=1)), (*move, Point(x=3, y=1))]
@@ -561,13 +561,13 @@ def test_no_move_reaches_a_program_that_asked_for_presses():
 
 
 def test_a_pixel_report_counts_the_pixel_in_its_cell():
-    "A pane's cell is 10x20 until a client says otherwise. Lillecarl/pymux#900."
+    "A pane's cell is 10x20 until a client says otherwise. Lillecarl/pyterm#902."
     modes = set_mode(PrivateMode.MOUSE_REPORTING) + set_mode(PrivateMode.SGR_PIXEL_MOUSE)
     assert clicked(modes, fraction=(0.3, 0.75)) == b"\x1b[<0;23;35M"
 
 
 def test_a_pointer_that_leaves_the_pane_tells_a_program_that_counts_pixels():
-    "kitty's leave report, at the last place the pointer was. Lillecarl/pymux#899."
+    "kitty's leave report, at the last place the pointer was. Lillecarl/pyterm#901."
     written = []
     control = TerminalControl(backend=_NoBackend())
     control.create_content(12, 8)
@@ -616,7 +616,7 @@ def test_the_old_mouse_report_writes_one_byte_for_a_column_over_128():
     Column 95 becomes `chr(128)`, which UTF-8 writes as two bytes.
 
     The program then read the first of them as the column and the
-    second as the row. Lillecarl/pymux#139.
+    second as the row. Lillecarl/pyterm#141.
     """
     answer = clicked(_X10, columns=300, x=95)
     assert answer == b"\x1b[M \x80\x22"
@@ -718,7 +718,7 @@ def test_the_cursor_is_drawn_where_a_program_is_told_it_stands():
     ids=["family", "flag", "skin-tone"],
 )
 def test_a_grapheme_cluster_draws_in_the_one_cell_the_screen_gave_it(cluster):
-    "The text after it stands where the screen put it. Lillecarl/pymux#798."
+    "The text after it stands where the screen put it. Lillecarl/pyterm#800."
     screen = rendered(cluster + "xy")
     row = screen.data_buffer[0]
     assert [row[x].char for x in range(4)] == [cluster, "", "x", "y"]
@@ -802,7 +802,7 @@ def test_a_no_break_space_reaches_the_screen_as_it_stands():
 # cannot take that guess: a space a program wrote is content, and a
 # terminal that reads its own screen back has to find the column.
 # `KeepWhitespace` on the cell is how the widget says so.
-# Lillecarl/pymux#61.
+# Lillecarl/pyterm#63.
 
 
 def keeps_a_blank_at(data: str, lines: int = 8, columns: int = 12):
@@ -856,7 +856,7 @@ def test_the_first_render_sizes_the_pane_before_it_starts_the_program():
 
 # ----------------------------------------------------------------------
 # The DEC line attributes, which become kitty's text sizing. The widget
-# draws each block's text at one size in its cells. Lillecarl/pymux#890.
+# draws each block's text at one size in its cells. Lillecarl/pyterm#892.
 
 
 @pytest.mark.parametrize(
@@ -873,7 +873,7 @@ def test_the_widget_draws_a_line_at_one_size(sequence, row):
 
 
 # ----------------------------------------------------------------------
-# A click focuses, and the embedder selects. Lillecarl/pymux#527.
+# A click focuses, and the embedder selects. Lillecarl/pyterm#529.
 
 
 def _two_panes():

@@ -4,7 +4,7 @@ Where a pane was drawn is a fact about each application that drew it.
 pymux puts one terminal window in the layout of every client, and each
 client draws it at its own place: one with the status bar on top, one
 zoomed. URL mode and the link hints ask where a row of the page landed,
-and they ask for the client in front of them. Lillecarl/pymux#713.
+and they ask for the client in front of them. Lillecarl/pyterm#715.
 """
 
 from __future__ import annotations
