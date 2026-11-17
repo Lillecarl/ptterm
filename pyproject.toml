@@ -45,6 +45,8 @@ test = [
     "hypothesis",
     # `count_instructions`, which pymux counts with too.
     "pyterm-pytest",
+    # Deadlines in fair time. Lillecarl/pyterm#1008.
+    "fairclock",
 ]
 
 [project.urls]
@@ -361,4 +363,4 @@ select = [
 # sibling sorts one way in the dev shell and the other in the
 # sandbox.
 known-first-party = ["ptterm"]
-known-third-party = ["prompt_toolkit", "pyte"]
+known-third-party = ["fairclock", "prompt_toolkit", "pyte"]

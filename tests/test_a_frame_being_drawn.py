@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import anyio
 import pytest
+from fairclock import anyio as fair_anyio
 from no_backend import NoBackend
 from pyte.modes import PrivateMode
 from pyte.sequences.csi import reset_mode, set_mode
@@ -96,7 +97,7 @@ async def test_a_program_that_never_ends_the_frame_is_drawn_after_a_while(monkey
         control._task_group = task_group
         control.feed_output(BEGIN + "stuck")
         assert asked == []
-        with anyio.fail_after(5):
+        with fair_anyio.fail_after(5):
             while not asked:
                 await anyio.sleep(0.01)
     assert first_row(control) == "stuck"
@@ -105,7 +106,7 @@ async def test_a_program_that_never_ends_the_frame_is_drawn_after_a_while(monkey
 async def test_a_frame_that_ends_in_time_leaves_no_timer_behind(monkeypatch):
     monkeypatch.setattr(ptterm.control, "FRAME_HELD_AT_MOST", 0.05)
     control, asked = a_control()
-    with anyio.fail_after(5):
+    with fair_anyio.fail_after(5):
         async with anyio.create_task_group() as task_group:
             control._task_group = task_group
             control.feed_output(BEGIN + "quick")

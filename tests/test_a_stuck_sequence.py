@@ -18,6 +18,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 import anyio
+from fairclock import anyio as fair_anyio
 from no_backend import NoBackend
 
 from ptterm.control import TerminalControl
@@ -59,7 +60,7 @@ async def running(script: str) -> AsyncIterator[TerminalControl]:
 
 
 async def until(condition) -> None:
-    with anyio.fail_after(5):
+    with fair_anyio.fail_after(5):
         while not condition():
             await anyio.sleep(0.01)
 
