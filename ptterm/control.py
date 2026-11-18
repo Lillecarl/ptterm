@@ -218,6 +218,7 @@ class TerminalControl(UIControl):
         "key_profile_func": Keep.REBUILT,
         "on_content_changed": Keep.REBUILT,
         "on_mouse_focus": Keep.REBUILT,
+        "mouse_first": Keep.REBUILT,
         "pointer_fraction": Keep.REBUILT,
         "draws_extra_cursors": Keep.REBUILT,
         "draws_program_palette": Keep.REBUILT,
@@ -308,6 +309,11 @@ class TerminalControl(UIControl):
         #: means where this pane sits. None (a standalone widget, or
         #: an embedder with one pane) does nothing.
         self.on_mouse_focus: Callable[[], None] | None = None
+
+        #: Asked first with each mouse event over this pane: True means
+        #: the embedder took it, and `handle_mouse` does not run. pymux
+        #: runs a person's binding on a mouse key here.
+        self.mouse_first: Callable[[MouseEvent], bool] | None = None
 
         #: Where in its cell the mouse event being handled is, as
         #: fractions across and down, for a program that asked for
@@ -1195,6 +1201,11 @@ class TerminalControl(UIControl):
         yield self.on_content_changed
 
     def mouse_handler(self, mouse_event: MouseEvent) -> object:
+        if self.mouse_first is not None and self.mouse_first(mouse_event):
+            return None
+        return self.handle_mouse(mouse_event)
+
+    def handle_mouse(self, mouse_event: MouseEvent) -> object:
         """
         Handle mouse events in a pane. A click in a non-active pane will select
         it. A click in active pane will send the mouse event to the application
