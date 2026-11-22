@@ -14,12 +14,17 @@ from __future__ import annotations
 import json
 
 from no_backend import NoBackend
+from prompt_toolkit.application.current import set_app
+from prompt_toolkit.application.dummy import DummyApplication
+from prompt_toolkit.layout.mouse_handlers import MouseHandlers
+from prompt_toolkit.layout.screen import Screen, WritePosition
 from pyte.grid import GridWriter
 from pyte.keys.events import DEFAULT_KEY_PROFILE
 from pyte.mouse import MouseAction, MouseInput
 
 from ptterm.control import TerminalControl
 from ptterm.terminal import Terminal
+from ptterm.window import TerminalWindow
 
 LINES = 6
 COLUMNS = 30
@@ -99,6 +104,29 @@ def test_a_half_drawn_frame_is_not_sent():
     assert "half" not in picture(mirror)[0][0]
     original.feed_output(" whole\x1b[?2026l")
     assert picture(mirror) == picture(original)
+
+
+def first_row(window: TerminalWindow, width: int) -> str:
+    "The top row a window of `width` columns draws."
+    screen = Screen(default_char=None, initial_width=width, initial_height=LINES)
+    with set_app(DummyApplication()):
+        window.write_to_screen(
+            screen, MouseHandlers(), WritePosition(xpos=0, ypos=0, width=width, height=LINES), "", False, None
+        )
+    return "".join(screen.data_buffer[0][x].char for x in range(width))
+
+
+def test_a_mirror_narrower_for_one_frame_keeps_its_first_column():
+    "The person's window shrank a column before the owner's pane did. Lillecarl/pyterm#1081."
+    original = TerminalControl(backend=NoBackend())
+    mirror = a_mirror_of(original)
+    original.create_content(COLUMNS, LINES)
+    original.feed_output("A" + "x" * (COLUMNS - 2) + "Z")
+    window = TerminalWindow(terminal_control=mirror, content=mirror, wrap_lines=False)
+
+    assert first_row(window, COLUMNS - 1).startswith("A")
+    original.feed_output("\x1b[1;5H")
+    assert first_row(window, COLUMNS).startswith("A")
 
 
 def test_a_mirror_takes_its_size_from_the_owner_and_answers_nothing():

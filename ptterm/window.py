@@ -77,6 +77,18 @@ class TerminalWindow(Window):
 
         super().write_to_screen(*a, **kw)
 
+    def _scroll(self, *a, **kw) -> None:
+        """
+        A pane starts at its first column, wherever the cursor is.
+
+        prompt_toolkit scrolls right to show a cursor past the right
+        edge, and never back while the cursor stays right of the first
+        column. A mirror one column wider than its window for one frame
+        hid its first column for good. Lillecarl/pyterm#1081.
+        """
+        super()._scroll(*a, **kw)
+        self.horizontal_scroll = 0
+
     def _write_to_screen_at_index(self, screen, mouse_handlers, write_position, parent_style, erase_bg) -> None:
         """
         A click goes to the control at the cell it was on.
